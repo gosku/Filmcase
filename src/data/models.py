@@ -200,7 +200,16 @@ class FujifilmRecipe(models.Model):
         return f"#{self.id} {self.name}"  # type: ignore[attr-defined]
 
 
+class ImageQuerySet(models.QuerySet):
+    def without_recipe(self) -> "ImageQuerySet":
+        return self.filter(fujifilm_recipe__isnull=True)
+
+    def with_kelvin_white_balance(self) -> "ImageQuerySet":
+        return self.filter(fujifilm_exif__white_balance="Kelvin")
+
+
 class Image(models.Model):
+    objects = models.Manager.from_queryset(ImageQuerySet)()
     filename = models.CharField(max_length=255)
     filepath = models.CharField(max_length=1024, unique=True)
 
@@ -250,11 +259,11 @@ class Image(models.Model):
 
     @classmethod
     def create(cls, **fields) -> "Image":
-        return cls.objects.create(**fields)  # type: ignore[attr-defined]
+        return cls.objects.create(**fields)
 
     @classmethod
     def update_or_create(cls, *, filepath: str, **defaults) -> tuple["Image", bool]:
-        return cls.objects.update_or_create(filepath=filepath, defaults=defaults)  # type: ignore[attr-defined]
+        return cls.objects.update_or_create(filepath=filepath, defaults=defaults)
 
     # Mutators
 

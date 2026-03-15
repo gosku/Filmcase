@@ -8,7 +8,7 @@ class Command(BaseCommand):
     help = "Find images without a fujifilm_recipe and reprocess them to create one."
 
     def handle(self, *args, **options):
-        images = Image.objects.filter(fujifilm_recipe__isnull=True)
+        images = Image.objects.without_recipe()
         total = images.count()
         self.stdout.write(f"Found {total} image(s) without a recipe.")
 

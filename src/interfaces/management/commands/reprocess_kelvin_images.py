@@ -8,7 +8,7 @@ class Command(BaseCommand):
     help = "Reprocess all images linked to a FujifilmExif with white_balance='Kelvin'."
 
     def handle(self, *args, **options):
-        images = Image.objects.filter(fujifilm_exif__white_balance="Kelvin").select_related("fujifilm_exif")
+        images = Image.objects.with_kelvin_white_balance().select_related("fujifilm_exif")
         total = images.count()
         self.stdout.write(f"Found {total} images with Kelvin white balance. Reprocessing…")
 
