@@ -81,7 +81,7 @@ def process_image(*, image_path: str) -> Image:
     )
 
     event_params = {
-        "recipe_id": image.pk,
+        "image_id": image.pk,
         "filename": filename,
         "film_simulation": fujifilm_exif.film_simulation,
         "taken_at": image.taken_at.isoformat() if image.taken_at else "",

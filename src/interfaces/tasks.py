@@ -17,6 +17,6 @@ def process_image_task(self, *, image_path: str, **kwargs) -> str:
         return f"Skipped {image_path} (no film simulation)"
     events.publish_event(
         event_type=events.TASK_IMAGE_COMPLETED,
-        params={"image_path": image_path, "task_id": self.request.id, "recipe_id": recipe.pk},
+        params={"image_path": image_path, "task_id": self.request.id, "image_id": recipe.pk},
     )
     return f"Processed {recipe.filename}"
