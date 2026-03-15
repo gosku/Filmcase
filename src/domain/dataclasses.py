@@ -1,7 +1,7 @@
-from dataclasses import dataclass
+import attrs
 
 
-@dataclass
+@attrs.frozen
 class FujifilmRecipeData:
     film_simulation: str
     dynamic_range: str
@@ -24,7 +24,7 @@ class FujifilmRecipeData:
     name: str = ""
 
 
-@dataclass
+@attrs.frozen
 class ImageExifData:
     # Standard (non-FujiFilm group) fields
     camera_make: str = ""

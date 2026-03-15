@@ -1,6 +1,6 @@
 from django.db import models
 
-RECIPE_FIELDS = [
+RECIPE_FIELDS = (
     "film_simulation",
     "dynamic_range",
     "dynamic_range_setting",
@@ -64,7 +64,7 @@ RECIPE_FIELDS = [
     "scene_recognition",
     "bw_adjustment",
     "bw_magenta_green",
-]
+)
 
 
 class FujifilmExif(models.Model):

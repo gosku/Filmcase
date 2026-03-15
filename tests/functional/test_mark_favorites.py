@@ -7,7 +7,7 @@ import pytest
 from django.core.management import call_command
 
 from src.data.models import Image
-from src.domain.operations import NoFilmSimulationError
+from src.domain import operations
 
 FIXTURES_DIR = str(Path(__file__).resolve().parent.parent / "fixtures" / "images")
 
@@ -38,7 +38,7 @@ class TestMarkFavoritesCommand:
         fixture_image = Path(FIXTURES_DIR) / "XS107114.JPG"
         shutil.copy(fixture_image, tmp_path / fixture_image.name)
 
-        with patch("src.interfaces.management.commands.mark_favorites.mark_image_as_favorite", side_effect=NoFilmSimulationError("dummy")):
+        with patch("src.domain.operations.mark_image_as_favorite", side_effect=operations.NoFilmSimulationError("dummy")):
             call_command("mark_favorites", str(tmp_path))
 
         captured = capsys.readouterr()

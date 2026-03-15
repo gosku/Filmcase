@@ -155,7 +155,7 @@ class TestProcessImageNoFilmSimulation:
         NoFilmSimulationError rather than an unhandled KeyError."""
         fujifilm_exif_without_film_sim = ImageExifData(camera_make="FUJIFILM", film_simulation="", color="")
 
-        with patch("src.domain.operations.read_image_exif", return_value=fujifilm_exif_without_film_sim):
+        with patch("src.domain.queries.read_image_exif", return_value=fujifilm_exif_without_film_sim):
             with pytest.raises(NoFilmSimulationError):
                 process_image("any/path.jpg")
 

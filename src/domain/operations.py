@@ -1,17 +1,8 @@
-import dataclasses
+import attrs
 import os
 
 from src.data.models import FujifilmExif, FujifilmRecipe, Image, RECIPE_FIELDS
-from src.domain import events
-from src.domain.queries import (
-    AmbiguousImageMatch,
-    ImageNotFound,
-    collect_image_paths,
-    exif_to_recipe,
-    find_image_for_path,
-    parse_exif_date,
-    read_image_exif,
-)
+from src.domain import events, queries
 
 
 def _parse_numeric(s: str) -> int | None:
@@ -40,23 +31,23 @@ def process_image(image_path: str) -> Image:
     Raises:
         NoFilmSimulationError: If the image has no film simulation EXIF data.
     """
-    metadata = read_image_exif(image_path)
+    metadata = queries.read_image_exif(image_path)
 
     if metadata.camera_make.upper() != "FUJIFILM":
         raise NoFilmSimulationError(image_path)
     filename = os.path.basename(image_path)
 
     # Convert date string to timezone-aware datetime
-    date_taken = parse_exif_date(metadata.date_taken) if metadata.date_taken else None
+    date_taken = queries.parse_exif_date(metadata.date_taken) if metadata.date_taken else None
 
-    exif_fields = dataclasses.asdict(metadata)
+    exif_fields = attrs.asdict(metadata)
     exif_fields.pop("date_taken")
     recipe_fields = {field: exif_fields.pop(field) for field in RECIPE_FIELDS}
 
     fujifilm_exif = FujifilmExif.get_or_create(**recipe_fields)
 
     try:
-        recipe_data = exif_to_recipe(metadata)
+        recipe_data = queries.exif_to_recipe(metadata)
     except KeyError:
         raise NoFilmSimulationError(image_path)
     fujifilm_recipe = FujifilmRecipe.get_or_create(
@@ -108,7 +99,7 @@ def process_images_in_folder(folder: str) -> tuple[int, list[str]]:
     Returns:
         A tuple of (total_found, skipped_paths).
     """
-    paths = collect_image_paths(folder)
+    paths = queries.collect_image_paths(folder)
     skipped = []
     for path in paths:
         try:
@@ -145,8 +136,8 @@ def mark_image_as_favorite(image_path: str) -> Image:
         NoFilmSimulationError: If the image has no Fujifilm metadata.
     """
     try:
-        image = find_image_for_path(image_path)
-    except (ImageNotFound, AmbiguousImageMatch):
+        image = queries.find_image_for_path(image_path)
+    except (queries.ImageNotFound, queries.AmbiguousImageMatch):
         image = process_image(image_path)
     image.set_as_favorite()
     return image

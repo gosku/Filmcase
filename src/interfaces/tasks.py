@@ -1,7 +1,6 @@
 from celery import shared_task
 
-from src.domain import events
-from src.domain.operations import NoFilmSimulationError, process_image
+from src.domain import events, operations
 
 
 @shared_task(name="domain.process_image", bind=True)
@@ -12,8 +11,8 @@ def process_image_task(self, image_path: str) -> str:
         params={"image_path": image_path, "task_id": self.request.id},
     )
     try:
-        recipe = process_image(image_path)
-    except NoFilmSimulationError:
+        recipe = operations.process_image(image_path)
+    except operations.NoFilmSimulationError:
         return f"Skipped {image_path} (no film simulation)"
     events.publish_event(
         event_type=events.TASK_IMAGE_COMPLETED,
