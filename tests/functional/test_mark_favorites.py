@@ -38,7 +38,7 @@ class TestMarkFavoritesCommand:
         fixture_image = Path(FIXTURES_DIR) / "XS107114.JPG"
         shutil.copy(fixture_image, tmp_path / fixture_image.name)
 
-        with patch("src.interfaces.management.commands.mark_favorites.mark_image_as_favorite", side_effect=operations.NoFilmSimulationError("dummy")):
+        with patch("src.application.usecases.images.favorite_images.mark_image_as_favorite", side_effect=operations.NoFilmSimulationError("dummy")):
             call_command("mark_favorites", str(tmp_path))
 
         captured = capsys.readouterr()

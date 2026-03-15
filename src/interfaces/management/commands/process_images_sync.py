@@ -1,6 +1,6 @@
 from django.core.management.base import BaseCommand
 
-from src.application.usecases.images.process_images_in_folder import process_images_in_folder
+from src.application.usecases.images import process_images
 
 
 class Command(BaseCommand):
@@ -13,7 +13,7 @@ class Command(BaseCommand):
         folder = options["folder"]
         self.stdout.write(f"Scanning {folder} for JPG files…")
 
-        total, skipped = process_images_in_folder(folder=folder)
+        total, skipped = process_images.process_images_in_folder(folder=folder)
 
         for path in skipped:
             self.stderr.write(f"Skipped {path} (no film simulation)")
