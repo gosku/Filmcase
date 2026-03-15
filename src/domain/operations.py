@@ -3,7 +3,14 @@ import os
 
 from src.data.models import FujifilmExif, FujifilmRecipe, Image, RECIPE_FIELDS
 from src.domain import events
-from src.domain.queries import exif_to_recipe, parse_exif_date, read_image_exif
+from src.domain.queries import (
+    AmbiguousImageMatch,
+    ImageNotFound,
+    exif_to_recipe,
+    find_image_for_path,
+    parse_exif_date,
+    read_image_exif,
+)
 
 
 def _parse_numeric(s: str) -> int | None:
@@ -91,4 +98,21 @@ def process_image(image_path: str) -> Image:
         event_type=events.RECIPE_IMAGE_CREATED if created else events.RECIPE_IMAGE_UPDATED,
         params=event_params,
     )
+    return image
+
+
+def mark_image_as_favorite(image_path: str) -> Image:
+    """Find or process the Image for *image_path* and mark it as a favourite.
+
+    If the image is not yet in the database, or the match is ambiguous,
+    it is first processed and stored via process_image().
+
+    Raises:
+        NoFilmSimulationError: If the image has no Fujifilm metadata.
+    """
+    try:
+        image = find_image_for_path(image_path)
+    except (ImageNotFound, AmbiguousImageMatch):
+        image = process_image(image_path)
+    image.set_as_favorite()
     return image

@@ -1,9 +1,7 @@
-from pathlib import Path
-
 from django.core.management.base import BaseCommand
 
-from src.domain.operations import NoFilmSimulationError, process_image
-from src.domain.queries import AmbiguousImageMatch, ImageNotFound, collect_image_paths, find_image_for_path
+from src.domain.operations import NoFilmSimulationError, mark_image_as_favorite
+from src.domain.queries import collect_image_paths
 
 
 class Command(BaseCommand):
@@ -23,32 +21,13 @@ class Command(BaseCommand):
         not_found = 0
 
         for path in paths:
-            filename = Path(path).name
+            filename = path.split("/")[-1]
             try:
-                image = find_image_for_path(path)
-            except ImageNotFound:
-                try:
-                    image = process_image(path)
-                    image.set_as_favorite()
-                    self.stdout.write(f"Added and marked as favorite: {filename}")
-                    marked += 1
-                except NoFilmSimulationError:
-                    self.stderr.write(f"Skipped {filename}: not in DB and no Fujifilm metadata.")
-                    not_found += 1
-                continue
-            except AmbiguousImageMatch:
-                try:
-                    image = process_image(path)
-                    image.set_as_favorite()
-                    self.stdout.write(f"Added and marked as favorite: {filename}")
-                    marked += 1
-                except NoFilmSimulationError:
-                    self.stderr.write(f"Skipped {filename}: ambiguous in DB and no Fujifilm metadata.")
-                    not_found += 1
-                continue
-
-            image.set_as_favorite()
-            self.stdout.write(f"Marked as favorite: {filename}")
-            marked += 1
+                mark_image_as_favorite(path)
+                self.stdout.write(f"Marked as favorite: {filename}")
+                marked += 1
+            except NoFilmSimulationError:
+                self.stderr.write(f"Skipped {filename}: no Fujifilm metadata.")
+                not_found += 1
 
         self.stdout.write(self.style.SUCCESS(f"Done. {marked} marked as favorite, {not_found} not found."))
