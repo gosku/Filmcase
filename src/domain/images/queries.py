@@ -25,6 +25,9 @@ EXIFTOOL_FIELD_MAP = {
     "ISO": "iso",
     "Exposure Compensation": "exposure_compensation",
     "Date/Time Original": "date_taken",
+    "F Number": "aperture",
+    "Exposure Time": "shutter_speed",
+    "Focal Length": "focal_length",
 
     # Shooting settings (FujiFilm group, stored on Image)
     "Quality": "quality",
@@ -131,6 +134,9 @@ _G1_PREFIX_RE = re.compile(r"^\[([^\]]+)\]\s+")
 _DEFAULT_GROUP = "FujiFilm"
 _GROUP_OVERRIDES = {
     "date_taken": "Composite",
+    "aperture": "ExifIFD",
+    "shutter_speed": "ExifIFD",
+    "focal_length": "ExifIFD",
 }
 
 
@@ -193,6 +199,8 @@ def read_image_exif(*, image_path: str) -> ImageExifData:
         metadata["white_balance_fine_tune"] = _normalize_wb_fine_tune(
             raw=metadata["white_balance_fine_tune"]
         )
+    if "shutter_speed" in metadata:
+        metadata["shutter_speed"] = metadata["shutter_speed"] + "s"
     return ImageExifData(**metadata)
 
 

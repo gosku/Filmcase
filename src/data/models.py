@@ -231,6 +231,9 @@ class Image(models.Model):
     # Exposure info
     iso = models.CharField(max_length=50, blank=True, default="")
     exposure_compensation = models.CharField(max_length=50, blank=True, default="")
+    aperture = models.CharField(max_length=50, blank=True, default="")
+    shutter_speed = models.CharField(max_length=50, blank=True, default="")
+    focal_length = models.CharField(max_length=50, blank=True, default="")
 
     # Date
     taken_at = models.DateTimeField(null=True, blank=True)

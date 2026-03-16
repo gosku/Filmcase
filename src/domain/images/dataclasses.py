@@ -32,6 +32,9 @@ class ImageExifData:
     iso: str = ""
     exposure_compensation: str = ""
     date_taken: str = ""
+    aperture: str = ""
+    shutter_speed: str = ""
+    focal_length: str = ""
 
     # Shooting settings (FujiFilm group, stored on Image)
     quality: str = ""
