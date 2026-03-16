@@ -20,7 +20,7 @@ class TestGenerateThumbnailsCommand:
             call_command("generate_thumbnails")
 
         captured = capsys.readouterr()
-        assert "generated=1" in captured.out
+        assert "enqueued=1" in captured.out
         assert "already_cached=0" in captured.out
 
     def test_thumbnail_file_is_created_on_disk(self, tmp_path):
@@ -53,4 +53,4 @@ class TestGenerateThumbnailsCommand:
 
         captured = capsys.readouterr()
         assert "already_cached=1" in captured.out
-        assert "generated=0" in captured.out
+        assert "enqueued=0" in captured.out

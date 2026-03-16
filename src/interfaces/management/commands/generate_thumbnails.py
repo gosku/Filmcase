@@ -15,14 +15,11 @@ class Command(BaseCommand):
 
         for path in result.missing_paths:
             self.stderr.write(f"  Missing file: {path}")
-        for path in result.error_paths:
-            self.stderr.write(f"  Error: {path}")
 
         self.stdout.write(
             self.style.SUCCESS(
-                f"Done. generated={result.generated}"
+                f"Done. enqueued={result.enqueued}"
                 f" already_cached={result.already_cached}"
                 f" missing={len(result.missing_paths)}"
-                f" errors={len(result.error_paths)}"
             )
         )
