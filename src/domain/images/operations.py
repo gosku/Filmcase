@@ -1,15 +1,20 @@
 import attrs
 import os
+from decimal import Decimal
 
 from src.data.models import FujifilmExif, FujifilmRecipe, Image, RECIPE_FIELDS
 from src.domain.images import events, queries
 
 
-def _parse_numeric(*, s: str) -> int | None:
-    """Convert a signed numeric string like '+4', '-1', '0' to int, or None for 'N/A'."""
+def _parse_numeric(*, s: str) -> Decimal | None:
+    """Convert a signed numeric string like '+4', '-1.5', '0' to Decimal, or None for 'N/A'.
+
+    Decimal is used (not float or int) so that half-step values like -1.5 and
+    +0.5 are stored exactly in the DecimalField without rounding.
+    """
     if s == "N/A":
         return None
-    return round(float(s))
+    return Decimal(s)
 
 
 class NoFilmSimulationError(Exception):

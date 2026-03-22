@@ -178,14 +178,14 @@ class FujifilmRecipe(models.Model):
     white_balance = models.CharField(max_length=100)
     white_balance_red = models.IntegerField()
     white_balance_blue = models.IntegerField()
-    highlight = models.IntegerField(null=True, blank=True)
-    shadow = models.IntegerField(null=True, blank=True)
-    color = models.IntegerField(null=True, blank=True)
-    sharpness = models.IntegerField(null=True, blank=True)
-    high_iso_nr = models.IntegerField(null=True, blank=True)
-    clarity = models.IntegerField(null=True, blank=True)
-    monochromatic_color_warm_cool = models.IntegerField(null=True, blank=True)
-    monochromatic_color_magenta_green = models.IntegerField(null=True, blank=True)
+    highlight = models.DecimalField(max_digits=4, decimal_places=1, null=True, blank=True)
+    shadow = models.DecimalField(max_digits=4, decimal_places=1, null=True, blank=True)
+    color = models.DecimalField(max_digits=4, decimal_places=1, null=True, blank=True)
+    sharpness = models.DecimalField(max_digits=4, decimal_places=1, null=True, blank=True)
+    high_iso_nr = models.DecimalField(max_digits=4, decimal_places=1, null=True, blank=True)
+    clarity = models.DecimalField(max_digits=4, decimal_places=1, null=True, blank=True)
+    monochromatic_color_warm_cool = models.DecimalField(max_digits=4, decimal_places=1, null=True, blank=True)
+    monochromatic_color_magenta_green = models.DecimalField(max_digits=4, decimal_places=1, null=True, blank=True)
 
     # Factories
 

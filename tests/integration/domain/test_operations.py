@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta, timezone
+from decimal import Decimal
 from pathlib import Path
 from unittest.mock import patch
 
@@ -11,6 +12,7 @@ from src.domain.images.operations import NoFilmSimulationError, process_image
 
 FIXTURES_DIR = Path(__file__).resolve().parent.parent.parent / "fixtures" / "images"
 FIXTURE_IMAGE = str(FIXTURES_DIR / "XS107114.JPG")
+RECIPE_FIXTURES_DIR = Path(__file__).resolve().parent.parent.parent / "fixtures" / "recipe"
 
 
 @pytest.mark.django_db
@@ -146,6 +148,29 @@ class TestProcessImagePersistence:
         assert updated_events[0]["params"]["filename"] == "XS107114.JPG"
         assert updated_events[0]["params"]["film_simulation"] == "Classic Negative"
         assert updated_events[0]["params"]["taken_at"] == "2025-12-31T12:23:57+11:00"
+
+
+@pytest.mark.django_db
+class TestHalfStepTonalValues:
+    """
+    Regression tests for half-step highlight/shadow values.
+
+    The old _parse_numeric used round(float(s)) which rounded -1.5 → -2 and
+    +0.5 → 0 when stored in the IntegerField.  After migrating to DecimalField
+    and switching to Decimal(s), values must be preserved exactly.
+    """
+
+    def test_highlight_minus1_5_stored_without_rounding(self):
+        image = process_image(image_path=str(RECIPE_FIXTURES_DIR / "highlight_minus1_5.jpg"))
+        assert image.fujifilm_recipe.highlight == Decimal("-1.5")
+
+    def test_shadow_minus0_5_stored_without_rounding(self):
+        image = process_image(image_path=str(RECIPE_FIXTURES_DIR / "shadow_minus0_5.jpg"))
+        assert image.fujifilm_recipe.shadow == Decimal("-0.5")
+
+    def test_integer_highlight_still_works(self):
+        image = process_image(image_path=str(RECIPE_FIXTURES_DIR / "highlight_plus2.jpg"))
+        assert image.fujifilm_recipe.highlight == Decimal("2")
 
 
 @pytest.mark.django_db

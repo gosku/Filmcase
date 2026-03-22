@@ -37,3 +37,9 @@
 - Recipe output is always a signed string with no label: `"-2"`, `"+1.5"`, `"0"` etc.
 - `highlight_tone` and `shadow_tone` use the same value set and the same decoding logic.
 - When D-Range Priority is active the camera forces both fields to `0 (normal)`; there is no user-adjustable highlight or shadow setting in that mode.
+
+## Database storage
+
+`FujifilmRecipe.highlight` and `FujifilmRecipe.shadow` are `DecimalField(max_digits=4, decimal_places=1)` so that half-step values are preserved exactly.  Using `int` or `float` would silently round `-1.5` to `-2` and `+0.5` to `0` or `1`.
+
+The conversion from the recipe string to the DB field uses `Decimal(s)` directly (see `_parse_numeric` in `src/domain/images/operations.py`).  Never use `round(float(s))` — that was the original bug.
