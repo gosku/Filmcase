@@ -289,6 +289,7 @@
 
   function closeDetail() {
     document.getElementById('detail-overlay').hidden = true;
+    document.querySelector('.gallery-scroll').style.overflow = '';
     if (_galleryUrl) {
       history.replaceState(null, '', _galleryUrl);
       _galleryUrl = null;
@@ -307,6 +308,7 @@
   document.body.addEventListener('htmx:afterSwap', function (e) {
     if (e.detail.target.id === 'detail-overlay') {
       e.detail.target.hidden = false;
+      document.querySelector('.gallery-scroll').style.overflow = 'hidden';
     }
   });
 
