@@ -26,14 +26,18 @@ Python 3.11+ is required.
 #### PostgreSQL
 
 - **macOS:**
+
   ```bash
   brew install postgresql@16
   brew services start postgresql@16
   ```
+
   Then create the database and user:
+
   ```bash
   psql postgres
   ```
+
   ```sql
   CREATE USER fujifilm_recipes WITH PASSWORD 'fujifilm_recipes';
   CREATE DATABASE fujifilm_recipes OWNER fujifilm_recipes;
@@ -67,28 +71,39 @@ Python 3.11+ is required.
 ### Project setup
 
 1. **Clone the repository:**
+
    ```bash
    git clone <repo-url>
    cd film_simulations_reader
    ```
 
 2. **Create and activate a virtual environment** (using `virtualenvwrapper`):
+
    ```bash
    mkvirtualenv film_simulations_reader
    workon film_simulations_reader
    ```
+
    Or with plain `venv`:
+
    ```bash
    python -m venv .venv
    source .venv/bin/activate
    ```
 
 3. **Install dependencies:**
+
    ```bash
    pip install -r requirements.txt
    ```
 
-4. **Configure the database** in `src/config/settings.py` if your PostgreSQL credentials differ from the defaults (`fujifilm_recipes` / `fujifilm_recipes`).
+4. **Configure the database**: First, copy the sample settings file:
+
+   ```bash
+   cp src/config/settings.py.sample src/config/settings.py
+   ```
+
+   Then edit `src/config/settings.py` to set your PostgreSQL credentials if they differ from the defaults (`fujifilm_recipes` / `fujifilm_recipes`).
 
 5. **Apply migrations:**
    ```bash
@@ -106,12 +121,15 @@ Before using the web interface, you need to process your images so their EXIF da
 This is faster as images are processed in parallel by Celery workers.
 
 Start a Celery worker in a separate terminal:
+
 ```bash
 celery -A src.config worker --loglevel=info --concurrency=8
 ```
+
 You can change the number of simultaneous adjusting the concurrency.
 
 Then enqueue all images for processing:
+
 ```bash
 python manage.py process_images --image-dir /path/to/your/images
 ```
@@ -119,6 +137,7 @@ python manage.py process_images --image-dir /path/to/your/images
 ### Sync (slower, no Celery required)
 
 Images are processed one by one in the foreground:
+
 ```bash
 python manage.py process_images_sync --image-dir /path/to/your/images
 ```
@@ -130,6 +149,7 @@ Use this if you don't want to set up RabbitMQ and Celery.
 ## How to run
 
 Start the Django development server:
+
 ```bash
 python manage.py runserver
 ```
@@ -141,6 +161,7 @@ Then open [http://localhost:8000/images/](http://localhost:8000/images/) in your
 ## Developer setup
 
 Install the development dependencies:
+
 ```bash
 pip install -r requirements-dev.txt
 ```
