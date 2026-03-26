@@ -28,6 +28,7 @@ from src.domain.images.dataclasses import FujifilmRecipeData
 
 def _make_recipe(**overrides: object) -> FujifilmRecipeData:
     defaults = dict(
+        name="Test Recipe",
         film_simulation="Provia",
         dynamic_range="DR100",
         d_range_priority="Off",
@@ -49,6 +50,41 @@ def _make_recipe(**overrides: object) -> FujifilmRecipeData:
     )
     defaults.update(overrides)
     return FujifilmRecipeData(**defaults)
+
+
+# ---------------------------------------------------------------------------
+# name — required, non-blank, ≤25 ASCII characters
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("name", ["A", "My Recipe", "X" * 25])
+def test_name_valid(name):
+    validate_recipe_for_camera(_make_recipe(name=name))
+
+
+def test_name_blank_raises():
+    with pytest.raises(RecipeValidationError) as exc_info:
+        validate_recipe_for_camera(_make_recipe(name=""))
+    assert exc_info.value.field == "name"
+
+
+def test_name_whitespace_only_raises():
+    with pytest.raises(RecipeValidationError) as exc_info:
+        validate_recipe_for_camera(_make_recipe(name="   "))
+    assert exc_info.value.field == "name"
+
+
+def test_name_too_long_raises():
+    # The dataclass attrs validator catches this at construction — ValueError,
+    # not RecipeValidationError, because the object can't be created at all.
+    with pytest.raises(ValueError):
+        _make_recipe(name="A" * 26)
+
+
+def test_name_non_ascii_raises():
+    # Same: caught by the dataclass attrs validator before the recipe exists.
+    with pytest.raises(ValueError):
+        _make_recipe(name="Café")
 
 
 # ---------------------------------------------------------------------------

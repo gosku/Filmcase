@@ -9,11 +9,10 @@ from src.domain.camera.ptp_device import CameraConnectionError
 from src.domain.images.dataclasses import FujifilmRecipeData
 from tests.fakes import FakePTPDevice
 
-_SLOT_NAME = "Test Recipe"
-
 
 def _make_recipe(**overrides: object) -> FujifilmRecipeData:
     defaults = dict(
+        name="Test Recipe",
         film_simulation="Provia",
         dynamic_range="DR100",
         d_range_priority="Off",
@@ -37,14 +36,13 @@ def _make_recipe(**overrides: object) -> FujifilmRecipeData:
     return FujifilmRecipeData(**defaults)
 
 
-def _push(device=None, recipe=None, slot_index=1, slot_name=_SLOT_NAME):
+def _push(device=None, recipe=None, slot_index=1):
     """Convenience wrapper that patches time.sleep and supplies defaults."""
     with patch("src.application.usecases.camera.push_recipe.time.sleep"):
         return push_recipe_to_camera(
             device or FakePTPDevice(),
             recipe or _make_recipe(),
             slot_index=slot_index,
-            slot_name=slot_name,
         )
 
 
@@ -63,6 +61,8 @@ class TestPushRecipeVerification:
         assert 0xD192 in failed
 
     def test_verification_detects_name_mismatch(self, caplog):
+        # The camera rejects the slot-name write, so the store keeps "Wrong Name".
+        # Verification reads it back and logs a warning.
         device = FakePTPDevice(
             string_values={constants.PROP_SLOT_NAME: "Wrong Name"},
             set_rejection_codes={constants.PROP_SLOT_NAME: 0x2005},
@@ -79,37 +79,6 @@ class TestPushRecipeVerification:
         )
         failed = _push(device=device)
         assert len(failed) > 0
-
-
-# ---------------------------------------------------------------------------
-# slot_name validation tests
-# ---------------------------------------------------------------------------
-
-
-class TestSlotNameValidation:
-    def test_blank_slot_name_raises(self):
-        with pytest.raises(ValueError, match="non-blank"):
-            push_recipe_to_camera(
-                FakePTPDevice(), _make_recipe(), slot_index=1, slot_name=""
-            )
-
-    def test_whitespace_only_slot_name_raises(self):
-        with pytest.raises(ValueError, match="non-blank"):
-            push_recipe_to_camera(
-                FakePTPDevice(), _make_recipe(), slot_index=1, slot_name="   "
-            )
-
-    def test_slot_name_too_long_raises(self):
-        with pytest.raises(ValueError):
-            push_recipe_to_camera(
-                FakePTPDevice(), _make_recipe(), slot_index=1, slot_name="A" * 26
-            )
-
-    def test_non_ascii_slot_name_raises(self):
-        with pytest.raises(ValueError):
-            push_recipe_to_camera(
-                FakePTPDevice(), _make_recipe(), slot_index=1, slot_name="Café"
-            )
 
 
 # ---------------------------------------------------------------------------

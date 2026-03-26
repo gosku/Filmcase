@@ -8,6 +8,7 @@ from src.domain.images.dataclasses import FujifilmRecipeData
 
 def _make_recipe(**overrides: object) -> FujifilmRecipeData:
     defaults = dict(
+        name="Test Recipe",
         film_simulation="Provia",
         dynamic_range="DR100",
         d_range_priority="Off",

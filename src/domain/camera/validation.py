@@ -10,7 +10,7 @@ from __future__ import annotations
 import re
 
 from src.data.camera import constants
-from src.domain.images.dataclasses import FujifilmRecipeData
+from src.domain.images.dataclasses import RECIPE_NAME_MAX_LEN, FujifilmRecipeData
 
 # ---------------------------------------------------------------------------
 # Pre-computed allowed value sets (write-side constants)
@@ -82,6 +82,14 @@ def validate_recipe_for_camera(recipe: FujifilmRecipeData) -> None:
         RecipeValidationError: On the first field that fails validation,
                                carrying the field name and the offending value.
     """
+    # --- name: required for writing; must be non-blank ASCII ≤25 chars ---
+    if not recipe.name or not recipe.name.strip():
+        raise RecipeValidationError("name", recipe.name)
+    if len(recipe.name) > RECIPE_NAME_MAX_LEN:
+        raise RecipeValidationError("name", recipe.name)
+    if not recipe.name.isascii():
+        raise RecipeValidationError("name", recipe.name)
+
     # --- film_simulation ---
     if recipe.film_simulation not in _VALID_FILM_SIMS:
         raise RecipeValidationError("film_simulation", recipe.film_simulation)

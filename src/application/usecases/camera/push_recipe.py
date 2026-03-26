@@ -15,7 +15,7 @@ from src.domain.camera.operations import (
 )
 from src.domain.camera.ptp_device import CameraConnectionError, PTPDevice
 from src.domain.camera.queries import recipe_to_ptp_values
-from src.domain.images.dataclasses import RECIPE_NAME_MAX_LEN, FujifilmRecipeData
+from src.domain.images.dataclasses import FujifilmRecipeData
 
 logger = logging.getLogger(__name__)
 
@@ -25,38 +25,29 @@ def push_recipe_to_camera(
     recipe: FujifilmRecipeData,
     *,
     slot_index: int,
-    slot_name: str,
 ) -> list[int]:
     """
     Push a film simulation recipe to a custom C-slot on the connected camera.
 
+    The recipe's ``name`` field is used as the slot display name and must be
+    non-blank (validated via recipe_to_ptp_values → validate_recipe_for_camera).
+
     Args:
         device:      A connected PTPDevice instance.
-        recipe:      The recipe to write.
-        slot_index:  1-based custom slot number (e.g. 1 for C1).
-        slot_name:   Display name for the slot.  Required; must be a non-blank
+        recipe:      The recipe to write.  ``recipe.name`` must be a non-blank
                      string of at most 25 ASCII characters.
+        slot_index:  1-based custom slot number (e.g. 1 for C1).
 
     Returns:
         A list of PTP property codes for which the write failed.  An empty
         list means all writes succeeded.
 
     Raises:
-        ValueError: If slot_name is blank, too long, or contains non-ASCII characters.
-        RecipeValidationError: If any recipe field contains a camera-invalid value.
+        RecipeValidationError: If any recipe field (including name) is invalid.
         CameraConnectionError: If the camera becomes unreachable during the
                                write sequence.
     """
-    # --- Step 1: validate slot_name and set slot cursor ---
-    if not slot_name or not slot_name.strip():
-        raise ValueError("slot_name must be a non-blank string")
-    if len(slot_name) > RECIPE_NAME_MAX_LEN:
-        raise ValueError(
-            f"slot_name must be ≤{RECIPE_NAME_MAX_LEN} characters, got {len(slot_name)}"
-        )
-    if not slot_name.isascii():
-        raise ValueError(f"slot_name must contain only ASCII characters, got {slot_name!r}")
-
+    # --- Step 1: set slot cursor ---
     rc = device.set_property_uint16(constants.PROP_SLOT_CURSOR, slot_index)
     if rc != 0:
         raise CameraConnectionError(
@@ -67,11 +58,12 @@ def push_recipe_to_camera(
 
     # Rename slot now that the cursor is positioned.
     current_name = device.get_property_string(constants.PROP_SLOT_NAME)
-    if current_name != slot_name:
-        device.set_property_string(constants.PROP_SLOT_NAME, slot_name)
+    if current_name != recipe.name:
+        device.set_property_string(constants.PROP_SLOT_NAME, recipe.name)
 
     # --- Step 2: validate recipe and translate to PTP values ---
-    # recipe_to_ptp_values validates the recipe internally before converting.
+    # recipe_to_ptp_values validates the recipe internally before converting,
+    # including that recipe.name is non-blank.
     ptp_items = recipe_to_ptp_values(recipe).items()
 
     # --- Step 3: write each property ---
@@ -99,10 +91,10 @@ def push_recipe_to_camera(
 
     # --- Step 4: verify written properties ---
     verified_name = device.get_property_string(constants.PROP_SLOT_NAME)
-    if verified_name != slot_name:
+    if verified_name != recipe.name:
         logger.warning(
             "Slot name verification failed: wrote %r, read back %r",
-            slot_name,
+            recipe.name,
             verified_name,
         )
 
