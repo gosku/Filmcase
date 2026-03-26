@@ -10,12 +10,15 @@ Timing requirements (must be respected to avoid camera errors):
 
 from __future__ import annotations
 
+import logging
 import time
 
 from src.data.camera import constants
 from src.domain.camera.ptp_device import CameraConnectionError, PTPDevice
 from src.domain.camera.queries import recipe_to_ptp_values
 from src.domain.images.dataclasses import FujifilmRecipeData
+
+logger = logging.getLogger(__name__)
 
 _PRE_WRITE_DELAY_S = 0.050   # 50 ms before each write
 _POST_WRITE_DELAY_S = 0.200  # 200 ms after each write
@@ -64,6 +67,7 @@ def push_recipe(
     # --- Phase 3: write each property in the recipe map ---
     ptp_items = recipe_to_ptp_values(recipe).items()
     failed_codes: list[int] = [code for code, _ in ptp_items]  # shrinks as writes succeed
+    written: list[tuple[int, int]] = []  # (code, value) pairs that reported success
 
     for code, value in ptp_items:
         time.sleep(_PRE_WRITE_DELAY_S)   # 50 ms before write
@@ -71,6 +75,7 @@ def push_recipe(
         rc = device.set_property_int(code, value)
         if rc == 0:
             failed_codes.remove(code)
+            written.append((code, value))
 
         time.sleep(_POST_WRITE_DELAY_S)  # 200 ms after write
 
@@ -83,4 +88,46 @@ def push_recipe(
                 f"Remaining failed codes: {[hex(c) for c in failed_codes]}"
             )
 
+    # --- Phase 4: verify written properties ---
+    if slot_name:
+        verified_name = device.get_property_string(constants.PROP_SLOT_NAME)
+        if verified_name != slot_name:
+            logger.warning(
+                "Slot name verification failed: wrote %r, read back %r",
+                slot_name,
+                verified_name,
+            )
+
+    verification_failures = _verify_written_properties(device, written)
+    failed_codes.extend(verification_failures)
+
     return failed_codes
+
+
+def _verify_written_properties(
+    device: PTPDevice,
+    written: list[tuple[int, int]],
+) -> list[int]:
+    """Read back each successfully written property and check its value.
+
+    Returns a list of PTP codes where the read-back value did not match.
+    """
+    mismatched: list[int] = []
+    for code, expected in written:
+        try:
+            actual = device.get_property_int(code)
+            # Compare lower 32 bits — handles signed/unsigned differences.
+            if (actual & 0xFFFFFFFF) != (expected & 0xFFFFFFFF):
+                logger.warning(
+                    "Verification failed for 0x%04X: wrote %d, read back %d",
+                    code,
+                    expected,
+                    actual,
+                )
+                mismatched.append(code)
+        except CameraConnectionError:
+            logger.warning(
+                "Verification read failed for 0x%04X (camera error)", code
+            )
+            mismatched.append(code)
+    return mismatched
