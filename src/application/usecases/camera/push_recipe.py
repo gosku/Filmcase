@@ -13,7 +13,7 @@ from src.domain.camera.operations import (
     set_prop_with_retry,
     verify_written_properties,
 )
-from src.domain.camera.ptp_device import CameraConnectionError, PTPDevice
+from src.domain.camera.ptp_device import CameraConnectionError, CameraWriteError, PTPDevice
 from src.domain.camera.queries import recipe_to_ptp_values
 from src.domain.images.dataclasses import FujifilmRecipeData
 
@@ -61,33 +61,32 @@ def push_recipe_to_camera(
     # touches the camera.
     ptp_items = recipe_to_ptp_values(recipe).items()
 
-    # --- Step 3: write slot name then each recipe property ---
+    # --- Step 3: write all properties (slot name first, then recipe properties) ---
     failed_codes: list[int] = [code for code, _ in ptp_items]  # shrinks as writes succeed
     written: list[tuple[int, int]] = []  # (code, value) pairs that reported success
 
-    # Slot name is a string property written first in the sequence.
-    current_name = device.get_property_string(constants.PROP_SLOT_NAME)
-    if current_name != recipe.name:
-        device.set_property_string(constants.PROP_SLOT_NAME, recipe.name)
+    # Build the unified write sequence.  The slot name is a string property
+    # and is written first; recipe properties are all integers.
+    all_writes: list[tuple[int, str | int]] = [
+        (constants.PROP_SLOT_NAME, recipe.name),
+        *ptp_items,
+    ]
 
-    for code, value in ptp_items:
+    for code, value in all_writes:
         time.sleep(PRE_WRITE_DELAY_S)   # 50 ms before write
 
-        rc = set_prop_with_retry(device, code, value)
-        if rc == 0:
-            failed_codes.remove(code)
-            written.append((code, value))
+        try:
+            set_prop_with_retry(device, code, value)
+        except CameraConnectionError:
+            raise  # camera is gone; abort the entire write sequence
+        except CameraWriteError:
+            pass  # camera rejected this property; continue with the rest
+        else:
+            if isinstance(value, int):
+                failed_codes.remove(code)
+                written.append((code, value))
 
         time.sleep(POST_WRITE_DELAY_S)  # 200 ms after write
-
-        # Liveness ping after every write — abort if camera is gone.
-        ping_rc = device.ping()
-        if ping_rc != 0:
-            raise CameraConnectionError(
-                f"Camera became unreachable after writing property 0x{code:04X} "
-                f"(ping returned {ping_rc}).  "
-                f"Remaining failed codes: {[hex(c) for c in failed_codes]}"
-            )
 
     # --- Step 4: verify written properties ---
     verified_name = device.get_property_string(constants.PROP_SLOT_NAME)

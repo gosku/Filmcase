@@ -21,12 +21,15 @@ class CameraBusyError(Exception):
 
 
 class CameraWriteError(Exception):
-    """Raised when a property write fails and no retry is possible."""
+    """Raised when the camera actively rejects a property write (non-zero rc)."""
 
-    def __init__(self, code: int, value: int) -> None:
+    def __init__(self, code: int, value: str | int, rc: int) -> None:
         self.code = code
         self.value = value
-        super().__init__(f"Failed to write PTP property 0x{code:04X} = {value}")
+        self.rc = rc
+        super().__init__(
+            f"Camera rejected write of PTP property 0x{code:04X} = {value!r} (rc={rc:#x})"
+        )
 
 
 @runtime_checkable

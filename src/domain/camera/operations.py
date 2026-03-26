@@ -16,7 +16,7 @@ import logging
 import time
 
 from src.domain.camera import events
-from src.domain.camera.ptp_device import CameraConnectionError, PTPDevice
+from src.domain.camera.ptp_device import CameraConnectionError, CameraWriteError, PTPDevice
 
 logger = logging.getLogger(__name__)
 
@@ -27,62 +27,76 @@ _WRITE_MAX_RETRIES = 3        # attempts per property before giving up
 _WRITE_RETRY_BACKOFF_S = 0.3  # base back-off; doubles each attempt (0.3 s, 0.6 s, 1.2 s)
 
 
-def set_prop_with_retry(device: PTPDevice, code: int, value: int) -> int:
+def set_prop_with_retry(device: PTPDevice, code: int, value: str | int) -> None:
     """
     Write a single property, retrying on transport failures with exponential back-off.
+
+    Accepts both string and integer values; dispatches to the appropriate
+    device method based on type.
 
     Publishes camera.ptp_write.failed for every failed attempt and
     camera.ptp_write.succeeded when the write completes successfully.
 
-    Camera rejections (non-zero return code) are published as a single
-    camera.ptp_write.failed event and returned immediately without retry,
-    because the camera has actively declined the write.
-
-    Returns:
-        0 on success, non-zero on failure (transport exhausted or camera rejected).
+    Raises:
+        CameraWriteError: The camera actively rejected the write (non-zero rc).
+                          No retry is attempted; the camera is still reachable.
+        CameraConnectionError: Transport failed on every attempt.
     """
-    last_error: CameraConnectionError | None = None
     prop_hex = f"0x{code:04X}"
+    camera_connection_error = False
+    write_failed = False
+    failed_rc: int = 0
 
     for attempt in range(1, _WRITE_MAX_RETRIES + 1):
         if attempt > 1:
             time.sleep(_WRITE_RETRY_BACKOFF_S * (2 ** (attempt - 2)))
 
+        camera_connection_error = False
+
         try:
-            rc = device.set_property_int(code, value)
+            if isinstance(value, str):
+                rc = device.set_property_string(code, value)
+            else:
+                rc = device.set_property_int(code, value)
         except CameraConnectionError as exc:
-            last_error = exc
+            camera_connection_error = True
             events.publish_event(
                 event_type=events.PTP_WRITE_FAILED,
                 params={
                     "description": (
-                        f"{prop_hex} = {value}: {exc} "
+                        f"{prop_hex} = {value!r}: {exc} "
                         f"(attempt {attempt}/{_WRITE_MAX_RETRIES})"
                     )
                 },
             )
             continue
 
-        if rc != 0:
+        if rc != 0 and not camera_connection_error:
+            write_failed = True
+            failed_rc = rc
             events.publish_event(
                 event_type=events.PTP_WRITE_FAILED,
                 params={
                     "description": (
-                        f"{prop_hex} = {value}: camera rejected write (rc={rc:#x})"
+                        f"{prop_hex} = {value!r}: camera rejected write (rc={rc:#x})"
                     )
                 },
             )
-            return rc
+            break
 
         events.publish_event(
             event_type=events.PTP_WRITE_SUCCEEDED,
-            params={"description": f"{prop_hex} = {value}"},
+            params={"description": f"{prop_hex} = {value!r}"},
         )
-        return 0
+        return
 
-    # All retries exhausted due to transport failure; already published per-attempt events.
-    assert last_error is not None
-    return -1
+    if camera_connection_error:
+        raise CameraConnectionError(
+            f"Camera unreachable after {_WRITE_MAX_RETRIES} attempts "
+            f"writing {prop_hex} = {value!r}"
+        )
+    if write_failed:
+        raise CameraWriteError(code, value, failed_rc)
 
 
 def verify_written_properties(
