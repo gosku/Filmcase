@@ -87,6 +87,11 @@ class FakePTPDevice:
             that code, regardless of what was written to the store.  Use this
             to simulate the camera normalising a write to a different value
             (e.g. GrainEffect Off write → camera stores 6 or 7).
+        str_read_overrides:
+            Mapping of property code → str value returned on every read of
+            that code, regardless of what was written to the store.  Use this
+            to simulate the camera storing a different string than what was
+            written (e.g. truncating a slot name).
         set_errors:
             Mapping of property code → exception instance.  When a set is
             attempted for that code the exception is raised, simulating a USB
@@ -111,6 +116,7 @@ class FakePTPDevice:
         int_read_overrides: dict[int, int] | None = None,
         set_errors: dict[int, Exception] | None = None,
         set_rejection_codes: dict[int, int] | None = None,
+        str_read_overrides: dict[int, str] | None = None,
     ) -> None:
         self._int_store: dict[int, int] = dict(int_values or {})
         self._str_store: dict[int, str] = dict(string_values or {})
@@ -120,6 +126,7 @@ class FakePTPDevice:
         self._default_get_error = default_get_error
         self._default_int_get_error = default_int_get_error
         self._int_read_overrides: dict[int, int] = dict(int_read_overrides or {})
+        self._str_read_overrides: dict[int, str] = dict(str_read_overrides or {})
         self._set_errors: dict[int, Exception] = dict(set_errors or {})
         self._set_rejection_codes: dict[int, int] = dict(set_rejection_codes or {})
 
@@ -165,6 +172,8 @@ class FakePTPDevice:
             raise self._get_errors[code]
         if self._default_get_error is not None:
             raise self._default_get_error
+        if code in self._str_read_overrides:
+            return self._str_read_overrides[code]
         return self._str_store.get(code, "")
 
     # ------------------------------------------------------------------
