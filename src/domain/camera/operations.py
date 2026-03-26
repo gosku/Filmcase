@@ -101,7 +101,7 @@ def set_prop_with_retry(device: PTPDevice, code: int, value: str | int) -> None:
 
 def verify_written_properties(
     device: PTPDevice,
-    written: list[tuple[int, int]],
+    written: list[tuple[int, str | int]],
 ) -> list[int]:
     """Read back each successfully written property and check its value.
 
@@ -109,12 +109,19 @@ def verify_written_properties(
     """
     mismatched: list[int] = []
     for code, expected in written:
+        time.sleep(PRE_WRITE_DELAY_S)
         try:
-            actual = device.get_property_int(code)
-            # Compare lower 32 bits — handles signed/unsigned differences.
-            if (actual & 0xFFFFFFFF) != (expected & 0xFFFFFFFF):
+            if isinstance(expected, str):
+                actual: str | int = device.get_property_string(code)
+                match = actual == expected
+            else:
+                actual = device.get_property_int(code)
+                # Compare lower 32 bits — handles signed/unsigned differences.
+                match = (actual & 0xFFFFFFFF) == (expected & 0xFFFFFFFF)
+
+            if not match:
                 logger.warning(
-                    "Verification failed for 0x%04X: wrote %d, read back %d",
+                    "Verification failed for 0x%04X: wrote %r, read back %r",
                     code,
                     expected,
                     actual,

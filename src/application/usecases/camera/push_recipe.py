@@ -3,7 +3,6 @@ Application-layer use case for pushing a recipe to a Fujifilm camera.
 """
 from __future__ import annotations
 
-import logging
 import time
 
 from src.data.camera import constants
@@ -16,8 +15,6 @@ from src.domain.camera.operations import (
 from src.domain.camera.ptp_device import CameraConnectionError, CameraWriteError, PTPDevice
 from src.domain.camera.queries import recipe_to_ptp_values
 from src.domain.images.dataclasses import FujifilmRecipeData
-
-logger = logging.getLogger(__name__)
 
 
 def push_recipe_to_camera(
@@ -62,8 +59,8 @@ def push_recipe_to_camera(
     ptp_items = recipe_to_ptp_values(recipe).items()
 
     # --- Step 3: write all properties (slot name first, then recipe properties) ---
-    failed_codes: list[int] = [code for code, _ in ptp_items]  # shrinks as writes succeed
-    written: list[tuple[int, int]] = []  # (code, value) pairs that reported success
+    failed_codes: list[int] = [constants.PROP_SLOT_NAME, *(code for code, _ in ptp_items)]
+    written: list[tuple[int, str | int]] = []  # (code, value) pairs that reported success
 
     # Build the unified write sequence.  The slot name is a string property
     # and is written first; recipe properties are all integers.
@@ -82,21 +79,12 @@ def push_recipe_to_camera(
         except CameraWriteError:
             pass  # camera rejected this property; continue with the rest
         else:
-            if isinstance(value, int):
-                failed_codes.remove(code)
-                written.append((code, value))
+            failed_codes.remove(code)
+            written.append((code, value))
 
         time.sleep(POST_WRITE_DELAY_S)  # 200 ms after write
 
     # --- Step 4: verify written properties ---
-    verified_name = device.get_property_string(constants.PROP_SLOT_NAME)
-    if verified_name != recipe.name:
-        logger.warning(
-            "Slot name verification failed: wrote %r, read back %r",
-            recipe.name,
-            verified_name,
-        )
-
     verification_failures = verify_written_properties(device, written)
     failed_codes.extend(verification_failures)
 
