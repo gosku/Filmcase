@@ -1,7 +1,7 @@
 import attrs
 import pytest
 
-from src.data.camera.constants import FILM_SIMULATION_TO_PTP, PTP_TO_FILM_SIMULATION
+from src.data.camera.constants import DRANGE_MODE_TO_PTP, FILM_SIMULATION_TO_PTP, PTP_TO_FILM_SIMULATION
 from src.domain.camera.queries import RecipePTPValues, recipe_to_ptp_values
 from src.domain.images.dataclasses import FujifilmRecipeData
 
@@ -81,3 +81,37 @@ class TestFilmSimulationPTPMapping:
         recipe = _make_recipe(film_simulation="Nostalgic Negative")
         ptp = recipe_to_ptp_values(recipe)
         assert ptp.FilmSimulation == 19
+
+
+class TestDRangeModePTPMapping:
+    """Verify all D-Range mode PTP values, especially the corrected DR-Auto."""
+
+    EXPECTED_VALUES = {
+        "DR-Auto": 65535,  # 0xFFFF — was incorrectly 0 before fix
+        "DR100":   100,
+        "DR200":   200,
+        "DR400":   400,
+    }
+
+    @pytest.mark.parametrize(
+        "name, expected_ptp",
+        EXPECTED_VALUES.items(),
+        ids=EXPECTED_VALUES.keys(),
+    )
+    def test_drange_mode_to_ptp(self, name, expected_ptp):
+        assert DRANGE_MODE_TO_PTP[name] == expected_ptp
+
+    def test_dr_auto_is_not_zero(self):
+        """DR-Auto must be 0xFFFF, not 0. 0 was the pre-fix incorrect value."""
+        assert DRANGE_MODE_TO_PTP["DR-Auto"] != 0
+        assert DRANGE_MODE_TO_PTP["DR-Auto"] == 0xFFFF
+
+    @pytest.mark.parametrize(
+        "name, expected_ptp",
+        EXPECTED_VALUES.items(),
+        ids=EXPECTED_VALUES.keys(),
+    )
+    def test_dr_auto_round_trips_through_recipe(self, name, expected_ptp):
+        recipe = _make_recipe(dynamic_range=name)
+        ptp = recipe_to_ptp_values(recipe)
+        assert ptp.DRangeMode == expected_ptp

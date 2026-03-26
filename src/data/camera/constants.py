@@ -175,14 +175,14 @@ WHITE_BALANCE_TO_PTP: dict[str, int] = {
 
 
 # ---------------------------------------------------------------------------
-# D-Range mode PTP integer values (property 0xD007)
+# D-Range mode PTP integer values (custom slot property 0xD190)
 #
-# TODO: Validate. Values 100/200/400 mirror the EXIF DevelopmentDynamicRange
-# field and are the most likely mapping, but camera firmware may use 0/1/2/3.
+# DR100/200/400 confirmed from recipe slot reads (Batches 1–4).
+# DR-Auto = 0xFFFF (65535) confirmed by manual camera read (2026-03-25).
 # ---------------------------------------------------------------------------
 
 DRANGE_MODE_TO_PTP: dict[str, int] = {
-    "DR-Auto": 0,
+    "DR-Auto": 65535,  # 0xFFFF — confirmed X-S10
     "DR100":   100,
     "DR200":   200,
     "DR400":   400,
