@@ -49,10 +49,14 @@ Thumbs.db
 # Local data directories
 danielc/
 fujiapp/
+filmkit/
 scripts/
 
 # SDK
 SDK13410/
+
+# Investigation notes
+investigation/
 
 # Internal testing notes
 docs/ptp_slot_reads.md
