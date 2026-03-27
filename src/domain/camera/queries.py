@@ -306,12 +306,37 @@ class RecipePTPValues:
     MonochromaticColorMagentaGreen: int | None = None
 
     def items(self) -> list[tuple[int, int]]:
-        """Return (ptp_code, value) pairs for all properties that are set."""
+        """Return (ptp_code, value) pairs for all properties that are set.
+
+        Write order matters: WhiteBalanceColorTemperature must be written
+        before WhiteBalanceRed/WhiteBalanceBlue; otherwise the camera resets
+        the shift values to 0 when the colour temperature is applied.
+        """
         codes = constants.CUSTOM_SLOT_CODES
+        _WRITE_ORDER = [
+            "FilmSimulation",
+            "WhiteBalance",
+            "WhiteBalanceColorTemperature",  # must precede Red/Blue
+            "WhiteBalanceRed",
+            "WhiteBalanceBlue",
+            "DRangePriority",
+            "DRangeMode",
+            "GrainEffect",
+            "ColorEffect",
+            "ColorFx",
+            "ColorMode",
+            "Sharpness",
+            "HighLightTone",
+            "ShadowTone",
+            "HighIsoNoiseReduction",
+            "Definition",
+            "MonochromaticColorWarmCool",
+            "MonochromaticColorMagentaGreen",
+        ]
         return [
-            (codes[f.name], getattr(self, f.name))
-            for f in attrs.fields(RecipePTPValues)
-            if getattr(self, f.name) is not None
+            (codes[name], getattr(self, name))
+            for name in _WRITE_ORDER
+            if getattr(self, name) is not None
         ]
 
 

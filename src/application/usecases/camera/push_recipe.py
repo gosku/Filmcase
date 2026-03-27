@@ -102,7 +102,12 @@ def push_recipe_to_camera(
             time.sleep(POST_WRITE_DELAY_S)  # 200 ms after write
 
         # --- Step 4: verify written properties ---
-        verification_failures = verify_written_properties(device, written)
+        # GrainEffect Off is written as sentinel 1; the camera normalises it to
+        # 6 or 7 (retaining the last-remembered grain size), so the read-back
+        # never matches the written value. Skip verification for that case.
+        grain_code = constants.CUSTOM_SLOT_CODES["GrainEffect"]
+        verifiable = [(c, v) for c, v in written if not (c == grain_code and v == 1)]
+        verification_failures = verify_written_properties(device, verifiable)
         failed_codes.extend(verification_failures)
 
         if failed_codes:

@@ -116,8 +116,8 @@ def verify_written_properties(
                 match = actual == expected
             else:
                 actual = device.get_property_int(code)
-                # Compare lower 32 bits — handles signed/unsigned differences.
-                match = (actual & 0xFFFFFFFF) == (expected & 0xFFFFFFFF)
+                # Compare lower 16 bits — camera returns uint16; expected may be int16.
+                match = (actual & 0xFFFF) == (expected & 0xFFFF)
 
             if not match:
                 logger.warning(
