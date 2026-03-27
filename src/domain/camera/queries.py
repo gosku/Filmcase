@@ -343,7 +343,7 @@ def recipe_to_ptp_values(recipe: FujifilmRecipeData) -> RecipePTPValues:
     if recipe.d_range_priority and recipe.d_range_priority != "Off":
         dr_mode = None
     else:
-        dr_mode = constants.DRANGE_MODE_TO_PTP.get(recipe.dynamic_range) if recipe.dynamic_range else None
+        dr_mode = constants.DRANGE_MODE_TO_PTP.get(recipe.dynamic_range) if recipe.dynamic_range is not None else None
 
     # --- Grain effect ---
     # Write 1 for any Off roughness; camera normalises to 6 (Off+Small) or
@@ -358,11 +358,11 @@ def recipe_to_ptp_values(recipe: FujifilmRecipeData) -> RecipePTPValues:
     cfx = _CFX_TO_PTP.get(recipe.color_chrome_fx_blue)
 
     # --- Scaled int16 fields (value × 10) ---
-    color = int(recipe.color) * 10 if recipe.color not in ("", "N/A") else None
+    color = int(recipe.color) * 10 if recipe.color is not None else None
     sharpness = int(recipe.sharpness) * 10 if recipe.sharpness not in ("", "N/A") else None
     # Half-step values possible (e.g. +1.5); round after ×10.
-    highlight = round(float(recipe.highlight) * 10) if recipe.highlight not in ("", "N/A") else None
-    shadow = round(float(recipe.shadow) * 10) if recipe.shadow not in ("", "N/A") else None
+    highlight = round(float(recipe.highlight) * 10) if recipe.highlight is not None else None
+    shadow = round(float(recipe.shadow) * 10) if recipe.shadow is not None else None
     clarity = int(recipe.clarity) * 10 if recipe.clarity not in ("", "N/A") else None
 
     # --- High ISO noise reduction (non-linear lookup) ---

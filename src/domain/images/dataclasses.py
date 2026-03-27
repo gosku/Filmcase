@@ -13,23 +13,23 @@ def _validate_name(instance, attribute, value):
 @attrs.frozen
 class FujifilmRecipeData:
     film_simulation: str
-    dynamic_range: str
     d_range_priority: str
     grain_roughness: str
-    grain_size: str
     color_chrome_effect: str
     color_chrome_fx_blue: str
     white_balance: str
     white_balance_red: int
     white_balance_blue: int
-    highlight: str
-    shadow: str
-    color: str
     sharpness: str
     high_iso_nr: str
     clarity: str
-    monochromatic_color_warm_cool: str
-    monochromatic_color_magenta_green: str
+    dynamic_range: str | None = None
+    grain_size: str | None = None
+    highlight: str | None = None
+    shadow: str | None = None
+    color: str | None = None
+    monochromatic_color_warm_cool: str | None = None
+    monochromatic_color_magenta_green: str | None = None
     name: str = attrs.field(default="", validator=_validate_name)
 
 

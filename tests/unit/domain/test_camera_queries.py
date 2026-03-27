@@ -10,23 +10,20 @@ def _make_recipe(**overrides: object) -> FujifilmRecipeData:
     defaults = dict(
         name="Test Recipe",
         film_simulation="Provia",
-        dynamic_range="DR100",
         d_range_priority="Off",
         grain_roughness="Off",
-        grain_size="Off",
         color_chrome_effect="Off",
         color_chrome_fx_blue="Off",
         white_balance="Auto",
         white_balance_red=0,
         white_balance_blue=0,
-        highlight="0",
-        shadow="0",
         color="0",
         sharpness="0",
         high_iso_nr="0",
         clarity="0",
-        monochromatic_color_warm_cool="N/A",
-        monochromatic_color_magenta_green="N/A",
+        dynamic_range="DR100",
+        highlight="0",
+        shadow="0",
     )
     defaults.update(overrides)
     return FujifilmRecipeData(**defaults)

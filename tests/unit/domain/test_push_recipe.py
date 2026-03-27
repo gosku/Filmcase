@@ -2,7 +2,7 @@ from unittest.mock import patch
 
 import pytest
 
-from src.application.usecases.camera.push_recipe import push_recipe_to_camera
+from src.application.usecases.camera.push_recipe import RecipeWriteError, push_recipe_to_camera
 from src.data.camera import constants
 from src.domain.camera import events
 from src.domain.camera.ptp_device import CameraConnectionError, CameraWriteError
@@ -14,23 +14,20 @@ def _make_recipe(**overrides: object) -> FujifilmRecipeData:
     defaults = dict(
         name="Test Recipe",
         film_simulation="Provia",
-        dynamic_range="DR100",
         d_range_priority="Off",
         grain_roughness="Off",
-        grain_size="Off",
         color_chrome_effect="Off",
         color_chrome_fx_blue="Off",
         white_balance="Auto",
         white_balance_red=0,
         white_balance_blue=0,
-        highlight="0",
-        shadow="0",
         color="0",
         sharpness="0",
         high_iso_nr="0",
         clarity="0",
-        monochromatic_color_warm_cool="N/A",
-        monochromatic_color_magenta_green="N/A",
+        dynamic_range="DR100",
+        highlight="0",
+        shadow="0",
     )
     defaults.update(overrides)
     return FujifilmRecipeData(**defaults)
@@ -53,30 +50,33 @@ def _push(device=None, recipe=None, slot_index=1):
 
 class TestPushRecipeVerification:
     def test_verification_passes_when_readback_matches(self):
-        assert _push() == []
+        _push()  # no exception = all properties written and verified
 
     def test_verification_detects_mismatched_readback(self):
         device = FakePTPDevice(int_read_overrides={0xD192: 99})
-        failed = _push(device=device, recipe=_make_recipe(film_simulation="Provia"))
-        assert 0xD192 in failed
+        with pytest.raises(RecipeWriteError) as exc_info:
+            _push(device=device, recipe=_make_recipe(film_simulation="Provia"))
+        assert "FilmSimulation" in exc_info.value.failed_properties
 
-    def test_slot_name_rejection_reported_in_failed_codes(self):
-        # The camera rejects the slot-name write — it should appear in the
-        # returned failed codes, just like any other property.
+    def test_slot_name_rejection_reported_in_failed_properties(self):
+        # The camera rejects the slot-name write — it should appear in
+        # failed_properties, just like any other property.
         device = FakePTPDevice(
             set_rejection_codes={constants.PROP_SLOT_NAME: 0x2005},
         )
-        failed = _push(device=device)
-        assert constants.PROP_SLOT_NAME in failed
+        with pytest.raises(RecipeWriteError) as exc_info:
+            _push(device=device)
+        assert "SlotName" in exc_info.value.failed_properties
 
-    def test_slot_name_mismatch_reported_in_failed_codes(self, caplog):
+    def test_slot_name_mismatch_reported_in_failed_properties(self, caplog):
         # The write reports success but the camera stores a different value.
-        # Verification reads it back and reports the code as failed.
+        # Verification reads it back and reports the property as failed.
         device = FakePTPDevice(
             str_read_overrides={constants.PROP_SLOT_NAME: "Wrong Name"},
         )
-        failed = _push(device=device)
-        assert constants.PROP_SLOT_NAME in failed
+        with pytest.raises(RecipeWriteError) as exc_info:
+            _push(device=device)
+        assert "SlotName" in exc_info.value.failed_properties
         assert any("Verification failed" in rec.message for rec in caplog.records)
 
     def test_verification_handles_read_error_gracefully(self):
@@ -86,8 +86,9 @@ class TestPushRecipeVerification:
         device = FakePTPDevice(
             default_int_get_error=CameraConnectionError("USB read failed"),
         )
-        failed = _push(device=device)
-        assert len(failed) > 0
+        with pytest.raises(RecipeWriteError) as exc_info:
+            _push(device=device)
+        assert len(exc_info.value.failed_properties) > 0
 
 
 # ---------------------------------------------------------------------------
@@ -112,9 +113,10 @@ class TestWriteFailedCameraRejection:
     def test_failed_event_published_once_on_camera_rejection(self, captured_logs):
         film_sim_code = constants.CUSTOM_SLOT_CODES["FilmSimulation"]
         device = FakePTPDevice(set_rejection_codes={film_sim_code: 0x2005})
-        failed = _push(device=device)
+        with pytest.raises(RecipeWriteError) as exc_info:
+            _push(device=device)
 
-        assert film_sim_code in failed
+        assert "FilmSimulation" in exc_info.value.failed_properties
 
         failed_events = [
             e for e in captured_logs
@@ -128,9 +130,10 @@ class TestWriteFailedCameraRejection:
         # Camera rejection is not a transport failure — writing continues.
         film_sim_code = constants.CUSTOM_SLOT_CODES["FilmSimulation"]
         device = FakePTPDevice(set_rejection_codes={film_sim_code: 0x2005})
-        failed = _push(device=device)
+        with pytest.raises(RecipeWriteError) as exc_info:
+            _push(device=device)
 
-        assert film_sim_code in failed
+        assert "FilmSimulation" in exc_info.value.failed_properties
         succeeded = [
             e for e in captured_logs
             if e.get("event_type") == events.PTP_WRITE_SUCCEEDED
@@ -143,7 +146,8 @@ class TestWriteFailedCameraRejection:
         device = FakePTPDevice(
             set_rejection_codes={constants.PROP_SLOT_NAME: 0x2005}
         )
-        _push(device=device)
+        with pytest.raises(RecipeWriteError):
+            _push(device=device)
 
         succeeded = [
             e for e in captured_logs

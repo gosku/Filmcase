@@ -100,7 +100,11 @@ def validate_recipe_for_camera(recipe: FujifilmRecipeData) -> None:
         raise RecipeValidationError("white_balance", wb)
 
     # --- dynamic_range ---
-    if recipe.dynamic_range not in _EMPTY_OR_NA and recipe.dynamic_range not in _VALID_DR_MODES:
+    if (
+        recipe.dynamic_range is not None
+        and recipe.dynamic_range not in _EMPTY_OR_NA
+        and recipe.dynamic_range not in _VALID_DR_MODES
+    ):
         raise RecipeValidationError("dynamic_range", recipe.dynamic_range)
 
     # --- d_range_priority ---
@@ -114,9 +118,14 @@ def validate_recipe_for_camera(recipe: FujifilmRecipeData) -> None:
     roughness, size = recipe.grain_roughness, recipe.grain_size
     if roughness not in _VALID_ROUGHNESS:
         raise RecipeValidationError("grain_roughness", (roughness, size))
-    valid_sizes = _VALID_OFF_SIZES if roughness == "Off" else _VALID_ON_SIZES
-    if size not in valid_sizes:
-        raise RecipeValidationError("grain_roughness", (roughness, size))
+    if size is None:
+        # None is only valid when roughness is Off (size not applicable)
+        if roughness != "Off":
+            raise RecipeValidationError("grain_roughness", (roughness, size))
+    else:
+        valid_sizes = _VALID_OFF_SIZES if roughness == "Off" else _VALID_ON_SIZES
+        if size not in valid_sizes:
+            raise RecipeValidationError("grain_roughness", (roughness, size))
 
     # --- color_chrome_effect ---
     if recipe.color_chrome_effect not in _EMPTY_OR_NA and recipe.color_chrome_effect not in _VALID_CCE:
@@ -155,7 +164,7 @@ def validate_recipe_for_camera(recipe: FujifilmRecipeData) -> None:
 
 def _validate_int_str(recipe: FujifilmRecipeData, field: str) -> None:
     value = getattr(recipe, field)
-    if value in _EMPTY_OR_NA:
+    if value is None or value in _EMPTY_OR_NA:
         return
     try:
         int(value)
@@ -165,7 +174,7 @@ def _validate_int_str(recipe: FujifilmRecipeData, field: str) -> None:
 
 def _validate_float_str(recipe: FujifilmRecipeData, field: str) -> None:
     value = getattr(recipe, field)
-    if value in _EMPTY_OR_NA:
+    if value is None or value in _EMPTY_OR_NA:
         return
     try:
         float(value)

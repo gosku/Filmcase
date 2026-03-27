@@ -6,7 +6,7 @@ from pathlib import Path
 
 from django.core.exceptions import MultipleObjectsReturned, ObjectDoesNotExist
 
-from src.data.models import Image
+from src.data.models import FujifilmRecipe, Image
 from src.domain.images.dataclasses import FujifilmRecipeData, ImageExifData
 from src.domain.images import recipe_values
 
@@ -208,27 +208,64 @@ def exif_to_recipe(*, exif: ImageExifData) -> FujifilmRecipeData:
     """Convert an ImageExifData instance to a FujifilmRecipeData."""
     film_simulation = recipe_values.film_simulation_from_exif(film_simulation=exif.film_simulation, color=exif.color).display_name
     d_range_priority = recipe_values.d_range_priority_from_exif(d_range_priority=exif.d_range_priority, d_range_priority_auto=exif.d_range_priority_auto)
-    dynamic_range = recipe_values.dynamic_range_from_exif(dynamic_range_setting=exif.dynamic_range_setting, development_dynamic_range=exif.development_dynamic_range) if d_range_priority.value == "Off" else ""
+    drp_active = d_range_priority.value != "Off"
     wb_red, wb_blue = recipe_values.white_balance_fine_tune_from_exif(white_balance_fine_tune=exif.white_balance_fine_tune)
+    grain_roughness = exif.grain_effect_roughness
     return FujifilmRecipeData(
         film_simulation=film_simulation,
-        dynamic_range=dynamic_range,
         d_range_priority=d_range_priority.value,
-        grain_roughness=exif.grain_effect_roughness,
-        grain_size=exif.grain_effect_size,
+        grain_roughness=grain_roughness,
         color_chrome_effect=recipe_values.color_chrome_effect_from_exif(value=exif.color_chrome_effect).value,
         color_chrome_fx_blue=recipe_values.color_chrome_fx_blue_from_exif(value=exif.color_chrome_fx_blue).value,
         white_balance=recipe_values.white_balance_from_exif(white_balance=exif.white_balance, color_temperature=exif.color_temperature),
         white_balance_red=wb_red,
         white_balance_blue=wb_blue,
-        highlight=recipe_values.highlight_from_exif(highlight_tone=exif.highlight_tone),
-        shadow=recipe_values.shadow_from_exif(shadow_tone=exif.shadow_tone),
-        color=recipe_values.color_from_exif(color=exif.color),
         sharpness=recipe_values.sharpness_from_exif(sharpness=exif.sharpness),
         high_iso_nr=recipe_values.noise_reduction_from_exif(noise_reduction=exif.noise_reduction),
         clarity=recipe_values.clarity_from_exif(clarity=exif.clarity),
+        dynamic_range=None if drp_active else recipe_values.dynamic_range_from_exif(dynamic_range_setting=exif.dynamic_range_setting, development_dynamic_range=exif.development_dynamic_range),
+        grain_size=None if grain_roughness == "Off" else exif.grain_effect_size,
+        highlight=None if drp_active else recipe_values.highlight_from_exif(highlight_tone=exif.highlight_tone),
+        shadow=None if drp_active else recipe_values.shadow_from_exif(shadow_tone=exif.shadow_tone),
+        color=recipe_values.color_from_exif(color=exif.color),
         monochromatic_color_warm_cool=recipe_values.monochromatic_color_from_exif(value=exif.bw_adjustment),
         monochromatic_color_magenta_green=recipe_values.monochromatic_color_from_exif(value=exif.bw_magenta_green),
+    )
+
+
+def _decimal_str(value) -> str:
+    """Convert a non-null Decimal DB value to a signed string (e.g. Decimal('1.5') → '+1.5')."""
+    n = float(value)
+    v = int(n) if n == int(n) else n
+    return f"+{v}" if v > 0 else str(v)
+
+
+def _decimal_str_or_none(value) -> str | None:
+    return None if value is None else _decimal_str(value)
+
+
+def recipe_from_db(*, recipe: FujifilmRecipe) -> FujifilmRecipeData:
+    """Convert a FujifilmRecipe DB model instance to a FujifilmRecipeData domain object."""
+    return FujifilmRecipeData(
+        name=recipe.name,
+        film_simulation=recipe.film_simulation,
+        d_range_priority=recipe.d_range_priority,
+        grain_roughness=recipe.grain_roughness,
+        color_chrome_effect=recipe.color_chrome_effect,
+        color_chrome_fx_blue=recipe.color_chrome_fx_blue,
+        white_balance=recipe.white_balance,
+        white_balance_red=recipe.white_balance_red,
+        white_balance_blue=recipe.white_balance_blue,
+        sharpness=_decimal_str(recipe.sharpness),
+        high_iso_nr=_decimal_str(recipe.high_iso_nr),
+        clarity=_decimal_str(recipe.clarity),
+        dynamic_range=recipe.dynamic_range or None,
+        grain_size=None if recipe.grain_roughness == "Off" else recipe.grain_size,
+        highlight=_decimal_str_or_none(recipe.highlight),
+        shadow=_decimal_str_or_none(recipe.shadow),
+        color=_decimal_str_or_none(recipe.color),
+        monochromatic_color_warm_cool=_decimal_str_or_none(recipe.monochromatic_color_warm_cool),
+        monochromatic_color_magenta_green=_decimal_str_or_none(recipe.monochromatic_color_magenta_green),
     )
 
 

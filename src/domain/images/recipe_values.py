@@ -592,18 +592,18 @@ _NON_NUMERIC_COLOR_VALUES: frozenset[str] = frozenset({
 })
 
 
-def color_from_exif(*, color: str) -> str:
-    """Return the numeric color/saturation value as a signed string, or 'N/A'.
+def color_from_exif(*, color: str) -> str | None:
+    """Return the numeric color/saturation value as a signed string, or None.
 
     Positive values are prefixed with '+' (e.g. '+2'), negative with '-'
     (e.g. '-3'), zero is '0'.
 
-    Returns 'N/A' for non-numeric EXIF values: B&W/Acros/Sepia modes store the
+    Returns None for non-numeric EXIF values: B&W/Acros/Sepia modes store the
     film simulation name in this field, and 'Film Simulation' indicates the
     saturation is controlled by the film profile rather than set by the user.
     """
     if color in _NON_NUMERIC_COLOR_VALUES or color not in _NUMERIC_COLOR_VALUES:
-        return "N/A"
+        return None
     n = Color(color).numeric
     return f"+{n}" if n > 0 else str(n)
 
@@ -723,10 +723,9 @@ def clarity_from_exif(*, clarity: str) -> str:
 # Empty on colour film simulations that don't support monochromatic tuning.
 # ---------------------------------------------------------------------------
 
-def monochromatic_color_from_exif(*, value: str) -> str:
-    """Return the monochromatic tuning value as a signed string, or 'N/A'.
+def monochromatic_color_from_exif(*, value: str) -> str | None:
+    """Return the monochromatic tuning value as a signed string, or None.
 
-    Empty EXIF values indicate a colour film simulation where this setting
-    is not available.
+    None indicates a colour film simulation where this setting is not available.
     """
-    return value if value else "N/A"
+    return value if value else None

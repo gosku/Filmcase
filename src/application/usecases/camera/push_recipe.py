@@ -16,18 +16,31 @@ from src.domain.camera.ptp_device import CameraConnectionError, CameraWriteError
 from src.domain.camera.queries import recipe_to_ptp_values
 from src.domain.images.dataclasses import FujifilmRecipeData
 
+_CODE_TO_PROP_NAME: dict[int, str] = {
+    constants.PROP_SLOT_NAME: "SlotName",
+    **{code: name for name, code in constants.CUSTOM_SLOT_CODES.items()},
+}
+
+
+class RecipeWriteError(Exception):
+    """Raised when one or more properties could not be written or verified."""
+
+    def __init__(self, failed_properties: list[str]) -> None:
+        self.failed_properties = failed_properties
+        super().__init__(
+            f"Recipe write incomplete: {len(failed_properties)} property/properties failed "
+            f"({failed_properties})"
+        )
+
 
 def push_recipe_to_camera(
     device: PTPDevice,
     recipe: FujifilmRecipeData,
     *,
     slot_index: int,
-) -> list[int]:
+) -> None:
     """
     Push a film simulation recipe to a custom C-slot on the connected camera.
-
-    The recipe's ``name`` field is used as the slot display name and must be
-    non-blank (validated via recipe_to_ptp_values → validate_recipe_for_camera).
 
     Args:
         device:      A connected PTPDevice instance.
@@ -35,14 +48,12 @@ def push_recipe_to_camera(
                      string of at most 25 ASCII characters.
         slot_index:  1-based custom slot number (e.g. 1 for C1).
 
-    Returns:
-        A list of PTP property codes for which the write failed.  An empty
-        list means all writes succeeded.
-
     Raises:
         RecipeValidationError: If any recipe field (including name) is invalid.
         CameraConnectionError: If the camera becomes unreachable during the
                                write sequence.
+        RecipeWriteError: If one or more properties failed to write or verify.
+                          ``exc.failed_properties`` lists the property names.
     """
     # --- Step 1: set slot cursor ---
     rc = device.set_property_uint16(constants.PROP_SLOT_CURSOR, slot_index)
@@ -88,4 +99,6 @@ def push_recipe_to_camera(
     verification_failures = verify_written_properties(device, written)
     failed_codes.extend(verification_failures)
 
-    return failed_codes
+    if failed_codes:
+        failed_properties = [_CODE_TO_PROP_NAME.get(c, hex(c)) for c in failed_codes]
+        raise RecipeWriteError(failed_properties)

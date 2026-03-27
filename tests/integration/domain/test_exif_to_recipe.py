@@ -123,17 +123,17 @@ class TestDRangePriority:
     def test_auto(self):
         recipe = _recipe("d_range_priority_auto.jpg")
         assert recipe.d_range_priority == "Auto"
-        assert recipe.dynamic_range == ""
+        assert recipe.dynamic_range is None
 
     def test_weak(self):
         recipe = _recipe("d_range_priority_weak.jpg")
         assert recipe.d_range_priority == "Weak"
-        assert recipe.dynamic_range == ""
+        assert recipe.dynamic_range is None
 
     def test_strong(self):
         recipe = _recipe("d_range_priority_strong.jpg")
         assert recipe.d_range_priority == "Strong"
-        assert recipe.dynamic_range == ""
+        assert recipe.dynamic_range is None
 
 
 # ---------------------------------------------------------------------------
@@ -146,7 +146,7 @@ class TestGrain:
         # The DR100 fixture has grain off — reuse it rather than a dedicated file
         recipe = _recipe("dynamic_range_dr100.jpg")
         assert recipe.grain_roughness == "Off"
-        assert recipe.grain_size == "Off"
+        assert recipe.grain_size is None
 
     def test_weak_small(self):
         recipe = _recipe("grain_weak_small.jpg")
@@ -256,8 +256,8 @@ class TestHighlight:
     def test_negative_half_step(self):
         assert _recipe("highlight_minus1_5.jpg").highlight == "-1.5"
 
-    def test_zero_when_d_range_priority_active(self):
-        assert _recipe("d_range_priority_weak.jpg").highlight == "0"
+    def test_none_when_d_range_priority_active(self):
+        assert _recipe("d_range_priority_weak.jpg").highlight is None
 
 
 class TestShadow:
@@ -270,13 +270,13 @@ class TestShadow:
     def test_negative_half_step(self):
         assert _recipe("shadow_minus0_5.jpg").shadow == "-0.5"
 
-    def test_zero_when_d_range_priority_active(self):
-        assert _recipe("d_range_priority_weak.jpg").shadow == "0"
+    def test_none_when_d_range_priority_active(self):
+        assert _recipe("d_range_priority_weak.jpg").shadow is None
 
 
 # ---------------------------------------------------------------------------
 # color  (EXIF tag: Saturation)
-# Returns the numeric value as a string, or "N/A" for B&W/Acros/Sepia modes
+# Returns the numeric value as a string, or None for B&W/Acros/Sepia modes
 # where the field encodes the film simulation name instead of a saturation level.
 # ---------------------------------------------------------------------------
 
@@ -287,18 +287,18 @@ class TestColor:
     def test_positive(self):
         assert _recipe("color_plus2.jpg").color == "+2"
 
-    def test_na_for_acros(self):
-        assert _recipe("film_simulation_acros.jpg").color == "N/A"
+    def test_none_for_acros(self):
+        assert _recipe("film_simulation_acros.jpg").color is None
 
-    def test_na_for_monochrome(self):
-        assert _recipe("film_simulation_monochrome.jpg").color == "N/A"
+    def test_none_for_monochrome(self):
+        assert _recipe("film_simulation_monochrome.jpg").color is None
 
-    def test_na_for_sepia(self):
-        assert _recipe("film_simulation_sepia.jpg").color == "N/A"
+    def test_none_for_sepia(self):
+        assert _recipe("film_simulation_sepia.jpg").color is None
 
-    def test_na_for_film_simulation(self):
+    def test_none_for_film_simulation(self):
         # Eterna fixture has color = 'Film Simulation' (saturation not user-set)
-        assert _recipe("film_simulation_eterna.jpg").color == "N/A"
+        assert _recipe("film_simulation_eterna.jpg").color is None
 
 
 # ---------------------------------------------------------------------------
@@ -347,7 +347,7 @@ class TestClarity:
 # ---------------------------------------------------------------------------
 # monochromatic_color_warm_cool / monochromatic_color_magenta_green
 # (EXIF: BW Adjustment / BW Magenta Green) — -18 to +18
-# Empty on colour film simulations → "N/A"
+# Empty on colour film simulations → None
 # ---------------------------------------------------------------------------
 
 class TestMonochromaticColor:
@@ -356,10 +356,10 @@ class TestMonochromaticColor:
         assert recipe.monochromatic_color_warm_cool == "0"
         assert recipe.monochromatic_color_magenta_green == "0"
 
-    def test_na_on_colour_simulation(self):
+    def test_none_on_colour_simulation(self):
         recipe = _recipe("film_simulation_provia.jpg")
-        assert recipe.monochromatic_color_warm_cool == "N/A"
-        assert recipe.monochromatic_color_magenta_green == "N/A"
+        assert recipe.monochromatic_color_warm_cool is None
+        assert recipe.monochromatic_color_magenta_green is None
 
     def test_warm_cool_positive(self):
         assert _recipe("monochromatic_warm_cool_plus10.jpg").monochromatic_color_warm_cool == "+10"

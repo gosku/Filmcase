@@ -30,23 +30,20 @@ def _make_recipe(**overrides: object) -> FujifilmRecipeData:
     defaults = dict(
         name="Test Recipe",
         film_simulation="Provia",
-        dynamic_range="DR100",
         d_range_priority="Off",
         grain_roughness="Off",
-        grain_size="Off",
         color_chrome_effect="Off",
         color_chrome_fx_blue="Off",
         white_balance="Auto",
         white_balance_red=0,
         white_balance_blue=0,
-        highlight="0",
-        shadow="0",
         color="0",
         sharpness="0",
         high_iso_nr="0",
         clarity="0",
-        monochromatic_color_warm_cool="N/A",
-        monochromatic_color_magenta_green="N/A",
+        dynamic_range="DR100",
+        highlight="0",
+        shadow="0",
     )
     defaults.update(overrides)
     return FujifilmRecipeData(**defaults)
@@ -148,7 +145,7 @@ def test_dynamic_range_valid(dr):
     validate_recipe_for_camera(_make_recipe(dynamic_range=dr))
 
 
-@pytest.mark.parametrize("dr", ["", "N/A"])
+@pytest.mark.parametrize("dr", ["", "N/A", None])
 def test_dynamic_range_empty_or_na_valid(dr):
     validate_recipe_for_camera(_make_recipe(dynamic_range=dr))
 
@@ -192,6 +189,7 @@ def test_d_range_priority_invalid():
 # ---------------------------------------------------------------------------
 
 _GRAIN_VALID_COMBOS = [
+    ("Off",    None),
     ("Off",    "Off"),
     ("Off",    "Small"),
     ("Off",    "Large"),
@@ -212,6 +210,13 @@ def test_grain_invalid_size_for_active_roughness():
     # ("Weak", "Off") is not valid — size must be Small or Large when roughness is active
     with pytest.raises(RecipeValidationError) as exc_info:
         validate_recipe_for_camera(_make_recipe(grain_roughness="Weak", grain_size="Off"))
+    assert exc_info.value.field == "grain_roughness"
+
+
+def test_grain_none_size_invalid_when_roughness_active():
+    # None size is only valid when roughness is Off
+    with pytest.raises(RecipeValidationError) as exc_info:
+        validate_recipe_for_camera(_make_recipe(grain_roughness="Weak", grain_size=None))
     assert exc_info.value.field == "grain_roughness"
 
 
@@ -342,7 +347,7 @@ def test_clarity_non_numeric():
     assert exc_info.value.field == "clarity"
 
 
-@pytest.mark.parametrize("value", ["-2", "-1.5", "-1", "-0.5", "0", "+0.5", "+1", "+1.5", "+2", "+2.5", "+3", "+3.5", "+4"])
+@pytest.mark.parametrize("value", ["-2", "-1.5", "-1", "-0.5", "0", "+0.5", "+1", "+1.5", "+2", "+2.5", "+3", "+3.5", "+4", None])
 def test_highlight_valid(value):
     validate_recipe_for_camera(_make_recipe(highlight=value))
 
@@ -353,7 +358,7 @@ def test_highlight_non_numeric():
     assert exc_info.value.field == "highlight"
 
 
-@pytest.mark.parametrize("value", ["-2", "-1.5", "0", "+1.5", "+4"])
+@pytest.mark.parametrize("value", ["-2", "-1.5", "0", "+1.5", "+4", None])
 def test_shadow_valid(value):
     validate_recipe_for_camera(_make_recipe(shadow=value))
 
@@ -364,7 +369,7 @@ def test_shadow_non_numeric():
     assert exc_info.value.field == "shadow"
 
 
-@pytest.mark.parametrize("value", ["-9", "0", "+9", "N/A", ""])
+@pytest.mark.parametrize("value", ["-9", "0", "+9", None, ""])
 def test_monochromatic_color_warm_cool_valid(value):
     validate_recipe_for_camera(_make_recipe(monochromatic_color_warm_cool=value))
 
@@ -375,7 +380,7 @@ def test_monochromatic_color_warm_cool_non_numeric():
     assert exc_info.value.field == "monochromatic_color_warm_cool"
 
 
-@pytest.mark.parametrize("value", ["-9", "0", "+9", "N/A", ""])
+@pytest.mark.parametrize("value", ["-9", "0", "+9", None, ""])
 def test_monochromatic_color_magenta_green_valid(value):
     validate_recipe_for_camera(_make_recipe(monochromatic_color_magenta_green=value))
 

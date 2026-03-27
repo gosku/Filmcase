@@ -6,13 +6,13 @@ from src.data.models import FujifilmExif, FujifilmRecipe, Image, RECIPE_FIELDS
 from src.domain.images import events, queries
 
 
-def _parse_numeric(*, s: str) -> Decimal | None:
-    """Convert a signed numeric string like '+4', '-1.5', '0' to Decimal, or None for 'N/A'.
+def _parse_numeric(*, s: str | None) -> Decimal | None:
+    """Convert a signed numeric string like '+4', '-1.5', '0' to Decimal, or None.
 
     Decimal is used (not float or int) so that half-step values like -1.5 and
     +0.5 are stored exactly in the DecimalField without rounding.
     """
-    if s == "N/A":
+    if s is None or s == "N/A":
         return None
     return Decimal(s)
 
@@ -68,10 +68,10 @@ def process_image(*, image_path: str) -> Image:
         raise NoFilmSimulationError(image_path)
     fujifilm_recipe = FujifilmRecipe.get_or_create(
         film_simulation=recipe_data.film_simulation,
-        dynamic_range=recipe_data.dynamic_range,
+        dynamic_range=recipe_data.dynamic_range or "",
         d_range_priority=recipe_data.d_range_priority,
         grain_roughness=recipe_data.grain_roughness,
-        grain_size=recipe_data.grain_size,
+        grain_size=recipe_data.grain_size or "",
         color_chrome_effect=recipe_data.color_chrome_effect,
         color_chrome_fx_blue=recipe_data.color_chrome_fx_blue,
         white_balance=recipe_data.white_balance,
