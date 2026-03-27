@@ -4,12 +4,16 @@ from pathlib import Path
 from django.conf import settings
 from django.core.paginator import Paginator
 from django.db.models import Count, Q
-from django.http import FileResponse, Http404
+from django.http import FileResponse, Http404, JsonResponse
 from django.shortcuts import get_object_or_404, render
+from django.views import View
 from django.views.decorators.http import require_POST
 
+from src.application.usecases.camera.push_recipe import RecipeWriteError, push_recipe_to_camera
 from src.data.models import FujifilmRecipe, Image
+from src.domain.camera.ptp_device import CameraConnectionError, CameraWriteError
 from src.domain.images.operations import toggle_image_favorite
+from src.domain.images.queries import recipe_from_db
 from src.domain.images.thumbnails.operations import generate_thumbnail
 from src.domain.images.thumbnails.queries import thumbnail_content_type
 
@@ -148,6 +152,36 @@ def toggle_favorite_view(request, image_id):
         "images/_favorite_button.html",
         {"image_id": image_id, "is_favorite": is_favorite},
     )
+
+
+_SLOT_TO_INDEX = {"C1": 1, "C2": 2, "C3": 3, "C4": 4, "C5": 5, "C6": 6, "C7": 7}
+
+
+class PushRecipeToCameraView(View):
+    def dispatch(self, request, *args, **kwargs):
+        self.recipe = get_object_or_404(FujifilmRecipe, pk=kwargs["recipe_id"])
+        slot_index = _SLOT_TO_INDEX.get(kwargs["slot"])
+        if slot_index is None:
+            raise Http404
+        self.slot_index = slot_index
+        return super().dispatch(request, *args, **kwargs)
+
+    def post(self, request, recipe_id, slot):
+        recipe_data = recipe_from_db(recipe=self.recipe)
+        try:
+            push_recipe_to_camera(recipe_data, slot_index=self.slot_index)
+        except RecipeWriteError as e:
+            return JsonResponse(
+                {"error": f"Recipe write failed: {', '.join(e.failed_properties)}"},
+                status=500,
+            )
+        except CameraConnectionError as e:
+            return JsonResponse({"error": f"Camera connection error: {e}"}, status=503)
+        except CameraWriteError as e:
+            return JsonResponse({"error": f"Camera write error: {e}"}, status=500)
+        except Exception:
+            return JsonResponse({"error": "Unexpected error happened"}, status=500)
+        return JsonResponse({"message": f"Recipe saved in {slot}"})
 
 
 def _resized_image_response(path: Path, width: int):
