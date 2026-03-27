@@ -99,13 +99,10 @@ def validate_recipe_for_camera(recipe: FujifilmRecipeData) -> None:
     if wb not in _VALID_WB_MODES and not _KELVIN_RE.match(wb):
         raise RecipeValidationError("white_balance", wb)
 
-    # --- dynamic_range ---
-    if (
-        recipe.dynamic_range is not None
-        and recipe.dynamic_range not in _EMPTY_OR_NA
-        and recipe.dynamic_range not in _VALID_DR_MODES
-    ):
-        raise RecipeValidationError("dynamic_range", recipe.dynamic_range)
+    # --- dynamic_range: None or "" means omitted; "N/A" is not a valid DR value ---
+    if recipe.dynamic_range is not None and recipe.dynamic_range != "":
+        if recipe.dynamic_range not in _VALID_DR_MODES:
+            raise RecipeValidationError("dynamic_range", recipe.dynamic_range)
 
     # --- d_range_priority ---
     if (
@@ -118,8 +115,8 @@ def validate_recipe_for_camera(recipe: FujifilmRecipeData) -> None:
     roughness, size = recipe.grain_roughness, recipe.grain_size
     if roughness not in _VALID_ROUGHNESS:
         raise RecipeValidationError("grain_roughness", (roughness, size))
-    if size is None:
-        # None is only valid when roughness is Off (size not applicable)
+    if size is None or size == "":
+        # None/"" means omitted — only valid when roughness is Off (size not applicable)
         if roughness != "Off":
             raise RecipeValidationError("grain_roughness", (roughness, size))
     else:

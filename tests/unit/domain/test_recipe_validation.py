@@ -145,8 +145,8 @@ def test_dynamic_range_valid(dr):
     validate_recipe_for_camera(_make_recipe(dynamic_range=dr))
 
 
-@pytest.mark.parametrize("dr", ["", "N/A", None])
-def test_dynamic_range_empty_or_na_valid(dr):
+@pytest.mark.parametrize("dr", ["", None])
+def test_dynamic_range_empty_or_none_valid(dr):
     validate_recipe_for_camera(_make_recipe(dynamic_range=dr))
 
 
@@ -389,3 +389,84 @@ def test_monochromatic_color_magenta_green_non_numeric():
     with pytest.raises(RecipeValidationError) as exc_info:
         validate_recipe_for_camera(_make_recipe(monochromatic_color_magenta_green="green"))
     assert exc_info.value.field == "monochromatic_color_magenta_green"
+
+
+# ---------------------------------------------------------------------------
+# dynamic_range: "N/A" is invalid; None/"" are allowed regardless of drp;
+# None/"" are also explicitly valid when d_range_priority is active (not Off)
+# ---------------------------------------------------------------------------
+
+def test_dynamic_range_na_is_invalid():
+    with pytest.raises(RecipeValidationError) as exc_info:
+        validate_recipe_for_camera(_make_recipe(dynamic_range="N/A"))
+    assert exc_info.value.field == "dynamic_range"
+
+
+_DRP_ACTIVE = ["Auto", "Weak", "Strong"]
+
+
+@pytest.mark.parametrize("drp", _DRP_ACTIVE)
+@pytest.mark.parametrize("dr", [None, ""])
+def test_dynamic_range_omitted_when_drp_active(drp, dr):
+    validate_recipe_for_camera(_make_recipe(d_range_priority=drp, dynamic_range=dr))
+
+
+# ---------------------------------------------------------------------------
+# shadow / highlight: None/"" allowed when d_range_priority is active (not Off)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("drp", _DRP_ACTIVE)
+@pytest.mark.parametrize("value", [None, ""])
+def test_shadow_omitted_when_drp_active(drp, value):
+    validate_recipe_for_camera(_make_recipe(d_range_priority=drp, shadow=value))
+
+
+@pytest.mark.parametrize("drp", _DRP_ACTIVE)
+@pytest.mark.parametrize("value", [None, ""])
+def test_highlight_omitted_when_drp_active(drp, value):
+    validate_recipe_for_camera(_make_recipe(d_range_priority=drp, highlight=value))
+
+
+# ---------------------------------------------------------------------------
+# monochromatic color fields: None/"" when film sim is not monochromatic
+# ---------------------------------------------------------------------------
+
+_MONO_SIMS = [
+    s for s in FILM_SIMULATION_TO_PTP
+    if any(k in s for k in ("Monochrome", "Acros", "Sepia"))
+]
+_NON_MONO_SIMS = [s for s in FILM_SIMULATION_TO_PTP if s not in _MONO_SIMS]
+
+
+@pytest.mark.parametrize("sim", _NON_MONO_SIMS)
+@pytest.mark.parametrize("value", [None, ""])
+def test_mono_warm_cool_omitted_for_non_mono_sim(sim, value):
+    validate_recipe_for_camera(_make_recipe(film_simulation=sim, monochromatic_color_warm_cool=value))
+
+
+@pytest.mark.parametrize("sim", _NON_MONO_SIMS)
+@pytest.mark.parametrize("value", [None, ""])
+def test_mono_magenta_green_omitted_for_non_mono_sim(sim, value):
+    validate_recipe_for_camera(_make_recipe(film_simulation=sim, monochromatic_color_magenta_green=value))
+
+
+# ---------------------------------------------------------------------------
+# grain_size: None or "" are both valid when roughness is Off
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("size", [None, ""])
+def test_grain_size_omitted_when_roughness_off(size):
+    validate_recipe_for_camera(_make_recipe(grain_roughness="Off", grain_size=size))
+
+
+# ---------------------------------------------------------------------------
+# color: None/"" when film sim is monochromatic
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("sim", _MONO_SIMS)
+@pytest.mark.parametrize("value", [None, ""])
+def test_color_omitted_for_mono_sim(sim, value):
+    validate_recipe_for_camera(_make_recipe(film_simulation=sim, color=value))
