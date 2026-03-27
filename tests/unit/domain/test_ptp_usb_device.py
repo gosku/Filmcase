@@ -12,6 +12,7 @@ from unittest.mock import MagicMock, call, patch
 
 import pytest
 
+from src.domain.camera import events as camera_events
 from src.domain.camera.ptp_device import CameraConnectionError
 from src.domain.camera.ptp_usb_device import (
     PTPUSBDevice,
@@ -153,6 +154,7 @@ class TestPostReadDelay:
         with (
             patch.object(device, "_get_prop_with_retry", return_value=_data_for_uint16(5)),
             patch("src.domain.camera.ptp_usb_device.time.sleep", sleep_mock),
+            patch.object(camera_events, "publish_event"),
         ):
             device.get_property_int(0xD192)
 
@@ -168,7 +170,112 @@ class TestPostReadDelay:
         with (
             patch.object(device, "_get_prop_with_retry", return_value=empty_ptp_string),
             patch("src.domain.camera.ptp_usb_device.time.sleep", sleep_mock),
+            patch.object(camera_events, "publish_event"),
         ):
             device.get_property_string(0xD18D)
 
         sleep_mock.assert_called_once_with(_PROP_READ_DELAY)
+
+
+# ---------------------------------------------------------------------------
+# Event publishing
+# ---------------------------------------------------------------------------
+
+class TestEventPublishing:
+
+    def test_get_property_int_publishes_read_succeeded(self):
+        device = _make_device()
+
+        with (
+            patch.object(device, "_get_prop_with_retry", return_value=_data_for_uint16(42)),
+            patch("src.domain.camera.ptp_usb_device.time.sleep"),
+            patch.object(camera_events, "publish_event") as mock_publish,
+        ):
+            device.get_property_int(0xD192)
+
+        mock_publish.assert_called_once_with(
+            event_type=camera_events.PTP_READ_SUCCEEDED,
+            params={"prop": "0xD192", "value": 42},
+        )
+
+    def test_get_property_int_publishes_read_failed_and_reraises(self):
+        device = _make_device()
+        err = CameraConnectionError("USB dead")
+
+        with (
+            patch.object(device, "_get_prop_with_retry", side_effect=err),
+            patch.object(camera_events, "publish_event") as mock_publish,
+        ):
+            with pytest.raises(CameraConnectionError, match="USB dead"):
+                device.get_property_int(0xD192)
+
+        mock_publish.assert_called_once_with(
+            event_type=camera_events.PTP_READ_FAILED,
+            params={"prop": "0xD192", "error": "USB dead"},
+        )
+
+    def test_get_property_string_publishes_read_succeeded(self):
+        device = _make_device()
+        # PTP string encoding of "A": numChars=2, [0x41, 0x00] (char + NUL)
+        ptp_str = struct.pack("<B2H", 2, 0x41, 0x00)
+        data = struct.pack("<IHHI", 12 + len(ptp_str), 0x0002, 0x1015, 1) + ptp_str
+
+        with (
+            patch.object(device, "_get_prop_with_retry", return_value=data),
+            patch("src.domain.camera.ptp_usb_device.time.sleep"),
+            patch.object(camera_events, "publish_event") as mock_publish,
+        ):
+            device.get_property_string(0xD18D)
+
+        mock_publish.assert_called_once_with(
+            event_type=camera_events.PTP_READ_SUCCEEDED,
+            params={"prop": "0xD18D", "value": "A"},
+        )
+
+    def test_get_property_string_publishes_read_failed_and_reraises(self):
+        device = _make_device()
+        err = CameraConnectionError("timeout")
+
+        with (
+            patch.object(device, "_get_prop_with_retry", side_effect=err),
+            patch.object(camera_events, "publish_event") as mock_publish,
+        ):
+            with pytest.raises(CameraConnectionError, match="timeout"):
+                device.get_property_string(0xD18D)
+
+        mock_publish.assert_called_once_with(
+            event_type=camera_events.PTP_READ_FAILED,
+            params={"prop": "0xD18D", "error": "timeout"},
+        )
+
+    def test_set_property_int_publishes_write_succeeded(self):
+        device = _make_device()
+
+        with (
+            patch.object(device, "_send"),
+            patch.object(device, "_recv_response", return_value=_ok_response()),
+            patch.object(camera_events, "publish_event") as mock_publish,
+        ):
+            device.set_property_int(0xD192, 5)
+
+        mock_publish.assert_called_once_with(
+            event_type=camera_events.PTP_WRITE_SUCCEEDED,
+            params={"prop": "0xD192"},
+        )
+
+    def test_set_property_int_publishes_write_failed(self):
+        device = _make_device()
+        bad_rc = 0x2005
+
+        with (
+            patch.object(device, "_send"),
+            patch.object(device, "_recv_response", return_value=(bad_rc, [])),
+            patch.object(camera_events, "publish_event") as mock_publish,
+        ):
+            rc = device.set_property_int(0xD192, 5)
+
+        assert rc == bad_rc
+        mock_publish.assert_called_once_with(
+            event_type=camera_events.PTP_WRITE_FAILED,
+            params={"prop": "0xD192", "rc": "0x2005"},
+        )

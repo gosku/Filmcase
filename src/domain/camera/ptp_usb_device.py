@@ -29,6 +29,7 @@ from typing import TYPE_CHECKING
 import usb.core
 import usb.util
 
+from src.domain.camera import events as camera_events
 from src.domain.camera.ptp_device import CameraBusyError, CameraConnectionError
 
 if TYPE_CHECKING:
@@ -302,18 +303,31 @@ class PTPUSBDevice:
             return -1
 
     def get_property_int(self, code: int) -> int:
-        data = self._get_prop_with_retry(code)
+        try:
+            data = self._get_prop_with_retry(code)
+        except CameraConnectionError as e:
+            camera_events.publish_event(
+                event_type=camera_events.PTP_READ_FAILED,
+                params={"prop": f"0x{code:04X}", "error": str(e)},
+            )
+            raise
         time.sleep(_PROP_READ_DELAY)
         # Property value is in the data payload after the 12-byte container header.
         # Most Fuji recipe properties are uint16; read as uint32 if 4 bytes available.
         payload = data[12:]
         if len(payload) >= 4:
-            return struct.unpack_from("<i", payload, 0)[0]  # signed int32
-        if len(payload) >= 2:
-            return struct.unpack_from("<H", payload, 0)[0]  # uint16
-        if len(payload) >= 1:
-            return payload[0]
-        return 0
+            value = struct.unpack_from("<i", payload, 0)[0]  # signed int32
+        elif len(payload) >= 2:
+            value = struct.unpack_from("<H", payload, 0)[0]  # uint16
+        elif len(payload) >= 1:
+            value = payload[0]
+        else:
+            value = 0
+        camera_events.publish_event(
+            event_type=camera_events.PTP_READ_SUCCEEDED,
+            params={"prop": f"0x{code:04X}", "value": value},
+        )
+        return value
 
     def get_property_int16(self, code: int) -> int:
         raw = self.get_property_int(code)
@@ -321,9 +335,20 @@ class PTPUSBDevice:
         return v - 65536 if v >= 32768 else v
 
     def get_property_string(self, code: int) -> str:
-        data = self._get_prop_with_retry(code)
+        try:
+            data = self._get_prop_with_retry(code)
+        except CameraConnectionError as e:
+            camera_events.publish_event(
+                event_type=camera_events.PTP_READ_FAILED,
+                params={"prop": f"0x{code:04X}", "error": str(e)},
+            )
+            raise
         time.sleep(_PROP_READ_DELAY)
         value, _ = _decode_ptp_string(data, 12)
+        camera_events.publish_event(
+            event_type=camera_events.PTP_READ_SUCCEEDED,
+            params={"prop": f"0x{code:04X}", "value": value},
+        )
         return value
 
     def set_property_int(self, code: int, value: int) -> int:
@@ -439,7 +464,15 @@ class PTPUSBDevice:
         self._send(_data_packet(_OC_SET_DEVICE_PROP_VALUE, tx, payload))
         rc, _ = self._recv_response()
         if rc == _RC_OK:
+            camera_events.publish_event(
+                event_type=camera_events.PTP_WRITE_SUCCEEDED,
+                params={"prop": f"0x{code:04X}"},
+            )
             return 0
+        camera_events.publish_event(
+            event_type=camera_events.PTP_WRITE_FAILED,
+            params={"prop": f"0x{code:04X}", "rc": f"0x{rc:04X}"},
+        )
         return rc  # non-zero = failure; caller decides whether to raise
 
     def _claim_interface(self) -> None:
