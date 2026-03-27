@@ -87,3 +87,73 @@ class TestSelectSlotView:
 
         assert response.status_code == 500
         assert response.json() == {"error": "Unexpected error happened"}
+
+
+@pytest.mark.django_db
+class TestSelectSlotViewHtmx:
+    @pytest.fixture(autouse=True)
+    def _no_sleep(self, monkeypatch):
+        monkeypatch.setattr("time.sleep", lambda _: None)
+
+    def _get(self, client, recipe_id):
+        return client.get(f"/recipes/{recipe_id}/push/", HTTP_HX_REQUEST="true")
+
+    def test_success_renders_partial_with_recipe_name_and_slots(self, client):
+        recipe = _recipe(name="Kodak Portra")
+
+        response = self._get(client, recipe.id)
+
+        assert response.status_code == 200
+        soup = BeautifulSoup(response.content, "html.parser")
+        assert soup.find(string="Kodak Portra") is not None
+        slot_labels = [el.get_text(strip=True) for el in soup.select(".slot-label")]
+        assert slot_labels == ["C1", "C2", "C3", "C4"]
+
+    def test_success_slot_buttons_have_hx_post_to_push_view(self, client):
+        recipe = _recipe(name="My Recipe")
+
+        response = self._get(client, recipe.id)
+
+        soup = BeautifulSoup(response.content, "html.parser")
+        buttons = soup.select(".slot-btn")
+        assert len(buttons) == 4
+        for btn, slot in zip(buttons, ["C1", "C2", "C3", "C4"]):
+            assert btn["hx-post"] == f"/recipes/{recipe.id}/push/{slot}/"
+
+    def test_camera_connection_error_renders_partial_with_error(self, client, settings):
+        recipe = _recipe(name="My Recipe")
+        settings.PTP_DEVICE = lambda: FakePTPDevice(
+            set_errors={constants.PROP_SLOT_CURSOR: CameraConnectionError("USB timeout")}
+        )
+
+        response = self._get(client, recipe.id)
+
+        assert response.status_code == 200
+        soup = BeautifulSoup(response.content, "html.parser")
+        assert "Camera connection error" in soup.get_text()
+
+    def test_camera_write_error_renders_partial_with_error(self, client, settings):
+        recipe = _recipe(name="My Recipe")
+        settings.PTP_DEVICE = lambda: FakePTPDevice(
+            set_rejection_codes={constants.PROP_SLOT_CURSOR: 0x2005}
+        )
+
+        response = self._get(client, recipe.id)
+
+        assert response.status_code == 200
+        soup = BeautifulSoup(response.content, "html.parser")
+        assert "Camera write error" in soup.get_text()
+
+    def test_unexpected_error_renders_partial_with_generic_message(self, client, settings):
+        recipe = _recipe(name="My Recipe")
+
+        def raise_runtime_error():
+            raise RuntimeError("Unexpected boom")
+
+        settings.PTP_DEVICE = raise_runtime_error
+
+        response = self._get(client, recipe.id)
+
+        assert response.status_code == 200
+        soup = BeautifulSoup(response.content, "html.parser")
+        assert "Unexpected error happened" in soup.get_text()

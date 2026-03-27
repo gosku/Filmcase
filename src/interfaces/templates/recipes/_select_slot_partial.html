@@ -1,0 +1,130 @@
+<style>
+  .slot-card {
+    background: #fff;
+    border-radius: 16px;
+    padding: 2rem;
+    width: 580px;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.2);
+    position: relative;
+    font-family: sans-serif;
+  }
+
+  .slot-card-close {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    width: 2rem;
+    height: 2rem;
+    border-radius: 50%;
+    border: none;
+    background: rgba(0,0,0,0.06);
+    color: #555;
+    font-size: 1rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s;
+  }
+
+  .slot-card-close:hover { background: rgba(0,0,0,0.12); }
+
+  .slot-card .card-title {
+    font-size: 1.1rem;
+    font-weight: 700;
+    text-align: center;
+    margin-bottom: 0.4rem;
+  }
+
+  .slot-card .recipe-name {
+    text-align: center;
+    font-size: 0.85rem;
+    color: #666;
+    margin-bottom: 1.5rem;
+  }
+
+  .slot-card .section-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #2db37a;
+    margin-bottom: 0.75rem;
+  }
+
+  .slot-card .slot-form { margin-bottom: 0.5rem; }
+
+  .slot-card .slot-btn {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    width: 100%;
+    padding: 0.85rem 1rem;
+    border: 1.5px solid #e0e0e0;
+    border-radius: 12px;
+    background: white;
+    cursor: pointer;
+    font-size: 0.95rem;
+    text-align: left;
+    transition: border-color 0.15s, background 0.15s;
+  }
+
+  .slot-card .slot-btn:hover { border-color: #2db37a; background: #f0faf5; }
+
+  .slot-card .slot-label {
+    font-weight: 700;
+    color: #2db37a;
+    min-width: 2.5rem;
+  }
+
+  .slot-card .slot-name { color: #222; flex: 1; }
+  .slot-card .slot-film-sim { font-size: 0.8rem; color: #999; }
+
+  #slot-result { margin-bottom: 0.75rem; }
+
+  .push-result--ok {
+    font-size: 0.9rem;
+    color: #2db37a;
+    font-weight: 600;
+    padding: 0.5rem 0;
+  }
+
+  .push-result--err {
+    font-size: 0.9rem;
+    color: #dc2626;
+    padding: 0.5rem 0;
+  }
+
+  .slot-error {
+    font-size: 0.9rem;
+    color: #dc2626;
+    padding: 0.5rem 0;
+    text-align: center;
+  }
+</style>
+
+<div class="slot-card">
+  <button class="slot-card-close" onclick="closeSlotOverlay()" title="Close">&#x2715;</button>
+  <h1 class="card-title">Push recipe to camera</h1>
+  <p class="recipe-name">{{ recipe.name }}</p>
+
+  {% if error %}
+    <p class="slot-error">{{ error }}</p>
+  {% else %}
+    <p class="section-label">Select import slot</p>
+    <div id="slot-result"></div>
+    {% for slot in slots %}
+    <div class="slot-form">
+      <button type="button" class="slot-btn"
+              hx-post="{% url 'push-recipe-to-camera' recipe_id=recipe.id slot=slot.label %}"
+              hx-target="#slot-result"
+              hx-swap="innerHTML"
+              hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
+        <span class="slot-label">{{ slot.label }}</span>
+        <span class="slot-name">{{ slot.name|default:"—" }}</span>
+        <span class="slot-film-sim">{{ slot.film_sim }}</span>
+      </button>
+    </div>
+    {% endfor %}
+  {% endif %}
+</div>

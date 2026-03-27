@@ -162,6 +162,31 @@
     color: #ddd;
     word-break: break-word;
   }
+
+  .detail-name-row {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+  }
+
+  .send-to-camera-btn {
+    flex-shrink: 0;
+    padding: 0.2rem 0.55rem;
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: #2db37a;
+    background: transparent;
+    border: 1px solid #2db37a;
+    border-radius: 4px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.15s, color 0.15s;
+  }
+
+  .send-to-camera-btn:hover {
+    background: #2db37a;
+    color: #fff;
+  }
 </style>
 
 <div class="detail-overlay">
@@ -268,7 +293,13 @@
           {% if image.fujifilm_recipe.name %}
             <div class="detail-row">
               <span class="detail-label">Name</span>
-              <span class="detail-value">{{ image.fujifilm_recipe.name }}</span>
+              <div class="detail-name-row">
+                <span class="detail-value">{{ image.fujifilm_recipe.name }}</span>
+                <button class="send-to-camera-btn"
+                        hx-get="{% url 'select-push-slot' recipe_id=image.fujifilm_recipe.id %}"
+                        hx-target="#slot-overlay"
+                        hx-swap="innerHTML">Send to camera</button>
+              </div>
             </div>
           {% endif %}
 

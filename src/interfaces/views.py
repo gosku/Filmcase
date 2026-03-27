@@ -1,3 +1,4 @@
+import logging
 import mimetypes
 from pathlib import Path
 
@@ -167,16 +168,25 @@ class SelectSlotView(View):
         return super().dispatch(request, *args, **kwargs)
 
     def get(self, request, recipe_id):
+        is_htmx = request.headers.get("HX-Request")
         try:
             states = get_camera_slots()
         except CameraConnectionError as e:
+            if is_htmx:
+                return render(request, "recipes/_select_slot_partial.html", {"recipe": self.recipe, "slots": [], "error": f"Camera connection error: {e}"})
             return JsonResponse({"error": f"Camera connection error: {e}"}, status=503)
         except CameraWriteError as e:
+            if is_htmx:
+                return render(request, "recipes/_select_slot_partial.html", {"recipe": self.recipe, "slots": [], "error": f"Camera write error: {e}"})
             return JsonResponse({"error": f"Camera write error: {e}"}, status=500)
         except Exception:
+            logging.exception("Unexpected error in SelectSlotView.get")
+            if is_htmx:
+                return render(request, "recipes/_select_slot_partial.html", {"recipe": self.recipe, "slots": [], "error": "Unexpected error happened"})
             return JsonResponse({"error": "Unexpected error happened"}, status=500)
         slots = [{"label": f"C{s.index}", "name": s.name, "film_sim": s.film_sim_name} for s in states]
-        return render(request, "recipes/select_slot.html", {"recipe": self.recipe, "slots": slots})
+        template = "recipes/_select_slot_partial.html" if is_htmx else "recipes/select_slot.html"
+        return render(request, template, {"recipe": self.recipe, "slots": slots})
 
 
 class PushRecipeToCameraView(View):
@@ -189,20 +199,32 @@ class PushRecipeToCameraView(View):
         return super().dispatch(request, *args, **kwargs)
 
     def post(self, request, recipe_id, slot):
+        is_htmx = request.headers.get("HX-Request")
         recipe_data = recipe_from_db(recipe=self.recipe)
         try:
             push_recipe_to_camera(recipe_data, slot_index=self.slot_index)
         except RecipeWriteError as e:
-            return JsonResponse(
-                {"error": f"Recipe write failed: {', '.join(e.failed_properties)}"},
-                status=500,
-            )
+            error = f"Recipe write failed: {', '.join(e.failed_properties)}"
+            if is_htmx:
+                return render(request, "recipes/_push_result_partial.html", {"error": error})
+            return JsonResponse({"error": error}, status=500)
         except CameraConnectionError as e:
-            return JsonResponse({"error": f"Camera connection error: {e}"}, status=503)
+            error = f"Camera connection error: {e}"
+            if is_htmx:
+                return render(request, "recipes/_push_result_partial.html", {"error": error})
+            return JsonResponse({"error": error}, status=503)
         except CameraWriteError as e:
-            return JsonResponse({"error": f"Camera write error: {e}"}, status=500)
+            error = f"Camera write error: {e}"
+            if is_htmx:
+                return render(request, "recipes/_push_result_partial.html", {"error": error})
+            return JsonResponse({"error": error}, status=500)
         except Exception:
+            logging.exception("Unexpected error in PushRecipeToCameraView.post")
+            if is_htmx:
+                return render(request, "recipes/_push_result_partial.html", {"error": "Unexpected error happened"})
             return JsonResponse({"error": "Unexpected error happened"}, status=500)
+        if is_htmx:
+            return render(request, "recipes/_push_result_partial.html", {"success": True, "message": f"Recipe saved to {slot}"})
         return JsonResponse({"message": f"Recipe saved in {slot}"})
 
 

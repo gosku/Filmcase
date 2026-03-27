@@ -145,3 +145,46 @@ class TestGalleryThumbnailsLinkToDetail:
         link = soup.find("a", class_="detail-link")
         assert link is not None
         assert link.find("img", class_="image-thumbnail") is not None
+
+
+@pytest.mark.django_db
+class TestImageDetailPartialSendToCamera:
+    def _get_partial(self, client, image_id):
+        return client.get(f"/images/{image_id}/", HTTP_HX_REQUEST="true")
+
+    def test_send_to_camera_button_present_when_recipe_has_name(self, client):
+        recipe = FujifilmRecipeFactory(name="Cuban Negative")
+        image = ImageFactory(fujifilm_recipe=recipe)
+
+        response = self._get_partial(client, image.id)
+
+        soup = BeautifulSoup(response.content, "html.parser")
+        btn = soup.find(class_="send-to-camera-btn")
+        assert btn is not None
+
+    def test_send_to_camera_button_points_to_select_slot_url(self, client):
+        recipe = FujifilmRecipeFactory(name="Cuban Negative")
+        image = ImageFactory(fujifilm_recipe=recipe)
+
+        response = self._get_partial(client, image.id)
+
+        soup = BeautifulSoup(response.content, "html.parser")
+        btn = soup.find(class_="send-to-camera-btn")
+        assert btn["hx-get"] == f"/recipes/{recipe.id}/push/"
+
+    def test_send_to_camera_button_absent_when_recipe_has_no_name(self, client):
+        recipe = FujifilmRecipeFactory(name="")
+        image = ImageFactory(fujifilm_recipe=recipe)
+
+        response = self._get_partial(client, image.id)
+
+        soup = BeautifulSoup(response.content, "html.parser")
+        assert soup.find(class_="send-to-camera-btn") is None
+
+    def test_send_to_camera_button_absent_when_no_recipe(self, client):
+        image = ImageFactory(fujifilm_recipe=None)
+
+        response = self._get_partial(client, image.id)
+
+        soup = BeautifulSoup(response.content, "html.parser")
+        assert soup.find(class_="send-to-camera-btn") is None

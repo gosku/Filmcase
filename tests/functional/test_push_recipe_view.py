@@ -1,4 +1,5 @@
 import pytest
+from bs4 import BeautifulSoup
 
 from src.data.camera import constants
 from src.domain.camera.ptp_device import CameraConnectionError, CameraWriteError
@@ -94,3 +95,77 @@ class TestPushRecipeToCameraView:
 
         assert response.status_code == 500
         assert response.json() == {"error": "Unexpected error happened"}
+
+
+@pytest.mark.django_db
+class TestPushRecipeToCameraViewHtmx:
+    @pytest.fixture(autouse=True)
+    def _no_sleep(self, monkeypatch):
+        monkeypatch.setattr("time.sleep", lambda _: None)
+
+    def _post(self, client, recipe_id, slot):
+        return client.post(f"/recipes/{recipe_id}/push/{slot}/", HTTP_HX_REQUEST="true")
+
+    def test_success_renders_partial_with_success_message(self, client):
+        recipe = _recipe(name="My Recipe")
+
+        response = self._post(client, recipe.id, "C4")
+
+        assert response.status_code == 200
+        soup = BeautifulSoup(response.content, "html.parser")
+        assert soup.find(class_="push-result--ok") is not None
+        assert "C4" in soup.get_text()
+
+    def test_recipe_write_error_renders_partial_with_error(self, client, settings):
+        recipe = _recipe()
+        settings.PTP_DEVICE = lambda: FakePTPDevice(
+            set_rejection_codes={constants.PROP_SLOT_NAME: 0x2005}
+        )
+
+        response = self._post(client, recipe.id, "C1")
+
+        assert response.status_code == 200
+        soup = BeautifulSoup(response.content, "html.parser")
+        assert soup.find(class_="push-result--err") is not None
+        assert "Recipe write failed" in soup.get_text()
+
+    def test_camera_connection_error_renders_partial_with_error(self, client, settings):
+        recipe = _recipe()
+        settings.PTP_DEVICE = lambda: FakePTPDevice(
+            set_rejection_codes={constants.PROP_SLOT_CURSOR: 0x2005}
+        )
+
+        response = self._post(client, recipe.id, "C2")
+
+        assert response.status_code == 200
+        soup = BeautifulSoup(response.content, "html.parser")
+        assert soup.find(class_="push-result--err") is not None
+        assert "Camera connection error" in soup.get_text()
+
+    def test_camera_write_error_renders_partial_with_error(self, client, settings):
+        recipe = _recipe()
+        settings.PTP_DEVICE = lambda: FakePTPDevice(
+            set_errors={constants.PROP_SLOT_CURSOR: CameraWriteError(constants.PROP_SLOT_CURSOR, 1, 0x2005)}
+        )
+
+        response = self._post(client, recipe.id, "C3")
+
+        assert response.status_code == 200
+        soup = BeautifulSoup(response.content, "html.parser")
+        assert soup.find(class_="push-result--err") is not None
+        assert "Camera write error" in soup.get_text()
+
+    def test_unexpected_error_renders_partial_with_generic_message(self, client, settings):
+        recipe = _recipe()
+
+        def raise_runtime_error():
+            raise RuntimeError("Unexpected boom")
+
+        settings.PTP_DEVICE = raise_runtime_error
+
+        response = self._post(client, recipe.id, "C1")
+
+        assert response.status_code == 200
+        soup = BeautifulSoup(response.content, "html.parser")
+        assert soup.find(class_="push-result--err") is not None
+        assert "Unexpected error happened" in soup.get_text()

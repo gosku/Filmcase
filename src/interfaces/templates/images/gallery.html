@@ -260,6 +260,46 @@
     #detail-overlay .detail-overlay {
       height: 100%;
     }
+
+    #slot-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 200;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(0,0,0,0.6);
+    }
+
+    #slot-overlay[hidden] { display: none; }
+
+    .slot-card {
+      background: #fff;
+      border-radius: 16px;
+      padding: 2rem;
+      width: 580px;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.2);
+      position: relative;
+      font-family: sans-serif;
+      min-height: 120px;
+    }
+
+    .slot-card--loading {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .slot-spinner {
+      width: 2rem;
+      height: 2rem;
+      border: 3px solid #e0e0e0;
+      border-top-color: #2db37a;
+      border-radius: 50%;
+      animation: slot-spin 0.7s linear infinite;
+    }
+
+    @keyframes slot-spin { to { transform: rotate(360deg); } }
   </style>
 </head>
 <body>
@@ -319,6 +359,7 @@
 </main>
 
 <div id="detail-overlay" hidden></div>
+<div id="slot-overlay" hidden></div>
 
 <script>
   // Searchable dropdowns for recipe name and film simulation.
@@ -364,6 +405,26 @@
       document.getElementById('filter-form').dispatchEvent(new Event('change'));
     });
   }());
+
+  // Slot overlay logic.
+  var _slotSpinnerHTML = '<div class="slot-card slot-card--loading"><div class="slot-spinner"></div></div>';
+
+  function closeSlotOverlay() {
+    var overlay = document.getElementById('slot-overlay');
+    overlay.hidden = true;
+  }
+
+  document.body.addEventListener('htmx:beforeRequest', function (e) {
+    if (e.detail.target && e.detail.target.id === 'slot-overlay') {
+      var overlay = e.detail.target;
+      overlay.innerHTML = _slotSpinnerHTML;
+      overlay.hidden = false;
+    }
+  });
+
+  document.getElementById('slot-overlay').addEventListener('click', function (e) {
+    if (e.target === this) closeSlotOverlay();
+  });
 
   // Detail overlay logic.
   var _galleryUrl = null;
@@ -424,6 +485,10 @@
   });
 
   document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') {
+      var slotOverlay = document.getElementById('slot-overlay');
+      if (slotOverlay && !slotOverlay.hidden) { closeSlotOverlay(); return; }
+    }
     var overlay = document.getElementById('detail-overlay');
     if (!overlay || overlay.hidden) return;
     if (e.key === 'Escape') closeDetail();
