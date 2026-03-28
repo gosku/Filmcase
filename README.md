@@ -4,8 +4,9 @@ A Django application for managing Fujifilm camera recipes and browsing your imag
 
 Read more about it in our [documentation index](docs/index.md).
 
-![Gallery view](docs/images/2026-03-22_18-48.jpg)
-![Image detail](docs/images/2026-03-22_18-52.jpg)
+![Gallery view](docs/images/2026-03-28_19-35.jpg)
+![Image detail](docs/images/2026-03-28_19-35_1.jpg)
+![Push recipe to camera](docs/images/2026-03-28_19-37.jpg)
 
 ## Features
 
