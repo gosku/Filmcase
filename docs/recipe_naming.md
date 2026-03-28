@@ -8,19 +8,18 @@ it writes. When an image is imported into this application, those fields are ext
 stored in a `FujifilmRecipe` database row.
 
 Recipes are **deduplicated by their field values**: two images shot with identical settings
-share the same `FujifilmRecipe` row. A recipe therefore represents a specific *combination*
+share the same `FujifilmRecipe` row. A recipe therefore represents a specific _combination_
 of creative settings, not a single image. One recipe can have thousands of images linked to
 it, all shot with the same creative settings at different times.
 
 ## Recipes don't have names by default
 
-The camera itself has no concept of recipe names — it only stores the individual setting
+The image itself has no concept of recipe names — it only stores the individual setting
 values. When a recipe row is created during import, its `name` field is left blank. This is
 by design: the same combination of settings may not mean anything meaningful until a user
 decides it does.
 
-A recipe that has not been named can still be displayed, filtered, and even sent to a
-camera. The name is optional in most contexts. The main features that require a name are:
+A recipe that has not been named can still be displayed and filtered. The name is optional in most contexts (but you need a name to send a recipe to camera). The main features that require a name are:
 
 - Displaying a human-readable label in the recipe filter dropdown of the gallery.
 - Enabling the "Send to camera" button on the image detail panel (the camera expects a slot
@@ -54,10 +53,10 @@ context are preserved throughout.
 Recipe names must satisfy two constraints, inherited from the camera's own slot naming
 limits:
 
-| Rule | Detail |
-|---|---|
+| Rule           | Detail        |
+| -------------- | ------------- |
 | Maximum length | 25 characters |
-| Character set | ASCII only |
+| Character set  | ASCII only    |
 
 Names that violate either rule are rejected with a `RecipeNameValidationError` before
 anything is written to the database.
