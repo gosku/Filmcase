@@ -639,3 +639,396 @@ class TestRecipeToPTPValuesViaFactory:
         assert ptp.ColorMode is None
         assert ptp.MonochromaticColorWarmCool == -180
         assert ptp.MonochromaticColorMagentaGreen == 0
+
+
+# ---------------------------------------------------------------------------
+# Direct unit tests for recipe_to_ptp_values()
+# ---------------------------------------------------------------------------
+
+
+class TestRecipeToPTPValuesDirect:
+    """
+    Exhaustive unit tests for recipe_to_ptp_values(), driving FujifilmRecipeData
+    directly — no factory, no DB layer.
+
+    Tests verify two things for every field:
+      1. The expected PTP integer is produced for each domain value.
+      2. Optional RecipePTPValues attrs are None (i.e. not written to camera)
+         when the corresponding recipe field is absent/inapplicable.
+    """
+
+    # ------------------------------------------------------------------
+    # Minimal recipe shapes — all absent optional attrs must be None
+    # ------------------------------------------------------------------
+
+    def test_minimal_colour_recipe_all_optional_attrs_none(self):
+        """
+        A colour recipe supplying only required fields yields a RecipePTPValues
+        where every optional attribute is None.
+        """
+        recipe = _make_recipe(
+            white_balance="Auto",                    # not Kelvin → no WB temperature
+            d_range_priority="Off",
+            dynamic_range=None,                      # no DR mode
+            grain_roughness="Off",
+            grain_size=None,
+            sharpness="0",
+            high_iso_nr="0",
+            clarity="0",
+            highlight=None,
+            shadow=None,
+            color=None,
+            monochromatic_color_warm_cool=None,
+            monochromatic_color_magenta_green=None,
+        )
+        ptp = recipe_to_ptp_values(recipe)
+        assert ptp.WhiteBalanceColorTemperature is None
+        assert ptp.DRangeMode is None
+        assert ptp.ColorMode is None
+        assert ptp.HighLightTone is None
+        assert ptp.ShadowTone is None
+        assert ptp.MonochromaticColorWarmCool is None
+        assert ptp.MonochromaticColorMagentaGreen is None
+
+    def test_minimal_mono_recipe_colour_mode_absent_mono_fields_present(self):
+        """
+        A monochromatic recipe without a color value has ColorMode=None,
+        while MonochromaticColor fields are encoded when set.
+        """
+        recipe = _make_recipe(
+            film_simulation="Acros STD",
+            color=None,
+            monochromatic_color_warm_cool="+9",
+            monochromatic_color_magenta_green="-9",
+        )
+        ptp = recipe_to_ptp_values(recipe)
+        assert ptp.ColorMode is None
+        assert ptp.MonochromaticColorWarmCool == 90
+        assert ptp.MonochromaticColorMagentaGreen == -90
+
+    # ------------------------------------------------------------------
+    # FilmSimulation — all 20 values
+    # ------------------------------------------------------------------
+
+    @pytest.mark.parametrize("film_sim, expected_ptp", [
+        ("Provia",              1),
+        ("Velvia",              2),
+        ("Astia",               3),
+        ("Pro Neg. Hi",         4),
+        ("Pro Neg. Std",        5),
+        ("Monochrome STD",      6),
+        ("Monochrome Yellow",   7),
+        ("Monochrome Red",      8),
+        ("Monochrome Green",    9),
+        ("Sepia",              10),
+        ("Classic Chrome",     11),
+        ("Acros STD",          12),
+        ("Acros Yellow",       13),
+        ("Acros Red",          14),
+        ("Acros Green",        15),
+        ("Eterna",             16),
+        ("Classic Negative",   17),
+        ("Eterna Bleach Bypass", 18),
+        ("Nostalgic Negative", 19),
+        ("Reala Ace",          20),
+    ])
+    def test_film_simulation_all_values(self, film_sim, expected_ptp):
+        recipe = _make_recipe(film_simulation=film_sim)
+        assert recipe_to_ptp_values(recipe).FilmSimulation == expected_ptp
+
+    # ------------------------------------------------------------------
+    # WhiteBalance — named modes and Kelvin strings
+    # ------------------------------------------------------------------
+
+    @pytest.mark.parametrize("wb_label, expected_ptp", [
+        ("Auto",                     0x0002),
+        ("Auto (white priority)",    0x8020),
+        ("Auto (ambience priority)", 0x8021),
+        ("Daylight",                 0x0004),
+        ("Incandescent",             0x0006),
+        ("Fluorescent 1",            0x8001),
+        ("Fluorescent 2",            0x8002),
+        ("Fluorescent 3",            0x8003),
+        ("Shade",                    0x8006),
+        ("Underwater",               0x0008),
+        ("Custom 1",                 0x8008),
+        ("Custom 2",                 0x8009),
+        ("Custom 3",                 0x800A),
+    ])
+    def test_white_balance_named_modes(self, wb_label, expected_ptp):
+        recipe = _make_recipe(white_balance=wb_label)
+        ptp = recipe_to_ptp_values(recipe)
+        assert ptp.WhiteBalance == expected_ptp
+        assert ptp.WhiteBalanceColorTemperature is None
+
+    @pytest.mark.parametrize("kelvin_str, expected_temp", [
+        ("2500K",  2500),
+        ("4000K",  4000),
+        ("5500K",  5500),
+        ("6500K",  6500),
+        ("10000K", 10000),
+    ])
+    def test_kelvin_white_balance_sets_mode_and_temperature(self, kelvin_str, expected_temp):
+        recipe = _make_recipe(white_balance=kelvin_str)
+        ptp = recipe_to_ptp_values(recipe)
+        assert ptp.WhiteBalance == 0x8007          # Kelvin PTP code
+        assert ptp.WhiteBalanceColorTemperature == expected_temp
+
+    # ------------------------------------------------------------------
+    # WhiteBalanceRed / WhiteBalanceBlue — direct pass-through
+    # ------------------------------------------------------------------
+
+    @pytest.mark.parametrize("red, blue", [
+        (0,   0),
+        (3,  -5),
+        (-9,  9),
+        (18, -18),
+    ])
+    def test_white_balance_red_blue_pass_through(self, red, blue):
+        recipe = _make_recipe(white_balance_red=red, white_balance_blue=blue)
+        ptp = recipe_to_ptp_values(recipe)
+        assert ptp.WhiteBalanceRed == red
+        assert ptp.WhiteBalanceBlue == blue
+
+    # ------------------------------------------------------------------
+    # DRangePriority — all four domain values
+    # ------------------------------------------------------------------
+
+    @pytest.mark.parametrize("drp, expected_ptp", [
+        ("Off",    0),
+        ("Weak",   1),
+        ("Strong", 2),
+        ("Auto",   32768),
+    ])
+    def test_d_range_priority_all_values(self, drp, expected_ptp):
+        recipe = _make_recipe(d_range_priority=drp)
+        assert recipe_to_ptp_values(recipe).DRangePriority == expected_ptp
+
+    # ------------------------------------------------------------------
+    # DRangeMode — conditional on DRangePriority being Off
+    # ------------------------------------------------------------------
+
+    @pytest.mark.parametrize("dr_mode, expected_ptp", [
+        ("DR100",   100),
+        ("DR200",   200),
+        ("DR400",   400),
+        ("DR-Auto", 65535),
+    ])
+    def test_dr_mode_all_values_when_priority_off(self, dr_mode, expected_ptp):
+        recipe = _make_recipe(d_range_priority="Off", dynamic_range=dr_mode)
+        assert recipe_to_ptp_values(recipe).DRangeMode == expected_ptp
+
+    @pytest.mark.parametrize("drp", ["Weak", "Strong", "Auto"])
+    def test_dr_mode_none_when_priority_active(self, drp):
+        recipe = _make_recipe(d_range_priority=drp, dynamic_range="DR400")
+        assert recipe_to_ptp_values(recipe).DRangeMode is None
+
+    def test_dr_mode_none_when_dynamic_range_absent(self):
+        recipe = _make_recipe(d_range_priority="Off", dynamic_range=None)
+        assert recipe_to_ptp_values(recipe).DRangeMode is None
+
+    # ------------------------------------------------------------------
+    # GrainEffect — Off always writes 1; Weak/Strong × Small/Large each distinct
+    # ------------------------------------------------------------------
+
+    def test_grain_off_encodes_as_1(self):
+        recipe = _make_recipe(grain_roughness="Off", grain_size=None)
+        assert recipe_to_ptp_values(recipe).GrainEffect == 1
+
+    @pytest.mark.parametrize("roughness, size, expected_ptp", [
+        ("Weak",   "Small", 2),
+        ("Strong", "Small", 3),
+        ("Weak",   "Large", 4),
+        ("Strong", "Large", 5),
+    ])
+    def test_grain_roughness_size_all_combinations(self, roughness, size, expected_ptp):
+        recipe = _make_recipe(grain_roughness=roughness, grain_size=size)
+        assert recipe_to_ptp_values(recipe).GrainEffect == expected_ptp
+
+    # ------------------------------------------------------------------
+    # ColorEffect (CCE) and ColorFx (CFX) — Off/Weak/Strong
+    # ------------------------------------------------------------------
+
+    @pytest.mark.parametrize("cce, expected_ptp", [
+        ("Off",    1),
+        ("Weak",   2),
+        ("Strong", 3),
+    ])
+    def test_color_chrome_effect_all_values(self, cce, expected_ptp):
+        recipe = _make_recipe(color_chrome_effect=cce)
+        assert recipe_to_ptp_values(recipe).ColorEffect == expected_ptp
+
+    @pytest.mark.parametrize("cfx, expected_ptp", [
+        ("Off",    1),
+        ("Weak",   2),
+        ("Strong", 3),
+    ])
+    def test_color_chrome_fx_blue_all_values(self, cfx, expected_ptp):
+        recipe = _make_recipe(color_chrome_fx_blue=cfx)
+        assert recipe_to_ptp_values(recipe).ColorFx == expected_ptp
+
+    # ------------------------------------------------------------------
+    # Sharpness (always written; absent/N/A → 0)
+    # ------------------------------------------------------------------
+
+    @pytest.mark.parametrize("sharpness_str, expected_ptp", [
+        ("-4", -40),
+        ("-2", -20),
+        ("0",    0),
+        ("+2",  20),
+        ("+4",  40),
+    ])
+    def test_sharpness_encoding(self, sharpness_str, expected_ptp):
+        recipe = _make_recipe(sharpness=sharpness_str)
+        assert recipe_to_ptp_values(recipe).Sharpness == expected_ptp
+
+    @pytest.mark.parametrize("absent", ["", "N/A"])
+    def test_sharpness_absent_defaults_to_zero(self, absent):
+        recipe = _make_recipe(sharpness=absent)
+        assert recipe_to_ptp_values(recipe).Sharpness == 0
+
+    # ------------------------------------------------------------------
+    # Definition / Clarity (always written; absent/N/A → 0)
+    # ------------------------------------------------------------------
+
+    @pytest.mark.parametrize("clarity_str, expected_ptp", [
+        ("-5", -50),
+        ("-2", -20),
+        ("0",    0),
+        ("+2",  20),
+        ("+5",  50),
+    ])
+    def test_clarity_encoding(self, clarity_str, expected_ptp):
+        recipe = _make_recipe(clarity=clarity_str)
+        assert recipe_to_ptp_values(recipe).Definition == expected_ptp
+
+    @pytest.mark.parametrize("absent", ["", "N/A"])
+    def test_clarity_absent_defaults_to_zero(self, absent):
+        recipe = _make_recipe(clarity=absent)
+        assert recipe_to_ptp_values(recipe).Definition == 0
+
+    # ------------------------------------------------------------------
+    # HighLightTone (optional; None when absent)
+    # ------------------------------------------------------------------
+
+    @pytest.mark.parametrize("highlight_str, expected_ptp", [
+        ("-2",   -20),
+        ("-1.5", -15),
+        ("0",      0),
+        ("+1.5",  15),
+        ("+2",    20),
+    ])
+    def test_highlight_encoding(self, highlight_str, expected_ptp):
+        recipe = _make_recipe(highlight=highlight_str)
+        assert recipe_to_ptp_values(recipe).HighLightTone == expected_ptp
+
+    def test_highlight_none_is_absent(self):
+        recipe = _make_recipe(highlight=None)
+        assert recipe_to_ptp_values(recipe).HighLightTone is None
+
+    # ------------------------------------------------------------------
+    # ShadowTone (optional; None when absent)
+    # ------------------------------------------------------------------
+
+    @pytest.mark.parametrize("shadow_str, expected_ptp", [
+        ("-2",  -20),
+        ("-1",  -10),
+        ("0",     0),
+        ("+1",   10),
+        ("+2",   20),
+    ])
+    def test_shadow_encoding(self, shadow_str, expected_ptp):
+        recipe = _make_recipe(shadow=shadow_str)
+        assert recipe_to_ptp_values(recipe).ShadowTone == expected_ptp
+
+    def test_shadow_none_is_absent(self):
+        recipe = _make_recipe(shadow=None)
+        assert recipe_to_ptp_values(recipe).ShadowTone is None
+
+    # ------------------------------------------------------------------
+    # ColorMode (optional; None when absent)
+    # ------------------------------------------------------------------
+
+    @pytest.mark.parametrize("color_str, expected_ptp", [
+        ("-4", -40),
+        ("-2", -20),
+        ("0",    0),
+        ("+2",  20),
+        ("+4",  40),
+    ])
+    def test_color_encoding(self, color_str, expected_ptp):
+        recipe = _make_recipe(color=color_str)
+        assert recipe_to_ptp_values(recipe).ColorMode == expected_ptp
+
+    def test_color_none_is_absent(self):
+        recipe = _make_recipe(color=None)
+        assert recipe_to_ptp_values(recipe).ColorMode is None
+
+    # ------------------------------------------------------------------
+    # HighIsoNoiseReduction — non-linear lookup, all 9 domain values
+    # ------------------------------------------------------------------
+
+    @pytest.mark.parametrize("nr_str, expected_ptp", [
+        ("+4",  20480),   # 0x5000
+        ("+3",  24576),   # 0x6000
+        ("+2",      0),   # 0x0000
+        ("+1",   4096),   # 0x1000
+        ("0",    8192),   # 0x2000 — normal
+        ("-1",  12288),   # 0x3000
+        ("-2",  16384),   # 0x4000
+        ("-3",  28672),   # 0x7000
+        ("-4",  32768),   # 0x8000
+    ])
+    def test_high_iso_nr_all_values(self, nr_str, expected_ptp):
+        recipe = _make_recipe(high_iso_nr=nr_str)
+        assert recipe_to_ptp_values(recipe).HighIsoNoiseReduction == expected_ptp
+
+    @pytest.mark.parametrize("absent", ["", "N/A"])
+    def test_high_iso_nr_absent_defaults_to_normal(self, absent):
+        """Absent NR maps to domain 0 → PTP 8192 (0x2000, normal)."""
+        recipe = _make_recipe(high_iso_nr=absent)
+        assert recipe_to_ptp_values(recipe).HighIsoNoiseReduction == 8192
+
+    # ------------------------------------------------------------------
+    # MonochromaticColorWarmCool / MagentaGreen (optional; None when absent)
+    # ------------------------------------------------------------------
+
+    @pytest.mark.parametrize("wc_str, expected_ptp", [
+        ("-18", -180),
+        ("-9",   -90),
+        ("0",      0),
+        ("+9",    90),
+        ("+18",  180),
+    ])
+    def test_mono_warm_cool_encoding(self, wc_str, expected_ptp):
+        recipe = _make_recipe(
+            film_simulation="Acros STD",
+            color=None,
+            monochromatic_color_warm_cool=wc_str,
+            monochromatic_color_magenta_green="0",
+        )
+        assert recipe_to_ptp_values(recipe).MonochromaticColorWarmCool == expected_ptp
+
+    def test_mono_warm_cool_none_when_absent(self):
+        recipe = _make_recipe(monochromatic_color_warm_cool=None)
+        assert recipe_to_ptp_values(recipe).MonochromaticColorWarmCool is None
+
+    @pytest.mark.parametrize("mg_str, expected_ptp", [
+        ("-18", -180),
+        ("-9",   -90),
+        ("0",      0),
+        ("+9",    90),
+        ("+18",  180),
+    ])
+    def test_mono_magenta_green_encoding(self, mg_str, expected_ptp):
+        recipe = _make_recipe(
+            film_simulation="Acros STD",
+            color=None,
+            monochromatic_color_warm_cool="0",
+            monochromatic_color_magenta_green=mg_str,
+        )
+        assert recipe_to_ptp_values(recipe).MonochromaticColorMagentaGreen == expected_ptp
+
+    def test_mono_magenta_green_none_when_absent(self):
+        recipe = _make_recipe(monochromatic_color_magenta_green=None)
+        assert recipe_to_ptp_values(recipe).MonochromaticColorMagentaGreen is None
