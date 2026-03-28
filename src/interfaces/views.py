@@ -4,7 +4,7 @@ from pathlib import Path
 
 from django.conf import settings
 from django.core.paginator import Paginator
-from django.db.models import Count, Q
+from django.db.models import Count, IntegerField, Q
 from django.http import FileResponse, Http404, JsonResponse
 from django.shortcuts import get_object_or_404, render
 from django.views import View
@@ -28,6 +28,8 @@ RECIPE_FILTER_FIELDS = [
     ("color_chrome_effect", "Color Chrome Effect"),
     ("color_chrome_fx_blue", "Color Chrome FX Blue"),
     ("white_balance", "White Balance"),
+    ("white_balance_red", "WB Red"),
+    ("white_balance_blue", "WB Blue"),
 ]
 
 
@@ -71,10 +73,15 @@ def _paginate(request, qs):
 def _get_sidebar_options(request):
     options = {}
     for field, label in RECIPE_FILTER_FIELDS:
+        model_field = FujifilmRecipe._meta.get_field(field)
+        if isinstance(model_field, IntegerField):
+            exclude_kwargs = {f"{field}__isnull": True}
+        else:
+            exclude_kwargs = {field: ""}
         values = (
             FujifilmRecipe.objects.values_list(field, flat=True)
             .distinct()
-            .exclude(**{field: ""})
+            .exclude(**exclude_kwargs)
             .order_by(field)
         )
         options[field] = {

@@ -152,6 +152,43 @@ class TestGalleryInfiniteScroll:
 
 
 @pytest.mark.django_db
+class TestWBRedBlueFilters:
+    def test_gallery_loads_without_error_when_wb_red_blue_recipes_exist(self, client):
+        recipe = FujifilmRecipeFactory(white_balance_red=3, white_balance_blue=-2)
+        ImageFactory(fujifilm_recipe=recipe)
+
+        response = client.get("/images/")
+
+        assert response.status_code == 200
+
+    def test_filters_images_by_white_balance_red(self, client):
+        recipe_r3 = FujifilmRecipeFactory(white_balance_red=3)
+        recipe_r0 = FujifilmRecipeFactory(white_balance_red=0)
+        ImageFactory(filename="red3.jpg", fujifilm_recipe=recipe_r3)
+        ImageFactory(filename="red0.jpg", fujifilm_recipe=recipe_r0)
+
+        response = client.get("/images/results/", {"white_balance_red": "3"})
+
+        assert response.status_code == 200
+        soup = BeautifulSoup(response.content, "html.parser")
+        filenames = [c.find(class_="image-filename").text.strip() for c in soup.find_all(class_="image-card")]
+        assert filenames == ["red3.jpg"]
+
+    def test_filters_images_by_white_balance_blue(self, client):
+        recipe_b2 = FujifilmRecipeFactory(white_balance_blue=2)
+        recipe_b0 = FujifilmRecipeFactory(white_balance_blue=0)
+        ImageFactory(filename="blue2.jpg", fujifilm_recipe=recipe_b2)
+        ImageFactory(filename="blue0.jpg", fujifilm_recipe=recipe_b0)
+
+        response = client.get("/images/results/", {"white_balance_blue": "2"})
+
+        assert response.status_code == 200
+        soup = BeautifulSoup(response.content, "html.parser")
+        filenames = [c.find(class_="image-filename").text.strip() for c in soup.find_all(class_="image-card")]
+        assert filenames == ["blue2.jpg"]
+
+
+@pytest.mark.django_db
 class TestFavoritesFirstToggle:
     """A favorite (older) image and a non-favourite (newer) image are created.
     With the toggle enabled the favourite must come first; with it disabled the
