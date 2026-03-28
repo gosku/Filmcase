@@ -6,7 +6,7 @@ Read more about it in our [documentation index](docs/index.md).
 
 ![Gallery view](docs/images/2026-03-28_19-35.jpg)
 ![Image detail](docs/images/2026-03-28_19-35_1.jpg)
-![Push recipe to camera](docs/images/2026-03-28_19-37.jpg)
+![Push recipe to camera](docs/images/push_to_camera_demo.gif)
 
 ## Features
 
