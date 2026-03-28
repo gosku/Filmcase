@@ -125,32 +125,17 @@
       left: calc(100% - 0.975rem);
     }
 
-    #gallery-pagination {
-      display: flex;
-      align-items: center;
-      gap: 1rem;
-    }
-
-    #gallery-results { display: flex; flex-direction: column; gap: 1rem; }
-
-    .image-grid {
+    #gallery-results {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
       gap: 1rem;
     }
 
-    .pagination-btn {
-      padding: 0.4rem 0.9rem;
-      border: 1px solid #ccc;
-      border-radius: 4px;
-      background: #fff;
-      cursor: pointer;
-      font-size: 0.9rem;
+    .infinite-scroll-sentinel {
+      height: 300px;
+      visibility: hidden;
+      pointer-events: none;
     }
-
-    .pagination-btn:hover { background: #f0f0f0; }
-
-    .pagination-info { font-size: 0.85rem; color: #555; }
 
     .image-card {
       min-width: 0;
@@ -434,11 +419,22 @@
 <main class="main">
   <div class="gallery-header">
     <h1>Images</h1>
-    {% include "images/_gallery_pagination.html" %}
   </div>
   <div class="gallery-scroll">
     <div id="gallery-results">
       {% include "images/_gallery_results.html" %}
+    </div>
+    <div id="load-more-sentinel">
+      {% if page_obj.has_next %}
+      <div class="infinite-scroll-sentinel"
+           hx-get="{% url 'gallery-results' %}"
+           hx-include="#filter-form"
+           hx-vals='{"page": "{{ page_obj.next_page_number }}"}'
+           hx-trigger="intersect root:.gallery-scroll"
+           hx-target="#load-more-sentinel"
+           hx-swap="outerHTML">
+      </div>
+      {% endif %}
     </div>
   </div>
 </main>

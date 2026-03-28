@@ -1,36 +1,32 @@
-<div class="image-grid">
-  {% for image in page_obj %}
-    <article class="image-card">
-      <a class="detail-link" href="{% url 'image-detail' image.id %}"
-         hx-get="{% url 'image-detail' image.id %}"
-         hx-target="#detail-overlay"
-         hx-push-url="{% url 'image-detail' image.id %}"
-         hx-include="#filter-form">
-        <img class="image-thumbnail" src="{% url 'image-file' image.id %}?width=600" alt="{{ image.filename }}" loading="lazy">
-      </a>
-      <span class="image-recipe">{% if image.fujifilm_recipe and image.fujifilm_recipe.name %}{{ image.fujifilm_recipe.name }}{% elif image.fujifilm_recipe and image.fujifilm_recipe.film_simulation %}{{ image.fujifilm_recipe.film_simulation }}{% else %}—{% endif %}</span>
-      <div class="image-meta-row">
-        <span class="image-exposure">{% if image.aperture %}F{{ image.aperture }}{% endif %}{% if image.shutter_speed %}{% if image.aperture %} - {% endif %}{{ image.shutter_speed }}{% endif %}{% if image.iso %}{% if image.aperture or image.shutter_speed %} - {% endif %}ISO {{ image.iso }}{% endif %}</span>
-        <span class="image-filename">{{ image.filename }}</span>
-      </div>
-      {% if image.is_favorite or image.fujifilm_recipe %}
-        <div class="recipe-labels">
-          {% if image.is_favorite %}<span class="image-favorite">Favorite</span>{% endif %}
-          {% if image.fujifilm_recipe %}
-            {% if image.fujifilm_recipe.dynamic_range %}<span class="recipe-label rl-dr">{{ image.fujifilm_recipe.dynamic_range }}</span>{% endif %}
+{% for image in page_obj %}
+  <article class="image-card">
+    <a class="detail-link" href="{% url 'image-detail' image.id %}"
+       hx-get="{% url 'image-detail' image.id %}"
+       hx-target="#detail-overlay"
+       hx-push-url="{% url 'image-detail' image.id %}"
+       hx-include="#filter-form">
+      <img class="image-thumbnail" src="{% url 'image-file' image.id %}?width=600" alt="{{ image.filename }}" loading="lazy">
+    </a>
+    <span class="image-recipe">{% if image.fujifilm_recipe and image.fujifilm_recipe.name %}{{ image.fujifilm_recipe.name }}{% elif image.fujifilm_recipe and image.fujifilm_recipe.film_simulation %}{{ image.fujifilm_recipe.film_simulation }}{% else %}—{% endif %}</span>
+    <div class="image-meta-row">
+      <span class="image-exposure">{% if image.aperture %}F{{ image.aperture }}{% endif %}{% if image.shutter_speed %}{% if image.aperture %} - {% endif %}{{ image.shutter_speed }}{% endif %}{% if image.iso %}{% if image.aperture or image.shutter_speed %} - {% endif %}ISO {{ image.iso }}{% endif %}</span>
+      <span class="image-filename">{{ image.filename }}</span>
+    </div>
+    {% if image.is_favorite or image.fujifilm_recipe %}
+      <div class="recipe-labels">
+        {% if image.is_favorite %}<span class="image-favorite">Favorite</span>{% endif %}
+        {% if image.fujifilm_recipe %}
+          {% if image.fujifilm_recipe.dynamic_range %}<span class="recipe-label rl-dr">{{ image.fujifilm_recipe.dynamic_range }}</span>{% endif %}
 {% if image.fujifilm_recipe.white_balance %}<span class="recipe-label rl-wb">WB {{ image.fujifilm_recipe.white_balance }}</span>{% endif %}
-            <span class="recipe-label rl-r">R {% if image.fujifilm_recipe.white_balance_red > 0 %}+{% endif %}{{ image.fujifilm_recipe.white_balance_red }}</span>
-            <span class="recipe-label rl-b">B {% if image.fujifilm_recipe.white_balance_blue > 0 %}+{% endif %}{{ image.fujifilm_recipe.white_balance_blue }}</span>
-            {% if image.fujifilm_recipe.highlight is not None %}<span class="recipe-label rl-hl">HL {% if image.fujifilm_recipe.highlight > 0 %}+{% endif %}{{ image.fujifilm_recipe.highlight|floatformat:"-1" }}</span>{% endif %}
-            {% if image.fujifilm_recipe.shadow is not None %}<span class="recipe-label rl-sh">SH {% if image.fujifilm_recipe.shadow > 0 %}+{% endif %}{{ image.fujifilm_recipe.shadow|floatformat:"-1" }}</span>{% endif %}
-            {% if image.fujifilm_recipe.color is not None %}<span class="recipe-label rl-co">CO {% if image.fujifilm_recipe.color > 0 %}+{% endif %}{{ image.fujifilm_recipe.color|floatformat:"-1" }}</span>{% endif %}
-          {% endif %}
-        </div>
-      {% endif %}
-    </article>
-  {% empty %}
-    <p class="no-results">No images match the selected filters.</p>
-  {% endfor %}
-</div>
-
-{% include "images/_gallery_pagination.html" %}
+          <span class="recipe-label rl-r">R {% if image.fujifilm_recipe.white_balance_red > 0 %}+{% endif %}{{ image.fujifilm_recipe.white_balance_red }}</span>
+          <span class="recipe-label rl-b">B {% if image.fujifilm_recipe.white_balance_blue > 0 %}+{% endif %}{{ image.fujifilm_recipe.white_balance_blue }}</span>
+          {% if image.fujifilm_recipe.highlight is not None %}<span class="recipe-label rl-hl">HL {% if image.fujifilm_recipe.highlight > 0 %}+{% endif %}{{ image.fujifilm_recipe.highlight|floatformat:"-1" }}</span>{% endif %}
+          {% if image.fujifilm_recipe.shadow is not None %}<span class="recipe-label rl-sh">SH {% if image.fujifilm_recipe.shadow > 0 %}+{% endif %}{{ image.fujifilm_recipe.shadow|floatformat:"-1" }}</span>{% endif %}
+          {% if image.fujifilm_recipe.color is not None %}<span class="recipe-label rl-co">CO {% if image.fujifilm_recipe.color > 0 %}+{% endif %}{{ image.fujifilm_recipe.color|floatformat:"-1" }}</span>{% endif %}
+        {% endif %}
+      </div>
+    {% endif %}
+  </article>
+{% empty %}
+  <p class="no-results">No images match the selected filters.</p>
+{% endfor %}

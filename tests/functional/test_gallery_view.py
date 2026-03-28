@@ -41,7 +41,7 @@ class TestGalleryResultsView:
 
 
 @pytest.mark.django_db
-class TestGalleryPagination:
+class TestGalleryInfiniteScroll:
     @override_settings(GALLERY_PAGE_SIZE=2)
     def test_first_page_contains_page_size_images(self, client):
         recipe = FujifilmRecipeFactory(name="Test Recipe")
@@ -65,27 +65,62 @@ class TestGalleryPagination:
         assert len(soup.find_all(class_="image-card")) == 1
 
     @override_settings(GALLERY_PAGE_SIZE=2)
-    def test_pagination_controls_shown_when_multiple_pages(self, client):
+    def test_sentinel_present_when_more_pages(self, client):
         recipe = FujifilmRecipeFactory(name="Test Recipe")
         ImageFactory.create_batch(3, fujifilm_recipe=recipe)
 
         response = client.get("/images/results/")
 
         soup = BeautifulSoup(response.content, "html.parser")
-        assert soup.find(id="gallery-pagination") is not None
-        assert soup.find(class_="pagination-next") is not None
-        assert soup.find(class_="pagination-prev") is None  # no prev on first page
+        sentinel = soup.find(class_="infinite-scroll-sentinel")
+        assert sentinel is not None
 
     @override_settings(GALLERY_PAGE_SIZE=2)
-    def test_pagination_controls_hidden_when_single_page(self, client):
+    def test_sentinel_absent_on_last_page(self, client):
+        recipe = FujifilmRecipeFactory(name="Test Recipe")
+        ImageFactory.create_batch(3, fujifilm_recipe=recipe)
+
+        response = client.get("/images/results/", {"page": "2"})
+
+        soup = BeautifulSoup(response.content, "html.parser")
+        assert soup.find(class_="infinite-scroll-sentinel") is None
+
+    @override_settings(GALLERY_PAGE_SIZE=2)
+    def test_sentinel_absent_when_single_page(self, client):
         recipe = FujifilmRecipeFactory(name="Test Recipe")
         ImageFactory(fujifilm_recipe=recipe)
 
         response = client.get("/images/results/")
 
         soup = BeautifulSoup(response.content, "html.parser")
-        assert soup.find(class_="pagination-next") is None
-        assert soup.find(class_="pagination-prev") is None
+        assert soup.find(class_="infinite-scroll-sentinel") is None
+
+    @override_settings(GALLERY_PAGE_SIZE=2)
+    def test_sentinel_points_to_next_page(self, client):
+        recipe = FujifilmRecipeFactory(name="Test Recipe")
+        ImageFactory.create_batch(5, fujifilm_recipe=recipe)
+
+        response = client.get("/images/results/", {"page": "1"})
+
+        soup = BeautifulSoup(response.content, "html.parser")
+        sentinel = soup.find(class_="infinite-scroll-sentinel")
+        assert sentinel is not None
+        assert sentinel["hx-trigger"] == "intersect root:.gallery-scroll"
+        assert sentinel["hx-swap"] == "outerHTML"
+        assert sentinel["hx-target"] == "#load-more-sentinel"
+        assert '"page": "2"' in sentinel["hx-vals"]
+
+    @override_settings(GALLERY_PAGE_SIZE=2)
+    def test_sentinel_on_middle_page_points_to_next(self, client):
+        recipe = FujifilmRecipeFactory(name="Test Recipe")
+        ImageFactory.create_batch(5, fujifilm_recipe=recipe)
+
+        response = client.get("/images/results/", {"page": "2"})
+
+        soup = BeautifulSoup(response.content, "html.parser")
+        sentinel = soup.find(class_="infinite-scroll-sentinel")
+        assert sentinel is not None
+        assert '"page": "3"' in sentinel["hx-vals"]
 
     @override_settings(GALLERY_PAGE_SIZE=2)
     def test_out_of_range_page_returns_last_page(self, client):
@@ -98,6 +133,22 @@ class TestGalleryPagination:
         soup = BeautifulSoup(response.content, "html.parser")
         # Last page has 1 image; django's get_page() clamps to last page
         assert len(soup.find_all(class_="image-card")) == 1
+
+    @override_settings(GALLERY_PAGE_SIZE=2)
+    def test_page_param_absent_from_filter_change_url(self, client):
+        """Filter changes reset to page 1; the page param should not be in the URL."""
+        recipe = FujifilmRecipeFactory(name="Test Recipe")
+        ImageFactory.create_batch(3, fujifilm_recipe=recipe)
+
+        # Simulate an HTMX filter-change request (no page param)
+        response = client.get("/images/", {"favorites_first": "1"}, HTTP_HX_REQUEST="true")
+
+        assert response.status_code == 200
+        soup = BeautifulSoup(response.content, "html.parser")
+        # First page worth of images returned
+        assert len(soup.find_all(class_="image-card")) == 2
+        # Sentinel present since there is a second page
+        assert soup.find(class_="infinite-scroll-sentinel") is not None
 
 
 @pytest.mark.django_db

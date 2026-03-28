@@ -88,7 +88,7 @@ def _get_sidebar_options(request):
 def gallery_view(request):
     page_obj = _paginate(request, _get_filtered_images(request))
     if request.headers.get("HX-Request"):
-        return render(request, "images/_gallery_results.html", {"page_obj": page_obj})
+        return render(request, "images/_gallery_htmx_filter_response.html", {"page_obj": page_obj})
     sidebar_options = _get_sidebar_options(request)
     recipe_options = _get_recipe_options(request)
     favorites_first = request.GET.get("favorites_first", "1")
@@ -126,7 +126,7 @@ def image_detail_view(request, image_id):
 
 def gallery_results_view(request):
     page_obj = _paginate(request, _get_filtered_images(request))
-    return render(request, "images/_gallery_results.html", {"page_obj": page_obj})
+    return render(request, "images/_gallery_htmx_scroll_response.html", {"page_obj": page_obj})
 
 
 def image_file_view(request, image_id):

@@ -1,0 +1,15 @@
+<div id="load-more-sentinel">
+  {% if page_obj.has_next %}
+  <div class="infinite-scroll-sentinel"
+       hx-get="{% url 'gallery-results' %}"
+       hx-include="#filter-form"
+       hx-vals='{"page": "{{ page_obj.next_page_number }}"}'
+       hx-trigger="intersect root:.gallery-scroll"
+       hx-target="#load-more-sentinel"
+       hx-swap="outerHTML">
+  </div>
+  {% endif %}
+</div>
+<div hx-swap-oob="beforeend:#gallery-results">
+  {% include "images/_gallery_results.html" %}
+</div>
