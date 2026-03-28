@@ -1,0 +1,10 @@
+<div class="detail-row">
+  <span class="detail-label">Name</span>
+  <div class="detail-name-row">
+    <span class="detail-value">{{ recipe.name }}</span>
+    <button class="send-to-camera-btn"
+            hx-get="{% url 'select-push-slot' recipe_id=recipe.id %}"
+            hx-target="#slot-overlay"
+            hx-swap="innerHTML">Send to camera</button>
+  </div>
+</div>

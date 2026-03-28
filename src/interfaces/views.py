@@ -14,7 +14,7 @@ from src.application.usecases.camera.get_camera_slots import get_camera_slots
 from src.application.usecases.camera.push_recipe import RecipeWriteError, push_recipe_to_camera
 from src.data.models import FujifilmRecipe, Image
 from src.domain.camera.ptp_device import CameraConnectionError, CameraWriteError
-from src.domain.images.operations import toggle_image_favorite
+from src.domain.images.operations import RecipeNameValidationError, set_recipe_name, toggle_image_favorite
 from src.domain.images.queries import recipe_from_db
 from src.domain.images.thumbnails.operations import generate_thumbnail
 from src.domain.images.thumbnails.queries import thumbnail_content_type
@@ -228,6 +228,33 @@ class PushRecipeToCameraView(View):
         if is_htmx:
             return render(request, "recipes/_push_result_partial.html", {"success": True, "message": f"Recipe saved to {slot}"})
         return JsonResponse({"message": f"Recipe saved in {slot}"})
+
+
+class SetRecipeNameView(View):
+    def dispatch(self, request, *args, **kwargs):
+        self.recipe = get_object_or_404(FujifilmRecipe, pk=kwargs["recipe_id"])
+        return super().dispatch(request, *args, **kwargs)
+
+    def post(self, request, recipe_id):
+        name = request.POST.get("name", "").strip()
+        try:
+            set_recipe_name(recipe=self.recipe, name=name)
+        except RecipeNameValidationError:
+            return render(request, "recipes/_recipe_name_prompt.html", {
+                "recipe": self.recipe,
+                "error": "Name must be 25 ASCII characters max.",
+                "show_form": True,
+                "submitted_name": name,
+            })
+        except Exception:
+            logging.exception("Unexpected error in SetRecipeNameView.post")
+            return render(request, "recipes/_recipe_name_prompt.html", {
+                "recipe": self.recipe,
+                "error": "Something unexpected happened.",
+                "show_form": True,
+                "submitted_name": name,
+            })
+        return render(request, "recipes/_recipe_name_row.html", {"recipe": self.recipe})
 
 
 def _resized_image_response(path: Path, width: int):

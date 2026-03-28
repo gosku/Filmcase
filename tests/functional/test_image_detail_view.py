@@ -148,6 +148,41 @@ class TestGalleryThumbnailsLinkToDetail:
 
 
 @pytest.mark.django_db
+class TestImageDetailRecipeNamePrompt:
+    def _get_partial(self, client, image_id):
+        return client.get(f"/images/{image_id}/", HTTP_HX_REQUEST="true")
+
+    def test_shows_name_this_recipe_button_when_recipe_has_no_name(self, client):
+        recipe = FujifilmRecipeFactory(name="")
+        image = ImageFactory(fujifilm_recipe=recipe)
+        response = self._get_partial(client, image.id)
+        soup = BeautifulSoup(response.content, "html.parser")
+        assert soup.find(class_="name-recipe-btn") is not None
+
+    def test_hides_name_this_recipe_button_when_recipe_has_name(self, client):
+        recipe = FujifilmRecipeFactory(name="My Recipe")
+        image = ImageFactory(fujifilm_recipe=recipe)
+        response = self._get_partial(client, image.id)
+        soup = BeautifulSoup(response.content, "html.parser")
+        assert soup.find(class_="name-recipe-btn") is None
+
+    def test_name_form_posts_to_set_recipe_name_url(self, client):
+        recipe = FujifilmRecipeFactory(name="")
+        image = ImageFactory(fujifilm_recipe=recipe)
+        response = self._get_partial(client, image.id)
+        soup = BeautifulSoup(response.content, "html.parser")
+        form = soup.find(id=f"recipe-name-prompt-{recipe.id}")
+        assert form is not None
+        assert form["hx-post"] == f"/recipes/{recipe.id}/set-name/"
+
+    def test_no_name_prompt_when_no_recipe(self, client):
+        image = ImageFactory(fujifilm_recipe=None)
+        response = self._get_partial(client, image.id)
+        soup = BeautifulSoup(response.content, "html.parser")
+        assert soup.find(class_="name-recipe-btn") is None
+
+
+@pytest.mark.django_db
 class TestImageDetailPartialSendToCamera:
     def _get_partial(self, client, image_id):
         return client.get(f"/images/{image_id}/", HTTP_HX_REQUEST="true")
