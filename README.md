@@ -19,6 +19,31 @@ Read more about it in our [documentation index](docs/index.md).
 
 ## Installation
 
+### Automated setup (recommended)
+
+Run the setup script to install all system dependencies (Python, PostgreSQL, Memcached, RabbitMQ, libusb), then use `make` to complete the project setup:
+
+```bash
+./setup.sh   # installs system deps, creates the DB user and database
+make setup   # creates venv, installs pip deps, copies settings, runs migrations
+```
+
+Both steps are idempotent — re-running them skips anything already in place.
+
+Once done:
+
+```bash
+make run     # start the development server
+make test    # run the test suite
+make worker  # start a Celery worker (for async image processing)
+```
+
+---
+
+### Manual setup
+
+Follow the steps below if you prefer to install dependencies individually or need to customise any part of the process.
+
 ### Pre-requirements
 
 #### Python & pip
