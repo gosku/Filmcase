@@ -115,7 +115,8 @@ class TestEventPublishing:
 
         mock_publish.assert_called_once_with(
             event_type=camera_events.PTP_READ_SUCCEEDED,
-            params={"prop": "0xD192", "value": 42},
+            prop="0xD192",
+            value=42,
         )
 
     def test_get_property_int_publishes_read_failed_and_reraises(self):
@@ -131,7 +132,8 @@ class TestEventPublishing:
 
         mock_publish.assert_called_once_with(
             event_type=camera_events.PTP_READ_FAILED,
-            params={"prop": "0xD192", "error": "USB dead"},
+            prop="0xD192",
+            error="USB dead",
         )
 
     def test_get_property_string_publishes_read_succeeded(self):
@@ -148,7 +150,8 @@ class TestEventPublishing:
 
         mock_publish.assert_called_once_with(
             event_type=camera_events.PTP_READ_SUCCEEDED,
-            params={"prop": "0xD18D", "value": "A"},
+            prop="0xD18D",
+            value="A",
         )
 
     def test_get_property_string_publishes_read_failed_and_reraises(self):
@@ -164,7 +167,8 @@ class TestEventPublishing:
 
         mock_publish.assert_called_once_with(
             event_type=camera_events.PTP_READ_FAILED,
-            params={"prop": "0xD18D", "error": "timeout"},
+            prop="0xD18D",
+            error="timeout",
         )
 
     def test_set_property_int_publishes_write_succeeded(self):
@@ -179,7 +183,7 @@ class TestEventPublishing:
 
         mock_publish.assert_called_once_with(
             event_type=camera_events.PTP_WRITE_SUCCEEDED,
-            params={"prop": "0xD192"},
+            prop="0xD192",
         )
 
     def test_set_property_int_publishes_write_failed(self):
@@ -196,5 +200,6 @@ class TestEventPublishing:
         assert rc == bad_rc
         mock_publish.assert_called_once_with(
             event_type=camera_events.PTP_WRITE_FAILED,
-            params={"prop": "0xD192", "rc": "0x2005"},
+            prop="0xD192",
+            rc="0x2005",
         )

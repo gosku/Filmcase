@@ -47,7 +47,8 @@ def set_recipe_name(*, recipe: models.FujifilmRecipe, name: str) -> None:
     recipe.save(update_fields=["name"])
     events.publish_event(
         event_type=events.RECIPE_IMAGE_UPDATED,
-        params={"name": name, "recipe_id": recipe.pk},
+        name=name,
+        recipe_id=recipe.pk,
     )
 
 
@@ -122,14 +123,11 @@ def process_image(*, image_path: str) -> models.Image:
         **exif_fields,
     )
 
-    event_params = {
-        "image_id": image.pk,
-        "filename": filename,
-        "film_simulation": fujifilm_exif.film_simulation,
-        "taken_at": image.taken_at.isoformat() if image.taken_at else "",
-    }
     events.publish_event(
         event_type=events.RECIPE_IMAGE_CREATED if created else events.RECIPE_IMAGE_UPDATED,
-        params=event_params,
+        image_id=image.pk,
+        filename=filename,
+        film_simulation=fujifilm_exif.film_simulation,
+        taken_at=image.taken_at.isoformat() if image.taken_at else "",
     )
     return image

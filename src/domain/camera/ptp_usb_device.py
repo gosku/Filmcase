@@ -311,7 +311,8 @@ class PTPUSBDevice:
         except ptp_device.CameraConnectionError as e:
             camera_events.publish_event(
                 event_type=camera_events.PTP_READ_FAILED,
-                params={"prop": f"0x{code:04X}", "error": str(e)},
+                prop=f"0x{code:04X}",
+                error=str(e),
             )
             raise
         time.sleep(_PROP_READ_DELAY)
@@ -328,7 +329,8 @@ class PTPUSBDevice:
             value = 0
         camera_events.publish_event(
             event_type=camera_events.PTP_READ_SUCCEEDED,
-            params={"prop": f"0x{code:04X}", "value": value},
+            prop=f"0x{code:04X}",
+            value=value,
         )
         return value
 
@@ -343,14 +345,16 @@ class PTPUSBDevice:
         except ptp_device.CameraConnectionError as e:
             camera_events.publish_event(
                 event_type=camera_events.PTP_READ_FAILED,
-                params={"prop": f"0x{code:04X}", "error": str(e)},
+                prop=f"0x{code:04X}",
+                error=str(e),
             )
             raise
         time.sleep(_PROP_READ_DELAY)
         value, _ = _decode_ptp_string(data, 12)
         camera_events.publish_event(
             event_type=camera_events.PTP_READ_SUCCEEDED,
-            params={"prop": f"0x{code:04X}", "value": value},
+            prop=f"0x{code:04X}",
+            value=value,
         )
         return value
 
@@ -469,12 +473,13 @@ class PTPUSBDevice:
         if rc == _RC_OK:
             camera_events.publish_event(
                 event_type=camera_events.PTP_WRITE_SUCCEEDED,
-                params={"prop": f"0x{code:04X}"},
+                prop=f"0x{code:04X}",
             )
             return 0
         camera_events.publish_event(
             event_type=camera_events.PTP_WRITE_FAILED,
-            params={"prop": f"0x{code:04X}", "rc": f"0x{rc:04X}"},
+            prop=f"0x{code:04X}",
+            rc=f"0x{rc:04X}",
         )
         return rc  # non-zero = failure; caller decides whether to raise
 

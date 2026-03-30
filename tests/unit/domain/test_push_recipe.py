@@ -97,7 +97,7 @@ class TestWriteSuccessEvents:
         ]
         assert len(succeeded) > 0
         for evt in succeeded:
-            assert "0x" in evt["params"]["description"]
+            assert "0x" in evt["description"]
 
 
 class TestWriteFailedCameraRejection:
@@ -112,10 +112,10 @@ class TestWriteFailedCameraRejection:
         failed_events = [
             e for e in captured_logs
             if e.get("event_type") == events.PTP_WRITE_FAILED
-            and f"0x{film_sim_code:04X}" in e["params"]["description"]
+            and f"0x{film_sim_code:04X}" in e["description"]
         ]
         assert len(failed_events) == 1
-        assert "camera rejected write" in failed_events[0]["params"]["description"]
+        assert "camera rejected write" in failed_events[0]["description"]
 
     def test_other_properties_still_written_after_camera_rejection(self, settings, captured_logs):
         film_sim_code = constants.CUSTOM_SLOT_CODES["FilmSimulation"]
@@ -164,8 +164,8 @@ class TestWriteFailedTransportError:
         succeeded_int_props = [
             e for e in captured_logs
             if e.get("event_type") == events.PTP_WRITE_SUCCEEDED
-            and f"0x{film_sim_code:04X}" not in e["params"]["description"]
-            and f"0x{constants.PROP_SLOT_NAME:04X}" not in e["params"]["description"]
+            and f"0x{film_sim_code:04X}" not in e["description"]
+            and f"0x{constants.PROP_SLOT_NAME:04X}" not in e["description"]
         ]
         assert succeeded_int_props == []
 
@@ -187,7 +187,7 @@ class TestWriteFailedTransportError:
         failed_events = [
             e for e in captured_logs
             if e.get("event_type") == events.PTP_WRITE_FAILED
-            and f"0x{film_sim_code:04X}" in e["params"]["description"]
+            and f"0x{film_sim_code:04X}" in e["description"]
         ]
         assert len(failed_events) == 3
 
@@ -202,9 +202,9 @@ class TestWriteFailedTransportError:
         failed_events = [
             e for e in captured_logs
             if e.get("event_type") == events.PTP_WRITE_FAILED
-            and f"0x{film_sim_code:04X}" in e["params"]["description"]
+            and f"0x{film_sim_code:04X}" in e["description"]
         ]
-        descriptions = [e["params"]["description"] for e in failed_events]
+        descriptions = [e["description"] for e in failed_events]
         assert any("attempt 1/" in d for d in descriptions)
         assert any("attempt 2/" in d for d in descriptions)
         assert any("attempt 3/" in d for d in descriptions)
@@ -220,6 +220,6 @@ class TestWriteFailedTransportError:
         succeeded_for_film_sim = [
             e for e in captured_logs
             if e.get("event_type") == events.PTP_WRITE_SUCCEEDED
-            and f"0x{film_sim_code:04X}" in e["params"]["description"]
+            and f"0x{film_sim_code:04X}" in e["description"]
         ]
         assert succeeded_for_film_sim == []

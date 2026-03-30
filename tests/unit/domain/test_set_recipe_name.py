@@ -32,5 +32,5 @@ class TestSetRecipeNameEventPublishing:
 
         updated_events = [e for e in captured_logs if e.get("event_type") == events.RECIPE_IMAGE_UPDATED]
         assert len(updated_events) == 1
-        assert updated_events[0]["params"]["name"] == "My Recipe"
-        assert updated_events[0]["params"]["recipe_id"] == 42
+        assert updated_events[0]["name"] == "My Recipe"
+        assert updated_events[0]["recipe_id"] == 42

@@ -126,10 +126,10 @@ class TestProcessImagePersistence:
         # Assert event was logged
         created_events = [e for e in captured_logs if e.get("event_type") == events.RECIPE_IMAGE_CREATED]
         assert len(created_events) == 1
-        assert created_events[0]["params"]["filename"] == "XS107114.JPG"
-        assert created_events[0]["params"]["film_simulation"] == "Classic Negative"
-        assert created_events[0]["params"]["taken_at"] == "2025-12-31T12:23:57+11:00"
-        assert created_events[0]["params"]["image_id"] == image.pk
+        assert created_events[0]["filename"] == "XS107114.JPG"
+        assert created_events[0]["film_simulation"] == "Classic Negative"
+        assert created_events[0]["taken_at"] == "2025-12-31T12:23:57+11:00"
+        assert created_events[0]["image_id"] == image.pk
 
     def test_updates_existing_record(self, captured_logs):
         image1 = process_image(image_path=FIXTURE_IMAGE)
@@ -144,10 +144,10 @@ class TestProcessImagePersistence:
 
         updated_events = [e for e in captured_logs if e.get("event_type") == events.RECIPE_IMAGE_UPDATED]
         assert len(updated_events) == 1
-        assert updated_events[0]["params"]["image_id"] == image2.pk
-        assert updated_events[0]["params"]["filename"] == "XS107114.JPG"
-        assert updated_events[0]["params"]["film_simulation"] == "Classic Negative"
-        assert updated_events[0]["params"]["taken_at"] == "2025-12-31T12:23:57+11:00"
+        assert updated_events[0]["image_id"] == image2.pk
+        assert updated_events[0]["filename"] == "XS107114.JPG"
+        assert updated_events[0]["film_simulation"] == "Classic Negative"
+        assert updated_events[0]["taken_at"] == "2025-12-31T12:23:57+11:00"
 
 
 @pytest.mark.django_db

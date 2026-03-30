@@ -22,7 +22,7 @@ class Command(BaseCommand):
             tasks.process_image_task.apply_async(kwargs={"image_path": path})
             events.publish_event(
                 event_type=events.TASK_IMAGE_ENQUEUED,
-                params={"image_path": path},
+                image_path=path,
             )
 
         self.stdout.write(self.style.SUCCESS(f"Successfully enqueued {total} tasks."))

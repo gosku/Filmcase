@@ -56,12 +56,10 @@ def set_prop_with_retry(device: ptp_device.PTPDevice, code: int, value: str | in
             camera_connection_error = True
             events.publish_event(
                 event_type=events.PTP_WRITE_FAILED,
-                params={
-                    "description": (
-                        f"{prop_hex} = {value!r}: {exc} "
-                        f"(attempt {attempt}/{_settings.CAMERA_MAX_RETRIES})"
-                    )
-                },
+                description=(
+                    f"{prop_hex} = {value!r}: {exc} "
+                    f"(attempt {attempt}/{_settings.CAMERA_MAX_RETRIES})"
+                ),
             )
             continue
 
@@ -70,17 +68,13 @@ def set_prop_with_retry(device: ptp_device.PTPDevice, code: int, value: str | in
             failed_rc = rc
             events.publish_event(
                 event_type=events.PTP_WRITE_FAILED,
-                params={
-                    "description": (
-                        f"{prop_hex} = {value!r}: camera rejected write (rc={rc:#x})"
-                    )
-                },
+                description=f"{prop_hex} = {value!r}: camera rejected write (rc={rc:#x})",
             )
             break
 
         events.publish_event(
             event_type=events.PTP_WRITE_SUCCEEDED,
-            params={"description": f"{prop_hex} = {value!r}"},
+            description=f"{prop_hex} = {value!r}",
         )
         return
 

@@ -202,7 +202,7 @@ class TestReadSucceededEvents:
         # slot_recipe reads ~19 properties (1 string + 18 int/int16)
         assert len(succeeded) >= 19
         for evt in succeeded:
-            assert "0x" in evt["params"]["description"]
+            assert "0x" in evt["description"]
 
     def test_camera_info_publishes_succeeded_events(self, captured_logs):
         device = FakePTPDevice()
@@ -241,7 +241,7 @@ class TestReadFailedEvents:
             if e.get("event_type") == events.PTP_READ_FAILED
         ]
         assert len(failed) == 1
-        assert f"0x{film_sim_code:04X}" in failed[0]["params"]["description"]
+        assert f"0x{film_sim_code:04X}" in failed[0]["description"]
 
     def test_camera_info_publishes_failed_event_for_firmware_and_continues(self, captured_logs):
         # firmware_version read is allowed to fail (older cameras); camera_info
@@ -257,7 +257,7 @@ class TestReadFailedEvents:
             if e.get("event_type") == events.PTP_READ_FAILED
         ]
         assert len(failed) == 1
-        assert "0xD153" in failed[0]["params"]["description"]
+        assert "0xD153" in failed[0]["description"]
 
     def test_slot_states_publishes_failed_event_for_slot_name_and_continues(self, captured_logs):
         # Slot name read fails (older models); slot_states catches it and uses "".
@@ -272,7 +272,7 @@ class TestReadFailedEvents:
             if e.get("event_type") == events.PTP_READ_FAILED
         ]
         assert len(failed) == 1
-        assert f"0x{cam_constants.PROP_SLOT_NAME:04X}" in failed[0]["params"]["description"]
+        assert f"0x{cam_constants.PROP_SLOT_NAME:04X}" in failed[0]["description"]
 
     def test_failed_event_description_contains_exception_message(self, captured_logs):
         film_sim_code = cam_constants.CUSTOM_SLOT_CODES["FilmSimulation"]
@@ -286,7 +286,7 @@ class TestReadFailedEvents:
             e for e in captured_logs
             if e.get("event_type") == events.PTP_READ_FAILED
         ]
-        assert "USB timeout reason" in failed[0]["params"]["description"]
+        assert "USB timeout reason" in failed[0]["description"]
 
 
 # ---------------------------------------------------------------------------

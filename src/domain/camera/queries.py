@@ -53,13 +53,13 @@ def _get_int(device: ptp_device.PTPDevice, code: int) -> int:
         value = device.get_property_int(code)
         events.publish_event(
             event_type=events.PTP_READ_SUCCEEDED,
-            params={"description": f"0x{code:04X} = {value}"},
+            description=f"0x{code:04X} = {value}",
         )
         return value
     except ptp_device.CameraConnectionError as exc:
         events.publish_event(
             event_type=events.PTP_READ_FAILED,
-            params={"description": f"0x{code:04X}: {exc}"},
+            description=f"0x{code:04X}: {exc}",
         )
         raise
 
@@ -70,13 +70,13 @@ def _get_int16(device: ptp_device.PTPDevice, code: int) -> int:
         value = device.get_property_int16(code)
         events.publish_event(
             event_type=events.PTP_READ_SUCCEEDED,
-            params={"description": f"0x{code:04X} = {value}"},
+            description=f"0x{code:04X} = {value}",
         )
         return value
     except ptp_device.CameraConnectionError as exc:
         events.publish_event(
             event_type=events.PTP_READ_FAILED,
-            params={"description": f"0x{code:04X}: {exc}"},
+            description=f"0x{code:04X}: {exc}",
         )
         raise
 
@@ -87,13 +87,13 @@ def _get_str(device: ptp_device.PTPDevice, code: int) -> str:
         value = device.get_property_string(code)
         events.publish_event(
             event_type=events.PTP_READ_SUCCEEDED,
-            params={"description": f"0x{code:04X} = {value!r}"},
+            description=f"0x{code:04X} = {value!r}",
         )
         return value
     except ptp_device.CameraConnectionError as exc:
         events.publish_event(
             event_type=events.PTP_READ_FAILED,
-            params={"description": f"0x{code:04X}: {exc}"},
+            description=f"0x{code:04X}: {exc}",
         )
         raise
 
