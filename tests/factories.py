@@ -42,7 +42,7 @@ class FujifilmRecipeFactory(factory.django.DjangoModelFactory):
     color_chrome_effect = "Off"
     color_chrome_fx_blue = "Off"
     white_balance       = "Auto"
-    white_balance_red   = 0
+    white_balance_red   = factory.Sequence(lambda n: n)
     white_balance_blue  = 0
     # Nullable Decimal fields left as None (model default)
 
