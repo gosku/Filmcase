@@ -64,7 +64,7 @@ def _get_recipe_options(request, active_field_filters: dict[str, list[str]]) -> 
     selected_ids = [int(r) for r in selected if r.isdigit()]
     recipes = (
         models.FujifilmRecipe.objects.annotate(total_images=db_models.Count("images"))
-        .filter(db_models.Q(total_images__gt=50) | ~db_models.Q(name="") | db_models.Q(id__in=selected_ids))
+        .filter(db_models.Q(total_images__gt=_NOTABLE_RECIPE_MIN_IMAGES) | ~db_models.Q(name="") | db_models.Q(id__in=selected_ids))
         .order_by("-total_images")
     )
 
@@ -167,6 +167,7 @@ def toggle_favorite_view(request, image_id):
     )
 
 
+_NOTABLE_RECIPE_MIN_IMAGES = 50  # recipes with fewer images are hidden unless named or selected
 _SLOT_TO_INDEX = {"C1": 1, "C2": 2, "C3": 3, "C4": 4, "C5": 5, "C6": 6, "C7": 7}
 
 

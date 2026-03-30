@@ -158,10 +158,6 @@ class FujifilmExif(models.Model):
         obj, _ = cls.objects.get_or_create(**fields)  # type: ignore[attr-defined]
         return obj
 
-    @classmethod
-    def create(cls, **fields) -> "FujifilmExif":
-        return cls.objects.create(**fields)  # type: ignore[attr-defined]
-
     # Properties
 
     def __str__(self):
@@ -209,8 +205,48 @@ class FujifilmRecipe(models.Model):
     # Factories
 
     @classmethod
-    def get_or_create(cls, **fields) -> "FujifilmRecipe":
-        obj, _ = cls.objects.get_or_create(**fields)  # type: ignore[attr-defined]
+    def get_or_create(
+        cls,
+        *,
+        film_simulation: str,
+        dynamic_range: str,
+        d_range_priority: str,
+        grain_roughness: str,
+        grain_size: str,
+        color_chrome_effect: str,
+        color_chrome_fx_blue: str,
+        white_balance: str,
+        white_balance_red: int,
+        white_balance_blue: int,
+        highlight: object,
+        shadow: object,
+        color: object,
+        sharpness: object,
+        high_iso_nr: object,
+        clarity: object,
+        monochromatic_color_warm_cool: object,
+        monochromatic_color_magenta_green: object,
+    ) -> "FujifilmRecipe":
+        obj, _ = cls.objects.get_or_create(  # type: ignore[attr-defined]
+            film_simulation=film_simulation,
+            dynamic_range=dynamic_range,
+            d_range_priority=d_range_priority,
+            grain_roughness=grain_roughness,
+            grain_size=grain_size,
+            color_chrome_effect=color_chrome_effect,
+            color_chrome_fx_blue=color_chrome_fx_blue,
+            white_balance=white_balance,
+            white_balance_red=white_balance_red,
+            white_balance_blue=white_balance_blue,
+            highlight=highlight,
+            shadow=shadow,
+            color=color,
+            sharpness=sharpness,
+            high_iso_nr=high_iso_nr,
+            clarity=clarity,
+            monochromatic_color_warm_cool=monochromatic_color_warm_cool,
+            monochromatic_color_magenta_green=monochromatic_color_magenta_green,
+        )
         return obj
 
     # Properties
@@ -283,10 +319,6 @@ class Image(models.Model):
         ]
 
     # Factories
-
-    @classmethod
-    def create(cls, **fields) -> "Image":
-        return cls.objects.create(**fields)
 
     @classmethod
     def update_or_create(cls, *, filepath: str, **defaults) -> tuple["Image", bool]:

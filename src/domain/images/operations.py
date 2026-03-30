@@ -18,20 +18,18 @@ def _parse_numeric(*, s: str | None) -> Decimal | None:
     return Decimal(s)
 
 
+@attrs.frozen
 class NoFilmSimulationError(Exception):
     """Raised when an image has no film simulation in its EXIF data."""
 
-    def __init__(self, image_path: str) -> None:
-        self.image_path = image_path
-        super().__init__(f"No film simulation found in {image_path}")
+    image_path: str
 
 
+@attrs.frozen
 class RecipeNameValidationError(Exception):
     """Raised when a recipe name fails validation (too long or non-ASCII)."""
 
-    def __init__(self, name: str) -> None:
-        self.name = name
-        super().__init__(f"Invalid recipe name: {name!r}")
+    name: str
 
 
 def set_recipe_name(*, recipe: models.FujifilmRecipe, name: str) -> None:
