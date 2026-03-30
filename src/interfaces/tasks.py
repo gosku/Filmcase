@@ -4,7 +4,7 @@ from celery import shared_task
 from django.conf import settings
 
 from src.domain.images import events, operations
-from src.domain.images.thumbnails.operations import generate_thumbnail
+from src.domain.images.thumbnails import operations as thumbnail_operations
 
 
 @shared_task(name="domain.process_image", bind=True, queue=settings.PROCESS_IMAGE_QUEUE)
@@ -28,5 +28,5 @@ def process_image_task(self, *, image_path: str, **kwargs) -> str:
 @shared_task(name="domain.generate_thumbnail", bind=True)
 def generate_thumbnail_task(self, *, filepath: str, width: int, **kwargs) -> str:
     """Celery task that generates a thumbnail for a single image file."""
-    generate_thumbnail(original_path=Path(filepath), width=width)
+    thumbnail_operations.generate_thumbnail(original_path=Path(filepath), width=width)
     return f"Generated thumbnail for {Path(filepath).name}"

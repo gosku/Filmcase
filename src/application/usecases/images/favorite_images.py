@@ -1,8 +1,8 @@
-from src.data.models import Image
+from src.data import models
 from src.domain.images import operations, queries
 
 
-def mark_image_as_favorite(*, image_path: str) -> Image:
+def mark_image_as_favorite(*, image_path: str) -> models.Image:
     """Find or process the Image for *image_path* and mark it as a favourite.
 
     If the image is not yet in the database, or the match is ambiguous,

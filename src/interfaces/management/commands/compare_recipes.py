@@ -1,7 +1,7 @@
 from django.core.management.base import BaseCommand
 from django.db.models import Max, Min, Count
 
-from src.data.models import FujifilmRecipe, Image
+from src.data import models
 
 RECIPE_FIELDS = [
     "film_simulation",
@@ -33,7 +33,7 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         ids = options["recipe_ids"]
-        recipes = {r.id: r for r in FujifilmRecipe.objects.filter(id__in=ids)}
+        recipes = {r.id: r for r in models.FujifilmRecipe.objects.filter(id__in=ids)}
 
         missing = set(ids) - set(recipes.keys())
         if missing:
@@ -71,7 +71,7 @@ class Command(BaseCommand):
         self.stdout.write("=" * len(header))
 
         stats = (
-            Image.objects
+            models.Image.objects
             .filter(fujifilm_recipe_id__in=ids, taken_at__isnull=False)
             .values("fujifilm_recipe_id")
             .annotate(
@@ -100,7 +100,7 @@ class Command(BaseCommand):
         from django.db.models.functions import TruncMonth
 
         monthly = (
-            Image.objects
+            models.Image.objects
             .filter(fujifilm_recipe_id__in=ids, taken_at__isnull=False)
             .annotate(month=TruncMonth("taken_at"))
             .values("month", "fujifilm_recipe_id")

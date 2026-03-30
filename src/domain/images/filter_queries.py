@@ -1,6 +1,6 @@
-from django.db.models import Count, IntegerField
+from django.db import models as db_models
 
-from src.data.models import FujifilmRecipe, Image
+from src.data import models
 
 RECIPE_FILTER_FIELDS = [
     ("film_simulation", "Film Simulation"),
@@ -43,14 +43,14 @@ def get_sidebar_filter_options(
     result = {}
 
     for field, label in RECIPE_FILTER_FIELDS:
-        model_field = FujifilmRecipe._meta.get_field(field)
-        is_integer = isinstance(model_field, IntegerField)
+        model_field = models.FujifilmRecipe._meta.get_field(field)
+        is_integer = isinstance(model_field, db_models.IntegerField)
 
         # Base queryset: only images that have a recipe, filtered by all
         # OTHER active filters (faceted search — own field excluded).
         # recipe_id is a cross-cutting filter: it always applies regardless of
         # which field is being computed, since it narrows to specific recipes.
-        base_qs = Image.objects.filter(fujifilm_recipe__isnull=False)
+        base_qs = models.Image.objects.filter(fujifilm_recipe__isnull=False)
         recipe_ids = active_filters.get("recipe_id", [])
         if recipe_ids:
             base_qs = base_qs.filter(fujifilm_recipe_id__in=recipe_ids)
@@ -74,7 +74,7 @@ def get_sidebar_filter_options(
             for row in (
                 base_qs
                 .values(f"fujifilm_recipe__{field}")
-                .annotate(count=Count("id"))
+                .annotate(count=db_models.Count("id"))
             )
         }
 

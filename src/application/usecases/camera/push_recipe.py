@@ -8,11 +8,11 @@ import time
 from django.conf import settings
 
 from src.data.camera import constants
-from src.domain.camera.device_config import get_device
-from src.domain.camera.operations import set_prop_with_retry, verify_written_properties
-from src.domain.camera.ptp_device import CameraConnectionError, CameraWriteError
-from src.domain.camera.queries import recipe_to_ptp_values
-from src.domain.images.dataclasses import FujifilmRecipeData
+from src.domain.camera import device_config
+from src.domain.camera import operations as camera_operations
+from src.domain.camera import ptp_device
+from src.domain.camera import queries as camera_queries
+from src.domain.images import dataclasses as image_dataclasses
 
 _CODE_TO_PROP_NAME: dict[int, str] = {
     constants.PROP_SLOT_NAME: "SlotName",
@@ -32,7 +32,7 @@ class RecipeWriteError(Exception):
 
 
 def push_recipe_to_camera(
-    recipe: FujifilmRecipeData,
+    recipe: image_dataclasses.FujifilmRecipeData,
     *,
     slot_index: int,
 ) -> None:
@@ -55,13 +55,13 @@ def push_recipe_to_camera(
         RecipeWriteError:      If one or more properties failed to write or verify.
                                ``exc.failed_properties`` lists the property names.
     """
-    device = get_device()
+    device = device_config.get_device()
     device.connect()
     try:
         # --- Step 1: set slot cursor ---
         rc = device.set_property_uint16(constants.PROP_SLOT_CURSOR, slot_index)
         if rc != 0:
-            raise CameraConnectionError(
+            raise ptp_device.CameraConnectionError(
                 f"Failed to set slot cursor to slot {slot_index} (rc={rc})"
             )
 
@@ -70,7 +70,7 @@ def push_recipe_to_camera(
         # --- Step 2: validate recipe and translate to PTP values ---
         # Validation happens here, before any writes, so an invalid recipe never
         # touches the camera.
-        ptp_items = recipe_to_ptp_values(recipe).items()
+        ptp_items = camera_queries.recipe_to_ptp_values(recipe).items()
 
         # --- Step 3: write all properties (slot name first, then recipe properties) ---
         failed_codes: list[int] = [constants.PROP_SLOT_NAME, *(code for code, _ in ptp_items)]
@@ -87,10 +87,10 @@ def push_recipe_to_camera(
             time.sleep(settings.CAMERA_PRE_WRITE_DELAY_S)   # 50 ms before write
 
             try:
-                set_prop_with_retry(device, code, value)
-            except CameraConnectionError:
+                camera_operations.set_prop_with_retry(device, code, value)
+            except ptp_device.CameraConnectionError:
                 raise  # camera is gone; abort the entire write sequence
-            except CameraWriteError:
+            except ptp_device.CameraWriteError:
                 pass  # camera rejected this property; continue with the rest
             else:
                 failed_codes.remove(code)
@@ -105,7 +105,7 @@ def push_recipe_to_camera(
             # never matches the written value. Skip verification for that case.
             grain_code = constants.CUSTOM_SLOT_CODES["GrainEffect"]
             verifiable = [(c, v) for c, v in written if not (c == grain_code and v == 1)]
-            verification_failures = verify_written_properties(device, verifiable)
+            verification_failures = camera_operations.verify_written_properties(device, verifiable)
             failed_codes.extend(verification_failures)
 
         if failed_codes:

@@ -32,7 +32,7 @@ import usb.util
 from src.domain.camera import events as camera_events
 from django.conf import settings as _settings
 
-from src.domain.camera.ptp_device import CameraBusyError, CameraConnectionError
+from src.domain.camera import ptp_device
 
 if TYPE_CHECKING:
     pass
@@ -101,7 +101,7 @@ def _data_packet(code: int, tx_id: int, payload: bytes) -> bytes:
 def _parse_response(raw: bytes) -> tuple[int, list[int]]:
     """Parse a PTP response container. Returns (response_code, [params])."""
     if len(raw) < 12:
-        raise CameraConnectionError(
+        raise ptp_device.CameraConnectionError(
             f"PTP response too short ({len(raw)} bytes); camera may have disconnected."
         )
     length, ptype, code, _ = struct.unpack_from("<IHHI", raw, 0)
@@ -264,12 +264,12 @@ class PTPUSBDevice:
         the camera model name.
 
         Raises:
-            CameraConnectionError: If no camera is found, USB access is
+            ptp_device.CameraConnectionError: If no camera is found, USB access is
                                    denied, or the PTP session cannot be opened.
         """
         self._dev = usb.core.find(idVendor=_FUJIFILM_VENDOR_ID)
         if self._dev is None:
-            raise CameraConnectionError(
+            raise ptp_device.CameraConnectionError(
                 "No Fujifilm camera found via USB.\n"
                 "Make sure the camera is:\n"
                 "  • Connected via USB cable and powered on.\n"
@@ -302,13 +302,13 @@ class PTPUSBDevice:
         try:
             self.get_property_int(PROP_PING)
             return 0
-        except CameraConnectionError:
+        except ptp_device.CameraConnectionError:
             return -1
 
     def get_property_int(self, code: int) -> int:
         try:
             data = self._get_prop_with_retry(code)
-        except CameraConnectionError as e:
+        except ptp_device.CameraConnectionError as e:
             camera_events.publish_event(
                 event_type=camera_events.PTP_READ_FAILED,
                 params={"prop": f"0x{code:04X}", "error": str(e)},
@@ -340,7 +340,7 @@ class PTPUSBDevice:
     def get_property_string(self, code: int) -> str:
         try:
             data = self._get_prop_with_retry(code)
-        except CameraConnectionError as e:
+        except ptp_device.CameraConnectionError as e:
             camera_events.publish_event(
                 event_type=camera_events.PTP_READ_FAILED,
                 params={"prop": f"0x{code:04X}", "error": str(e)},
@@ -396,7 +396,7 @@ class PTPUSBDevice:
 
     def _get_prop_with_retry(self, code: int) -> bytes:
         """Send GetDevicePropValue and return the raw data, retrying on USB timeout."""
-        last_err: CameraConnectionError = CameraConnectionError("No retries attempted")
+        last_err: ptp_device.CameraConnectionError = ptp_device.CameraConnectionError("No retries attempted")
         for attempt in range(_PROP_MAX_RETRIES):
             if attempt > 0:
                 time.sleep(_RETRY_BACKOFF * (2 ** (attempt - 1)))
@@ -407,7 +407,7 @@ class PTPUSBDevice:
                 rc, _ = self._recv_response()
                 self._check_rc(rc, f"GetDevicePropValue(0x{code:04X})")
                 return data
-            except CameraConnectionError as e:
+            except ptp_device.CameraConnectionError as e:
                 last_err = e
         raise last_err
 
@@ -421,7 +421,7 @@ class PTPUSBDevice:
         try:
             self._ep_out.write(packet, timeout=_USB_TIMEOUT_MS)
         except usb.core.USBError as e:
-            raise CameraConnectionError(f"USB write failed: {e}") from e
+            raise ptp_device.CameraConnectionError(f"USB write failed: {e}") from e
 
     def _recv_data(self) -> bytes:
         """Receive a data container from the camera (may be empty)."""
@@ -429,7 +429,7 @@ class PTPUSBDevice:
         try:
             raw = bytes(self._ep_in.read(_READ_BUFFER, timeout=_USB_TIMEOUT_MS))
         except usb.core.USBError as e:
-            raise CameraConnectionError(f"USB read (data) failed: {e}") from e
+            raise ptp_device.CameraConnectionError(f"USB read (data) failed: {e}") from e
         # Some cameras skip the data phase for properties with no value.
         if len(raw) >= 12:
             _, ptype, _, _ = struct.unpack_from("<IHHI", raw, 0)
@@ -437,7 +437,7 @@ class PTPUSBDevice:
                 # Camera sent response without data phase — parse as response.
                 code, _ = _parse_response(raw)
                 if code != _RC_OK:
-                    raise CameraConnectionError(
+                    raise ptp_device.CameraConnectionError(
                         f"PTP error 0x{code:04X} (no data phase)"
                     )
                 return raw  # return as-is; caller's _recv_response will re-read
@@ -448,16 +448,16 @@ class PTPUSBDevice:
         try:
             raw = bytes(self._ep_in.read(64, timeout=_USB_TIMEOUT_MS))
         except usb.core.USBError as e:
-            raise CameraConnectionError(f"USB read (response) failed: {e}") from e
+            raise ptp_device.CameraConnectionError(f"USB read (response) failed: {e}") from e
         return _parse_response(raw)
 
     def _check_rc(self, code: int, context: str) -> None:
         if code == _RC_OK:
             return
         if code == -5:
-            raise CameraBusyError(f"Camera busy during {context}")
+            raise ptp_device.CameraBusyError(f"Camera busy during {context}")
         if code != _RC_OK:
-            raise CameraConnectionError(
+            raise ptp_device.CameraConnectionError(
                 f"PTP error 0x{code:04X} during {context}"
             )
 
@@ -493,7 +493,7 @@ class PTPUSBDevice:
         try:
             self._dev.set_configuration()
         except usb.core.USBError as e:
-            raise CameraConnectionError(
+            raise ptp_device.CameraConnectionError(
                 f"Could not set USB configuration: {e}\n"
                 "On Linux, try: sudo chmod a+rw /dev/bus/usb/…  "
                 "or add a udev rule — see docs/camera_usb_access.md."
@@ -517,7 +517,7 @@ class PTPUSBDevice:
             ),
         )
         if not self._ep_out or not self._ep_in:
-            raise CameraConnectionError(
+            raise ptp_device.CameraConnectionError(
                 "Could not find PTP bulk USB endpoints on this device. "
                 "Is the camera in a PTP-compatible USB mode?"
             )
@@ -527,7 +527,7 @@ class PTPUSBDevice:
         self._send(_command_packet(_OC_OPEN_SESSION, tx, _SESSION_ID))
         rc, _ = self._recv_response()
         if rc not in (_RC_OK, _RC_SESSION_ALREADY):
-            raise CameraConnectionError(
+            raise ptp_device.CameraConnectionError(
                 f"PTP OpenSession failed with code 0x{rc:04X}. "
                 "The camera may be in the wrong USB mode."
             )

@@ -10,7 +10,7 @@ from __future__ import annotations
 import re
 
 from src.data.camera import constants
-from src.domain.images.dataclasses import RECIPE_NAME_MAX_LEN, FujifilmRecipeData
+from src.domain.images import dataclasses as image_dataclasses
 
 # ---------------------------------------------------------------------------
 # Pre-computed allowed value sets (write-side constants)
@@ -67,7 +67,7 @@ class RecipeValidationError(ValueError):
 # ---------------------------------------------------------------------------
 
 
-def validate_recipe_for_camera(recipe: FujifilmRecipeData) -> None:
+def validate_recipe_for_camera(recipe: image_dataclasses.FujifilmRecipeData) -> None:
     """
     Validate that every field in *recipe* contains a camera-acceptable value.
 
@@ -85,7 +85,7 @@ def validate_recipe_for_camera(recipe: FujifilmRecipeData) -> None:
     # --- name: required for writing; must be non-blank ASCII ≤25 chars ---
     if not recipe.name or not recipe.name.strip():
         raise RecipeValidationError("name", recipe.name)
-    if len(recipe.name) > RECIPE_NAME_MAX_LEN:
+    if len(recipe.name) > image_dataclasses.RECIPE_NAME_MAX_LEN:
         raise RecipeValidationError("name", recipe.name)
     if not recipe.name.isascii():
         raise RecipeValidationError("name", recipe.name)
@@ -159,7 +159,7 @@ def validate_recipe_for_camera(recipe: FujifilmRecipeData) -> None:
 # ---------------------------------------------------------------------------
 
 
-def _validate_int_str(recipe: FujifilmRecipeData, field: str) -> None:
+def _validate_int_str(recipe: image_dataclasses.FujifilmRecipeData, field: str) -> None:
     value = getattr(recipe, field)
     if value is None or value in _EMPTY_OR_NA:
         return
@@ -169,7 +169,7 @@ def _validate_int_str(recipe: FujifilmRecipeData, field: str) -> None:
         raise RecipeValidationError(field, value)
 
 
-def _validate_float_str(recipe: FujifilmRecipeData, field: str) -> None:
+def _validate_float_str(recipe: image_dataclasses.FujifilmRecipeData, field: str) -> None:
     value = getattr(recipe, field)
     if value is None or value in _EMPTY_OR_NA:
         return

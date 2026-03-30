@@ -54,14 +54,14 @@ class TestSetRecipeNameView:
 
     def test_unexpected_exception_shows_message(self, client):
         recipe = FujifilmRecipeFactory(name="")
-        with patch("src.interfaces.views.set_recipe_name", side_effect=RuntimeError("boom")):
+        with patch("src.domain.images.operations.set_recipe_name", side_effect=RuntimeError("boom")):
             response = client.post(f"/recipes/{recipe.id}/set-name/", {"name": "Test"})
         assert response.status_code == 200
         assert b"something unexpected happened" in response.content.lower()
 
     def test_unexpected_exception_shows_form(self, client):
         recipe = FujifilmRecipeFactory(name="")
-        with patch("src.interfaces.views.set_recipe_name", side_effect=RuntimeError("boom")):
+        with patch("src.domain.images.operations.set_recipe_name", side_effect=RuntimeError("boom")):
             response = client.post(f"/recipes/{recipe.id}/set-name/", {"name": "Test"})
         soup = BeautifulSoup(response.content, "html.parser")
         assert soup.find(class_="recipe-name-error") is not None

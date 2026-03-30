@@ -26,8 +26,8 @@ Camera setup:
 from django.core.management.base import BaseCommand
 
 from src.domain.camera import queries
-from src.domain.camera.ptp_device import CameraConnectionError
-from src.domain.camera.ptp_usb_device import PTPUSBDevice
+from src.domain.camera import ptp_device
+from src.domain.camera import ptp_usb_device
 
 
 class Command(BaseCommand):
@@ -44,23 +44,23 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         self.stdout.write("Connecting to camera via USB…")
 
-        device = PTPUSBDevice()
+        device = ptp_usb_device.PTPUSBDevice()
 
         try:
             device.connect()
-        except CameraConnectionError as e:
+        except ptp_device.CameraConnectionError as e:
             self.stderr.write(self.style.ERROR(f"Connection failed: {e}"))
             return
 
         try:
             self._print_camera_info(device, read_slots=options["slots"])
-        except CameraConnectionError as e:
+        except ptp_device.CameraConnectionError as e:
             self.stderr.write(self.style.ERROR(f"Error while reading camera: {e}"))
         finally:
             device.disconnect()
             self.stdout.write("Disconnected.")
 
-    def _print_camera_info(self, device: PTPUSBDevice, *, read_slots: bool) -> None:
+    def _print_camera_info(self, device: ptp_usb_device.PTPUSBDevice, *, read_slots: bool) -> None:
         info = queries.camera_info(device)
 
         self.stdout.write("")

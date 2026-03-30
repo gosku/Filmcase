@@ -2,7 +2,7 @@ from pathlib import Path
 
 from PIL import Image as PILImage
 
-from src.domain.images.thumbnails.queries import thumbnail_cache_path
+from src.domain.images.thumbnails import queries as thumbnail_queries
 
 # Maps EXIF Orientation tag values to PIL transpose operations.
 # Orientation tag = 0x0112.  Value 1 means "normal" (no-op).
@@ -22,7 +22,7 @@ def generate_thumbnail(*, original_path: Path, width: int) -> Path:
     """Resize *original_path* to *width* px wide, applying EXIF orientation, and
     save to the thumbnail cache.  Returns the cache path.  Skips generation if
     a cached file already exists."""
-    cache_path = thumbnail_cache_path(original_path=original_path, width=width)
+    cache_path = thumbnail_queries.thumbnail_cache_path(original_path=original_path, width=width)
     if cache_path.is_file():
         return cache_path
     cache_path.parent.mkdir(parents=True, exist_ok=True)

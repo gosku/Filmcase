@@ -16,12 +16,12 @@ import time
 from django.conf import settings as _settings
 
 from src.domain.camera import events
-from src.domain.camera.ptp_device import CameraConnectionError, CameraWriteError, PTPDevice
+from src.domain.camera import ptp_device
 
 logger = logging.getLogger(__name__)
 
 
-def set_prop_with_retry(device: PTPDevice, code: int, value: str | int) -> None:
+def set_prop_with_retry(device: ptp_device.PTPDevice, code: int, value: str | int) -> None:
     """
     Write a single property, retrying on transport failures with exponential back-off.
 
@@ -52,7 +52,7 @@ def set_prop_with_retry(device: PTPDevice, code: int, value: str | int) -> None:
                 rc = device.set_property_string(code, value)
             else:
                 rc = device.set_property_int(code, value)
-        except CameraConnectionError as exc:
+        except ptp_device.CameraConnectionError as exc:
             camera_connection_error = True
             events.publish_event(
                 event_type=events.PTP_WRITE_FAILED,
@@ -85,16 +85,16 @@ def set_prop_with_retry(device: PTPDevice, code: int, value: str | int) -> None:
         return
 
     if camera_connection_error:
-        raise CameraConnectionError(
+        raise ptp_device.CameraConnectionError(
             f"Camera unreachable after {_settings.CAMERA_MAX_RETRIES} attempts "
             f"writing {prop_hex} = {value!r}"
         )
     if write_failed:
-        raise CameraWriteError(code, value, failed_rc)
+        raise ptp_device.CameraWriteError(code, value, failed_rc)
 
 
 def verify_written_properties(
-    device: PTPDevice,
+    device: ptp_device.PTPDevice,
     written: list[tuple[int, str | int]],
 ) -> list[int]:
     """Read back each successfully written property and check its value.
@@ -121,7 +121,7 @@ def verify_written_properties(
                     actual,
                 )
                 mismatched.append(code)
-        except CameraConnectionError:
+        except ptp_device.CameraConnectionError:
             logger.warning(
                 "Verification read failed for 0x%04X (camera error)", code
             )

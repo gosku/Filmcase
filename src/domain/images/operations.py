@@ -2,9 +2,9 @@ import attrs
 import os
 from decimal import Decimal
 
-from src.data.models import FujifilmExif, FujifilmRecipe, Image, RECIPE_FIELDS
+from src.data import models
 from src.domain.images import events, queries
-from src.domain.images.dataclasses import RECIPE_NAME_MAX_LEN
+from src.domain.images import dataclasses as image_dataclasses
 
 
 def _parse_numeric(*, s: str | None) -> Decimal | None:
@@ -34,14 +34,14 @@ class RecipeNameValidationError(Exception):
         super().__init__(f"Invalid recipe name: {name!r}")
 
 
-def set_recipe_name(*, recipe: FujifilmRecipe, name: str) -> None:
+def set_recipe_name(*, recipe: models.FujifilmRecipe, name: str) -> None:
     """Set the name of *recipe* to *name* after validating it.
 
     Raises:
         RecipeNameValidationError: If the name is empty, longer than
             RECIPE_NAME_MAX_LEN, or contains non-ASCII characters.
     """
-    if not name or len(name) > RECIPE_NAME_MAX_LEN or not name.isascii():
+    if not name or len(name) > image_dataclasses.RECIPE_NAME_MAX_LEN or not name.isascii():
         raise RecipeNameValidationError(name)
     recipe.name = name
     recipe.save(update_fields=["name"])
@@ -57,13 +57,13 @@ def toggle_image_favorite(*, image_id: int) -> bool:
 
     Returns the new value of is_favorite after toggling.
     """
-    image = Image.objects.get(pk=image_id)
+    image = models.Image.objects.get(pk=image_id)
     image.is_favorite = not image.is_favorite
     image.save(update_fields=["is_favorite"])
     return image.is_favorite
 
 
-def process_image(*, image_path: str) -> Image:
+def process_image(*, image_path: str) -> models.Image:
     """Read EXIF data from *image_path* and persist it to the database.
 
     If a record for the same filepath already exists it is updated in-place.
@@ -84,15 +84,15 @@ def process_image(*, image_path: str) -> Image:
 
     exif_fields = attrs.asdict(metadata)
     exif_fields.pop("date_taken")
-    recipe_fields = {field: exif_fields.pop(field) for field in RECIPE_FIELDS}
+    recipe_fields = {field: exif_fields.pop(field) for field in models.RECIPE_FIELDS}
 
-    fujifilm_exif = FujifilmExif.get_or_create(**recipe_fields)
+    fujifilm_exif = models.FujifilmExif.get_or_create(**recipe_fields)
 
     try:
         recipe_data = queries.exif_to_recipe(exif=metadata)
     except KeyError:
         raise NoFilmSimulationError(image_path)
-    fujifilm_recipe = FujifilmRecipe.get_or_create(
+    fujifilm_recipe = models.FujifilmRecipe.get_or_create(
         film_simulation=recipe_data.film_simulation,
         dynamic_range=recipe_data.dynamic_range or "",
         d_range_priority=recipe_data.d_range_priority,
@@ -113,7 +113,7 @@ def process_image(*, image_path: str) -> Image:
         monochromatic_color_magenta_green=_parse_numeric(s=recipe_data.monochromatic_color_magenta_green),
     )
 
-    image, created = Image.update_or_create(
+    image, created = models.Image.update_or_create(
         filepath=image_path,
         filename=filename,
         taken_at=date_taken,

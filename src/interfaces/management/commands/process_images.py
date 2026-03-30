@@ -1,7 +1,7 @@
 from django.core.management.base import BaseCommand
 
 from src.domain.images import events, queries
-from src.interfaces.tasks import process_image_task
+from src.interfaces import tasks
 
 
 class Command(BaseCommand):
@@ -19,7 +19,7 @@ class Command(BaseCommand):
         self.stdout.write(f"Found {total} images. Enqueuing tasks…")
 
         for path in paths:
-            process_image_task.apply_async(kwargs={"image_path": path})
+            tasks.process_image_task.apply_async(kwargs={"image_path": path})
             events.publish_event(
                 event_type=events.TASK_IMAGE_ENQUEUED,
                 params={"image_path": path},

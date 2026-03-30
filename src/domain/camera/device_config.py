@@ -9,10 +9,10 @@ import importlib
 
 from django.conf import settings as django_settings
 
-from src.domain.camera.ptp_device import PTPDevice
+from src.domain.camera import ptp_device
 
 
-def get_device() -> PTPDevice:
+def get_device() -> ptp_device.PTPDevice:
     """Return a fresh, unconnected PTP device as configured in settings.PTP_DEVICE."""
     factory = django_settings.PTP_DEVICE
     if isinstance(factory, str):

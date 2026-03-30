@@ -18,9 +18,9 @@ from src.data.camera import constants
 from django.conf import settings as _settings
 
 from src.domain.camera import events
-from src.domain.camera.ptp_device import CameraConnectionError, PTPDevice
-from src.domain.camera.validation import validate_recipe_for_camera
-from src.domain.images.dataclasses import FujifilmRecipeData
+from src.domain.camera import ptp_device
+from src.domain.camera import validation
+from src.domain.images import dataclasses as image_dataclasses
 
 # ---------------------------------------------------------------------------
 # Lookup tables for read (PTP int → domain value)
@@ -47,7 +47,7 @@ _DR_PRIORITY_TO_PTP: dict[str, int] = {v: k for k, v in constants.CUSTOM_SLOT_DR
 # ---------------------------------------------------------------------------
 
 
-def _get_int(device: PTPDevice, code: int) -> int:
+def _get_int(device: ptp_device.PTPDevice, code: int) -> int:
     """Read a 32-bit int property, publishing a read event on success or failure."""
     try:
         value = device.get_property_int(code)
@@ -56,7 +56,7 @@ def _get_int(device: PTPDevice, code: int) -> int:
             params={"description": f"0x{code:04X} = {value}"},
         )
         return value
-    except CameraConnectionError as exc:
+    except ptp_device.CameraConnectionError as exc:
         events.publish_event(
             event_type=events.PTP_READ_FAILED,
             params={"description": f"0x{code:04X}: {exc}"},
@@ -64,7 +64,7 @@ def _get_int(device: PTPDevice, code: int) -> int:
         raise
 
 
-def _get_int16(device: PTPDevice, code: int) -> int:
+def _get_int16(device: ptp_device.PTPDevice, code: int) -> int:
     """Read an int16 property, publishing a read event on success or failure."""
     try:
         value = device.get_property_int16(code)
@@ -73,7 +73,7 @@ def _get_int16(device: PTPDevice, code: int) -> int:
             params={"description": f"0x{code:04X} = {value}"},
         )
         return value
-    except CameraConnectionError as exc:
+    except ptp_device.CameraConnectionError as exc:
         events.publish_event(
             event_type=events.PTP_READ_FAILED,
             params={"description": f"0x{code:04X}: {exc}"},
@@ -81,7 +81,7 @@ def _get_int16(device: PTPDevice, code: int) -> int:
         raise
 
 
-def _get_str(device: PTPDevice, code: int) -> str:
+def _get_str(device: ptp_device.PTPDevice, code: int) -> str:
     """Read a string property, publishing a read event on success or failure."""
     try:
         value = device.get_property_string(code)
@@ -90,7 +90,7 @@ def _get_str(device: PTPDevice, code: int) -> str:
             params={"description": f"0x{code:04X} = {value!r}"},
         )
         return value
-    except CameraConnectionError as exc:
+    except ptp_device.CameraConnectionError as exc:
         events.publish_event(
             event_type=events.PTP_READ_FAILED,
             params={"description": f"0x{code:04X}: {exc}"},
@@ -121,7 +121,7 @@ class CameraInfo:
     firmware_version: int  # raw PTP value from 0xD153 (FirmwareVersion)
 
 
-def camera_info(device: PTPDevice) -> CameraInfo:
+def camera_info(device: ptp_device.PTPDevice) -> CameraInfo:
     """
     Read camera identity and status properties without modifying any state.
 
@@ -131,7 +131,7 @@ def camera_info(device: PTPDevice) -> CameraInfo:
     usb_mode = _get_int(device, 0xD16E)         # PTP_DPC_FUJI_USBMode
     try:
         firmware_version = _get_int(device, 0xD153)  # PTP_DPC_FUJI_FirmwareVersion
-    except CameraConnectionError:
+    except ptp_device.CameraConnectionError:
         firmware_version = 0  # not supported on all models (e.g. X-S10)
 
     return CameraInfo(
@@ -154,7 +154,7 @@ class SlotState:
         return constants.PTP_TO_FILM_SIMULATION.get(self.film_sim_ptp, f"Unknown({self.film_sim_ptp})")
 
 
-def slot_states(device: PTPDevice, slot_count: int) -> list[SlotState]:
+def slot_states(device: ptp_device.PTPDevice, slot_count: int) -> list[SlotState]:
     """
     Read the current content (name + film sim) of each custom slot.
 
@@ -176,18 +176,18 @@ def slot_states(device: PTPDevice, slot_count: int) -> list[SlotState]:
 
         try:
             name = _get_str(device, constants.PROP_SLOT_NAME)
-        except CameraConnectionError:
+        except ptp_device.CameraConnectionError:
             name = ""  # older models (e.g. X-T2) don't serve 0xD18D as a string
         try:
             film_sim_raw = _get_int(device, constants.CUSTOM_SLOT_CODES["FilmSimulation"])
-        except CameraConnectionError:
+        except ptp_device.CameraConnectionError:
             film_sim_raw = 0  # older models (e.g. X-T2) don't support custom-slot codes
         states.append(SlotState(index=idx, name=name, film_sim_ptp=film_sim_raw))
 
     return states
 
 
-def slot_recipe(device: PTPDevice, slot_index: int) -> FujifilmRecipeData:
+def slot_recipe(device: ptp_device.PTPDevice, slot_index: int) -> image_dataclasses.FujifilmRecipeData:
     """
     Read all recipe parameters stored in a single custom slot.
 
@@ -238,7 +238,7 @@ def slot_recipe(device: PTPDevice, slot_index: int) -> FujifilmRecipeData:
 
     grain_roughness, grain_size = constants.CUSTOM_SLOT_GRAIN_PTP.get(grain_raw, ("", ""))
 
-    return FujifilmRecipeData(
+    return image_dataclasses.FujifilmRecipeData(
         name=name,
         film_simulation=constants.PTP_TO_FILM_SIMULATION.get(film_sim_raw, ""),
         white_balance=wb_str,
@@ -342,7 +342,7 @@ class RecipePTPValues:
         ]
 
 
-def recipe_to_ptp_values(recipe: FujifilmRecipeData) -> RecipePTPValues:
+def recipe_to_ptp_values(recipe: image_dataclasses.FujifilmRecipeData) -> RecipePTPValues:
     """
     Convert a FujifilmRecipeData domain object into a RecipePTPValues using
     custom-slot property codes (0xD18C–0xD1A2).
@@ -350,7 +350,7 @@ def recipe_to_ptp_values(recipe: FujifilmRecipeData) -> RecipePTPValues:
     Properties that cannot be mapped (e.g. unsupported film simulations) are
     left as None and will not be written.
     """
-    validate_recipe_for_camera(recipe)
+    validation.validate_recipe_for_camera(recipe)
 
     # --- Film simulation (always set after validation) ---
     film_sim: int = constants.FILM_SIMULATION_TO_PTP[recipe.film_simulation]

@@ -4,10 +4,10 @@ import subprocess
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
-from django.core.exceptions import MultipleObjectsReturned, ObjectDoesNotExist
+from django.core import exceptions as django_exceptions
 
-from src.data.models import FujifilmRecipe, Image
-from src.domain.images.dataclasses import FujifilmRecipeData, ImageExifData
+from src.data import models
+from src.domain.images import dataclasses as image_dataclasses
 from src.domain.images import recipe_values
 
 class ImageNotFound(Exception):
@@ -163,7 +163,7 @@ def _normalize_wb_fine_tune(*, raw: str) -> str:
     return _WB_FINE_TUNE_RE.sub(_divide, raw)
 
 
-def read_image_exif(*, image_path: str) -> ImageExifData:
+def read_image_exif(*, image_path: str) -> image_dataclasses.ImageExifData:
     """Run exiftool on the given image and return a dict of recipe-relevant fields."""
     result = subprocess.run(
         ["exiftool", "-a", "-G1", image_path],
@@ -201,17 +201,17 @@ def read_image_exif(*, image_path: str) -> ImageExifData:
         )
     if "shutter_speed" in metadata:
         metadata["shutter_speed"] = metadata["shutter_speed"] + "s"
-    return ImageExifData(**metadata)
+    return image_dataclasses.ImageExifData(**metadata)
 
 
-def exif_to_recipe(*, exif: ImageExifData) -> FujifilmRecipeData:
+def exif_to_recipe(*, exif: image_dataclasses.ImageExifData) -> image_dataclasses.FujifilmRecipeData:
     """Convert an ImageExifData instance to a FujifilmRecipeData."""
     film_simulation = recipe_values.film_simulation_from_exif(film_simulation=exif.film_simulation, color=exif.color).display_name
     d_range_priority = recipe_values.d_range_priority_from_exif(d_range_priority=exif.d_range_priority, d_range_priority_auto=exif.d_range_priority_auto)
     drp_active = d_range_priority.value != "Off"
     wb_red, wb_blue = recipe_values.white_balance_fine_tune_from_exif(white_balance_fine_tune=exif.white_balance_fine_tune)
     grain_roughness = exif.grain_effect_roughness
-    return FujifilmRecipeData(
+    return image_dataclasses.FujifilmRecipeData(
         film_simulation=film_simulation,
         d_range_priority=d_range_priority.value,
         grain_roughness=grain_roughness,
@@ -233,20 +233,20 @@ def exif_to_recipe(*, exif: ImageExifData) -> FujifilmRecipeData:
     )
 
 
-def _decimal_str(value) -> str:
+def _decimal_str(value: object) -> str:
     """Convert a non-null Decimal DB value to a signed string (e.g. Decimal('1.5') → '+1.5')."""
     n = float(value)
     v = int(n) if n == int(n) else n
     return f"+{v}" if v > 0 else str(v)
 
 
-def _decimal_str_or_none(value) -> str | None:
+def _decimal_str_or_none(value: object) -> str | None:
     return None if value is None else _decimal_str(value)
 
 
-def recipe_from_db(*, recipe: FujifilmRecipe) -> FujifilmRecipeData:
+def recipe_from_db(*, recipe: models.FujifilmRecipe) -> image_dataclasses.FujifilmRecipeData:
     """Convert a FujifilmRecipe DB model instance to a FujifilmRecipeData domain object."""
-    return FujifilmRecipeData(
+    return image_dataclasses.FujifilmRecipeData(
         name=recipe.name,
         film_simulation=recipe.film_simulation,
         d_range_priority=recipe.d_range_priority,
@@ -269,28 +269,28 @@ def recipe_from_db(*, recipe: FujifilmRecipe) -> FujifilmRecipeData:
     )
 
 
-def _by_filename_and_date(*, exif: ImageExifData, filename: str, date_taken: datetime | None) -> Image:
-    return Image.objects.get(filename=filename, taken_at=date_taken)
+def _by_filename_and_date(*, exif: image_dataclasses.ImageExifData, filename: str, date_taken: datetime | None) -> models.Image:
+    return models.Image.objects.get(filename=filename, taken_at=date_taken)
 
 
-def _by_date_film_and_wb(*, exif: ImageExifData, filename: str, date_taken: datetime | None) -> Image:
-    return Image.objects.get(
+def _by_date_film_and_wb(*, exif: image_dataclasses.ImageExifData, filename: str, date_taken: datetime | None) -> models.Image:
+    return models.Image.objects.get(
         taken_at=date_taken,
         fujifilm_exif__film_simulation=exif.film_simulation,
         fujifilm_exif__white_balance_fine_tune=exif.white_balance_fine_tune,
     )
 
 
-def _by_date_and_image_count(*, exif: ImageExifData, filename: str, date_taken: datetime | None) -> Image:
-    return Image.objects.get(taken_at=date_taken, fujifilm_exif__image_count=exif.image_count)
+def _by_date_and_image_count(*, exif: image_dataclasses.ImageExifData, filename: str, date_taken: datetime | None) -> models.Image:
+    return models.Image.objects.get(taken_at=date_taken, fujifilm_exif__image_count=exif.image_count)
 
 
-def _by_date_and_film_simulation(*, exif: ImageExifData, filename: str, date_taken: datetime | None) -> Image:
-    return Image.objects.get(taken_at=date_taken, fujifilm_exif__film_simulation=exif.film_simulation)
+def _by_date_and_film_simulation(*, exif: image_dataclasses.ImageExifData, filename: str, date_taken: datetime | None) -> models.Image:
+    return models.Image.objects.get(taken_at=date_taken, fujifilm_exif__film_simulation=exif.film_simulation)
 
 
-def _by_date_only(*, exif: ImageExifData, filename: str, date_taken: datetime | None) -> Image:
-    return Image.objects.get(taken_at=date_taken)
+def _by_date_only(*, exif: image_dataclasses.ImageExifData, filename: str, date_taken: datetime | None) -> models.Image:
+    return models.Image.objects.get(taken_at=date_taken)
 
 
 _LOOKUP_STRATEGIES = [
@@ -302,7 +302,7 @@ _LOOKUP_STRATEGIES = [
 ]
 
 
-def find_image_for_path(*, image_path: str) -> Image:
+def find_image_for_path(*, image_path: str) -> models.Image:
     """Return the DB Image record that corresponds to the given image file.
 
     Strategies are tried in order; the first one that returns a unique match
@@ -320,9 +320,9 @@ def find_image_for_path(*, image_path: str) -> Image:
     for strategy in _LOOKUP_STRATEGIES:
         try:
             return strategy(exif=exif, filename=filename, date_taken=date_taken)
-        except ObjectDoesNotExist:
+        except django_exceptions.ObjectDoesNotExist:
             continue
-        except MultipleObjectsReturned:
+        except django_exceptions.MultipleObjectsReturned:
             any_ambiguous = True
             continue
 
