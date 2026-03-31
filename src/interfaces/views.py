@@ -4,7 +4,6 @@ from pathlib import Path
 
 from django.conf import settings
 from django.core import paginator as django_paginator
-from django.db import models as db_models
 from django import http
 from django import shortcuts
 from django.views import generic
@@ -32,84 +31,29 @@ def _active_filters_from_request(request) -> dict[str, list[str]]:
     return filters
 
 
-def _get_filtered_images(request) -> db_models.QuerySet:
-    qs = models.Image.objects.select_related("fujifilm_recipe")
-    recipe_ids = request.GET.getlist("recipe_id")
-    if recipe_ids:
-        qs = qs.filter(fujifilm_recipe_id__in=recipe_ids)
-    for field, _ in filter_queries.RECIPE_FILTER_FIELDS:
-        values = request.GET.getlist(field)
-        if values:
-            qs = qs.filter(**{f"fujifilm_recipe__{field}__in": values})
-    if request.GET.get("favorites_first", "1") == "1":
-        return qs.order_by("-is_favorite", "-taken_at", "id")
-    return qs.order_by("-taken_at", "id")
-
-
-def _get_recipe_options(request, active_field_filters: dict[str, list[str]]) -> dict:
-    selected = request.GET.getlist("recipe_id")
-
-    # Count images per recipe after applying active field filters.
-    filtered_qs = models.Image.objects.filter(fujifilm_recipe__isnull=False)
-    for field, values in active_field_filters.items():
-        if values:
-            filtered_qs = filtered_qs.filter(**{f"fujifilm_recipe__{field}__in": values})
-    filtered_counts = {
-        str(row["fujifilm_recipe_id"]): row["count"]
-        for row in filtered_qs.values("fujifilm_recipe_id").annotate(count=db_models.Count("id"))
-    }
-
-    # Show notable recipes (>50 total images or named) plus any currently selected.
-    selected_ids = [int(r) for r in selected if r.isdigit()]
-    recipes = (
-        models.FujifilmRecipe.objects.annotate(total_images=db_models.Count("images"))
-        .filter(db_models.Q(total_images__gt=_NOTABLE_RECIPE_MIN_IMAGES) | ~db_models.Q(name="") | db_models.Q(id__in=selected_ids))
-        .order_by("-total_images")
-    )
-
-    options = []
-    for recipe in recipes:
-        count = filtered_counts.get(str(recipe.id), 0)
-        name = recipe.name if recipe.name else f"{recipe.id} - {recipe.film_simulation}"
-        options.append({
-            "value": str(recipe.id),
-            "label": f"{name} ({count})",
-            "available": count > 0,
-            "selected": str(recipe.id) in selected,
-        })
-    # Available recipes first; stable sort preserves total_images order within each group.
-    options.sort(key=lambda o: 0 if o["available"] else 1)
-
-    return {"label": "Recipe", "options": options, "selected": selected}
-
-
-def _paginate(request, qs) -> django_paginator.Page:
-    paginator = django_paginator.Paginator(qs, settings.GALLERY_PAGE_SIZE)
-    page_number = request.GET.get("page", 1)
-    return paginator.get_page(page_number)
-
-
 def gallery_view(request):
     active_filters = _active_filters_from_request(request)
-    active_field_filters = {k: v for k, v in active_filters.items() if k != "recipe_id"}
-    page_obj = _paginate(request, _get_filtered_images(request))
-    sidebar_options = filter_queries.get_sidebar_filter_options(active_filters)
-    recipe_options = _get_recipe_options(request, active_field_filters)
+    favorites_first = request.GET.get("favorites_first", "1") == "1"
+    gallery = filter_queries.get_gallery_data(
+        active_filters=active_filters,
+        favorites_first=favorites_first,
+        page_number=request.GET.get("page", 1),
+        page_size=settings.GALLERY_PAGE_SIZE,
+    )
     if request.headers.get("HX-Request"):
         return shortcuts.render(request, "images/_gallery_htmx_filter_response.html", {
-            "page_obj": page_obj,
-            "sidebar_options": sidebar_options,
-            "recipe_options": recipe_options,
+            "page_obj": gallery.page_obj,
+            "sidebar_options": gallery.sidebar_options,
+            "recipe_options": gallery.recipe_options,
         })
-    favorites_first = request.GET.get("favorites_first", "1")
     return shortcuts.render(
         request,
         "images/gallery.html",
         {
-            "page_obj": page_obj,
-            "sidebar_options": sidebar_options,
-            "recipe_options": recipe_options,
-            "favorites_first": favorites_first,
+            "page_obj": gallery.page_obj,
+            "sidebar_options": gallery.sidebar_options,
+            "recipe_options": gallery.recipe_options,
+            "favorites_first": "1" if favorites_first else "0",
         },
     )
 
@@ -139,7 +83,10 @@ def image_detail_view(request, image_id):
 
 
 def gallery_results_view(request):
-    page_obj = _paginate(request, _get_filtered_images(request))
+    active_filters = _active_filters_from_request(request)
+    favorites_first = request.GET.get("favorites_first", "1") == "1"
+    qs = filter_queries.get_filtered_images(active_filters=active_filters, favorites_first=favorites_first)
+    page_obj = django_paginator.Paginator(qs, settings.GALLERY_PAGE_SIZE).get_page(request.GET.get("page", 1))
     return shortcuts.render(request, "images/_gallery_htmx_scroll_response.html", {"page_obj": page_obj})
 
 

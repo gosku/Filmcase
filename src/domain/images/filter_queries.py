@@ -1,6 +1,11 @@
+import attrs
+
+from django.core import paginator as django_paginator
 from django.db import models as db_models
 
 from src.data import models
+
+_NOTABLE_RECIPE_MIN_IMAGES = 50
 
 RECIPE_FILTER_FIELDS = [
     ("film_simulation", "Film Simulation"),
@@ -113,3 +118,90 @@ def get_sidebar_filter_options(
         }
 
     return result
+
+
+def get_filtered_images(
+    *,
+    active_filters: dict[str, list[str]],
+    favorites_first: bool,
+) -> db_models.QuerySet:
+    qs = models.Image.objects.select_related("fujifilm_recipe")
+    recipe_ids = active_filters.get("recipe_id", [])
+    if recipe_ids:
+        qs = qs.filter(fujifilm_recipe_id__in=recipe_ids)
+    for field, _ in RECIPE_FILTER_FIELDS:
+        values = active_filters.get(field, [])
+        if values:
+            qs = qs.filter(**{f"fujifilm_recipe__{field}__in": values})
+    if favorites_first:
+        return qs.order_by("-is_favorite", "-taken_at", "id")
+    return qs.order_by("-taken_at", "id")
+
+
+def _recipe_options(
+    *,
+    active_filters: dict[str, list[str]],
+    active_field_filters: dict[str, list[str]],
+) -> dict:
+    selected = active_filters.get("recipe_id", [])
+
+    filtered_qs = models.Image.objects.filter(fujifilm_recipe__isnull=False)
+    for field, values in active_field_filters.items():
+        if values:
+            filtered_qs = filtered_qs.filter(**{f"fujifilm_recipe__{field}__in": values})
+    filtered_counts = {
+        str(row["fujifilm_recipe_id"]): row["count"]
+        for row in filtered_qs.values("fujifilm_recipe_id").annotate(count=db_models.Count("id"))
+    }
+
+    selected_ids = [int(r) for r in selected if r.isdigit()]
+    recipes = (
+        models.FujifilmRecipe.objects.annotate(total_images=db_models.Count("images"))
+        .filter(
+            db_models.Q(total_images__gt=_NOTABLE_RECIPE_MIN_IMAGES)
+            | ~db_models.Q(name="")
+            | db_models.Q(id__in=selected_ids)
+        )
+        .order_by("-total_images")
+    )
+
+    options = []
+    for recipe in recipes:
+        count = filtered_counts.get(str(recipe.id), 0)
+        name = recipe.name if recipe.name else f"{recipe.id} - {recipe.film_simulation}"
+        options.append({
+            "value": str(recipe.id),
+            "label": f"{name} ({count})",
+            "available": count > 0,
+            "selected": str(recipe.id) in selected,
+        })
+    options.sort(key=lambda o: 0 if o["available"] else 1)
+    return {"label": "Recipe", "options": options, "selected": selected}
+
+
+@attrs.frozen
+class GalleryData:
+    page_obj: object
+    sidebar_options: dict
+    recipe_options: dict
+
+
+def get_gallery_data(
+    *,
+    active_filters: dict[str, list[str]],
+    favorites_first: bool,
+    page_number: int | str,
+    page_size: int,
+) -> GalleryData:
+    """Return all data needed to render the gallery page in a single query bundle."""
+    active_field_filters = {k: v for k, v in active_filters.items() if k != "recipe_id"}
+    qs = get_filtered_images(active_filters=active_filters, favorites_first=favorites_first)
+    page_obj = django_paginator.Paginator(qs, page_size).get_page(page_number)
+    return GalleryData(
+        page_obj=page_obj,
+        sidebar_options=get_sidebar_filter_options(active_filters),
+        recipe_options=_recipe_options(
+            active_filters=active_filters,
+            active_field_filters=active_field_filters,
+        ),
+    )
