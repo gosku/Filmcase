@@ -33,10 +33,10 @@ def _active_filters_from_request(request) -> dict[str, list[str]]:
 
 def gallery_view(request):
     active_filters = _active_filters_from_request(request)
-    favorites_first = request.GET.get("favorites_first", "1") == "1"
+    rating_first = request.GET.get("rating_first", "1") == "1"
     gallery = filter_queries.get_gallery_data(
         active_filters=active_filters,
-        favorites_first=favorites_first,
+        rating_first=rating_first,
         page_number=request.GET.get("page", 1),
         page_size=settings.GALLERY_PAGE_SIZE,
     )
@@ -53,20 +53,22 @@ def gallery_view(request):
             "page_obj": gallery.page_obj,
             "sidebar_options": gallery.sidebar_options,
             "recipe_options": gallery.recipe_options,
-            "favorites_first": "1" if favorites_first else "0",
+            "rating_first": "1" if rating_first else "0",
         },
     )
 
 
 def image_detail_view(request, image_id):
+    max_rating = settings.IMAGE_MAX_RATING
+    rating_range = range(1, max_rating + 1)
     if request.headers.get("HX-Request"):
         active_filters = _active_filters_from_request(request)
-        favorites_first = request.GET.get("favorites_first", "1") == "1"
+        rating_first = request.GET.get("rating_first", "1") == "1"
         try:
             detail = image_queries.get_image_detail(
                 image_id=image_id,
                 active_filters=active_filters,
-                favorites_first=favorites_first,
+                rating_first=rating_first,
             )
         except models.Image.DoesNotExist:
             raise http.Http404
@@ -74,18 +76,24 @@ def image_detail_view(request, image_id):
             "image": detail.image,
             "prev_id": detail.prev_id,
             "next_id": detail.next_id,
+            "max_rating": max_rating,
+            "rating_range": rating_range,
         })
     image = shortcuts.get_object_or_404(
         models.Image.objects.select_related("fujifilm_recipe", "fujifilm_exif"),
         pk=image_id,
     )
-    return shortcuts.render(request, "images/image_detail.html", {"image": image})
+    return shortcuts.render(request, "images/image_detail.html", {
+        "image": image,
+        "max_rating": max_rating,
+        "rating_range": rating_range,
+    })
 
 
 def gallery_results_view(request):
     active_filters = _active_filters_from_request(request)
-    favorites_first = request.GET.get("favorites_first", "1") == "1"
-    qs = filter_queries.get_filtered_images(active_filters=active_filters, favorites_first=favorites_first)
+    rating_first = request.GET.get("rating_first", "1") == "1"
+    qs = filter_queries.get_filtered_images(active_filters=active_filters, rating_first=rating_first)
     page_obj = django_paginator.Paginator(qs, settings.GALLERY_PAGE_SIZE).get_page(request.GET.get("page", 1))
     return shortcuts.render(request, "images/_gallery_htmx_scroll_response.html", {"page_obj": page_obj})
 
@@ -107,15 +115,29 @@ def image_file_view(request, image_id):
 
 
 @http_decorators.require_POST
-def toggle_favorite_view(request, image_id):
+def set_image_rating_view(request, image_id):
     try:
-        is_favorite = image_operations.toggle_image_favorite(image_id=image_id)
+        image = models.Image.objects.get(pk=image_id)
     except models.Image.DoesNotExist:
         raise http.Http404
+    try:
+        rating = int(request.POST.get("rating", 0))
+    except (ValueError, TypeError):
+        raise http.Http404
+    try:
+        image_operations.set_image_rating(image=image, rating=rating)
+    except image_operations.InvalidImageRatingError:
+        raise http.Http404
+    max_rating = settings.IMAGE_MAX_RATING
     return shortcuts.render(
         request,
-        "images/_favorite_button.html",
-        {"image_id": image_id, "is_favorite": is_favorite},
+        "images/_rating_widget.html",
+        {
+            "image_id": image_id,
+            "rating": image.rating,
+            "max_rating": max_rating,
+            "rating_range": range(1, max_rating + 1),
+        },
     )
 
 

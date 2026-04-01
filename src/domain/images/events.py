@@ -6,6 +6,7 @@ logger = structlog.get_logger("events")
 # Event type constants (reverse domain name notation)
 RECIPE_IMAGE_CREATED = "recipe.image.created"
 RECIPE_IMAGE_UPDATED = "recipe.image.updated"
+IMAGE_RATING_SET = "image.rating.set"
 TASK_IMAGE_ENQUEUED = "task.image.enqueued"
 TASK_IMAGE_STARTED = "task.image.started"
 TASK_IMAGE_COMPLETED = "task.image.completed"

@@ -12,7 +12,8 @@ Read more about it in our [documentation index](docs/index.md).
 
 - Import Fujifilm JPEGs and browse them in a filterable gallery
 - View full-resolution images with their complete recipe and EXIF data
-- Mark favourites and manage them in bulk
+- Rate images (0–5 stars) individually or in bulk from the command line
+- Sort the gallery by rating to surface your best shots first
 - Name recipes and push them to your camera's custom slots over USB
 
 ---
@@ -207,6 +208,18 @@ Visit `/images/` to see all processed images. Use the filter controls to narrow 
 ### Process new images
 
 Re-run `process_images` or `process_images_sync` pointing at any directory containing new images. Already-processed images are updated in place with fresh EXIF data. Images without Fujifilm EXIF data are skipped.
+
+### Rate images
+
+Open any image in the detail view and click a star to assign a rating (0–`IMAGE_MAX_RATING`,
+default 5). Use the ✕ button to clear it back to 0. Enable **Rating first** in the gallery
+sidebar to sort by rating descending.
+
+To rate a whole folder at once from the command line:
+
+```bash
+python manage.py rate_images /path/to/folder --rating=3
+```
 
 ### Push a recipe to your camera
 

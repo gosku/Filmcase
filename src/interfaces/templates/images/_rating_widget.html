@@ -1,0 +1,18 @@
+<div class="detail-rating">
+  <button class="detail-rating-clear"
+          hx-post="{% url 'image-set-rating' image_id %}"
+          hx-vals='{"rating": "0"}'
+          hx-target="closest .detail-rating"
+          hx-swap="outerHTML"
+          hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+          title="Clear rating">&#x2715;</button>
+  {% for i in rating_range %}
+    <button class="detail-rating-star{% if rating and rating >= i %} detail-rating-star--active{% endif %}"
+            hx-post="{% url 'image-set-rating' image_id %}"
+            hx-vals='{"rating": "{{ i }}"}'
+            hx-target="closest .detail-rating"
+            hx-swap="outerHTML"
+            hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+            title="Rate {{ i }}/{{ max_rating }}">&#x2605;</button>
+  {% endfor %}
+</div>

@@ -38,24 +38,48 @@
 
   .detail-close:hover { background: rgba(255,255,255,0.25); }
 
-  .detail-favorite {
+  .detail-rating {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.1rem;
+  }
+
+  .detail-rating-star {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 2.5rem;
-    height: 2.5rem;
+    width: 2.2rem;
+    height: 2.2rem;
     border-radius: 50%;
-    background: rgba(255,255,255,0.12);
-    color: #fff;
+    background: transparent;
+    color: rgba(255,255,255,0.25);
     font-size: 1.4rem;
     border: none;
-    transition: background 0.15s, color 0.15s;
-    line-height: 1;
     cursor: pointer;
+    transition: color 0.15s;
+    line-height: 1;
   }
 
-  .detail-favorite:hover { background: rgba(255,255,255,0.25); }
-  .detail-favorite--active { color: #f5c518; }
+  .detail-rating-star:hover { color: #f5c518; }
+  .detail-rating-star--active { color: #f5c518; }
+
+  .detail-rating-clear {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.6rem;
+    height: 1.6rem;
+    border-radius: 50%;
+    background: transparent;
+    color: rgba(255,255,255,0.25);
+    font-size: 0.85rem;
+    border: none;
+    cursor: pointer;
+    margin-left: 0.15rem;
+    transition: color 0.15s;
+  }
+
+  .detail-rating-clear:hover { color: rgba(255,255,255,0.7); }
 
   .detail-body {
     display: flex;
@@ -264,7 +288,7 @@
 <div class="detail-overlay">
   <header class="detail-header">
     <div class="detail-header-spacer"></div>
-    {% include "images/_favorite_button.html" with image_id=image.id is_favorite=image.is_favorite %}
+    {% include "images/_rating_widget.html" with image_id=image.id rating=image.rating %}
     <a href="{% url 'gallery' %}" class="detail-close" title="Close"
        onclick="event.preventDefault(); (window._detailClose || function(){ history.back(); })();">&#x2715;</a>
   </header>

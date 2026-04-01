@@ -304,24 +304,30 @@ class TestWBRedBlueFilters:
 
 
 @pytest.mark.django_db
-class TestFavoritesFirstToggle:
-    """A favorite (older) image and a non-favourite (newer) image are created.
-    With the toggle enabled the favourite must come first; with it disabled the
-    newer image must come first."""
+class TestRatingFirstToggle:
+    """Three images with ratings 0, 1, 2 where the highest-rated is the oldest.
+    With the toggle enabled the highest-rated image must come first; with it
+    disabled the newest image (rating 0) must come first."""
 
     def setup_method(self):
         recipe = FujifilmRecipeFactory(name="Test Recipe")
         now = timezone.now()
         ImageFactory(
-            filename="favorite_older.jpg",
+            filename="rating2_oldest.jpg",
             fujifilm_recipe=recipe,
-            is_favorite=True,
+            rating=2,
+            taken_at=now - timezone.timedelta(days=2),
+        )
+        ImageFactory(
+            filename="rating1_middle.jpg",
+            fujifilm_recipe=recipe,
+            rating=1,
             taken_at=now - timezone.timedelta(days=1),
         )
         ImageFactory(
-            filename="nonfavorite_newer.jpg",
+            filename="rating0_newest.jpg",
             fujifilm_recipe=recipe,
-            is_favorite=False,
+            rating=0,
             taken_at=now,
         )
 
@@ -329,20 +335,20 @@ class TestFavoritesFirstToggle:
         soup = BeautifulSoup(response.content, "html.parser")
         return [card.find(class_="image-filename").text.strip() for card in soup.find_all(class_="image-card")]
 
-    def test_favorites_shown_first_when_toggle_enabled(self, client):
-        response = client.get("/images/results/", {"favorites_first": "1"})
+    def test_highest_rated_shown_first_when_toggle_enabled(self, client):
+        response = client.get("/images/results/", {"rating_first": "1"})
 
         assert response.status_code == 200
-        assert self._filenames(response) == ["favorite_older.jpg", "nonfavorite_newer.jpg"]
+        assert self._filenames(response) == ["rating2_oldest.jpg", "rating1_middle.jpg", "rating0_newest.jpg"]
 
     def test_newest_shown_first_when_toggle_disabled(self, client):
-        response = client.get("/images/results/", {"favorites_first": "0"})
+        response = client.get("/images/results/", {"rating_first": "0"})
 
         assert response.status_code == 200
-        assert self._filenames(response) == ["nonfavorite_newer.jpg", "favorite_older.jpg"]
+        assert self._filenames(response) == ["rating0_newest.jpg", "rating1_middle.jpg", "rating2_oldest.jpg"]
 
-    def test_favorites_shown_first_by_default(self, client):
+    def test_highest_rated_shown_first_by_default(self, client):
         response = client.get("/images/results/")
 
         assert response.status_code == 200
-        assert self._filenames(response) == ["favorite_older.jpg", "nonfavorite_newer.jpg"]
+        assert self._filenames(response) == ["rating2_oldest.jpg", "rating1_middle.jpg", "rating0_newest.jpg"]

@@ -1,15 +1,20 @@
-# Favorite Image Matching
+# Image Matching
 
-## The `mark_favorites` command
+## The `rate_images` command
 
-`mark_favorites` takes a folder of images and marks the corresponding records in the
-database as favourites. The intended workflow is: a user curates a collection of their
-best shots in an external app (e.g. Apple Photos), exports that selection to a folder,
-then runs the command to reflect those favourites in the database.
+`rate_images` takes a folder of images and applies a rating to the corresponding records in
+the database. The intended workflow is: a user curates a collection of their best shots in
+an external app (e.g. Apple Photos), exports that selection to a folder, then runs the
+command to apply a rating to those images without clicking through each one individually.
 
 ```
-python manage.py mark_favorites <folder>
+python manage.py rate_images <folder> --rating=<value>
 ```
+
+> **Tip — favourites-like behaviour:** Set `IMAGE_MAX_RATING = 1` in your settings. With
+> only two possible values (0 and 1), the rating system behaves exactly like a favourite
+> toggle: `--rating=1` marks a folder as picked, `--rating=0` clears it, and the
+> "Rating first" toggle in the gallery surfaces your picks at the top.
 
 ## The matching problem
 
@@ -69,14 +74,14 @@ less-specific film/WB strategies, otherwise those would immediately raise
 
 ## What happens after matching
 
-Once `find_image_for_path` returns (or raises), the `mark_favorites` management command
+Once `find_image_for_path` returns (or raises), the `rate_images` management command
 decides what to do:
 
-- **Match found** → `mark_as_favorite()` on the returned record.
+- **Match found** → `set_image_rating()` is called on the returned record.
 - **`ImageNotFound`** → the file is imported as a new database row via `process_image`,
-  then marked as favourite. This covers exports that were never ingested directly.
-- **`AmbiguousImageMatch`** → same as above: the file is imported as a new row and marked
-  as favourite. The existing ambiguous records are left untouched.
+  then rated. This covers exports that were never ingested directly.
+- **`AmbiguousImageMatch`** → same as above: the file is imported as a new row and rated.
+  The existing ambiguous records are left untouched.
 
 If `process_image` raises `NoFilmSimulationError` in either fallback case (the file carries
 no Fujifilm recipe EXIF — e.g. a phone photo or an in-camera collage with stripped
@@ -115,7 +120,7 @@ flowchart TD
     S5 -->|multiple, or earlier multiple + no match| AMBIGUOUS
 
     FOUND(["✓ Image matched"])
-    FOUND --> MARK["mark_as_favorite()"]
+    FOUND --> MARK["set_image_rating()"]
 
     NOT_FOUND(["✗ ImageNotFound"])
     NOT_FOUND --> IMPORT
@@ -124,14 +129,14 @@ flowchart TD
     AMBIGUOUS --> IMPORT
 
     IMPORT["process_image()\nimport as new DB row"]
-    IMPORT -->|success| MARK
+    IMPORT -->|success| MARK["set_image_rating()"]
     IMPORT -->|NoFilmSimulationError| SKIP["Skip — report to stderr"]
 ```
 
 ## Adding a new strategy
 
 To extend the matching logic, add a function with the signature below and append it to
-`_LOOKUP_STRATEGIES` in `src/domain/queries.py` at the position that reflects its
+`_LOOKUP_STRATEGIES` in `src/domain/images/queries.py` at the position that reflects its
 specificity relative to existing strategies:
 
 ```python

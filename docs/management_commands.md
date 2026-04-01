@@ -21,23 +21,25 @@ one-off imports when Celery is not set up.
 
 ---
 
-## Marking favourites in bulk
+## Rating images in bulk
 
 ```
-python manage.py mark_favorites <folder>
+python manage.py rate_images <folder> --rating=<value>
 ```
 
-Marks every image in a folder as a favourite. Useful when you have already curated a
+Applies a rating to every image in a folder. Useful when you have already curated a
 selection of images outside the app (e.g. a folder of exports from your camera, editing
-software, Google Photos...) and want that selection reflected in the gallery without clicking through each
-image individually.
+software, Google Photos...) and want that rating reflected in the gallery without clicking
+through each image individually.
+
+`--rating` accepts any integer from 0 to `IMAGE_MAX_RATING` (default 5). Use `--rating=0`
+to clear ratings in bulk.
 
 Images are matched to your catalogue by reading their EXIF metadata — not by filename,
 since export tools often rename files. The command tries a series of increasingly broad
 strategies (date + filename, date + shutter counter, date + film simulation, etc.) until it
-finds a unique match. If no match is found, the image is imported as a new entry and marked
-as a favourite. See [favorite_image_matching.md](favorite_image_matching.md) for the full
-matching logic.
+finds a unique match. If no match is found, the image is imported as a new entry and rated.
+See [favorite_image_matching.md](favorite_image_matching.md) for the full matching logic.
 
 ---
 

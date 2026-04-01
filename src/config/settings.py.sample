@@ -32,6 +32,7 @@ DATABASES = {
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 GALLERY_PAGE_SIZE = 24
+IMAGE_MAX_RATING: int = 5
 PTP_DEVICE = "src.domain.camera.ptp_usb_device.PTPUSBDevice"
 CAMERA_VERIFY_WRITES: bool = True  # set to False to skip read-back verification after writing
 

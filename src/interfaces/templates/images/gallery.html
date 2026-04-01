@@ -151,7 +151,7 @@
       color: #222;
     }
 
-    .favorites-toggle {
+    .rating-toggle {
       display: flex;
       align-items: center;
       gap: 0.45rem;
@@ -161,7 +161,7 @@
       user-select: none;
     }
 
-    .favorites-toggle input[type="checkbox"] {
+    .rating-toggle input[type="checkbox"] {
       appearance: none;
       width: 2rem;
       height: 1.1rem;
@@ -173,11 +173,11 @@
       flex-shrink: 0;
     }
 
-    .favorites-toggle input[type="checkbox"]:checked {
+    .rating-toggle input[type="checkbox"]:checked {
       background: #f97316;
     }
 
-    .favorites-toggle input[type="checkbox"]::after {
+    .rating-toggle input[type="checkbox"]::after {
       content: '';
       position: absolute;
       width: 0.85rem;
@@ -189,7 +189,7 @@
       transition: left 0.2s;
     }
 
-    .favorites-toggle input[type="checkbox"]:checked::after {
+    .rating-toggle input[type="checkbox"]:checked::after {
       left: calc(100% - 0.975rem);
     }
 
@@ -444,18 +444,18 @@
 
 <aside class="sidebar">
   <h2>Filters</h2>
-  <a href="{% url 'gallery' %}?favorites_first={{ favorites_first }}" class="clear-filters-btn">Clear all filters</a>
+  <a href="{% url 'gallery' %}?rating_first={{ rating_first }}" class="clear-filters-btn">Clear all filters</a>
   <form id="filter-form"
         hx-get="{% url 'gallery' %}"
         hx-trigger="change"
         hx-target="#gallery-results"
         hx-push-url="true">
     <div class="filter-group">
-      <label class="favorites-toggle" for="favorites-first-toggle">
-        <input type="checkbox" id="favorites-first-toggle">
-        Favorites first
+      <label class="rating-toggle" for="rating-first-toggle">
+        <input type="checkbox" id="rating-first-toggle">
+        Rating first
       </label>
-      <input type="hidden" name="favorites_first" id="favorites-first-input" value="{{ favorites_first }}">
+      <input type="hidden" name="rating_first" id="rating-first-input" value="{{ rating_first }}">
     </div>
     {% include "images/_recipe_filter.html" %}
     {% include "images/_sidebar_filters.html" %}
@@ -510,19 +510,19 @@
   // Re-initialise after HTMX OOB-swaps the recipe filter into the DOM.
   document.body.addEventListener('htmx:afterSettle', initRecipeSelects);
 
-  // Favorites-first toggle: persists in localStorage, syncs with URL param.
+  // Rating-first toggle: persists in localStorage, syncs with URL param.
   (function () {
     var urlParams = new URLSearchParams(window.location.search);
-    var hiddenInput = document.getElementById('favorites-first-input');
-    var toggle = document.getElementById('favorites-first-toggle');
+    var hiddenInput = document.getElementById('rating-first-input');
+    var toggle = document.getElementById('rating-first-toggle');
 
     var val;
-    if (urlParams.has('favorites_first')) {
-      val = urlParams.get('favorites_first');
+    if (urlParams.has('rating_first')) {
+      val = urlParams.get('rating_first');
     } else {
-      val = localStorage.getItem('favoritesFirst') ?? '1';
+      val = localStorage.getItem('ratingFirst') ?? '1';
       // Reflect current preference in the URL without a new history entry.
-      urlParams.set('favorites_first', val);
+      urlParams.set('rating_first', val);
       history.replaceState(null, '', '?' + urlParams.toString());
       // If server rendered with its default (1) but preference is off, re-fetch.
       if (val !== '1') {
@@ -530,14 +530,14 @@
         document.getElementById('filter-form').dispatchEvent(new Event('change'));
       }
     }
-    localStorage.setItem('favoritesFirst', val);
+    localStorage.setItem('ratingFirst', val);
     hiddenInput.value = val;
     toggle.checked = (val === '1');
 
     toggle.addEventListener('change', function () {
       var newVal = toggle.checked ? '1' : '0';
       hiddenInput.value = newVal;
-      localStorage.setItem('favoritesFirst', newVal);
+      localStorage.setItem('ratingFirst', newVal);
       document.getElementById('filter-form').dispatchEvent(new Event('change'));
     });
   }());

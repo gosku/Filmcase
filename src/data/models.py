@@ -312,6 +312,7 @@ class Image(models.Model):
 
     is_favorite = models.BooleanField(default=False)
     in_album = models.BooleanField(default=False)
+    rating = models.IntegerField(default=0)
 
     class Meta:
         constraints = [
@@ -333,6 +334,10 @@ class Image(models.Model):
     def set_as_in_album(self):
         self.in_album = True
         self.save(update_fields=["in_album"])
+
+    def set_rating(self, value: int) -> None:
+        self.rating = value
+        self.save(update_fields=["rating"])
 
     # Properties
 

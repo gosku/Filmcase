@@ -361,7 +361,7 @@ def get_image_detail(
     *,
     image_id: int,
     active_filters: dict[str, list[str]],
-    favorites_first: bool,
+    rating_first: bool,
 ) -> ImageDetailContext:
     """Fetch an image and its prev/next neighbours within the filtered image sequence.
 
@@ -378,8 +378,8 @@ def get_image_detail(
         values = active_filters.get(field, [])
         if values:
             qs = qs.filter(**{f"fujifilm_recipe__{field}__in": values})
-    if favorites_first:
-        qs = qs.order_by("-is_favorite", "-taken_at", "id")
+    if rating_first:
+        qs = qs.order_by("-rating", "-taken_at", "id")
     else:
         qs = qs.order_by("-taken_at", "id")
 

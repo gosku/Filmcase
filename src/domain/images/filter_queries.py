@@ -123,7 +123,7 @@ def get_sidebar_filter_options(
 def get_filtered_images(
     *,
     active_filters: dict[str, list[str]],
-    favorites_first: bool,
+    rating_first: bool,
 ) -> db_models.QuerySet:
     qs = models.Image.objects.select_related("fujifilm_recipe")
     recipe_ids = active_filters.get("recipe_id", [])
@@ -133,8 +133,8 @@ def get_filtered_images(
         values = active_filters.get(field, [])
         if values:
             qs = qs.filter(**{f"fujifilm_recipe__{field}__in": values})
-    if favorites_first:
-        return qs.order_by("-is_favorite", "-taken_at", "id")
+    if rating_first:
+        return qs.order_by("-rating", "-taken_at", "id")
     return qs.order_by("-taken_at", "id")
 
 
@@ -189,13 +189,13 @@ class GalleryData:
 def get_gallery_data(
     *,
     active_filters: dict[str, list[str]],
-    favorites_first: bool,
+    rating_first: bool,
     page_number: int | str,
     page_size: int,
 ) -> GalleryData:
     """Return all data needed to render the gallery page in a single query bundle."""
     active_field_filters = {k: v for k, v in active_filters.items() if k != "recipe_id"}
-    qs = get_filtered_images(active_filters=active_filters, favorites_first=favorites_first)
+    qs = get_filtered_images(active_filters=active_filters, rating_first=rating_first)
     page_obj = django_paginator.Paginator(qs, page_size).get_page(page_number)
     return GalleryData(
         page_obj=page_obj,

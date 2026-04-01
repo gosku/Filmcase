@@ -5,6 +5,7 @@ from unittest.mock import patch
 
 import pytest
 from django.core.management import call_command
+from django.test import override_settings
 
 from src.data.models import Image
 from src.domain.images import operations
@@ -13,39 +14,43 @@ FIXTURES_DIR = str(Path(__file__).resolve().parent.parent / "fixtures" / "images
 
 
 @pytest.mark.django_db
-class TestMarkFavoritesCommand:
-    def test_marks_matching_images_as_favorite(self, capsys):
+class TestRateImagesCommand:
+    @override_settings(IMAGE_MAX_RATING=5)
+    def test_rates_matching_images_in_folder(self, capsys):
         call_command("process_images_sync", FIXTURES_DIR)
         total = Image.objects.count()
         assert total > 0
 
-        call_command("mark_favorites", FIXTURES_DIR)
+        call_command("rate_images", FIXTURES_DIR, "--rating=3")
 
-        assert Image.objects.filter(is_favorite=True).count() == total
+        assert Image.objects.filter(rating=3).count() == total
 
-    def test_adds_unimported_fujifilm_image_as_favorite(self, tmp_path, capsys):
+    @override_settings(IMAGE_MAX_RATING=5)
+    def test_adds_unimported_fujifilm_image_and_rates_it(self, tmp_path, capsys):
         fixture_image = Path(FIXTURES_DIR) / "XS107114.JPG"
         shutil.copy(fixture_image, tmp_path / fixture_image.name)
 
-        call_command("mark_favorites", str(tmp_path))
+        call_command("rate_images", str(tmp_path), "--rating=3")
 
         captured = capsys.readouterr()
-        assert "Marked as favorite" in captured.out
+        assert "Rated" in captured.out
         image = Image.objects.get(filename="XS107114.JPG")
-        assert image.is_favorite is True
+        assert image.rating == 3
 
+    @override_settings(IMAGE_MAX_RATING=5)
     def test_skips_image_with_no_fujifilm_metadata(self, tmp_path, capsys):
         fixture_image = Path(FIXTURES_DIR) / "XS107114.JPG"
         shutil.copy(fixture_image, tmp_path / fixture_image.name)
 
-        with patch("src.application.usecases.images.favorite_images.mark_image_as_favorite", side_effect=operations.NoFilmSimulationError("dummy")):
-            call_command("mark_favorites", str(tmp_path))
+        with patch("src.application.usecases.images.rate_images.rate_image", side_effect=operations.NoFilmSimulationError("dummy")):
+            call_command("rate_images", str(tmp_path), "--rating=3")
 
         captured = capsys.readouterr()
         assert "Skipped" in captured.err
         assert "no Fujifilm metadata" in captured.err
         assert Image.objects.count() == 0
 
+    @override_settings(IMAGE_MAX_RATING=5)
     def test_does_not_affect_other_images(self, capsys):
         call_command("process_images_sync", FIXTURES_DIR)
 
@@ -53,10 +58,10 @@ class TestMarkFavoritesCommand:
 
         with tempfile.TemporaryDirectory() as tmp:
             shutil.copy(fixture_image, Path(tmp) / fixture_image.name)
-            call_command("mark_favorites", tmp)
+            call_command("rate_images", tmp, "--rating=3")
 
-        favorites = Image.objects.filter(is_favorite=True)
-        non_favorites = Image.objects.filter(is_favorite=False)
-        assert favorites.count() == 1
-        assert favorites.first().filename == "XS107114.JPG"
-        assert non_favorites.count() == Image.objects.count() - 1
+        rated = Image.objects.filter(rating=3)
+        unrated = Image.objects.filter(rating__isnull=True)
+        assert rated.count() == 1
+        assert rated.first().filename == "XS107114.JPG"
+        assert unrated.count() == Image.objects.count() - 1

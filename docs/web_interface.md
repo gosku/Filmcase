@@ -25,7 +25,8 @@ that have matching images.
 
 A **Clear all filters** link at the top of the sidebar resets everything in one click.
 
-You can also choose to show your **favourite** images first at the top of the grid.
+You can also enable **Rating first** to sort the grid by rating (highest first), so your
+best-rated images always appear at the top.
 
 ---
 
@@ -38,7 +39,8 @@ From the detail view you can:
 
 - **Browse** to the previous or next image within your current filter, without going back to
   the gallery.
-- **Mark the image as a favourite** (or remove it from favourites).
+- **Rate the image** using the star widget (0–`IMAGE_MAX_RATING`). Click a star to set that
+  rating; click the clear button (✕) to reset it to 0.
 - **Name the recipe** — if the image's recipe has no name yet, a prompt appears inline.
   Names are limited to 25 ASCII characters, matching the camera's own slot naming rules. See
   [recipe_naming.md](recipe_naming.md) for more detail.

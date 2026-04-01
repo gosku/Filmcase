@@ -2,6 +2,8 @@ import attrs
 import os
 from decimal import Decimal
 
+from django import conf
+
 from src.data import models
 from src.domain.images import events, queries
 from src.domain.images import dataclasses as image_dataclasses
@@ -32,6 +34,13 @@ class RecipeNameValidationError(Exception):
     name: str
 
 
+@attrs.frozen
+class InvalidImageRatingError(Exception):
+    """Raised when a rating value is outside the allowed range [0, IMAGE_MAX_RATING]."""
+
+    rating: int
+
+
 def set_recipe_name(*, recipe: models.FujifilmRecipe, name: str) -> None:
     """Set the name of *recipe* to *name* after validating it.
 
@@ -49,6 +58,23 @@ def set_recipe_name(*, recipe: models.FujifilmRecipe, name: str) -> None:
         recipe_id=recipe.pk,
     )
 
+
+
+def set_image_rating(*, image: models.Image, rating: int) -> None:
+    """Set the rating of *image* to *rating*.
+
+    Raises:
+        InvalidImageRatingError: If *rating* is negative or exceeds
+            settings.IMAGE_MAX_RATING.
+    """
+    if rating < 0 or rating > conf.settings.IMAGE_MAX_RATING:
+        raise InvalidImageRatingError(rating)
+    image.set_rating(rating)
+    events.publish_event(
+        event_type=events.IMAGE_RATING_SET,
+        image_id=image.pk,
+        rating=rating,
+    )
 
 
 def toggle_image_favorite(*, image_id: int) -> bool:
