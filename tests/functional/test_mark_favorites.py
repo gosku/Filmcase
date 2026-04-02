@@ -26,28 +26,28 @@ class TestRateImagesCommand:
         assert Image.objects.filter(rating=3).count() == total
 
     @override_settings(IMAGE_MAX_RATING=5)
-    def test_adds_unimported_fujifilm_image_and_rates_it(self, tmp_path, capsys):
+    def test_skips_unimported_image_that_is_not_in_db(self, tmp_path, capsys):
         fixture_image = Path(FIXTURES_DIR) / "XS107114.JPG"
         shutil.copy(fixture_image, tmp_path / fixture_image.name)
 
         call_command("rate_images", str(tmp_path), "--rating=3")
 
         captured = capsys.readouterr()
-        assert "Rated" in captured.out
-        image = Image.objects.get(filename="XS107114.JPG")
-        assert image.rating == 3
+        assert "Skipped" in captured.err
+        assert "unable to rate image" in captured.err
+        assert Image.objects.count() == 0
 
     @override_settings(IMAGE_MAX_RATING=5)
-    def test_skips_image_with_no_fujifilm_metadata(self, tmp_path, capsys):
+    def test_skips_image_that_cannot_be_rated(self, tmp_path, capsys):
         fixture_image = Path(FIXTURES_DIR) / "XS107114.JPG"
         shutil.copy(fixture_image, tmp_path / fixture_image.name)
 
-        with patch("src.application.usecases.images.rate_images.rate_image", side_effect=operations.NoFilmSimulationError("dummy")):
+        with patch("src.application.usecases.images.rate_images.operations.rate_image", side_effect=operations.UnableToRateImage("dummy")):
             call_command("rate_images", str(tmp_path), "--rating=3")
 
         captured = capsys.readouterr()
         assert "Skipped" in captured.err
-        assert "no Fujifilm metadata" in captured.err
+        assert "unable to rate image" in captured.err
         assert Image.objects.count() == 0
 
     @override_settings(IMAGE_MAX_RATING=5)
@@ -61,7 +61,7 @@ class TestRateImagesCommand:
             call_command("rate_images", tmp, "--rating=3")
 
         rated = Image.objects.filter(rating=3)
-        unrated = Image.objects.filter(rating__isnull=True)
+        unrated = Image.objects.filter(rating=0)
         assert rated.count() == 1
         assert rated.first().filename == "XS107114.JPG"
         assert unrated.count() == Image.objects.count() - 1

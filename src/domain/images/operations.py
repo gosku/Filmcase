@@ -41,6 +41,13 @@ class InvalidImageRatingError(Exception):
     rating: int
 
 
+@attrs.frozen
+class UnableToRateImage(Exception):
+    """Raised when an image cannot be rated for any reason."""
+
+    image_path: str
+
+
 def set_recipe_name(*, recipe: models.FujifilmRecipe, name: str) -> None:
     """Set the name of *recipe* to *name* after validating it.
 
@@ -75,6 +82,26 @@ def set_image_rating(*, image: models.Image, rating: int) -> None:
         image_id=image.pk,
         rating=rating,
     )
+
+
+def rate_image(*, image_path: str, rating: int) -> models.Image:
+    """Find the Image for *image_path* and set its rating.
+
+    Does not create a new DB record if the image is not found.
+
+    Raises:
+        UnableToRateImage: If the image cannot be found, the match is
+            ambiguous, or the rating value is invalid.
+    """
+    try:
+        image = queries.find_image_for_path(image_path=image_path)
+    except (queries.ImageNotFound, queries.AmbiguousImageMatch) as exc:
+        raise UnableToRateImage(image_path) from exc
+    try:
+        set_image_rating(image=image, rating=rating)
+    except InvalidImageRatingError as exc:
+        raise UnableToRateImage(image_path) from exc
+    return image
 
 
 def toggle_image_favorite(*, image_id: int) -> bool:

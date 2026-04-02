@@ -20,7 +20,7 @@ class Command(BaseCommand):
         for path in result.rated:
             self.stdout.write(f"Rated {path.split('/')[-1]} with {rating}")
         for path in result.skipped:
-            self.stderr.write(f"Skipped {path.split('/')[-1]}: no Fujifilm metadata.")
+            self.stderr.write(f"Skipped {path.split('/')[-1]}: unable to rate image.")
 
         self.stdout.write(self.style.SUCCESS(
             f"Done. {len(result.rated)} rated, {len(result.skipped)} skipped."
