@@ -31,9 +31,9 @@ DATABASES = {
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
-GALLERY_PAGE_SIZE = 24
-IMAGE_MAX_RATING: int = 5
-PTP_DEVICE = "src.domain.camera.ptp_usb_device.PTPUSBDevice"
+GALLERY_PAGE_SIZE = 24  # number of images shown per page in the gallery view
+IMAGE_MAX_RATING: int = 5  # maximum star rating a user can assign to an image (1–N)
+PTP_DEVICE = "src.domain.camera.ptp_usb_device.PTPUSBDevice"  # dotted import path to the PTP device implementation; swap for a stub/mock in tests
 CAMERA_VERIFY_WRITES: bool = True  # set to False to skip read-back verification after writing
 
 # Camera I/O policy — timing (seconds) and retry behaviour.
@@ -45,7 +45,7 @@ CAMERA_POST_CURSOR_DELAY_S: float = 0.05   # pause after positioning slot cursor
 CAMERA_INTER_SLOT_DELAY_S:  float = 0.05   # pause between slot cursor changes
 CAMERA_MAX_RETRIES:         int   = 3      # attempts per operation before giving up
 CAMERA_RETRY_BACKOFF_S:     float = 0.15   # base back-off; doubles each retry (0.15 s, 0.30 s, …)
-THUMBNAIL_CACHE_DIR = BASE_DIR / "thumbnail_cache"
+THUMBNAIL_CACHE_DIR = BASE_DIR / "thumbnail_cache"  # filesystem directory where generated thumbnails are cached
 
 TEMPLATES = [
     {
@@ -71,7 +71,8 @@ CELERY_RESULT_BACKEND = os.environ.get("CELERY_RESULT_BACKEND", "rpc://")
 CELERY_ACCEPT_CONTENT = ["json"]
 CELERY_TASK_SERIALIZER = "json"
 CELERY_RESULT_SERIALIZER = "json"
-PROCESS_IMAGE_QUEUE = os.environ.get("PROCESS_IMAGE_QUEUE", "celery")
+PROCESS_IMAGE_QUEUE = os.environ.get("PROCESS_IMAGE_QUEUE", "celery")  # Celery queue name for image-processing tasks
+CELERY_TASK_QUEUES = [PROCESS_IMAGE_QUEUE]  # list of queues Celery workers will consume from
 
 # Logging
 LOG_DIR = BASE_DIR / "logs"
