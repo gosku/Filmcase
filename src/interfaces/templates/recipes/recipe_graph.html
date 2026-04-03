@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Recipe Graph</title>
+  <script src="https://unpkg.com/cytoscape@3.30.2/dist/cytoscape.min.js"></script>
+  <script src="https://unpkg.com/dagre@0.8.5/dist/dagre.min.js"></script>
+  <script src="https://unpkg.com/cytoscape-dagre@2.5.0/cytoscape-dagre.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { display: flex; flex-direction: column; font-family: sans-serif; height: 100vh; overflow: hidden; }
+
+    .content-area { display: flex; flex: 1; overflow: hidden; min-height: 0; }
+
+    .sidebar {
+      width: 320px;
+      min-width: 320px;
+      padding: 1.5rem;
+      border-right: 1px solid #e0e0e0;
+      overflow-y: auto;
+      background: #fafafa;
+    }
+
+    .sidebar h2 {
+      font-size: 1rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #666;
+      margin-bottom: 1.5rem;
+    }
+
+    .sidebar-recipe-name {
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: #222;
+      margin-bottom: 0.4rem;
+    }
+
+    .sidebar-meta {
+      font-size: 0.8rem;
+      color: #888;
+    }
+
+    .main {
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .section-header {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      padding: 0.75rem 1.5rem;
+      background: #fff;
+      border-bottom: 1px solid #e0e0e0;
+      flex-shrink: 0;
+    }
+
+    .section-header h1 { font-size: 1rem; font-weight: 600; color: #222; }
+
+    .graph-legend {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      margin-left: auto;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+      font-size: 0.78rem;
+      color: #555;
+    }
+
+    .legend-dot {
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .graph-hint {
+      font-size: 0.78rem;
+      color: #999;
+      margin-left: 0.5rem;
+    }
+
+    #cy { flex: 1; background: #f5f5f5; }
+
+    #tooltip {
+      position: fixed;
+      z-index: 100;
+      background: #fff;
+      border: 1px solid #e0e0e0;
+      border-radius: 8px;
+      padding: 0.6rem 0.85rem;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+      pointer-events: none;
+      display: none;
+      max-width: 220px;
+    }
+
+    .tooltip-label {
+      font-weight: 700;
+      font-size: 0.9rem;
+      color: #222;
+      margin-bottom: 0.2rem;
+    }
+
+    .tooltip-meta {
+      font-size: 0.78rem;
+      color: #777;
+    }
+  </style>
+</head>
+<body>
+
+{% include "_top_nav.html" with active_section="recipes" %}
+
+<div class="content-area">
+
+  <aside class="sidebar">
+    <h2>Recipes</h2>
+    {% if recipe_name %}
+    <p class="sidebar-recipe-name">{{ recipe_name }}</p>
+    <p class="sidebar-meta">Max distance: {{ max_distance }}</p>
+    {% endif %}
+  </aside>
+
+  <main class="main">
+    <div class="section-header">
+      <h1>Recipe Graph</h1>
+      <span class="graph-hint">Click a node to re-centre the graph on it</span>
+      <div class="graph-legend">
+        <div class="legend-item"><div class="legend-dot" style="width:18px;height:18px;background:#f97316;"></div>Root</div>
+        <div class="legend-item"><div class="legend-dot" style="width:14px;height:14px;background:#3b82f6;"></div>1</div>
+        <div class="legend-item"><div class="legend-dot" style="width:11px;height:11px;background:#8b5cf6;"></div>2</div>
+        <div class="legend-item"><div class="legend-dot" style="width:9px;height:9px;background:#10b981;"></div>3</div>
+        <div class="legend-item"><div class="legend-dot" style="width:7px;height:7px;background:#f43f5e;"></div>4</div>
+        <div class="legend-item"><div class="legend-dot" style="width:6px;height:6px;background:#eab308;"></div>5</div>
+        <div class="legend-item"><div class="legend-dot" style="width:6px;height:6px;background:#06b6d4;"></div>6</div>
+        <div class="legend-item"><div class="legend-dot" style="width:6px;height:6px;background:#e879f9;"></div>7</div>
+        <div class="legend-item"><div class="legend-dot" style="width:6px;height:6px;background:#84cc16;"></div>8</div>
+        <div class="legend-item"><div class="legend-dot" style="width:6px;height:6px;background:#fb923c;"></div>9</div>
+        <div class="legend-item"><div class="legend-dot" style="width:6px;height:6px;background:#94a3b8;"></div>10+</div>
+      </div>
+    </div>
+
+    <div id="cy"></div>
+  </main>
+
+</div><!-- .content-area -->
+
+<div id="tooltip">
+  <div class="tooltip-label" id="tooltip-label"></div>
+  <div class="tooltip-meta" id="tooltip-meta"></div>
+</div>
+
+<script>
+  var GRAPH_ELEMENTS = {{ graph_elements_json|safe }};
+  var ROOT_ID = "{{ root_id }}";
+
+  var LAYOUT = {
+    name: "dagre",
+    rankDir: "LR",       // left → right
+    align: "UL",
+    ranker: "tight-tree",
+    nodeSep: 200,        // vertical spacing between nodes in the same layer
+    rankSep: 150,        // horizontal spacing between layers
+    edgeSep: 20,
+    animate: true,
+    animationDuration: 500,
+    fit: true,
+    padding: 80,
+  };
+
+  var DISTANCE_STYLES = [
+    { color: "#f97316", size: 160, borderColor: "#c2410c" },  // 0 — root
+    { color: "#3b82f6", size: 110, borderColor: "#1d4ed8" },  // 1
+    { color: "#8b5cf6", size:  75, borderColor: "#5b21b6" },  // 2
+    { color: "#10b981", size:  52, borderColor: "#047857" },  // 3
+    { color: "#f43f5e", size:  36, borderColor: "#be123c" },  // 4
+    { color: "#eab308", size:  26, borderColor: "#a16207" },  // 5
+    { color: "#06b6d4", size:  26, borderColor: "#0e7490" },  // 6
+    { color: "#e879f9", size:  26, borderColor: "#a21caf" },  // 7
+    { color: "#84cc16", size:  26, borderColor: "#4d7c0f" },  // 8
+    { color: "#fb923c", size:  26, borderColor: "#c2410c" },  // 9
+    { color: "#94a3b8", size:  26, borderColor: "#475569" },  // 10+
+  ];
+
+  function styleForDistance(d) {
+    return DISTANCE_STYLES[Math.min(d, DISTANCE_STYLES.length - 1)];
+  }
+
+  var cy = cytoscape({
+    container: document.getElementById("cy"),
+    elements: GRAPH_ELEMENTS,
+    wheelSensitivity: 0.15,
+    style: [
+      {
+        selector: "node",
+        style: {
+          "label": "data(label)",
+          "text-valign": "bottom",
+          "text-margin-y": 3,
+          "font-size": 14,
+          "color": "#666",
+          "text-outline-color": "#f5f5f5",
+          "text-outline-width": 1,
+          "border-width": 1,
+          "background-color": "#94a3b8",
+          "border-color": "#64748b",
+          "width": 6,
+          "height": 6,
+        }
+      },
+      {
+        selector: "edge",
+        style: {
+          "width": 1.5,
+          "line-color": "#d1d5db",
+          "curve-style": "bezier",
+          "opacity": 0.7,
+        }
+      },
+      {
+        selector: "node:selected",
+        style: {
+          "border-width": 3,
+          "border-color": "#111",
+        }
+      }
+    ],
+    layout: LAYOUT
+  });
+
+  // Apply per-distance colours and sizes after layout
+  cy.nodes().forEach(function (node) {
+    var d = node.data("distance");
+    var s = styleForDistance(d);
+    node.style({
+      "background-color": s.color,
+      "border-color": s.borderColor,
+      "width": s.size,
+      "height": s.size,
+    });
+  });
+
+  // Edge weight by distance
+  cy.edges().forEach(function (edge) {
+    var d = edge.data("distance");
+    var opacity = Math.max(0.2, 1 - d * 0.18);
+    edge.style({ "opacity": opacity });
+  });
+
+  // Tooltip
+  var tooltip = document.getElementById("tooltip");
+  var tooltipLabel = document.getElementById("tooltip-label");
+  var tooltipMeta = document.getElementById("tooltip-meta");
+
+  cy.on("mouseover", "node", function (e) {
+    var node = e.target;
+    tooltipLabel.textContent = node.data("label");
+    tooltipMeta.textContent = "Distance: " + node.data("distance");
+    tooltip.style.display = "block";
+  });
+
+  cy.on("mousemove", "node", function (e) {
+    tooltip.style.left = (e.originalEvent.clientX + 14) + "px";
+    tooltip.style.top  = (e.originalEvent.clientY + 14) + "px";
+  });
+
+  cy.on("mouseout", "node", function () {
+    tooltip.style.display = "none";
+  });
+
+  // Click to re-centre: fetch new graph data and rebuild in place.
+  cy.on("click", "node", function (e) {
+    var nodeId = e.target.data("id");
+    if (nodeId === ROOT_ID) return;
+    var url = "/recipes/graph/" + nodeId + "/";
+    fetch(url, { headers: { "Accept": "application/json" } })
+      .then(function (res) { return res.json(); })
+      .then(function (data) {
+        ROOT_ID = String(data.root_id);
+        cy.elements().remove();
+        cy.add(data.elements);
+        cy.nodes().forEach(function (node) {
+          var s = styleForDistance(node.data("distance"));
+          node.style({ "background-color": s.color, "border-color": s.borderColor, "width": s.size, "height": s.size });
+        });
+        cy.edges().forEach(function (edge) {
+          edge.style({ "opacity": Math.max(0.2, 1 - edge.data("distance") * 0.18) });
+        });
+        cy.layout(LAYOUT).run();
+        history.pushState(null, "", url);
+      });
+  });
+</script>
+</body>
+</html>

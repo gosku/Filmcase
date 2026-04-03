@@ -13,7 +13,7 @@ from src.domain.camera import device_config
 from src.domain.camera import operations as camera_operations
 from src.domain.camera import ptp_device
 from src.domain.camera import queries as camera_queries
-from src.domain.images import queries as image_queries
+from src.domain.recipes import queries as recipe_queries
 
 _CODE_TO_PROP_NAME: dict[int, str] = {
     constants.PROP_SLOT_NAME: "SlotName",
@@ -56,7 +56,7 @@ def push_recipe_to_camera(
         RecipeWriteError:      If one or more properties failed to write or verify.
                                ``exc.failed_properties`` lists the property names.
     """
-    recipe_data = image_queries.recipe_from_db(recipe=recipe)
+    recipe_data = recipe_queries.recipe_from_db(recipe=recipe)
     device = device_config.get_device()
     device.connect()
     try:

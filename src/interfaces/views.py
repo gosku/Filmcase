@@ -1,3 +1,4 @@
+import json
 import mimetypes
 import structlog
 from pathlib import Path
@@ -17,6 +18,8 @@ from src.domain.images import filter_queries
 from src.domain.images import operations as image_operations
 from src.domain.images import queries as image_queries
 from src.domain.images.thumbnails import operations as thumbnail_operations
+from src.domain.recipes import graph as recipe_graph
+from src.domain.recipes import operations as recipe_operations
 
 
 def _active_filters_from_request(request) -> dict[str, list[str]]:
@@ -223,8 +226,8 @@ class SetRecipeName(generic.View):
     def post(self, request, recipe_id):
         name = request.POST.get("name", "").strip()
         try:
-            image_operations.set_recipe_name(recipe=self.recipe, name=name)
-        except image_operations.RecipeNameValidationError:
+            recipe_operations.set_recipe_name(recipe=self.recipe, name=name)
+        except recipe_operations.RecipeNameValidationError:
             return shortcuts.render(request, "recipes/_recipe_name_prompt.html", {
                 "recipe": self.recipe,
                 "error": "Name must be 25 ASCII characters max.",
@@ -240,6 +243,31 @@ class SetRecipeName(generic.View):
                 "submitted_name": name,
             })
         return shortcuts.render(request, "recipes/_recipe_name_row.html", {"recipe": self.recipe})
+
+
+def recipe_graph_view(request: http.HttpRequest, recipe_id: int) -> http.HttpResponse:
+    root = shortcuts.get_object_or_404(models.FujifilmRecipe, pk=recipe_id)
+    all_recipes = list(models.FujifilmRecipe.objects.all())
+    max_distance: int = settings.RECIPE_GRAPH_MAX_DISTANCE
+    graph_data = recipe_graph.build_recipe_graph(
+        root=root,
+        all_recipes=all_recipes,
+        max_distance=max_distance,
+    )
+    cyto_elements = [
+        {"data": {"id": str(n.id), "label": n.label, "distance": n.distance}}
+        for n in graph_data.nodes
+    ] + [
+        {"data": {"source": str(e.source), "target": str(e.target), "distance": e.distance}}
+        for e in graph_data.edges
+    ]
+    if request.headers.get("Accept") == "application/json":
+        return http.JsonResponse({"root_id": graph_data.root_id, "elements": cyto_elements})
+    return shortcuts.render(request, "recipes/recipe_graph.html", {
+        "root_id": graph_data.root_id,
+        "graph_elements_json": json.dumps(cyto_elements),
+        "max_distance": max_distance,
+    })
 
 
 def _resized_image_response(path: Path, width: int):

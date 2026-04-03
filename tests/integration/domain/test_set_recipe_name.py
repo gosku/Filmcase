@@ -1,7 +1,7 @@
 import pytest
 
 from src.domain.images import events
-from src.domain.images.operations import set_recipe_name
+from src.domain.recipes.operations import set_recipe_name
 from tests.factories import FujifilmRecipeFactory
 
 

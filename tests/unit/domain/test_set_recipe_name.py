@@ -3,7 +3,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from src.domain.images import events
-from src.domain.images.operations import RecipeNameValidationError, set_recipe_name
+from src.domain.recipes.operations import RecipeNameValidationError, set_recipe_name
 
 
 class TestSetRecipeNameValidation:

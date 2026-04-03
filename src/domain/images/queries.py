@@ -235,42 +235,6 @@ def exif_to_recipe(*, exif: image_dataclasses.ImageExifData) -> image_dataclasse
     )
 
 
-def _decimal_str(value: object) -> str:
-    """Convert a non-null Decimal DB value to a signed string (e.g. Decimal('1.5') → '+1.5')."""
-    n = float(value)
-    v = int(n) if n == int(n) else n
-    return f"+{v}" if v > 0 else str(v)
-
-
-def _decimal_str_or_none(value: object) -> str | None:
-    return None if value is None else _decimal_str(value)
-
-
-def recipe_from_db(*, recipe: models.FujifilmRecipe) -> image_dataclasses.FujifilmRecipeData:
-    """Convert a FujifilmRecipe DB model instance to a FujifilmRecipeData domain object."""
-    return image_dataclasses.FujifilmRecipeData(
-        name=recipe.name,
-        film_simulation=recipe.film_simulation,
-        d_range_priority=recipe.d_range_priority,
-        grain_roughness=recipe.grain_roughness,
-        color_chrome_effect=recipe.color_chrome_effect,
-        color_chrome_fx_blue=recipe.color_chrome_fx_blue,
-        white_balance=recipe.white_balance,
-        white_balance_red=recipe.white_balance_red,
-        white_balance_blue=recipe.white_balance_blue,
-        sharpness=_decimal_str(recipe.sharpness),
-        high_iso_nr=_decimal_str(recipe.high_iso_nr),
-        clarity=_decimal_str(recipe.clarity),
-        dynamic_range=recipe.dynamic_range or None,
-        grain_size=None if recipe.grain_roughness == "Off" else recipe.grain_size,
-        highlight=_decimal_str_or_none(recipe.highlight),
-        shadow=_decimal_str_or_none(recipe.shadow),
-        color=_decimal_str_or_none(recipe.color),
-        monochromatic_color_warm_cool=_decimal_str_or_none(recipe.monochromatic_color_warm_cool),
-        monochromatic_color_magenta_green=_decimal_str_or_none(recipe.monochromatic_color_magenta_green),
-    )
-
-
 def _by_filename_and_date(*, exif: image_dataclasses.ImageExifData, filename: str, date_taken: datetime | None) -> models.Image:
     return models.Image.objects.get(filename=filename, taken_at=date_taken)
 

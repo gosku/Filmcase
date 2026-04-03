@@ -5,7 +5,7 @@ from decimal import Decimal
 from src.data.camera.constants import DRANGE_MODE_TO_PTP, FILM_SIMULATION_TO_PTP, PTP_TO_FILM_SIMULATION
 from src.domain.camera.queries import RecipePTPValues, recipe_to_ptp_values
 from src.domain.images.dataclasses import FujifilmRecipeData
-from src.domain.images.queries import recipe_from_db
+from src.domain.recipes.queries import recipe_from_db
 from tests.factories import FujifilmRecipeFactory
 
 
