@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Recipes</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { display: flex; flex-direction: column; font-family: sans-serif; height: 100vh; overflow: hidden; }
+
+    .content-area { display: flex; flex: 1; overflow: hidden; min-height: 0; }
+
+    .sidebar {
+      width: 320px;
+      min-width: 320px;
+      padding: 1.5rem;
+      border-right: 1px solid #e0e0e0;
+      overflow-y: auto;
+      background: #fafafa;
+    }
+
+    .sidebar h2 {
+      font-size: 1rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #666;
+      margin-bottom: 1.5rem;
+    }
+
+    .sidebar-nav {
+      display: flex;
+      gap: 0.25rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .sidebar-nav__link {
+      display: inline-flex;
+      align-items: center;
+      padding: 0.25rem 0.6rem;
+      border-radius: 4px;
+      font-size: 0.8rem;
+      font-weight: 500;
+      color: #555;
+      text-decoration: none;
+      cursor: default;
+    }
+
+    .sidebar-nav__link[href] {
+      cursor: pointer;
+    }
+
+    .sidebar-nav__link[href]:hover {
+      background: #f0f0f0;
+      color: #222;
+    }
+
+    .sidebar-nav__link--active {
+      background: #f0fdf4;
+      color: #2db37a;
+      font-weight: 600;
+    }
+
+    .main {
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .section-header {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      padding: 0.75rem 1.5rem;
+      background: #fff;
+      border-bottom: 1px solid #e0e0e0;
+      flex-shrink: 0;
+    }
+
+    .section-header h1 { font-size: 1rem; font-weight: 600; color: #222; }
+  </style>
+</head>
+<body>
+
+{% include "_top_nav.html" with active_section="recipes" %}
+
+<div class="content-area">
+
+  <aside class="sidebar">
+    <h2>Recipes</h2>
+    <nav class="sidebar-nav">
+      <a class="sidebar-nav__link sidebar-nav__link--active">Explorer</a>
+      <a class="sidebar-nav__link">Graph</a>
+    </nav>
+  </aside>
+
+  <main class="main">
+    <div class="section-header">
+      <h1>Explorer</h1>
+    </div>
+  </main>
+
+</div><!-- .content-area -->
+
+</body>
+</html>

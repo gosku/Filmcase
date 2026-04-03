@@ -245,6 +245,10 @@ class SetRecipeName(generic.View):
         return shortcuts.render(request, "recipes/_recipe_name_row.html", {"recipe": self.recipe})
 
 
+def recipes_explorer_view(request: http.HttpRequest) -> http.HttpResponse:
+    return shortcuts.render(request, "recipes/recipes_explorer.html")
+
+
 def recipe_graph_view(request: http.HttpRequest, recipe_id: int) -> http.HttpResponse:
     root = shortcuts.get_object_or_404(models.FujifilmRecipe, pk=recipe_id)
     all_recipes = list(models.FujifilmRecipe.objects.all())
