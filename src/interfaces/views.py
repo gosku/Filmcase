@@ -12,6 +12,7 @@ from django.views.decorators import http as http_decorators
 
 from src.application.usecases.camera import get_camera_slots as get_camera_slots_uc
 from src.application.usecases.camera import push_recipe as push_recipe_uc
+from src.application.usecases.recipes import build_graph as build_graph_uc
 from src.data import models
 from src.domain.camera import ptp_device
 from src.domain.images import filter_queries
@@ -247,6 +248,45 @@ class SetRecipeName(generic.View):
 
 def recipes_explorer_view(request: http.HttpRequest) -> http.HttpResponse:
     return shortcuts.render(request, "recipes/recipes_explorer.html")
+
+
+_RECIPES_GRAPH_DEFAULT_FILM_SIM = "Provia"
+
+
+def recipes_graph_view(request: http.HttpRequest) -> http.HttpResponse:
+    film_simulation = request.GET.get("film_sim", _RECIPES_GRAPH_DEFAULT_FILM_SIM)
+    result = build_graph_uc.build_recipe_network(film_simulation=film_simulation)
+    root_id = result.graph_data.root_id
+    cyto_elements = [
+        {
+            "data": {
+                "id": str(n.id),
+                "label": n.label,
+                "distance": n.distance,
+                "image_count": n.image_count,
+                "is_root": n.id == root_id,
+            }
+        }
+        for n in result.graph_data.nodes
+    ] + [
+        {
+            "data": {
+                "source": str(e.source),
+                "target": str(e.target),
+                "distance": e.distance,
+                "distanceLabel": f"d={e.distance}" if e.distance > 1 else "",
+            }
+        }
+        for e in result.graph_data.edges
+    ]
+    if request.headers.get("Accept") == "application/json":
+        return http.JsonResponse({"elements": cyto_elements, "root_id": root_id})
+    return shortcuts.render(request, "recipes/recipes_graph.html", {
+        "graph_elements_json": json.dumps(cyto_elements),
+        "root_id": root_id,
+        "film_simulations": result.film_simulations,
+        "active_film_simulation": result.active_film_simulation,
+    })
 
 
 def recipe_graph_view(request: http.HttpRequest, recipe_id: int) -> http.HttpResponse:

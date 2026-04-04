@@ -84,6 +84,54 @@ class RecipeComparisonResult:
     monthly_counts: dict[str, dict[int, int]]
 
 
+def get_default_recipe_for_film_simulation(
+    *, film_simulation: str,
+) -> models.FujifilmRecipe | None:
+    """Return the most-used recipe for the given film simulation.
+
+    "Most-used" is defined as the recipe linked to the greatest number of images.
+    Ties are broken by ascending pk (earliest created recipe wins).
+    Returns None when no recipes exist for the film simulation.
+    """
+    from django.db.models import Count
+    return (
+        models.FujifilmRecipe.objects
+        .filter(film_simulation=film_simulation)
+        .annotate(image_count=Count("images"))
+        .order_by("-image_count", "pk")
+        .first()
+    )
+
+
+def get_recipes_by_film_simulation(*, film_simulation: str) -> list[models.FujifilmRecipe]:
+    """Return all recipes whose film_simulation matches exactly."""
+    return list(models.FujifilmRecipe.objects.filter(film_simulation=film_simulation))
+
+
+def get_distinct_film_simulations() -> list[str]:
+    """Return all distinct film_simulation values present in the recipe table, sorted."""
+    return list(
+        models.FujifilmRecipe.objects
+        .values_list("film_simulation", flat=True)
+        .distinct()
+        .order_by("film_simulation")
+    )
+
+
+def get_image_counts_for_film_simulation(*, film_simulation: str) -> dict[int, int]:
+    """Return a mapping of recipe_id → image count for all recipes with the given film sim."""
+    from django.db.models import Count
+    return {
+        row["fujifilm_recipe_id"]: row["count"]
+        for row in (
+            models.Image.objects
+            .filter(fujifilm_recipe__film_simulation=film_simulation)
+            .values("fujifilm_recipe_id")
+            .annotate(count=Count("id"))
+        )
+    }
+
+
 def get_recipe_comparison(*, recipe_ids: list[int]) -> RecipeComparisonResult:
     """Fetch recipes, usage stats, and monthly breakdowns for the given IDs.
 

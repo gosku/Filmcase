@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Recipe Network</title>
+  <script src="https://unpkg.com/cytoscape@3.30.2/dist/cytoscape.min.js"></script>
+  <script src="https://unpkg.com/dagre@0.8.5/dist/dagre.min.js"></script>
+  <script src="https://unpkg.com/cytoscape-dagre@2.5.0/cytoscape-dagre.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { display: flex; flex-direction: column; font-family: sans-serif; height: 100vh; overflow: hidden; }
+
+    .content-area { display: flex; flex: 1; overflow: hidden; min-height: 0; }
+
+    .sidebar {
+      width: 320px;
+      min-width: 320px;
+      padding: 1.5rem;
+      border-right: 1px solid #e0e0e0;
+      overflow-y: auto;
+      background: #fafafa;
+    }
+
+    .sidebar h2 {
+      font-size: 1rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #666;
+      margin-bottom: 1.5rem;
+    }
+
+    .sidebar-nav {
+      display: flex;
+      gap: 0.25rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .sidebar-nav__link {
+      display: inline-flex;
+      align-items: center;
+      padding: 0.25rem 0.6rem;
+      border-radius: 4px;
+      font-size: 0.8rem;
+      font-weight: 500;
+      color: #555;
+      text-decoration: none;
+      cursor: default;
+    }
+
+    .sidebar-nav__link[href] { cursor: pointer; }
+    .sidebar-nav__link[href]:hover { background: #f0f0f0; color: #222; }
+    .sidebar-nav__link--active { background: #f0fdf4; color: #2db37a; font-weight: 600; }
+
+    .main {
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .section-header {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      padding: 0.75rem 1.5rem;
+      background: #fff;
+      border-bottom: 1px solid #e0e0e0;
+      flex-shrink: 0;
+    }
+
+    .section-header h1 { font-size: 1rem; font-weight: 600; color: #222; }
+
+    .graph-hint {
+      font-size: 0.78rem;
+      color: #999;
+      margin-left: auto;
+    }
+
+    #cy { flex: 1; background: #f5f5f5; }
+
+    /* Floating film-sim filter */
+    .film-sim-filter {
+      position: absolute;
+      top: 4rem;
+      right: 1.25rem;
+      z-index: 10;
+      background: #fff;
+      border: 1px solid #e0e0e0;
+      border-radius: 8px;
+      padding: 0.6rem 0.85rem;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.10);
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+      min-width: 180px;
+    }
+
+    .film-sim-filter label {
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #aaa;
+    }
+
+    .film-sim-filter select {
+      font-size: 0.85rem;
+      color: #222;
+      border: 1px solid #d1d5db;
+      border-radius: 4px;
+      padding: 0.3rem 0.5rem;
+      background: #fafafa;
+      cursor: pointer;
+      width: 100%;
+    }
+
+    .film-sim-filter select:focus { outline: 2px solid #2db37a; outline-offset: 1px; }
+
+    /* Tooltip */
+    #tooltip {
+      position: fixed;
+      z-index: 100;
+      background: #fff;
+      border: 1px solid #e0e0e0;
+      border-radius: 8px;
+      padding: 0.6rem 0.85rem;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+      pointer-events: none;
+      display: none;
+      max-width: 220px;
+    }
+
+    .tooltip-label { font-weight: 700; font-size: 0.9rem; color: #222; margin-bottom: 0.2rem; }
+    .tooltip-meta { font-size: 0.78rem; color: #777; line-height: 1.5; }
+  </style>
+</head>
+<body>
+
+{% include "_top_nav.html" with active_section="recipes" %}
+
+<div class="content-area">
+
+  <aside class="sidebar">
+    <h2>Recipes</h2>
+    <nav class="sidebar-nav">
+      <a href="{% url 'recipes-explorer' %}" class="sidebar-nav__link">Explorer</a>
+      <a class="sidebar-nav__link sidebar-nav__link--active">Graph</a>
+    </nav>
+  </aside>
+
+  <main class="main">
+    <div class="section-header">
+      <h1>Recipe Network</h1>
+      <span class="graph-hint">Root = most-used recipe &mdash; click a node to open its recipe graph</span>
+    </div>
+
+    <div id="cy"></div>
+
+    <div class="film-sim-filter">
+      <label for="film-sim-select">Film Simulation</label>
+      <select id="film-sim-select">
+        {% for sim in film_simulations %}
+        <option value="{{ sim }}"{% if sim == active_film_simulation %} selected{% endif %}>{{ sim }}</option>
+        {% endfor %}
+      </select>
+    </div>
+  </main>
+
+</div><!-- .content-area -->
+
+<div id="tooltip">
+  <div class="tooltip-label" id="tooltip-label"></div>
+  <div class="tooltip-meta" id="tooltip-meta"></div>
+</div>
+
+<script id="init-data" type="application/json">
+  {
+    "active_film_sim": "{{ active_film_simulation|escapejs }}",
+    "root_id": {% if root_id %}{{ root_id }}{% else %}null{% endif %}
+  }
+</script>
+<script>
+  var _initData    = JSON.parse(document.getElementById("init-data").textContent);
+  var INITIAL_ELEMENTS = {{ graph_elements_json|safe }};
+  var ACTIVE_FILM_SIM  = _initData.active_film_sim;
+  var ROOT_ID          = _initData.root_id;
+
+  var NODE_COLOR        = "#3b82f6";
+  var NODE_BORDER_COLOR = "#1d4ed8";
+  var ROOT_COLOR        = "#f97316";
+  var ROOT_BORDER_COLOR = "#c2410c";
+
+  var MIN_NODE_SIZE = 14;
+  var MAX_NODE_SIZE = 80;
+
+  function maxImageCount(elements) {
+    var counts = elements
+      .filter(function (el) { return el.data && !el.data.source; })
+      .map(function (el) { return el.data.image_count || 0; });
+    return Math.max.apply(null, counts.concat([1]));
+  }
+
+  function sizeForImageCount(count, maxImages) {
+    var t = count / maxImages;
+    return MIN_NODE_SIZE + t * (MAX_NODE_SIZE - MIN_NODE_SIZE);
+  }
+
+  var LAYOUT = {
+    name: "dagre",
+    rankDir: "LR",
+    align: "UL",
+    ranker: "tight-tree",
+    nodeSep: 60,
+    rankSep: 120,
+    edgeSep: 10,
+    animate: true,
+    animationDuration: 500,
+    fit: true,
+    padding: 60,
+  };
+
+  var EDGE_STYLES = [
+    {
+      selector: "edge[distance = 1]",
+      style: {
+        "line-color": "#1e293b",
+        "line-style": "solid",
+        "opacity": 0.75,
+        "width": 1.5,
+      }
+    },
+    {
+      selector: "edge[distance > 1]",
+      style: {
+        "line-color": "#94a3b8",
+        "line-style": "solid",
+        "opacity": 0.45,
+        "width": 1,
+        "label": "data(distanceLabel)",
+        "font-size": 9,
+        "color": "#94a3b8",
+        "text-background-color": "#f5f5f5",
+        "text-background-opacity": 1,
+        "text-background-padding": "2px",
+      }
+    },
+  ];
+
+  var cy = cytoscape({
+    container: document.getElementById("cy"),
+    elements: INITIAL_ELEMENTS,
+    wheelSensitivity: 0.15,
+    style: [
+      {
+        selector: "node",
+        style: {
+          "label": "data(label)",
+          "text-valign": "bottom",
+          "text-margin-y": 4,
+          "font-size": 11,
+          "color": "#555",
+          "text-outline-color": "#f5f5f5",
+          "text-outline-width": 2,
+          "border-width": 1.5,
+          "background-color": NODE_COLOR,
+          "border-color": NODE_BORDER_COLOR,
+          "width": MIN_NODE_SIZE,
+          "height": MIN_NODE_SIZE,
+        }
+      },
+      {
+        selector: "edge",
+        style: { "width": 1, "line-color": "#94a3b8", "line-style": "solid", "curve-style": "bezier", "opacity": 0.45 }
+      },
+    ].concat(EDGE_STYLES).concat([
+      {
+        selector: "node:selected",
+        style: { "border-width": 3, "border-color": "#111" }
+      }
+    ]),
+    layout: LAYOUT,
+  });
+
+  function applyNodeStyles(elements, rootId) {
+    var maxImages = maxImageCount(elements);
+    cy.nodes().forEach(function (node) {
+      var isRoot = rootId !== null && node.data("id") === String(rootId);
+      var size = sizeForImageCount(node.data("image_count") || 0, maxImages);
+      node.style({
+        "background-color": isRoot ? ROOT_COLOR : NODE_COLOR,
+        "border-color":     isRoot ? ROOT_BORDER_COLOR : NODE_BORDER_COLOR,
+        "width":  isRoot ? Math.max(size, 32) : size,
+        "height": isRoot ? Math.max(size, 32) : size,
+      });
+    });
+  }
+
+  applyNodeStyles(INITIAL_ELEMENTS, ROOT_ID);
+
+  // Tooltip
+  var tooltip     = document.getElementById("tooltip");
+  var tooltipLabel = document.getElementById("tooltip-label");
+  var tooltipMeta  = document.getElementById("tooltip-meta");
+
+  cy.on("mouseover", "node", function (e) {
+    var node = e.target;
+    tooltipLabel.textContent = node.data("label");
+    var isRoot = ROOT_ID !== null && node.data("id") === String(ROOT_ID);
+    tooltipMeta.innerHTML =
+      (node.data("image_count") || 0) + " image" + (node.data("image_count") === 1 ? "" : "s") +
+      (isRoot ? "<br><em>reference recipe</em>" : "");
+    tooltip.style.display = "block";
+  });
+
+  cy.on("mousemove", "node", function (e) {
+    tooltip.style.left = (e.originalEvent.clientX + 14) + "px";
+    tooltip.style.top  = (e.originalEvent.clientY + 14) + "px";
+  });
+
+  cy.on("mouseout", "node", function () { tooltip.style.display = "none"; });
+
+  cy.on("click", "node", function (e) {
+    window.location.href = "/recipes/graph/" + e.target.data("id") + "/";
+  });
+
+  // Film sim filter — fetch new graph data without reloading the page.
+  document.getElementById("film-sim-select").addEventListener("change", function () {
+    var sim = this.value;
+    var url = "/recipes/graph/?film_sim=" + encodeURIComponent(sim);
+    history.pushState(null, "", url);
+    fetch(url, { headers: { "Accept": "application/json" } })
+      .then(function (res) { return res.json(); })
+      .then(function (data) {
+        ROOT_ID = data.root_id;
+        cy.elements().remove();
+        cy.add(data.elements);
+        applyNodeStyles(data.elements, ROOT_ID);
+        cy.layout(LAYOUT).run();
+      });
+  });
+
+  // Restore correct dropdown value if user navigates back/forward.
+  window.addEventListener("popstate", function () {
+    var params = new URLSearchParams(window.location.search);
+    var sim = params.get("film_sim") || ACTIVE_FILM_SIM;
+    var select = document.getElementById("film-sim-select");
+    if (select.value !== sim) {
+      select.value = sim;
+      select.dispatchEvent(new Event("change"));
+    }
+  });
+</script>
+</body>
+</html>
