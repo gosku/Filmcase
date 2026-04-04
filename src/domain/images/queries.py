@@ -360,6 +360,30 @@ def get_image_detail(
     )
 
 
+@attrs.frozen
+class RecipeImagePage:
+    image_id: int
+    prev_id: int | None
+    next_id: int | None
+
+
+def get_recipe_image_page(*, recipe_id: int, image_id: int) -> RecipeImagePage:
+    """Return prev/next image IDs for *image_id* within a recipe's ordered sequence.
+
+    Raises:
+        models.Image.DoesNotExist: if *image_id* does not belong to *recipe_id*.
+    """
+    ids = get_images_for_recipe(recipe_id=recipe_id)
+    if image_id not in ids:
+        raise models.Image.DoesNotExist(f"Image {image_id} not in recipe {recipe_id}")
+    idx = ids.index(image_id)
+    return RecipeImagePage(
+        image_id=image_id,
+        prev_id=ids[idx - 1] if idx > 0 else None,
+        next_id=ids[idx + 1] if idx < len(ids) - 1 else None,
+    )
+
+
 def get_images_for_recipe(*, recipe_id: int) -> list[int]:
     """Return image IDs belonging to a recipe, ordered by rating desc then taken_at desc.
 

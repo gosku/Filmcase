@@ -382,6 +382,25 @@ def recipe_images_view(request: http.HttpRequest, recipe_id: int) -> http.HttpRe
     return http.JsonResponse({"images": images})
 
 
+def recipe_compare_image_view(request: http.HttpRequest, recipe_id: int, image_id: int) -> http.HttpResponse:
+    """Return image URLs and prev/next IDs for one image within a recipe sequence.
+
+    Response: JSON ``{"id": int, "thumbnail_url": str, "full_url": str, "prev_id": int|null, "next_id": int|null}``.
+    """
+    shortcuts.get_object_or_404(models.FujifilmRecipe, pk=recipe_id)
+    try:
+        page = image_queries.get_recipe_image_page(recipe_id=recipe_id, image_id=image_id)
+    except models.Image.DoesNotExist:
+        raise http.Http404
+    return http.JsonResponse({
+        "id": page.image_id,
+        "thumbnail_url": request.build_absolute_uri(f"/images/file/{image_id}/?width=600"),
+        "full_url": request.build_absolute_uri(f"/images/file/{image_id}/"),
+        "prev_id": page.prev_id,
+        "next_id": page.next_id,
+    })
+
+
 def recipe_path_deltas_view(request: http.HttpRequest) -> http.HttpResponse:
     """Return per-node field deltas for an ordered path of recipe IDs.
 

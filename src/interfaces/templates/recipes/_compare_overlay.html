@@ -1,0 +1,143 @@
+<style>
+  .compare-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 50;
+    background: #111;
+    display: none;
+    flex-direction: column;
+    font-family: sans-serif;
+  }
+
+  .compare-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.75rem 1.25rem;
+    background: #000;
+    flex-shrink: 0;
+  }
+
+  .compare-header-title {
+    font-size: 0.8rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #888;
+  }
+
+  .compare-close {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.5rem;
+    height: 2.5rem;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.12);
+    color: #fff;
+    font-size: 1.25rem;
+    border: none;
+    cursor: pointer;
+    transition: background 0.15s;
+    line-height: 1;
+  }
+
+  .compare-close:hover { background: rgba(255,255,255,0.25); }
+
+  .compare-body {
+    display: flex;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .compare-carousel {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    border-right: 1px solid #222;
+  }
+
+  .compare-carousel:last-child { border-right: none; }
+
+  .compare-recipe-title {
+    padding: 0.5rem 1rem;
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    color: #999;
+    background: #000;
+    flex-shrink: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .compare-image-area {
+    position: relative;
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+
+  .compare-image {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+  }
+
+  .compare-empty {
+    color: #555;
+    font-size: 0.85rem;
+    font-style: italic;
+  }
+
+  .compare-nav {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    background: rgba(0,0,0,0.45);
+    color: #fff;
+    border: none;
+    font-size: 1.75rem;
+    padding: 1rem 0.8rem;
+    cursor: pointer;
+    border-radius: 4px;
+    line-height: 1;
+    transition: background 0.15s;
+    z-index: 1;
+  }
+
+  .compare-nav:hover { background: rgba(0,0,0,0.75); }
+  .compare-nav--prev { left: 0.75rem; }
+  .compare-nav--next { right: 0.75rem; }
+</style>
+
+<div class="compare-overlay" id="compare-overlay">
+  <header class="compare-header">
+    <span class="compare-header-title">Compare Images</span>
+    <button class="compare-close" id="compare-close" title="Close (Esc)">&#x2715;</button>
+  </header>
+  <div class="compare-body">
+    <div class="compare-carousel">
+      <div class="compare-recipe-title" id="compare-left-title"></div>
+      <div class="compare-image-area" id="compare-left-area">
+        <img class="compare-image" id="compare-left-img" src="" alt="">
+        <button class="compare-nav compare-nav--prev" id="compare-left-prev" style="display:none">&#x2190;</button>
+        <button class="compare-nav compare-nav--next" id="compare-left-next" style="display:none">&#x2192;</button>
+      </div>
+    </div>
+    <div class="compare-carousel">
+      <div class="compare-recipe-title" id="compare-right-title"></div>
+      <div class="compare-image-area" id="compare-right-area">
+        <img class="compare-image" id="compare-right-img" src="" alt="">
+        <button class="compare-nav compare-nav--prev" id="compare-right-prev" style="display:none">&#x2190;</button>
+        <button class="compare-nav compare-nav--next" id="compare-right-next" style="display:none">&#x2192;</button>
+      </div>
+    </div>
+  </div>
+</div>

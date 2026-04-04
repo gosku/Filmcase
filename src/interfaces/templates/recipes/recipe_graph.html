@@ -203,64 +203,6 @@
       font-size: 0.78rem;
     }
 
-    /* --- Recipe image carousel --- */
-    .recipe-carousel {
-      position: relative;
-      background: #111;
-      border-radius: 6px;
-      overflow: hidden;
-      margin-top: 0.6rem;
-      height: 180px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-
-    .recipe-carousel--empty {
-      background: #f5f5f5;
-      color: #bbb;
-      font-size: 0.75rem;
-      font-style: italic;
-    }
-
-    .recipe-carousel__img {
-      width: 100%;
-      height: 100%;
-      object-fit: contain;
-      display: block;
-    }
-
-    .recipe-carousel__nav {
-      position: absolute;
-      top: 50%;
-      transform: translateY(-50%);
-      background: rgba(0,0,0,0.45);
-      color: #fff;
-      border: none;
-      font-size: 1.1rem;
-      padding: 0.5rem 0.4rem;
-      cursor: pointer;
-      border-radius: 3px;
-      line-height: 1;
-      transition: background 0.15s;
-      z-index: 1;
-    }
-
-    .recipe-carousel__nav:hover { background: rgba(0,0,0,0.75); }
-    .recipe-carousel__nav--prev { left: 0.3rem; }
-    .recipe-carousel__nav--next { right: 0.3rem; }
-
-    .recipe-carousel__counter {
-      position: absolute;
-      bottom: 0.3rem;
-      right: 0.45rem;
-      font-size: 0.65rem;
-      color: rgba(255,255,255,0.7);
-      background: rgba(0,0,0,0.4);
-      padding: 0.1rem 0.3rem;
-      border-radius: 3px;
-      pointer-events: none;
-    }
 
     /* Tooltip */
     #tooltip {
@@ -310,7 +252,6 @@
       <div class="recipe-card__section" id="card-root-section">
         <div class="recipe-card__title">Recipe of Reference</div>
         <div class="recipe-card__name" id="card-root-name"></div>
-        <div class="recipe-carousel recipe-carousel--empty" id="card-root-carousel">No images</div>
         <div class="recipe-card__fields recipe-card__fields--two-col" id="card-root-fields"></div>
       </div>
       <div id="card-selected-section" style="display:none">
@@ -320,7 +261,6 @@
             <div class="recipe-card__name" id="card-selected-name"></div>
             <button class="recipe-card__btn" id="card-show-graph-btn">Go to this recipe graph</button>
           </div>
-          <div class="recipe-carousel recipe-carousel--empty" id="card-selected-carousel">No images</div>
           <div class="recipe-card__title" style="margin-top:0.6rem">Differences</div>
           <div class="recipe-card__fields" id="card-root-diffs"></div>
         </div>
@@ -328,11 +268,16 @@
           <div class="recipe-card__title">Delta Breakdown</div>
           <div id="card-delta-nodes"></div>
         </div>
+        <div class="recipe-card__section">
+          <button class="recipe-card__btn" id="card-compare-btn" style="width:100%">Compare images</button>
+        </div>
       </div>
     </div>
   </main>
 
 </div><!-- .content-area -->
+
+{% include "recipes/_compare_overlay.html" %}
 
 <div id="tooltip">
   <div class="tooltip-label" id="tooltip-label"></div>
@@ -344,6 +289,8 @@
   var ROOT_ID = "{{ root_id }}";
   var ROOT_LABEL = "{{ root_label|escapejs }}";
   var ROOT_FIELDS = {{ root_fields_json|safe }};
+  var SELECTED_ID = null;
+  var SELECTED_LABEL = "";
 
   var NODE_COLOR        = "#3b82f6";
   var NODE_BORDER_COLOR = "#1d4ed8";
@@ -607,58 +554,6 @@
 
   populateRootCard(ROOT_LABEL, ROOT_FIELDS);
 
-  // --- Recipe image carousel ---
-
-  function renderCarousel(containerEl, images) {
-    if (!images || images.length === 0) {
-      containerEl.className = "recipe-carousel recipe-carousel--empty";
-      containerEl.innerHTML = "No images";
-      return;
-    }
-    containerEl.className = "recipe-carousel";
-    containerEl._carouselImages = images;
-    containerEl._carouselIndex = 0;
-
-    function show(idx) {
-      containerEl._carouselIndex = idx;
-      var img = containerEl.querySelector(".recipe-carousel__img");
-      img.src = images[idx].thumbnail_url;
-      var counter = containerEl.querySelector(".recipe-carousel__counter");
-      counter.textContent = (idx + 1) + " / " + images.length;
-      containerEl.querySelector(".recipe-carousel__nav--prev").style.display =
-        idx > 0 ? "" : "none";
-      containerEl.querySelector(".recipe-carousel__nav--next").style.display =
-        idx < images.length - 1 ? "" : "none";
-    }
-
-    containerEl.innerHTML =
-      '<button class="recipe-carousel__nav recipe-carousel__nav--prev">&#x2190;</button>' +
-      '<img class="recipe-carousel__img" src="" alt="">' +
-      '<button class="recipe-carousel__nav recipe-carousel__nav--next">&#x2192;</button>' +
-      '<span class="recipe-carousel__counter"></span>';
-
-    containerEl.querySelector(".recipe-carousel__nav--prev").addEventListener("click", function () {
-      var idx = containerEl._carouselIndex;
-      if (idx > 0) show(idx - 1);
-    });
-    containerEl.querySelector(".recipe-carousel__nav--next").addEventListener("click", function () {
-      var idx = containerEl._carouselIndex;
-      if (idx < containerEl._carouselImages.length - 1) show(idx + 1);
-    });
-
-    show(0);
-  }
-
-  function loadCarousel(containerEl, recipeId) {
-    containerEl.className = "recipe-carousel recipe-carousel--empty";
-    containerEl.innerHTML = "Loading\u2026";
-    fetch("/recipes/" + recipeId + "/images/")
-      .then(function (res) { return res.json(); })
-      .then(function (data) { renderCarousel(containerEl, data.images); });
-  }
-
-  loadCarousel(document.getElementById("card-root-carousel"), ROOT_ID);
-
   // BFS path from rootId to targetId using graph edges
   function findPath(rootId, targetId) {
     var rootStr = String(rootId);
@@ -752,13 +647,14 @@
     var path = findPath(ROOT_ID, nodeId);
     highlightPath(path);
 
+    SELECTED_ID = nodeId;
+    SELECTED_LABEL = selectedLabel;
+
     document.getElementById("card-selected-name").textContent = selectedLabel;
     document.getElementById("card-root-diffs").innerHTML =
       '<span class="recipe-card__loading">Loading…</span>';
     document.getElementById("card-delta-section").style.display = "none";
     document.getElementById("card-selected-section").style.display = "";
-
-    loadCarousel(document.getElementById("card-selected-carousel"), nodeId);
 
     document.getElementById("card-show-graph-btn").onclick = function () {
       var url = "/recipes/graph/" + nodeId + "/";
@@ -774,7 +670,6 @@
           cy.layout(makePresetLayout(buildRadialPositions(data.elements, ROOT_ID), applyRadialLabels)).run();
           history.pushState(null, "", url);
           populateRootCard(ROOT_LABEL, ROOT_FIELDS);
-          loadCarousel(document.getElementById("card-root-carousel"), ROOT_ID);
           hideSelectedSection();
           _pathEdges = [];
         });
@@ -786,6 +681,122 @@
         showSelectedSection(selectedLabel, data.root_diffs, data.path_nodes);
       });
   });
+
+  // --- Compare overlay ---
+
+  var compareOverlay = document.getElementById("compare-overlay");
+  var comparePreloaded = new Set();
+  var compareState = {
+    left:  { recipeId: null, prevId: null, nextId: null },
+    right: { recipeId: null, prevId: null, nextId: null }
+  };
+
+  function _comparePreload(url) {
+    if (!url || comparePreloaded.has(url)) return;
+    var img = new Image();
+    img.onload = function () { comparePreloaded.add(url); };
+    img.src = url;
+  }
+
+  function _compareLoadImage(side, imageId) {
+    var state = compareState[side];
+    var imgEl = document.getElementById("compare-" + side + "-img");
+    var prevBtn = document.getElementById("compare-" + side + "-prev");
+    var nextBtn = document.getElementById("compare-" + side + "-next");
+
+    imgEl.src = "/images/file/" + imageId + "/?width=600";
+    imgEl.style.display = "";
+    document.getElementById("compare-" + side + "-area").querySelectorAll(".compare-empty").forEach(function (el) { el.remove(); });
+
+    fetch("/recipes/" + state.recipeId + "/images/" + imageId + "/")
+      .then(function (res) { return res.json(); })
+      .then(function (data) {
+        state.prevId = data.prev_id;
+        state.nextId = data.next_id;
+        prevBtn.style.display = data.prev_id ? "" : "none";
+        nextBtn.style.display = data.next_id ? "" : "none";
+
+        var fullSrc = data.full_url;
+        function afterFullLoaded() {
+          imgEl.src = fullSrc;
+          if (data.prev_id) _comparePreload("/images/file/" + data.prev_id + "/");
+          if (data.next_id) _comparePreload("/images/file/" + data.next_id + "/");
+        }
+        if (comparePreloaded.has(fullSrc)) {
+          afterFullLoaded();
+        } else {
+          var full = new Image();
+          full.onload = function () { comparePreloaded.add(fullSrc); afterFullLoaded(); };
+          full.src = fullSrc;
+        }
+      });
+  }
+
+  function _compareShowEmpty(side) {
+    var area = document.getElementById("compare-" + side + "-area");
+    var imgEl = document.getElementById("compare-" + side + "-img");
+    imgEl.src = "";
+    imgEl.style.display = "none";
+    document.getElementById("compare-" + side + "-prev").style.display = "none";
+    document.getElementById("compare-" + side + "-next").style.display = "none";
+    var empty = document.createElement("span");
+    empty.className = "compare-empty";
+    empty.textContent = "No images";
+    area.appendChild(empty);
+  }
+
+  function _compareOpen(rootId, rootLabel, selectedId, selectedLabel) {
+    compareState.left.recipeId  = rootId;
+    compareState.right.recipeId = selectedId;
+
+    document.getElementById("compare-left-title").textContent  = rootLabel || rootId;
+    document.getElementById("compare-right-title").textContent = selectedLabel || selectedId;
+
+    comparePreloaded.clear();
+    compareOverlay.style.display = "flex";
+
+    fetch("/recipes/" + rootId + "/images/")
+      .then(function (res) { return res.json(); })
+      .then(function (data) {
+        if (data.images.length > 0) { _compareLoadImage("left", data.images[0].id); }
+        else { _compareShowEmpty("left"); }
+      });
+
+    fetch("/recipes/" + selectedId + "/images/")
+      .then(function (res) { return res.json(); })
+      .then(function (data) {
+        if (data.images.length > 0) { _compareLoadImage("right", data.images[0].id); }
+        else { _compareShowEmpty("right"); }
+      });
+  }
+
+  function _compareClose() {
+    compareOverlay.style.display = "none";
+  }
+
+  document.getElementById("compare-close").onclick = _compareClose;
+
+  document.getElementById("compare-left-prev").onclick = function () {
+    if (compareState.left.prevId) _compareLoadImage("left", compareState.left.prevId);
+  };
+  document.getElementById("compare-left-next").onclick = function () {
+    if (compareState.left.nextId) _compareLoadImage("left", compareState.left.nextId);
+  };
+  document.getElementById("compare-right-prev").onclick = function () {
+    if (compareState.right.prevId) _compareLoadImage("right", compareState.right.prevId);
+  };
+  document.getElementById("compare-right-next").onclick = function () {
+    if (compareState.right.nextId) _compareLoadImage("right", compareState.right.nextId);
+  };
+
+  document.addEventListener("keydown", function (e) {
+    if (compareOverlay.style.display !== "flex") return;
+    if (e.key === "Escape") { _compareClose(); }
+  });
+
+  document.getElementById("card-compare-btn").onclick = function () {
+    _compareOpen(ROOT_ID, ROOT_LABEL, SELECTED_ID, SELECTED_LABEL);
+  };
 </script>
 </body>
 </html>

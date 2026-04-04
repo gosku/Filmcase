@@ -12,6 +12,7 @@ urlpatterns = [
     path("recipes/graph/", views.recipes_graph_view, name="recipes-graph"),
     path("recipes/graph/<int:recipe_id>/", views.recipe_graph_view, name="recipe-graph"),
     path("recipes/<int:recipe_id>/images/", views.recipe_images_view, name="recipe-images"),
+    path("recipes/<int:recipe_id>/images/<int:image_id>/", views.recipe_compare_image_view, name="recipe-compare-image"),
     path("recipes/path-deltas/", views.recipe_path_deltas_view, name="recipe-path-deltas"),
     path("recipes/<int:recipe_id>/set-name/", views.SetRecipeName.as_view(), name="set-recipe-name"),
     path("recipes/<int:recipe_id>/push/", views.SelectSlot.as_view(), name="select-push-slot"),
