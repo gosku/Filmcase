@@ -358,3 +358,17 @@ def get_image_detail(
         prev_id=ids[idx - 1] if idx > 0 else None,
         next_id=ids[idx + 1] if idx < len(ids) - 1 else None,
     )
+
+
+def get_images_for_recipe(*, recipe_id: int) -> list[int]:
+    """Return image IDs belonging to a recipe, ordered by rating desc then taken_at desc.
+
+    Images are ordered so the highest-rated, most-recent images appear first.
+    A stable tiebreaker on ``id`` ensures consistent pagination across pages.
+    """
+    return list(
+        models.Image.objects
+        .filter(fujifilm_recipe_id=recipe_id)
+        .order_by("-rating", "-taken_at", "id")
+        .values_list("id", flat=True)
+    )

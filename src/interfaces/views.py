@@ -362,6 +362,26 @@ def recipe_graph_view(request: http.HttpRequest, recipe_id: int) -> http.HttpRes
     })
 
 
+def recipe_images_view(request: http.HttpRequest, recipe_id: int) -> http.HttpResponse:
+    """Return thumbnail URLs for all images belonging to a recipe.
+
+    Images are ordered by rating descending, then taken_at descending.
+    Response: JSON ``{"images": [{"id": int, "thumbnail_url": str}]}``.
+    """
+    shortcuts.get_object_or_404(models.FujifilmRecipe, pk=recipe_id)
+    image_ids = image_queries.get_images_for_recipe(recipe_id=recipe_id)
+    images = [
+        {
+            "id": image_id,
+            "thumbnail_url": request.build_absolute_uri(
+                f"/images/file/{image_id}/?width=600"
+            ),
+        }
+        for image_id in image_ids
+    ]
+    return http.JsonResponse({"images": images})
+
+
 def recipe_path_deltas_view(request: http.HttpRequest) -> http.HttpResponse:
     """Return per-node field deltas for an ordered path of recipe IDs.
 

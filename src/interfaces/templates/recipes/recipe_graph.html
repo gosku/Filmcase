@@ -203,6 +203,65 @@
       font-size: 0.78rem;
     }
 
+    /* --- Recipe image carousel --- */
+    .recipe-carousel {
+      position: relative;
+      background: #111;
+      border-radius: 6px;
+      overflow: hidden;
+      margin-top: 0.6rem;
+      height: 180px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .recipe-carousel--empty {
+      background: #f5f5f5;
+      color: #bbb;
+      font-size: 0.75rem;
+      font-style: italic;
+    }
+
+    .recipe-carousel__img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      display: block;
+    }
+
+    .recipe-carousel__nav {
+      position: absolute;
+      top: 50%;
+      transform: translateY(-50%);
+      background: rgba(0,0,0,0.45);
+      color: #fff;
+      border: none;
+      font-size: 1.1rem;
+      padding: 0.5rem 0.4rem;
+      cursor: pointer;
+      border-radius: 3px;
+      line-height: 1;
+      transition: background 0.15s;
+      z-index: 1;
+    }
+
+    .recipe-carousel__nav:hover { background: rgba(0,0,0,0.75); }
+    .recipe-carousel__nav--prev { left: 0.3rem; }
+    .recipe-carousel__nav--next { right: 0.3rem; }
+
+    .recipe-carousel__counter {
+      position: absolute;
+      bottom: 0.3rem;
+      right: 0.45rem;
+      font-size: 0.65rem;
+      color: rgba(255,255,255,0.7);
+      background: rgba(0,0,0,0.4);
+      padding: 0.1rem 0.3rem;
+      border-radius: 3px;
+      pointer-events: none;
+    }
+
     /* Tooltip */
     #tooltip {
       position: fixed;
@@ -251,6 +310,7 @@
       <div class="recipe-card__section" id="card-root-section">
         <div class="recipe-card__title">Recipe of Reference</div>
         <div class="recipe-card__name" id="card-root-name"></div>
+        <div class="recipe-carousel recipe-carousel--empty" id="card-root-carousel">No images</div>
         <div class="recipe-card__fields recipe-card__fields--two-col" id="card-root-fields"></div>
       </div>
       <div id="card-selected-section" style="display:none">
@@ -260,6 +320,7 @@
             <div class="recipe-card__name" id="card-selected-name"></div>
             <button class="recipe-card__btn" id="card-show-graph-btn">Go to this recipe graph</button>
           </div>
+          <div class="recipe-carousel recipe-carousel--empty" id="card-selected-carousel">No images</div>
           <div class="recipe-card__title" style="margin-top:0.6rem">Differences</div>
           <div class="recipe-card__fields" id="card-root-diffs"></div>
         </div>
@@ -546,6 +607,58 @@
 
   populateRootCard(ROOT_LABEL, ROOT_FIELDS);
 
+  // --- Recipe image carousel ---
+
+  function renderCarousel(containerEl, images) {
+    if (!images || images.length === 0) {
+      containerEl.className = "recipe-carousel recipe-carousel--empty";
+      containerEl.innerHTML = "No images";
+      return;
+    }
+    containerEl.className = "recipe-carousel";
+    containerEl._carouselImages = images;
+    containerEl._carouselIndex = 0;
+
+    function show(idx) {
+      containerEl._carouselIndex = idx;
+      var img = containerEl.querySelector(".recipe-carousel__img");
+      img.src = images[idx].thumbnail_url;
+      var counter = containerEl.querySelector(".recipe-carousel__counter");
+      counter.textContent = (idx + 1) + " / " + images.length;
+      containerEl.querySelector(".recipe-carousel__nav--prev").style.display =
+        idx > 0 ? "" : "none";
+      containerEl.querySelector(".recipe-carousel__nav--next").style.display =
+        idx < images.length - 1 ? "" : "none";
+    }
+
+    containerEl.innerHTML =
+      '<button class="recipe-carousel__nav recipe-carousel__nav--prev">&#x2190;</button>' +
+      '<img class="recipe-carousel__img" src="" alt="">' +
+      '<button class="recipe-carousel__nav recipe-carousel__nav--next">&#x2192;</button>' +
+      '<span class="recipe-carousel__counter"></span>';
+
+    containerEl.querySelector(".recipe-carousel__nav--prev").addEventListener("click", function () {
+      var idx = containerEl._carouselIndex;
+      if (idx > 0) show(idx - 1);
+    });
+    containerEl.querySelector(".recipe-carousel__nav--next").addEventListener("click", function () {
+      var idx = containerEl._carouselIndex;
+      if (idx < containerEl._carouselImages.length - 1) show(idx + 1);
+    });
+
+    show(0);
+  }
+
+  function loadCarousel(containerEl, recipeId) {
+    containerEl.className = "recipe-carousel recipe-carousel--empty";
+    containerEl.innerHTML = "Loading\u2026";
+    fetch("/recipes/" + recipeId + "/images/")
+      .then(function (res) { return res.json(); })
+      .then(function (data) { renderCarousel(containerEl, data.images); });
+  }
+
+  loadCarousel(document.getElementById("card-root-carousel"), ROOT_ID);
+
   // BFS path from rootId to targetId using graph edges
   function findPath(rootId, targetId) {
     var rootStr = String(rootId);
@@ -645,6 +758,8 @@
     document.getElementById("card-delta-section").style.display = "none";
     document.getElementById("card-selected-section").style.display = "";
 
+    loadCarousel(document.getElementById("card-selected-carousel"), nodeId);
+
     document.getElementById("card-show-graph-btn").onclick = function () {
       var url = "/recipes/graph/" + nodeId + "/";
       fetch(url, { headers: { "Accept": "application/json" } })
@@ -659,6 +774,7 @@
           cy.layout(makePresetLayout(buildRadialPositions(data.elements, ROOT_ID), applyRadialLabels)).run();
           history.pushState(null, "", url);
           populateRootCard(ROOT_LABEL, ROOT_FIELDS);
+          loadCarousel(document.getElementById("card-root-carousel"), ROOT_ID);
           hideSelectedSection();
           _pathEdges = [];
         });
