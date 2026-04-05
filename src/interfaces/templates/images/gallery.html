@@ -215,6 +215,109 @@
       background: #fff;
     }
 
+    .image-card-thumb {
+      position: relative;
+    }
+
+    .image-delete-btn {
+      position: absolute;
+      top: 0.3rem;
+      right: 0.3rem;
+      width: 1.4rem;
+      height: 1.4rem;
+      border-radius: 50%;
+      border: none;
+      background: rgba(0,0,0,0.55);
+      color: #fff;
+      font-size: 1rem;
+      line-height: 1;
+      cursor: pointer;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
+      transition: background 0.15s;
+    }
+
+    .image-card-thumb:hover .image-delete-btn { display: flex; }
+    .image-delete-btn:hover { background: rgba(220,38,38,0.85); }
+
+    .image-select-label {
+      position: absolute;
+      top: 0.3rem;
+      left: 0.3rem;
+      display: none;
+      cursor: pointer;
+    }
+
+    .image-select-label input { display: none; }
+
+    .image-select-label::before {
+      content: '';
+      display: block;
+      width: 1.1rem;
+      height: 1.1rem;
+      border-radius: 50%;
+      border: 2px solid #fff;
+      background: rgba(0,0,0,0.4);
+      box-shadow: 0 0 0 1px rgba(0,0,0,0.2);
+      transition: background 0.15s;
+    }
+
+    .image-select-label:has(input:checked)::before {
+      background: #f97316;
+      border-color: #f97316;
+    }
+
+    .image-card-thumb:hover .image-select-label,
+    .image-select-label:has(input:checked) { display: block; }
+
+    .image-card.is-selected { outline: 2px solid #f97316; border-color: #f97316; }
+
+    .bulk-delete-bar {
+      position: fixed;
+      bottom: 1.5rem;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #1f2937;
+      color: #fff;
+      border-radius: 999px;
+      padding: 0.6rem 1.2rem;
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      font-size: 0.9rem;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+      z-index: 300;
+    }
+
+    .bulk-delete-bar[hidden] { display: none; }
+
+    .bulk-delete-btn {
+      padding: 0.35rem 0.9rem;
+      border-radius: 999px;
+      border: none;
+      background: #dc2626;
+      color: #fff;
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+
+    .bulk-delete-btn:hover { background: #b91c1c; }
+
+    .bulk-cancel-btn {
+      background: none;
+      border: none;
+      color: #9ca3af;
+      cursor: pointer;
+      font-size: 0.85rem;
+      padding: 0;
+    }
+
+    .bulk-cancel-btn:hover { color: #fff; }
+
     .image-thumbnail {
       width: 100%;
       height: 300px;
@@ -380,6 +483,82 @@
       color: #888;
       font-style: italic;
     }
+
+    /* Drag and drop import */
+    .import-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.35rem 0.75rem;
+      border: 1.5px solid #d1d5db;
+      border-radius: 6px;
+      background: #fff;
+      font-size: 0.85rem;
+      color: #555;
+      cursor: pointer;
+      transition: border-color 0.15s, color 0.15s;
+    }
+    .import-btn:hover { border-color: #f97316; color: #f97316; }
+
+    .import-panel {
+      background: #fafafa;
+      border-bottom: 1px solid #e0e0e0;
+      padding: 1rem 2rem;
+      flex-shrink: 0;
+    }
+    .import-panel[hidden] { display: none; }
+
+    .drop-zone {
+      border: 2px dashed #d1d5db;
+      border-radius: 8px;
+      padding: 2rem;
+      text-align: center;
+      color: #888;
+      font-size: 0.9rem;
+      cursor: pointer;
+      transition: border-color 0.15s, background 0.15s;
+      position: relative;
+    }
+    .drop-zone.drag-over {
+      border-color: #f97316;
+      background: #fff7ed;
+      color: #f97316;
+    }
+    .drop-zone input[type="file"] {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      cursor: pointer;
+    }
+
+    .import-results {
+      margin-top: 0.75rem;
+      font-size: 0.85rem;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+      align-items: center;
+    }
+    .import-tag {
+      padding: 0.15rem 0.5rem;
+      border-radius: 4px;
+      font-size: 0.8rem;
+    }
+    .import-tag--ok     { background: #d1fae5; color: #065f46; }
+    .import-tag--skip   { background: #fef3c7; color: #92400e; }
+    .import-tag--error  { background: #fee2e2; color: #7f1d1d; }
+
+    .import-spinner {
+      display: inline-block;
+      width: 1rem; height: 1rem;
+      border: 2px solid #e0e0e0;
+      border-top-color: #f97316;
+      border-radius: 50%;
+      animation: slot-spin 0.7s linear infinite;
+      vertical-align: middle;
+      margin-right: 0.4rem;
+    }
+
 
     #detail-overlay {
       position: fixed;
@@ -562,6 +741,7 @@
     </div>
     <div class="import-results" id="import-results" hidden></div>
   </div>
+
   <div class="gallery-scroll">
     <div id="gallery-results">
       {% include "images/_gallery_results.html" %}
@@ -585,6 +765,12 @@
 
 <div id="detail-overlay" hidden></div>
 <div id="slot-overlay" hidden></div>
+
+<div class="bulk-delete-bar" id="bulk-delete-bar" hidden>
+  <span id="bulk-delete-count"></span>
+  <button class="bulk-delete-btn" id="bulk-delete-btn" type="button">Delete selected</button>
+  <button class="bulk-cancel-btn" id="bulk-cancel-btn" type="button">Cancel</button>
+</div>
 
 <script>
   // Multi-select recipe dropdown with search and removable tags.
@@ -756,7 +942,103 @@
     if (e.key === 'ArrowLeft') { var btn = overlay.querySelector('.detail-nav-prev'); if (btn) btn.click(); }
     if (e.key === 'ArrowRight') { var btn = overlay.querySelector('.detail-nav-next'); if (btn) btn.click(); }
   });
-  // --- Drag & drop import ---
+
+  // multi-selection delete
+  (function () {
+    var bar        = document.getElementById('bulk-delete-bar');
+    var countEl    = document.getElementById('bulk-delete-count');
+    var deleteBtn  = document.getElementById('bulk-delete-btn');
+    var cancelBtn  = document.getElementById('bulk-cancel-btn');
+    var bulkUrl    = '{% url "image-bulk-delete" %}';
+    var csrfToken  = '{{ csrf_token }}';
+
+    function selectedCheckboxes() {
+      return Array.from(document.querySelectorAll('.image-select-cb:checked'));
+    }
+
+    function updateBar() {
+      var checked = selectedCheckboxes();
+      if (checked.length === 0) {
+        bar.hidden = true;
+      } else {
+        countEl.textContent = checked.length + ' image' + (checked.length > 1 ? 's' : '') + ' selected';
+        bar.hidden = false;
+      }
+    }
+
+    function clearSelection() {
+      document.querySelectorAll('.image-select-cb:checked').forEach(function (cb) {
+        cb.checked = false;
+        cb.closest('.image-card').classList.remove('is-selected');
+      });
+      bar.hidden = true;
+    }
+
+    document.getElementById('gallery-results').addEventListener('change', function (e) {
+      if (!e.target.classList.contains('image-select-cb')) return;
+      e.target.closest('.image-card').classList.toggle('is-selected', e.target.checked);
+      updateBar();
+    });
+
+    cancelBtn.addEventListener('click', clearSelection);
+
+    function removeImportTag(filename) {
+      document.querySelectorAll('#import-results .import-tag--ok').forEach(function (tag) {
+        if (tag.textContent.trim() === filename) tag.remove();
+      });
+    }
+
+    function filenameFromCard(card) {
+      var el = card && card.querySelector('.image-filename');
+      return el ? el.textContent.trim() : null;
+    }
+
+    // when removing a file we need to clean import tag + recount selection.
+    document.body.addEventListener('htmx:beforeRequest', function (e) {
+      var btn = e.detail.elt;
+      if (!btn || !btn.classList.contains('image-delete-btn')) return;
+      var filename = filenameFromCard(btn.closest('.image-card'));
+      if (filename) removeImportTag(filename);
+    });
+
+    new MutationObserver(function (mutations) {
+      var removed = false;
+      mutations.forEach(function (m) {
+        m.removedNodes.forEach(function (node) {
+          if (node.nodeType === 1 && node.classList.contains('image-card')) removed = true;
+        });
+      });
+      if (removed) updateBar();
+    }).observe(document.getElementById('gallery-results'), { childList: true });
+
+    deleteBtn.addEventListener('click', function () {
+      var ids = selectedCheckboxes().map(function (cb) { return parseInt(cb.value, 10); });
+      if (ids.length === 0) return;
+      if (!confirm('Delete ' + ids.length + ' image' + (ids.length > 1 ? 's' : '') + '?')) return;
+
+      // collect filenames before badges are removed from DOM.
+      var filenames = ids.map(function (id) {
+        return filenameFromCard(document.getElementById('image-card-' + id));
+      }).filter(Boolean);
+
+      fetch(bulkUrl, {
+        method: 'POST',
+        headers: { 'X-CSRFToken': csrfToken, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: ids }),
+      })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        (data.deleted || []).forEach(function (id) {
+          var card = document.getElementById('image-card-' + id);
+          if (card) card.remove();
+        });
+        filenames.forEach(removeImportTag);
+        bar.hidden = true;
+      });
+    });
+  }());
+
+  // Drag and drop
   (function () {
     var toggleBtn  = document.getElementById('import-toggle-btn');
     var panel      = document.getElementById('import-panel');
@@ -772,6 +1054,7 @@
       resultsEl.innerHTML = '';
     });
 
+    // Drag-over highlight
     ['dragenter', 'dragover'].forEach(function (evt) {
       dropZone.addEventListener(evt, function (e) {
         e.preventDefault();
@@ -785,8 +1068,14 @@
       });
     });
 
-    dropZone.addEventListener('drop', function (e) { handleFiles(e.dataTransfer.files); });
-    fileInput.addEventListener('change', function () { handleFiles(fileInput.files); fileInput.value = ''; });
+    dropZone.addEventListener('drop', function (e) {
+      handleFiles(e.dataTransfer.files);
+    });
+
+    fileInput.addEventListener('change', function () {
+      handleFiles(fileInput.files);
+      fileInput.value = '';
+    });
 
     function handleFiles(files) {
       if (!files || files.length === 0) return;
@@ -794,7 +1083,7 @@
       Array.from(files).forEach(function (f) { form.append('images', f); });
 
       resultsEl.hidden = false;
-      resultsEl.innerHTML = '<span class="import-spinner"></span> Importing ' + files.length + ' file(s)\u2026';
+      resultsEl.innerHTML = '<span class="import-spinner"></span> Importing ' + files.length + ' file(s)…';
 
       fetch(uploadUrl, {
         method: 'POST',
@@ -814,6 +1103,7 @@
             html += '<span class="import-tag import-tag--skip">Skipped: ' + name + '</span>';
           });
           if (data.processed.length > 0) {
+            // Reload results
             document.getElementById('filter-form').dispatchEvent(new Event('change'));
           }
         }

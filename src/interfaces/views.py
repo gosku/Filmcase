@@ -120,6 +120,28 @@ def image_file_view(request, image_id):
 
 
 @http_decorators.require_POST
+def delete_image(request, image_id):
+    image = shortcuts.get_object_or_404(models.Image, pk=image_id)
+    image.delete()
+    return http.JsonResponse({"deleted": image_id})
+
+
+@http_decorators.require_POST
+def bulk_delete_images(request):
+    import json
+    try:
+        data = json.loads(request.body)
+        ids = [int(i) for i in data.get("ids", [])]
+    except (ValueError, TypeError, json.JSONDecodeError):
+        return http.JsonResponse({"error": "Invalid request."}, status=400)
+    if not ids:
+        return http.JsonResponse({"error": "No ids provided."}, status=400)
+    deleted = list(models.Image.objects.filter(pk__in=ids).values_list("pk", flat=True))
+    models.Image.objects.filter(pk__in=ids).delete()
+    return http.JsonResponse({"deleted": deleted})
+
+
+@http_decorators.require_POST
 def set_image_rating_view(request, image_id):
     try:
         image = models.Image.objects.get(pk=image_id)
@@ -146,34 +168,24 @@ def set_image_rating_view(request, image_id):
     )
 
 
-
-
 @http_decorators.require_POST
 def upload_images(request):
     uploaded = request.FILES.getlist("images")
     if not uploaded:
         return http.JsonResponse({"error": "No files provided"}, status=400)
-
-    if len(uploaded) > settings.IMAGE_IMPORT_MAX_FILES:
-        return http.JsonResponse(
-            {"error": f"Max {settings.IMAGE_IMPORT_MAX_FILES} files per upload. Use the CLI for larger imports."},
-            status=413,
-        )
-
-    import_dir = Path(settings.IMAGE_IMPORT_DIR)
-    processed, skipped = [], []
+    
+    upload_dir = Path(settings.UPLOAD_DIR)
+    processed, skipped = [], [] # to notice if file can be processed 
 
     for f in uploaded:
         if not f.name.lower().endswith((".jpg", ".jpeg")):
             skipped.append(f.name)
             continue
-        dest = import_dir / f.name
-        if dest.exists():
-            skipped.append(f.name)
-            continue
+        dest = upload_dir / f.name
         with dest.open("wb") as fp:
             for chunk in f.chunks():
                 fp.write(chunk)
+
         try:
             image_operations.process_image(image_path=str(dest))
             processed.append(f.name)
@@ -181,6 +193,7 @@ def upload_images(request):
             skipped.append(f.name)
 
     return http.JsonResponse({"processed": processed, "skipped": skipped})
+
 
 _NOTABLE_RECIPE_MIN_IMAGES = 50  # recipes with fewer images are hidden unless named or selected
 _SLOT_TO_INDEX = {"C1": 1, "C2": 2, "C3": 3, "C4": 4, "C5": 5, "C6": 6, "C7": 7}

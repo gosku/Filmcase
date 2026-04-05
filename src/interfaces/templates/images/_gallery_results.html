@@ -1,13 +1,23 @@
 {% load image_filters %}
 {% for image in page_obj %}
-  <article class="image-card">
-    <a class="detail-link" href="{% url 'image-detail' image.id %}"
+  <article class="image-card" id="image-card-{{ image.id }}">
+    <div class="image-card-thumb">
+      <a class="detail-link" href="{% url 'image-detail' image.id %}"
        hx-get="{% url 'image-detail' image.id %}"
        hx-target="#detail-overlay"
        hx-push-url="{% url 'image-detail' image.id %}"
        hx-include="#filter-form">
-      <img class="image-thumbnail" src="{% url 'image-file' image.id %}?width=600" alt="{{ image.filename }}" loading="lazy">
-    </a>
+        <img class="image-thumbnail" src="{% url 'image-file' image.id %}?width=600" alt="{{ image.filename }}" loading="lazy">
+      </a>
+      <button class="image-delete-btn"
+              hx-post="{% url 'image-delete' image.id %}"
+              hx-target="#image-card-{{ image.id }}"
+              hx-swap="delete"
+              title="Delete image">×</button>
+      <label class="image-select-label" title="Select">
+        <input class="image-select-cb" type="checkbox" value="{{ image.id }}">
+      </label>
+    </div>
     <span class="image-recipe">{% if image.fujifilm_recipe and image.fujifilm_recipe.name %}{{ image.fujifilm_recipe.name }}{% elif image.fujifilm_recipe and image.fujifilm_recipe.film_simulation %}{{ image.fujifilm_recipe.film_simulation }}{% else %}—{% endif %}</span>
     <div class="image-meta-row">
       <span class="image-exposure">{% if image.aperture %}F{{ image.aperture }}{% endif %}{% if image.shutter_speed %}{% if image.aperture %} - {% endif %}{{ image.shutter_speed }}{% endif %}{% if image.iso %}{% if image.aperture or image.shutter_speed %} - {% endif %}ISO {{ image.iso }}{% endif %}</span>

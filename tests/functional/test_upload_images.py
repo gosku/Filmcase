@@ -14,18 +14,18 @@ FUJIFILM_JPEG = FIXTURES_DIR / "XS105026.JPG"
 class TestUploadImagesView:
 
     def test_rejects_get_requests(self, client, tmp_path):
-        with override_settings(IMAGE_IMPORT_DIR=tmp_path):
+        with override_settings(UPLOAD_DIR=tmp_path):
             response = client.get("/images/upload/")
         assert response.status_code == 405
 
     def test_returns_400_when_no_files(self, client, tmp_path):
-        with override_settings(IMAGE_IMPORT_DIR=tmp_path):
+        with override_settings(UPLOAD_DIR=tmp_path):
             response = client.post("/images/upload/")
         assert response.status_code == 400
         assert "error" in response.json()
 
     def test_processes_valid_fujifilm_jpeg(self, client, tmp_path):
-        with override_settings(IMAGE_IMPORT_DIR=tmp_path):
+        with override_settings(UPLOAD_DIR=tmp_path):
             with FUJIFILM_JPEG.open("rb") as f:
                 response = client.post("/images/upload/", {"images": f})
 
@@ -38,7 +38,7 @@ class TestUploadImagesView:
     def test_skips_non_jpeg_files(self, client, tmp_path):
         fake_txt = io.BytesIO(b"not an image")
         fake_txt.name = "notes.txt"
-        with override_settings(IMAGE_IMPORT_DIR=tmp_path):
+        with override_settings(UPLOAD_DIR=tmp_path):
             response = client.post("/images/upload/", {"images": fake_txt})
 
         assert response.status_code == 200
@@ -50,7 +50,7 @@ class TestUploadImagesView:
         # A valid JPEG header but no Fujifilm EXIF → NoFilmSimulationError
         minimal_jpeg = io.BytesIO(bytes([0xFF, 0xD8, 0xFF, 0xD9]))
         minimal_jpeg.name = "other-brand.jpg"
-        with override_settings(IMAGE_IMPORT_DIR=tmp_path):
+        with override_settings(UPLOAD_DIR=tmp_path):
             response = client.post("/images/upload/", {"images": minimal_jpeg})
 
         assert response.status_code == 200
@@ -58,37 +58,16 @@ class TestUploadImagesView:
         assert "other-brand.jpg" in data["skipped"]
         assert data["processed"] == []
 
-    def test_saves_file_to_import_dir(self, client, tmp_path):
-        with override_settings(IMAGE_IMPORT_DIR=tmp_path):
+    def test_saves_file_to_upload_dir(self, client, tmp_path):
+        with override_settings(UPLOAD_DIR=tmp_path):
             with FUJIFILM_JPEG.open("rb") as f:
                 client.post("/images/upload/", {"images": f})
 
         assert (tmp_path / FUJIFILM_JPEG.name).exists()
 
-    def test_returns_413_when_too_many_files(self, client, tmp_path):
-        files = [io.BytesIO(b"x") for _ in range(51)]
-        for i, f in enumerate(files):
-            f.name = f"img_{i}.jpg"
-        with override_settings(IMAGE_IMPORT_DIR=tmp_path, IMAGE_IMPORT_MAX_FILES=50):
-            response = client.post("/images/upload/", {"images": files})
-        assert response.status_code == 413
-        assert "error" in response.json()
-
-    def test_skips_already_imported_file(self, client, tmp_path):
-        with override_settings(IMAGE_IMPORT_DIR=tmp_path):
-            with FUJIFILM_JPEG.open("rb") as f:
-                client.post("/images/upload/", {"images": f})
-            with FUJIFILM_JPEG.open("rb") as f:
-                response = client.post("/images/upload/", {"images": f})
-
-        data = response.json()
-        assert FUJIFILM_JPEG.name in data["skipped"]
-        assert data["processed"] == []
-        assert len(list(tmp_path.glob("*.JPG"))) == 1
-
     def test_processes_multiple_files(self, client, tmp_path):
         jpeg_files = list(FIXTURES_DIR.glob("*.JPG"))[:2]
-        with override_settings(IMAGE_IMPORT_DIR=tmp_path):
+        with override_settings(UPLOAD_DIR=tmp_path):
             files = [f.open("rb") for f in jpeg_files]
             try:
                 response = client.post("/images/upload/", {"images": files})
