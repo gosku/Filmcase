@@ -232,6 +232,26 @@ For full information on available functionality, see [docs/web_interface.md](doc
 
 ---
 
+## Camera compatibility
+
+The only model this project has been tested on is the **Fujifilm X-S10**. Based on analysis of the PTP property codes used (custom slot registers `0xD18C`–`0xD1A5`), any **X-Trans IV** camera (X-T3, X-T4, X-T30, X-T30 II, X-S10, X100V, X-Pro3, X-E4, X-H1) should work, and **X-Trans V** models (X-T5, X-T50, X-H2, X-H2S, X100VI, X-E5, X-M5) are likely compatible too. Earlier generations (X-Trans III and below) do not implement the custom slot registers and will not work.
+
+If you test on a model not listed here, please open an issue to report the result.
+
+---
+
+## Safety and disclaimer
+
+We have observed experimentally that the camera firmware rejects invalid PTP property values — the X-S10 will not accept out-of-range or malformed writes, so mis-configured recipes should not be applied. That said, **this software is provided as-is, with no warranty of any kind**. We are not responsible for any damage, data loss, or malfunction caused to any camera or device by using this software. Use it at your own risk.
+
+---
+
+## License
+
+This project is licensed under the [GNU General Public License v3.0](LICENSE).
+
+---
+
 ## Developer setup
 
 Install the development dependencies:
