@@ -1,10 +1,11 @@
 from pathlib import Path
 
 import attrs
+from django.conf import settings
 
 from src.data import models
 from src.domain.images.thumbnails import queries as thumbnail_queries
-from src.interfaces import tasks
+from src.services import workertasks
 
 
 @attrs.frozen
@@ -34,7 +35,11 @@ def generate_thumbnails_for_all_images(*, width: int) -> ThumbnailGenerationResu
         if thumbnail_queries.thumbnail_cache_path(original_path=path, width=width).is_file():
             already_cached += 1
             continue
-        tasks.generate_thumbnail_task.apply_async(kwargs={"filepath": image.filepath, "width": width})
+        workertasks.enqueue_task(
+            task_name="src.interfaces.tasks.generate_thumbnail_task",
+            kwargs={"filepath": image.filepath, "width": width},
+            queue=settings.PROCESS_IMAGE_QUEUE,
+        )
         enqueued += 1
 
     return ThumbnailGenerationResult(

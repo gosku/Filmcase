@@ -1,5 +1,7 @@
+from django.conf import settings
+
 from src.domain.images import events, operations, queries
-from src.interfaces import tasks
+from src.services import workertasks
 
 
 def enqueue_images_in_folder(*, folder: str) -> int:
@@ -9,7 +11,11 @@ def enqueue_images_in_folder(*, folder: str) -> int:
     """
     paths = queries.collect_image_paths(folder=folder)
     for path in paths:
-        tasks.process_image_task.apply_async(kwargs={"image_path": path})
+        workertasks.enqueue_task(
+            task_name="src.interfaces.tasks.process_image_task",
+            kwargs={"image_path": path},
+            queue=settings.PROCESS_IMAGE_QUEUE,
+        )
         events.publish_event(event_type=events.TASK_IMAGE_ENQUEUED, image_path=path)
     return len(paths)
 
