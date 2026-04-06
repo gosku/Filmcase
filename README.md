@@ -252,7 +252,9 @@ This project is licensed under the [GNU General Public License v3.0](LICENSE).
 
 ---
 
-## Developer setup
+## Development
+
+### Setup
 
 Install the development dependencies:
 
@@ -267,3 +269,21 @@ pytest
 ```
 
 Tests use `pytest-django`. Configuration is in `pytest.ini`.
+
+### Contributing
+
+Pull requests are welcome. To keep the codebase consistent and maintainable, all contributions must meet the following requirements.
+
+#### Code conventions
+
+All contributions must satisfy the [Octopus Energy public conventions](https://github.com/octoenergy/public-conventions) in full — please read them before opening a PR. Of particular importance is the **layered architecture**: each layer has a well-defined responsibility and dependencies only flow inward. See the [layered approach guide](https://github.com/octoenergy/public-conventions/blob/main/conventions/patterns.md#layered-approach) for details on how to structure new code correctly.
+
+#### Test coverage
+
+Every change must include sufficient test coverage. Tests fall into three categories depending on what is being verified:
+
+- **Functional tests** — end-to-end tests that exercise the application through its public interfaces (views, management commands, API endpoints, celery tasks...).
+- **Integration tests** — tests that cover queries and operations that use the database. Use these to verify persistence logic and ORM behaviour.
+- **Unit tests** — fast, isolated tests for logic edge cases that don't require a database.
+
+Choose the category that fits the scope of the change. Prefer unit tests where the logic can be exercised in isolation; reach for integration or functional tests when the interaction with the database or the full request/response cycle is what matters.
