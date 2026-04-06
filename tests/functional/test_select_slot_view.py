@@ -22,7 +22,7 @@ class TestSelectSlotView:
         assert response.status_code == 200
         soup = BeautifulSoup(response.content, "html.parser")
         assert soup.find(string="Kodak Portra") is not None
-        slot_labels = [el.get_text(strip=True) for el in soup.select(".slot-label")]
+        slot_labels = [el.get_text(strip=True) for el in soup.select(".slot-badge")]
         assert slot_labels == ["C1", "C2", "C3", "C4"]
 
     def test_each_slot_form_posts_to_push_view(self, client):
@@ -31,7 +31,7 @@ class TestSelectSlotView:
         response = client.get(f"/recipes/{recipe.id}/push/")
 
         soup = BeautifulSoup(response.content, "html.parser")
-        forms = soup.select(".slot-form")
+        forms = soup.select("form[action]")
         assert len(forms) == 4
         for form, slot in zip(forms, ["C1", "C2", "C3", "C4"]):
             assert form["action"] == f"/recipes/{recipe.id}/push/{slot}/"
@@ -98,7 +98,7 @@ class TestSelectSlotViewHtmx:
         assert response.status_code == 200
         soup = BeautifulSoup(response.content, "html.parser")
         assert soup.find(string="Kodak Portra") is not None
-        slot_labels = [el.get_text(strip=True) for el in soup.select(".slot-label")]
+        slot_labels = [el.get_text(strip=True) for el in soup.select(".slot-badge")]
         assert slot_labels == ["C1", "C2", "C3", "C4"]
 
     def test_success_slot_buttons_have_hx_post_to_push_view(self, client):
@@ -107,7 +107,7 @@ class TestSelectSlotViewHtmx:
         response = self._get(client, recipe.id)
 
         soup = BeautifulSoup(response.content, "html.parser")
-        buttons = soup.select(".slot-btn")
+        buttons = soup.select(".slot-row")
         assert len(buttons) == 4
         for btn, slot in zip(buttons, ["C1", "C2", "C3", "C4"]):
             assert btn["hx-post"] == f"/recipes/{recipe.id}/push/{slot}/"
