@@ -1,7 +1,8 @@
 from django.db import models
 from django.utils import timezone
 
-from src.domain.images import dataclasses as image_dataclasses
+# Must match src.domain.images.dataclasses.RECIPE_NAME_MAX_LEN
+_RECIPE_NAME_MAX_LEN = 25
 
 RECIPE_FIELDS = (
     "film_simulation",
@@ -71,7 +72,7 @@ RECIPE_FIELDS = (
 
 
 class FujifilmExif(models.Model):
-    name = models.CharField(max_length=image_dataclasses.RECIPE_NAME_MAX_LEN, blank=True, default="")
+    name = models.CharField(max_length=_RECIPE_NAME_MAX_LEN, blank=True, default="")
 
     # Creative / recipe settings
     film_simulation = models.CharField(max_length=100, blank=True, default="")
@@ -166,7 +167,7 @@ class FujifilmExif(models.Model):
 
 
 class FujifilmRecipe(models.Model):
-    name = models.CharField(max_length=image_dataclasses.RECIPE_NAME_MAX_LEN, blank=True, default="")
+    name = models.CharField(max_length=_RECIPE_NAME_MAX_LEN, blank=True, default="")
     film_simulation = models.CharField(max_length=100)
     dynamic_range = models.CharField(max_length=100)
     d_range_priority = models.CharField(max_length=50, default="Off")
