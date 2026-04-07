@@ -1,0 +1,46 @@
+name: Migrations
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  migrations:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: your_db_name
+          POSTGRES_USER: your_db_user
+          POSTGRES_PASSWORD: your_db_password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt -r requirements-dev.txt
+
+      - name: Set up settings
+        run: cp src/config/settings.py.sample src/config/settings.py
+
+      - name: Check no missing migrations
+        run: python manage.py makemigrations --check --dry-run
+
+      - name: Check migrations can be applied
+        run: python manage.py migrate
