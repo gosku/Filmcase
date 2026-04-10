@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+from collections.abc import Mapping, Sequence
+
 import attrs
-from django.db.models import Count, Max, Min
+from django.core import paginator as django_paginator
+from django.db.models import Case, Count, IntegerField, Max, Min, Value, When
 from django.db.models.functions import TruncMonth
 
 from src.data import models
@@ -351,3 +354,123 @@ def get_path_deltas(*, path_ids: list[int]) -> PathDeltaResult:
         path_nodes=tuple(path_nodes),
         missing_ids=missing,
     )
+
+
+@attrs.frozen
+class RecipeData:
+    id: int
+    name: str
+    film_simulation: str
+    dynamic_range: str
+    d_range_priority: str
+    grain_roughness: str
+    grain_size: str
+    color_chrome_effect: str
+    color_chrome_fx_blue: str
+    white_balance: str
+    white_balance_red: int
+    white_balance_blue: int
+    image_count: int
+    highlight: object = None       # Decimal | None
+    shadow: object = None          # Decimal | None
+    color: object = None           # Decimal | None
+    sharpness: object = None       # Decimal | None
+    high_iso_nr: object = None     # Decimal | None
+    clarity: object = None         # Decimal | None
+    monochromatic_color_warm_cool: object = None    # Decimal | None
+    monochromatic_color_magenta_green: object = None  # Decimal | None
+
+
+def _to_recipe_data(recipe: models.FujifilmRecipe) -> RecipeData:
+    return RecipeData(
+        id=recipe.pk,
+        name=recipe.name,
+        film_simulation=recipe.film_simulation,
+        dynamic_range=recipe.dynamic_range,
+        d_range_priority=recipe.d_range_priority,
+        grain_roughness=recipe.grain_roughness,
+        grain_size=recipe.grain_size,
+        color_chrome_effect=recipe.color_chrome_effect,
+        color_chrome_fx_blue=recipe.color_chrome_fx_blue,
+        white_balance=recipe.white_balance,
+        white_balance_red=recipe.white_balance_red,
+        white_balance_blue=recipe.white_balance_blue,
+        image_count=getattr(recipe, "image_count", 0),
+        highlight=recipe.highlight,
+        shadow=recipe.shadow,
+        color=recipe.color,
+        sharpness=recipe.sharpness,
+        high_iso_nr=recipe.high_iso_nr,
+        clarity=recipe.clarity,
+        monochromatic_color_warm_cool=recipe.monochromatic_color_warm_cool,
+        monochromatic_color_magenta_green=recipe.monochromatic_color_magenta_green,
+    )
+
+
+def get_filtered_recipes(
+    *,
+    active_filters: Mapping[str, Sequence[str]],
+) -> list[RecipeData]:
+    """Return all recipes matching the given multi-valued field filters.
+
+    *active_filters* maps recipe field names to lists of allowed values,
+    e.g. ``{"film_simulation": ["Provia", "Classic Chrome"], "grain_roughness": ["Off"]}``.
+    An empty list for a key is ignored (treated as no filter on that field).
+    Pass an empty dict to return all recipes.
+
+    Results are ordered by:
+    1. Image count descending (most-used recipes first).
+    2. Whether the recipe has a name — named recipes before unnamed.
+    3. Primary key ascending as a stable tiebreaker.
+    """
+    qs = models.FujifilmRecipe.objects.annotate(
+        image_count=Count("images"),
+        has_name=Case(
+            When(name="", then=Value(0)),
+            default=Value(1),
+            output_field=IntegerField(),
+        ),
+    )
+    for field, values in active_filters.items():
+        if values:
+            qs = qs.filter(**{f"{field}__in": values})
+    qs = qs.order_by("-image_count", "-has_name", "pk")
+    return [_to_recipe_data(r) for r in qs]
+
+
+@attrs.frozen
+class RecipeListPage:
+    page_obj: object  # Django Page; object_list contains FujifilmRecipe instances
+
+
+def get_recipe_list(
+    *,
+    filters: Mapping[str, object],
+    page_number: int | str,
+    page_size: int,
+) -> RecipeListPage:
+    """Return a paginated list of recipes matching the given field filters.
+
+    *filters* is a mapping of ORM field lookup kwargs (equality by default),
+    e.g. ``{"film_simulation": "Provia"}``.  Pass an empty dict to list all recipes.
+
+    Results are ordered by:
+    1. Image count descending (most-used recipes first).
+    2. Whether the recipe has a name — named recipes before unnamed.
+    3. Primary key ascending as a stable tiebreaker.
+    """
+    qs = (
+        models.FujifilmRecipe.objects
+        .filter(**filters)
+        .annotate(
+            image_count=Count("images"),
+            has_name=Case(
+                When(name="", then=Value(0)),
+                default=Value(1),
+                output_field=IntegerField(),
+            ),
+        )
+        .order_by("-image_count", "-has_name", "pk")
+    )
+    page_obj = django_paginator.Paginator(qs, page_size).get_page(page_number)
+    return RecipeListPage(page_obj=page_obj)
