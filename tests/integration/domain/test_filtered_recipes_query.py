@@ -103,7 +103,7 @@ class TestGetFilteredRecipesOrdering:
         ids = [r.id for r in result]
         assert ids.index(named.pk) < ids.index(unnamed.pk)
 
-    def test_image_count_beats_name(self):
+    def test_name_beats_image_count(self):
         named_few = FujifilmRecipeFactory(name="Named")
         unnamed_many = FujifilmRecipeFactory(name="")
         ImageFactory(fujifilm_recipe=unnamed_many)
@@ -112,7 +112,7 @@ class TestGetFilteredRecipesOrdering:
         result = get_filtered_recipes(active_filters={})
 
         ids = [r.id for r in result]
-        assert ids.index(unnamed_many.pk) < ids.index(named_few.pk)
+        assert ids.index(named_few.pk) < ids.index(unnamed_many.pk)
 
     def test_lower_pk_is_stable_tiebreaker(self):
         first = FujifilmRecipeFactory(name="")

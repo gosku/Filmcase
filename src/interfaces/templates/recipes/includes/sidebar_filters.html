@@ -1,0 +1,21 @@
+<div id="recipe-sidebar-filters"{% if oob %} hx-swap-oob="true"{% endif %}>
+  {% for field, opts in sidebar_options.items %}
+    {% if opts.options %}
+      <div class="filter-group">
+        <label class="filter-label">{{ opts.label }}</label>
+        <div class="filter-checkboxes">
+          {% for option in opts.options %}
+            <label class="filter-option{% if not option.available %} filter-option--unavailable{% endif %}">
+              <input type="checkbox"
+                     name="{{ field }}"
+                     value="{{ option.value }}"
+                     {% if option.selected %}checked{% endif %}>
+              <span class="filter-option-value">{{ option.value }}</span>
+              <span class="filter-option-count">({{ option.count }})</span>
+            </label>
+          {% endfor %}
+        </div>
+      </div>
+    {% endif %}
+  {% endfor %}
+</div>

@@ -247,8 +247,35 @@ class SetRecipeName(generic.View):
         return shortcuts.render(request, "recipes/_recipe_name_row.html", {"recipe": self.recipe})
 
 
+def _recipe_explorer_filters_from_request(request: http.HttpRequest) -> dict[str, list[str]]:
+    return {
+        field: request.GET.getlist(field)
+        for field, _ in filter_queries.RECIPE_FILTER_FIELDS
+        if request.GET.getlist(field)
+    }
+
+
 def recipes_explorer_view(request: http.HttpRequest) -> http.HttpResponse:
-    return shortcuts.render(request, "recipes/recipes_explorer.html")
+    active_filters = _recipe_explorer_filters_from_request(request)
+    gallery = recipe_queries.get_recipe_gallery_data(
+        active_filters=active_filters,
+        page_number=request.GET.get("page", 1),
+        page_size=settings.RECIPE_EXPLORER_PAGE_SIZE,
+    )
+    ctx = {"page_obj": gallery.page_obj, "sidebar_options": gallery.sidebar_options}
+    if request.headers.get("HX-Request"):
+        return shortcuts.render(request, "recipes/partials/htmx_filter_response.html", ctx)
+    return shortcuts.render(request, "recipes/recipes_explorer.html", ctx)
+
+
+def recipes_explorer_results_view(request: http.HttpRequest) -> http.HttpResponse:
+    active_filters = _recipe_explorer_filters_from_request(request)
+    gallery = recipe_queries.get_recipe_gallery_data(
+        active_filters=active_filters,
+        page_number=request.GET.get("page", 1),
+        page_size=settings.RECIPE_EXPLORER_PAGE_SIZE,
+    )
+    return shortcuts.render(request, "recipes/partials/htmx_scroll_response.html", {"page_obj": gallery.page_obj})
 
 
 _RECIPES_GRAPH_DEFAULT_FILM_SIM = "Provia"

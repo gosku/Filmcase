@@ -4,10 +4,13 @@ from collections.abc import Mapping, Sequence
 
 import attrs
 from django.core import paginator as django_paginator
-from django.db.models import Case, Count, IntegerField, Max, Min, Value, When
+from django.db import models as db_models
+from django.db.models import Case, Count, IntegerField, Max, Min, OuterRef, Subquery, Value, When
 from django.db.models.functions import TruncMonth
 
 from src.data import models
+from src.domain.images import filter_queries
+from src.domain.recipes.constants import FILM_SIM_LOGO
 from src.domain.images import dataclasses as image_dataclasses
 
 
@@ -371,14 +374,16 @@ class RecipeData:
     white_balance_red: int
     white_balance_blue: int
     image_count: int
-    highlight: object = None       # Decimal | None
-    shadow: object = None          # Decimal | None
-    color: object = None           # Decimal | None
-    sharpness: object = None       # Decimal | None
-    high_iso_nr: object = None     # Decimal | None
-    clarity: object = None         # Decimal | None
-    monochromatic_color_warm_cool: object = None    # Decimal | None
+    highlight: object = None                       # Decimal | None
+    shadow: object = None                          # Decimal | None
+    color: object = None                           # Decimal | None
+    sharpness: object = None                       # Decimal | None
+    high_iso_nr: object = None                     # Decimal | None
+    clarity: object = None                         # Decimal | None
+    monochromatic_color_warm_cool: object = None   # Decimal | None
     monochromatic_color_magenta_green: object = None  # Decimal | None
+    cover_image_id: int | None = None              # most popular image for card background
+    film_sim_logo_filename: str | None = None      # from FILM_SIM_LOGO mapping
 
 
 def _to_recipe_data(recipe: models.FujifilmRecipe) -> RecipeData:
@@ -404,6 +409,8 @@ def _to_recipe_data(recipe: models.FujifilmRecipe) -> RecipeData:
         clarity=recipe.clarity,
         monochromatic_color_warm_cool=recipe.monochromatic_color_warm_cool,
         monochromatic_color_magenta_green=recipe.monochromatic_color_magenta_green,
+        cover_image_id=getattr(recipe, "cover_image_id", None),
+        film_sim_logo_filename=FILM_SIM_LOGO.get(recipe.film_simulation),
     )
 
 
@@ -419,8 +426,8 @@ def get_filtered_recipes(
     Pass an empty dict to return all recipes.
 
     Results are ordered by:
-    1. Image count descending (most-used recipes first).
-    2. Whether the recipe has a name — named recipes before unnamed.
+    1. Whether the recipe has a name — named recipes before unnamed.
+    2. Image count descending (most-used recipes first).
     3. Primary key ascending as a stable tiebreaker.
     """
     qs = models.FujifilmRecipe.objects.annotate(
@@ -434,8 +441,135 @@ def get_filtered_recipes(
     for field, values in active_filters.items():
         if values:
             qs = qs.filter(**{f"{field}__in": values})
-    qs = qs.order_by("-image_count", "-has_name", "pk")
+    qs = qs.order_by("-has_name", "-image_count", "pk")
     return [_to_recipe_data(r) for r in qs]
+
+
+def get_recipe_sidebar_filter_options(
+    *,
+    active_filters: Mapping[str, Sequence[str]],
+) -> dict[str, dict]:
+    """Return faceted filter options for the recipe explorer sidebar.
+
+    For each field in RECIPE_FILTER_FIELDS, counts the number of recipes matching
+    that field value while applying all OTHER active filters (faceted search).
+    Counts represent recipes, not images.
+    """
+    result = {}
+    for field, label in filter_queries.RECIPE_FILTER_FIELDS:
+        model_field = models.FujifilmRecipe._meta.get_field(field)
+        is_integer = isinstance(model_field, db_models.IntegerField)
+
+        base_qs = models.FujifilmRecipe.objects.all()
+        for other_field, values in active_filters.items():
+            if other_field == field or not values:
+                continue
+            base_qs = base_qs.filter(**{f"{other_field}__in": values})
+        if is_integer:
+            base_qs = base_qs.exclude(**{f"{field}__isnull": True})
+        else:
+            base_qs = base_qs.exclude(**{field: ""})
+
+        available_counts: dict[str, int] = {
+            str(row[field]): row["count"]
+            for row in base_qs.values(field).annotate(count=Count("pk"))
+        }
+        selected_values = active_filters.get(field, [])
+        all_values: set[str] = set(available_counts) | set(selected_values)
+
+        if is_integer:
+            def _sort_key(v: str) -> tuple:
+                try:
+                    return (0 if v in available_counts else 1, int(v))
+                except (ValueError, TypeError):
+                    return (0 if v in available_counts else 1, 0)
+            sorted_values = sorted(all_values, key=_sort_key)
+        else:
+            sorted_values = sorted(
+                all_values,
+                key=lambda v: (0 if v in available_counts else 1, v),
+            )
+
+        result[field] = {
+            "label": label,
+            "options": [
+                {
+                    "value": v,
+                    "count": available_counts.get(v, 0),
+                    "available": v in available_counts,
+                    "selected": v in selected_values,
+                }
+                for v in sorted_values
+            ],
+            "selected": selected_values,
+        }
+    return result
+
+
+@attrs.frozen
+class RecipeGalleryPage:
+    items: tuple[RecipeData, ...]
+    has_next: bool
+    next_page_number: int | None  # None when has_next is False
+    has_previous: bool
+    number: int
+
+
+@attrs.frozen
+class RecipeGalleryData:
+    page_obj: RecipeGalleryPage
+    sidebar_options: dict
+
+
+def get_recipe_gallery_data(
+    *,
+    active_filters: Mapping[str, Sequence[str]],
+    page_number: int | str,
+    page_size: int,
+) -> RecipeGalleryData:
+    """Return all data needed to render the recipe explorer page.
+
+    Filters recipes by *active_filters* (multi-valued field lookups), annotates
+    each with its image count and the ID of its most popular image (for the card
+    background), paginates, and returns domain value objects — no ORM models escape.
+
+    Results are ordered by:
+    1. Whether the recipe has a name — named recipes before unnamed.
+    2. Image count descending (most-used recipes first).
+    3. Primary key ascending as a stable tiebreaker.
+    """
+    cover_subquery = (
+        models.Image.objects
+        .filter(fujifilm_recipe=OuterRef("pk"))
+        .order_by("-rating", "-taken_at", "id")
+        .values("id")[:1]
+    )
+    qs = models.FujifilmRecipe.objects.annotate(
+        image_count=Count("images"),
+        has_name=Case(
+            When(name="", then=Value(0)),
+            default=Value(1),
+            output_field=IntegerField(),
+        ),
+        cover_image_id=Subquery(cover_subquery),
+    )
+    for field, values in active_filters.items():
+        if values:
+            qs = qs.filter(**{f"{field}__in": values})
+    qs = qs.order_by("-has_name", "-image_count", "pk")
+
+    raw_page = django_paginator.Paginator(qs, page_size).get_page(page_number)
+    page = RecipeGalleryPage(
+        items=tuple(_to_recipe_data(r) for r in raw_page.object_list),
+        has_next=raw_page.has_next(),
+        next_page_number=raw_page.next_page_number() if raw_page.has_next() else None,
+        has_previous=raw_page.has_previous(),
+        number=raw_page.number,
+    )
+    return RecipeGalleryData(
+        page_obj=page,
+        sidebar_options=get_recipe_sidebar_filter_options(active_filters=active_filters),
+    )
 
 
 @attrs.frozen
@@ -455,8 +589,8 @@ def get_recipe_list(
     e.g. ``{"film_simulation": "Provia"}``.  Pass an empty dict to list all recipes.
 
     Results are ordered by:
-    1. Image count descending (most-used recipes first).
-    2. Whether the recipe has a name — named recipes before unnamed.
+    1. Whether the recipe has a name — named recipes before unnamed.
+    2. Image count descending (most-used recipes first).
     3. Primary key ascending as a stable tiebreaker.
     """
     qs = (
@@ -470,7 +604,7 @@ def get_recipe_list(
                 output_field=IntegerField(),
             ),
         )
-        .order_by("-image_count", "-has_name", "pk")
+        .order_by("-has_name", "-image_count", "pk")
     )
     page_obj = django_paginator.Paginator(qs, page_size).get_page(page_number)
     return RecipeListPage(page_obj=page_obj)

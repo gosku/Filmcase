@@ -1,0 +1,15 @@
+<div id="recipe-load-more-sentinel">
+  {% if page_obj.has_next %}
+  <div class="infinite-scroll-sentinel"
+       hx-get="{% url 'recipes-explorer-partial-results' %}"
+       hx-include="#recipe-filter-form"
+       hx-vals='{"page": "{{ page_obj.next_page_number }}"}'
+       hx-trigger="intersect root:.recipe-gallery-scroll"
+       hx-target="#recipe-load-more-sentinel"
+       hx-swap="outerHTML">
+  </div>
+  {% endif %}
+</div>
+<div hx-swap-oob="beforeend:#recipe-gallery-results">
+  {% include "recipes/includes/recipe_results.html" %}
+</div>

@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Recipes</title>
+  <script src="https://unpkg.com/htmx.org@2.0.4" integrity="sha384-HGfztofotfshcF7+8n44JQL2oJmowVChPTg48S+jvZoztPfvwD79OC/LTtG6dMp+" crossorigin="anonymous"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { display: flex; flex-direction: column; font-family: sans-serif; height: 100vh; overflow: hidden; }
@@ -67,6 +68,87 @@
       border-color: #2db37a;
     }
 
+    .clear-filters-btn {
+      display: block;
+      width: 100%;
+      padding: 0.35rem 0.5rem;
+      margin-bottom: 1.2rem;
+      background: none;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      font-size: 0.8rem;
+      color: #666;
+      cursor: pointer;
+      text-align: center;
+      text-decoration: none;
+    }
+
+    .clear-filters-btn:hover {
+      background: #f0f0f0;
+      color: #333;
+    }
+
+    .filter-group {
+      margin-bottom: 1.2rem;
+    }
+
+    .filter-label {
+      display: block;
+      font-weight: 600;
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: #444;
+      margin-bottom: 0.35rem;
+    }
+
+    .filter-checkboxes {
+      display: flex;
+      flex-direction: column;
+      gap: 0.15rem;
+      max-height: 180px;
+      overflow-y: auto;
+    }
+
+    .filter-option {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      font-size: 0.85rem;
+      cursor: pointer;
+      padding: 0.1rem 0.2rem;
+      border-radius: 3px;
+      color: #333;
+      user-select: none;
+    }
+
+    .filter-option:hover { background: #f0f0f0; }
+
+    .filter-option--unavailable {
+      color: #bbb;
+    }
+
+    .filter-option--unavailable input[type="checkbox"] {
+      opacity: 0.4;
+    }
+
+    .filter-option-value {
+      flex: 1;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .filter-option-count {
+      font-size: 0.75rem;
+      color: #999;
+      flex-shrink: 0;
+    }
+
+    .filter-option--unavailable .filter-option-count {
+      color: #ccc;
+    }
+
     .main {
       flex: 1;
       min-width: 0;
@@ -75,17 +157,95 @@
       overflow: hidden;
     }
 
-    .section-header {
+    .gallery-header {
       display: flex;
       align-items: center;
-      gap: 1rem;
-      padding: 0.75rem 1.5rem;
-      background: #fff;
-      border-bottom: 1px solid #e0e0e0;
+      padding: 2rem 2rem 1rem;
       flex-shrink: 0;
     }
 
-    .section-header h1 { font-size: 1rem; font-weight: 600; color: #222; }
+    .gallery-header h1 {
+      font-size: 1.5rem;
+      color: #222;
+    }
+
+    .recipe-gallery-scroll {
+      flex: 1;
+      overflow-y: auto;
+      padding: 0 2rem 2rem;
+    }
+
+    #recipe-gallery-results {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1rem;
+    }
+
+    .infinite-scroll-sentinel {
+      height: 300px;
+      visibility: hidden;
+      pointer-events: none;
+    }
+
+    .recipe-card {
+      position: relative;
+      height: 260px;
+      border-radius: 8px;
+      overflow: hidden;
+      background: #1a1a1a no-repeat center/cover;
+    }
+
+    .recipe-card__overlay {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
+      padding: 0.75rem;
+      background: linear-gradient(to top, rgba(0,0,0,0.72) 0%, transparent 55%);
+    }
+
+    .recipe-card__bottom {
+      display: flex;
+      align-items: flex-end;
+      gap: 0.5rem;
+    }
+
+    .recipe-card__logo {
+      width: 46.4px;
+      height: 46.4px;
+      flex-shrink: 0;
+      object-fit: contain;
+      filter: drop-shadow(0 1px 2px rgba(0,0,0,0.6));
+    }
+
+    .recipe-card__info {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .recipe-card__name {
+      display: block;
+      color: #fff;
+      font-weight: 700;
+      font-size: 1.2rem;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .recipe-card__count {
+      display: block;
+      color: rgba(255,255,255,0.75);
+      font-size: 0.75rem;
+      margin-top: 0.15rem;
+    }
+
+    .no-results {
+      grid-column: 1 / -1;
+      color: #888;
+      font-style: italic;
+    }
   </style>
 </head>
 <body>
@@ -100,11 +260,36 @@
       <a class="sidebar-nav__link sidebar-nav__link--active">Explorer</a>
       <a href="{% url 'recipes-graph' %}" class="sidebar-nav__link">Graph</a>
     </nav>
+    <a href="{% url 'recipes-explorer' %}" class="clear-filters-btn">Clear all filters</a>
+    <form id="recipe-filter-form"
+          hx-get="{% url 'recipes-explorer' %}"
+          hx-trigger="change"
+          hx-target="#recipe-gallery-results"
+          hx-push-url="true">
+      {% include "recipes/includes/sidebar_filters.html" %}
+    </form>
   </aside>
 
   <main class="main">
-    <div class="section-header">
+    <div class="gallery-header">
       <h1>Explorer</h1>
+    </div>
+    <div class="recipe-gallery-scroll">
+      <div id="recipe-gallery-results" class="recipe-grid">
+        {% include "recipes/includes/recipe_results.html" %}
+      </div>
+      <div id="recipe-load-more-sentinel">
+        {% if page_obj.has_next %}
+        <div class="infinite-scroll-sentinel"
+             hx-get="{% url 'recipes-explorer-partial-results' %}"
+             hx-include="#recipe-filter-form"
+             hx-vals='{"page": "{{ page_obj.next_page_number }}"}'
+             hx-trigger="intersect root:.recipe-gallery-scroll"
+             hx-target="#recipe-load-more-sentinel"
+             hx-swap="outerHTML">
+        </div>
+        {% endif %}
+      </div>
     </div>
   </main>
 

@@ -1,0 +1,22 @@
+{% for recipe in page_obj.items %}
+<article class="recipe-card"
+         style="{% if recipe.cover_image_id %}background-image: url('/images/file/{{ recipe.cover_image_id }}/?width=600');{% endif %}">
+  <div class="recipe-card__overlay">
+    <div class="recipe-card__bottom">
+      {% if recipe.film_sim_logo_filename %}
+        <img class="recipe-card__logo"
+             src="/static/images/{{ recipe.film_sim_logo_filename }}"
+             alt="{{ recipe.film_simulation }}">
+      {% endif %}
+      <div class="recipe-card__info">
+        <span class="recipe-card__name">
+          {% if recipe.name %}{{ recipe.name }}{% else %}{{ recipe.film_simulation }} #{{ recipe.id }}{% endif %}
+        </span>
+        <span class="recipe-card__count">{{ recipe.image_count }} image{{ recipe.image_count|pluralize }}</span>
+      </div>
+    </div>
+  </div>
+</article>
+{% empty %}
+  <p class="no-results">No recipes match the selected filters.</p>
+{% endfor %}

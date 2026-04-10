@@ -74,7 +74,7 @@ class TestGetRecipeListOrdering:
         ids = [r.pk for r in result.page_obj.object_list]
         assert ids.index(named.pk) < ids.index(unnamed.pk)
 
-    def test_image_count_beats_name(self):
+    def test_name_beats_image_count(self):
         named_few = FujifilmRecipeFactory(name="Named")
         unnamed_many = FujifilmRecipeFactory(name="")
         ImageFactory(fujifilm_recipe=unnamed_many)
@@ -83,7 +83,7 @@ class TestGetRecipeListOrdering:
         result = get_recipe_list(filters={}, page_number=1, page_size=50)
 
         ids = [r.pk for r in result.page_obj.object_list]
-        assert ids.index(unnamed_many.pk) < ids.index(named_few.pk)
+        assert ids.index(named_few.pk) < ids.index(unnamed_many.pk)
 
     def test_lower_pk_is_stable_tiebreaker(self):
         first = FujifilmRecipeFactory(name="")
