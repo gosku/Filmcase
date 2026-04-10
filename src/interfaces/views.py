@@ -6,6 +6,7 @@ from typing import Any
 from pathlib import Path
 
 from django.conf import settings
+from django.utils.html import escape
 from django.core import paginator as django_paginator
 from django import http
 from django import shortcuts
@@ -13,6 +14,7 @@ from django.views import generic
 from django.views.decorators import http as http_decorators
 
 from src.application.usecases.camera import get_camera_slots as get_camera_slots_uc
+from src.application.usecases.images import process_images as process_images_uc
 from src.application.usecases.camera import push_recipe as push_recipe_uc
 from src.application.usecases.recipes import build_graph as build_graph_uc
 from src.application.usecases.recipes import create_recipe_card as create_recipe_card_uc
@@ -278,6 +280,68 @@ def _recipe_explorer_filters_from_request(request: http.HttpRequest) -> dict[str
         for field, _ in filter_queries.RECIPE_FILTER_FIELDS
         if request.GET.getlist(field)
     }
+
+
+def import_folder_suggest_view(request):
+    partial = request.GET.get("folder", "")
+    if not partial:
+        return http.HttpResponse("")
+    path = Path(partial)
+    if partial.endswith("/") or (path.exists() and path.is_dir()):
+        parent, prefix = path, ""
+    else:
+        parent, prefix = path.parent, path.name.lower()
+    if not parent.is_dir():
+        return http.HttpResponse("")
+    try:
+        matches = sorted(
+            entry
+            for entry in parent.iterdir()
+            if entry.is_dir() and not entry.name.startswith(".") and entry.name.lower().startswith(prefix)
+        )
+    except PermissionError:
+        return http.HttpResponse("")
+    items = "".join(
+        f'<li class="import-suggestion" tabindex="-1" role="option" data-value="{escape(str(m))}">'
+        f'<span class="import-suggestion__name">{escape(m.name)}</span>'
+        f'<span class="import-suggestion__parent">{escape(str(m.parent))}</span>'
+        f'</li>'
+        for m in matches[:15]
+    )
+    return http.HttpResponse(items)
+
+
+class ImportFolderView(generic.View):
+    def post(self, request):
+        is_htmx = request.headers.get("HX-Request")
+        folder = request.POST.get("folder", "").strip()
+
+        def _render_error(msg):
+            ctx = {"error": msg, "folder": folder}
+            if is_htmx:
+                return shortcuts.render(request, "images/_import_result_partial.html", ctx)
+            return shortcuts.render(request, "images/import.html", ctx)
+
+        if not folder:
+            return _render_error("Please enter a folder path.")
+
+        path = Path(folder)
+        if not path.exists():
+            return _render_error(f"Path does not exist: {folder}")
+        if not path.is_dir():
+            return _render_error(f"Path is not a directory: {folder}")
+
+        try:
+            total, skipped = process_images_uc.process_images_in_folder(folder=folder)
+        except Exception:
+            structlog.get_logger().exception("Unexpected error in ImportFolderView.post")
+            return _render_error("An unexpected error occurred. Please try again.")
+
+        imported = total - len(skipped)
+        ctx = {"imported": imported, "skipped": len(skipped), "folder": folder}
+        if is_htmx:
+            return shortcuts.render(request, "images/_import_result_partial.html", ctx)
+        return shortcuts.render(request, "images/import.html", ctx)
 
 
 def recipes_explorer_view(request: http.HttpRequest) -> http.HttpResponse:
