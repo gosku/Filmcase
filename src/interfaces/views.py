@@ -283,30 +283,13 @@ def _recipe_explorer_filters_from_request(request: http.HttpRequest) -> dict[str
 
 
 def import_folder_suggest_view(request):
-    partial = request.GET.get("folder", "")
-    if not partial:
-        return http.HttpResponse("")
-    path = Path(partial)
-    if partial.endswith("/") or (path.exists() and path.is_dir()):
-        parent, prefix = path, ""
-    else:
-        parent, prefix = path.parent, path.name.lower()
-    if not parent.is_dir():
-        return http.HttpResponse("")
-    try:
-        matches = sorted(
-            entry
-            for entry in parent.iterdir()
-            if entry.is_dir() and not entry.name.startswith(".") and entry.name.lower().startswith(prefix)
-        )
-    except PermissionError:
-        return http.HttpResponse("")
+    matches = image_queries.suggest_subdirectories(partial=request.GET.get("folder", ""))
     items = "".join(
         f'<li class="import-suggestion" tabindex="-1" role="option" data-value="{escape(str(m))}">'
         f'<span class="import-suggestion__name">{escape(m.name)}</span>'
         f'<span class="import-suggestion__parent">{escape(str(m.parent))}</span>'
         f'</li>'
-        for m in matches[:15]
+        for m in matches
     )
     return http.HttpResponse(items)
 
@@ -320,19 +303,15 @@ class ImportFolderView(generic.View):
             ctx = {"error": msg, "folder": folder}
             if is_htmx:
                 return shortcuts.render(request, "images/_import_result_partial.html", ctx)
-            return shortcuts.render(request, "images/import.html", ctx)
+            return shortcuts.redirect("gallery")
 
         if not folder:
             return _render_error("Please enter a folder path.")
 
-        path = Path(folder)
-        if not path.exists():
-            return _render_error(f"Path does not exist: {folder}")
-        if not path.is_dir():
-            return _render_error(f"Path is not a directory: {folder}")
-
         try:
             total, skipped = process_images_uc.process_images_in_folder(folder=folder)
+        except process_images_uc.InvalidFolderError:
+            return _render_error(f"Path does not exist or is not a directory: {folder}")
         except Exception:
             structlog.get_logger().exception("Unexpected error in ImportFolderView.post")
             return _render_error("An unexpected error occurred. Please try again.")
@@ -341,7 +320,7 @@ class ImportFolderView(generic.View):
         ctx = {"imported": imported, "skipped": len(skipped), "folder": folder}
         if is_htmx:
             return shortcuts.render(request, "images/_import_result_partial.html", ctx)
-        return shortcuts.render(request, "images/import.html", ctx)
+        return shortcuts.redirect("gallery")
 
 
 def recipes_explorer_view(request: http.HttpRequest) -> http.HttpResponse:

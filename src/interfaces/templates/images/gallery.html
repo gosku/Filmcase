@@ -502,8 +502,8 @@
 
     .import-modal__close {
       flex-shrink: 0;
-      width: 1.75rem;
-      height: 1.75rem;
+      width: 2.75rem;
+      height: 2.75rem;
       border-radius: 50%;
       border: none;
       background: transparent;
@@ -751,7 +751,7 @@
 <main class="main">
   <div class="gallery-header">
     <h1>Images</h1>
-    <button class="import-trigger-btn" onclick="openImportOverlay()">Import</button>
+    <button class="import-trigger-btn" onclick="openImportOverlay()">Add Image</button>
   </div>
   <div class="gallery-scroll">
     <div id="gallery-results">
@@ -780,7 +780,7 @@
 <div id="import-overlay" hidden>
   <div class="import-modal" role="dialog" aria-modal="true" aria-labelledby="import-modal-title">
     <div class="import-modal__header" id="import-modal-drag-handle">
-      <p id="import-modal-title" class="import-modal__title">Import images</p>
+      <h2 id="import-modal-title" class="import-modal__title">Import images</h2>
       <button class="import-modal__close" onclick="closeImportOverlay()" aria-label="Close">&#x2715;</button>
     </div>
     <div class="import-modal__body">
@@ -896,7 +896,10 @@
   }());
 
   // Import overlay logic.
+  var _importTriggerEl = null;
+
   function openImportOverlay() {
+    _importTriggerEl = document.activeElement;
     var overlay = document.getElementById('import-overlay');
     var modal = overlay.querySelector('.import-modal');
     // Reset to centered position each time it opens.
@@ -914,10 +917,30 @@
     var list = document.getElementById('import-dir-suggestions');
     list.hidden = true;
     list.innerHTML = '';
+    if (_importTriggerEl) { _importTriggerEl.focus(); _importTriggerEl = null; }
   }
 
   document.getElementById('import-overlay').addEventListener('click', function (e) {
     if (e.target === this) closeImportOverlay();
+  });
+
+  // Focus trap: keep Tab within the modal while it is open.
+  document.addEventListener('keydown', function (e) {
+    if (e.key !== 'Tab') return;
+    var overlay = document.getElementById('import-overlay');
+    if (overlay.hidden) return;
+    var modal = overlay.querySelector('.import-modal');
+    var focusable = Array.from(modal.querySelectorAll(
+      'a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
+    )).filter(function (el) { return !el.closest('[hidden]'); });
+    if (focusable.length === 0) return;
+    var first = focusable[0];
+    var last = focusable[focusable.length - 1];
+    if (e.shiftKey) {
+      if (document.activeElement === first) { e.preventDefault(); last.focus(); }
+    } else {
+      if (document.activeElement === last) { e.preventDefault(); first.focus(); }
+    }
   });
 
   // Drag logic — initiated from the header handle.
@@ -950,7 +973,7 @@
     document.addEventListener('mouseup', function () { isDragging = false; });
   }());
 
-  // Autocomplete suggestions — custom dropdown replacing native datalist.
+  // Path autocomplete suggestions 
   (function () {
     var input = document.getElementById('import-folder-input');
     var list  = document.getElementById('import-dir-suggestions');
@@ -965,19 +988,16 @@
       input.focus();
     }
 
-    // Show list after HTMX populates it.
     document.body.addEventListener('htmx:afterSwap', function (e) {
       if (e.detail.target.id !== 'import-dir-suggestions') return;
       list.hidden = list.children.length === 0;
     });
 
-    // Click to select.
     list.addEventListener('click', function (e) {
       var item = e.target.closest('.import-suggestion');
       if (item) selectSuggestion(item);
     });
 
-    // Keyboard navigation from the input.
     input.addEventListener('keydown', function (e) {
       if (list.hidden) return;
       if (e.key === 'ArrowDown') {
@@ -987,11 +1007,9 @@
       }
       if (e.key === 'Escape') {
         hideSuggestions();
-        e.stopPropagation(); // don't also close the modal
       }
     });
 
-    // Keyboard navigation within the list.
     list.addEventListener('keydown', function (e) {
       var focused = document.activeElement;
       if (e.key === 'ArrowDown') {
@@ -1014,13 +1032,12 @@
       }
     });
 
-    // Close when clicking outside the input wrapper.
+    // Close when clicking outside the input window.
     document.addEventListener('click', function (e) {
       if (!e.target.closest('.import-modal__input-wrap')) hideSuggestions();
     });
   }());
 
-  // Slot overlay logic.
   var _slotSpinnerHTML = '<div class="slot-card slot-card--loading"><div class="slot-spinner"></div></div>';
   var _slotPushLoadingHTML = '<div class="slot-push-loading"><div class="slot-spinner-large"></div></div>';
 
@@ -1044,7 +1061,6 @@
     if (e.target === this) closeSlotOverlay();
   });
 
-  // Detail overlay logic.
   var _galleryUrl = null;
 
   function closeDetail() {

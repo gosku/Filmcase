@@ -4,6 +4,10 @@ from src.domain.images import events, operations, queries
 from src.services import workertasks
 
 
+class InvalidFolderError(Exception):
+    """Raised when the supplied folder path is not a valid directory."""
+
+
 def import_images_from_folder(*, folder: str) -> int:
     """Process all JPG images in *folder*, dispatching async or sync based on settings.
 
@@ -36,8 +40,14 @@ def _process_images_in_folder(*, folder: str) -> tuple[int, list[str]]:
 
     Returns:
         A tuple of (total_found, skipped_paths).
+
+    Raises:
+        InvalidFolderError: If *folder* does not exist or is not a directory.
     """
-    paths = queries.collect_image_paths(folder=folder)
+    try:
+        paths = queries.collect_image_paths(folder=folder)
+    except FileNotFoundError as exc:
+        raise InvalidFolderError(folder) from exc
     skipped = []
     for path in paths:
         try:

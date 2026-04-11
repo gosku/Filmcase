@@ -94,7 +94,10 @@ def process_image(*, image_path: str) -> models.Image:
     exif_fields.pop("date_taken")
     recipe_fields = {field: exif_fields.pop(field) for field in models.RECIPE_FIELDS}
 
-    fujifilm_exif = models.FujifilmExif.get_or_create(**recipe_fields)
+    try:
+        fujifilm_exif = models.FujifilmExif.get_or_create(**recipe_fields)
+    except models.FujifilmExif.MultipleObjectsReturned:
+        fujifilm_exif = models.FujifilmExif.objects.filter(**recipe_fields).first()
 
     fujifilm_recipe = recipe_operations.get_or_create_recipe_from_metadata(metadata=metadata)
 
