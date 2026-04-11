@@ -123,7 +123,7 @@ def process_image(*, image_path: str) -> models.Image:
         dynamic_range=recipe_data.dynamic_range or "",
         d_range_priority=recipe_data.d_range_priority,
         grain_roughness=recipe_data.grain_roughness,
-        grain_size=recipe_data.grain_size or "",
+        grain_size=recipe_data.grain_size if recipe_data.grain_size is not None else "Off",
         color_chrome_effect=recipe_data.color_chrome_effect,
         color_chrome_fx_blue=recipe_data.color_chrome_fx_blue,
         white_balance=recipe_data.white_balance,
