@@ -54,3 +54,25 @@ class TestGenerateThumbnailsCommand:
         captured = capsys.readouterr()
         assert "already_cached=1" in captured.out
         assert "enqueued=0" in captured.out
+
+
+@pytest.mark.django_db
+class TestGenerateThumbnailsCommandSync:
+    def test_generates_thumbnail_sequentially(self, tmp_path, capsys):
+        ImageFactory(filename="XS107114.JPG", filepath=str(FIXTURE_IMAGE))
+
+        with override_settings(THUMBNAIL_CACHE_DIR=tmp_path, USE_ASYNC_TASKS=False):
+            call_command("generate_thumbnails")
+
+        captured = capsys.readouterr()
+        assert "enqueued=1" in captured.out
+        assert "already_cached=0" in captured.out
+
+    def test_thumbnail_file_is_created_synchronously(self, tmp_path):
+        ImageFactory(filename="XS107114.JPG", filepath=str(FIXTURE_IMAGE))
+
+        with override_settings(THUMBNAIL_CACHE_DIR=tmp_path, USE_ASYNC_TASKS=False):
+            call_command("generate_thumbnails")
+            expected = thumbnail_cache_path(original_path=FIXTURE_IMAGE, width=THUMBNAIL_WIDTH)
+
+        assert expected.is_file()

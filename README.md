@@ -21,32 +21,70 @@ Read more about it in our [documentation index](docs/index.md).
 
 ## Installation
 
-### Automated setup (recommended)
+Two installation modes are available depending on your needs:
 
-Run the setup script to install all system dependencies (Python, PostgreSQL, Memcached, RabbitMQ, libusb), then use `make` to complete the project setup:
+| | Lite (user-only) | Full (developer) |
+|---|---|---|
+| **Database** | SQLite (file, no server) | PostgreSQL |
+| **Broker / worker** | None | RabbitMQ + Celery |
+| **Image processing** | Sequential (one at a time) | Parallel (N workers) |
+| **OS services to install** | None | PostgreSQL, RabbitMQ |
+| **Best for** | Personal use, small libraries | Development, large collections |
+
+### Lite install (recommended for personal use)
+
+No system services required. Python 3.11+ and `libusb` are the only prerequisites.
+
+**Install Python and libusb:**
+
+- **macOS:** `brew install python libusb`
+- **Ubuntu:** `sudo apt install python3 python3-pip python3-venv libusb-1.0-0`
+
+**Clone and set up the project:**
 
 ```bash
-./setup.sh   # installs system deps, creates the DB user and database
-make setup   # creates venv, installs pip deps, copies settings, runs migrations
+git clone <repo-url>
+cd film_simulations_reader
+make setup-lite   # creates venv, installs deps, generates SQLite config, runs migrations
+make run          # start the development server
 ```
 
-Both steps are idempotent — re-running them skips anything already in place.
+Images are processed sequentially when you run `python manage.py process_images`. No
+background worker is needed.
 
-Once done:
+---
+
+### Full install (for development and large collections)
+
+Parallel image processing via Celery. Requires PostgreSQL and RabbitMQ.
+
+**Install system dependencies:**
 
 ```bash
-make run     # start the development server
-make test    # run the test suite
-make worker  # start a Celery worker (for async image processing)
+./setup.sh full   # installs Python, PostgreSQL, RabbitMQ, libusb, exiftool (macOS and Ubuntu)
+```
+
+This script is idempotent — re-running it skips anything already in place.
+
+**Set up the project:**
+
+```bash
+make setup-full   # creates venv, installs deps, generates PostgreSQL config, runs migrations
+```
+
+**Start the server and worker:**
+
+```bash
+make run      # start the Django development server
+make worker   # start a Celery worker for parallel image processing
+make test     # run the test suite
 ```
 
 ---
 
 ### Manual setup
 
-Follow the steps below if you prefer to install dependencies individually or need to customise any part of the process.
-
-### Pre-requirements
+Follow the steps below if you prefer to install dependencies individually.
 
 #### Python & pip
 
@@ -60,7 +98,7 @@ Python 3.11+ is required.
 - **macOS:** `brew install libusb`
 - **Ubuntu:** `sudo apt install libusb-1.0-0`
 
-#### PostgreSQL
+#### PostgreSQL (full install only)
 
 - **macOS:**
 
@@ -103,14 +141,14 @@ Python 3.11+ is required.
 - **macOS:** `brew install exiftool`
 - **Ubuntu:** `sudo apt install libimage-exiftool-perl`
 
-#### RabbitMQ (only required for async image processing with Celery)
+#### RabbitMQ (full install only)
 
 - **macOS:** `brew install rabbitmq && brew services start rabbitmq`
 - **Ubuntu:** `sudo apt install rabbitmq-server && sudo systemctl start rabbitmq-server`
 
 ---
 
-### Project setup
+### Project setup (manual)
 
 1. **Clone the repository:**
 
@@ -119,14 +157,7 @@ Python 3.11+ is required.
    cd film_simulations_reader
    ```
 
-2. **Create and activate a virtual environment** (using `virtualenvwrapper`):
-
-   ```bash
-   mkvirtualenv film_simulations_reader
-   workon film_simulations_reader
-   ```
-
-   Or with plain `venv`:
+2. **Create and activate a virtual environment:**
 
    ```bash
    python -m venv .venv
@@ -139,13 +170,12 @@ Python 3.11+ is required.
    pip install -r requirements.txt
    ```
 
-4. **Configure the database**: First, copy the sample settings file:
+4. **Generate the settings file** — choose one:
 
    ```bash
-   cp src/config/settings.py.sample src/config/settings.py
+   make env       # full stack defaults (PostgreSQL, Celery)
+   make env-lite  # SQLite, sequential processing
    ```
-
-   Then edit `src/config/settings.py` to set your PostgreSQL credentials if they differ from the defaults (`fujifilm_recipes` / `fujifilm_recipes`).
 
 5. **Apply migrations:**
    ```bash
@@ -156,35 +186,20 @@ Python 3.11+ is required.
 
 ## Processing your image catalog
 
-Before using the web interface, you need to process your images so their EXIF data and recipe information are stored in the database. Point `IMAGE_DIR` at the root of your image folder.
-
-### Async (recommended — requires Celery + RabbitMQ)
-
-This is faster as images are processed in parallel by Celery workers.
-
-Start a Celery worker in a separate terminal:
+Before using the web interface, you need to process your images so their EXIF data and recipe information are stored in the database.
 
 ```bash
-celery -A src.config worker --loglevel=info --concurrency=8
+python manage.py process_images /path/to/your/images
 ```
 
-You can change the number of simultaneous adjusting the concurrency.
+The command behaves according to your install mode:
 
-Then enqueue all images for processing:
+- **Lite install** (`USE_ASYNC_TASKS=False`): images are processed one at a time in the foreground. The terminal blocks until all images are done.
+- **Full install** (`USE_ASYNC_TASKS=True`): one Celery task is enqueued per image and processed in parallel by the worker. Start the worker first:
 
-```bash
-python manage.py process_images --image-dir /path/to/your/images
-```
-
-### Sync (slower, no Celery required)
-
-Images are processed one by one in the foreground:
-
-```bash
-python manage.py process_images_sync --image-dir /path/to/your/images
-```
-
-Use this if you don't want to set up RabbitMQ and Celery.
+  ```bash
+  make worker   # or: celery -A src.config worker --loglevel=info --concurrency=8
+  ```
 
 ---
 
@@ -208,7 +223,7 @@ Visit `/images/` to see all processed images. Use the filter controls to narrow 
 
 ### Process new images
 
-Re-run `process_images` or `process_images_sync` pointing at any directory containing new images. Already-processed images are updated in place with fresh EXIF data. Images without Fujifilm EXIF data are skipped.
+Re-run `process_images` pointing at any directory containing new images. Already-processed images are updated in place with fresh EXIF data. Images without Fujifilm EXIF data are skipped.
 
 ### Rate images
 

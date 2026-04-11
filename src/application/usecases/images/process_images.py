@@ -4,7 +4,18 @@ from src.domain.images import events, operations, queries
 from src.services import workertasks
 
 
-def enqueue_images_in_folder(*, folder: str) -> int:
+def import_images_from_folder(*, folder: str) -> int:
+    """Process all JPG images in *folder*, dispatching async or sync based on settings.
+
+    Returns the total number of images found.
+    """
+    if settings.USE_ASYNC_TASKS:
+        return _enqueue_images_in_folder(folder=folder)
+    total, _ = _process_images_in_folder(folder=folder)
+    return total
+
+
+def _enqueue_images_in_folder(*, folder: str) -> int:
     """Enqueue a Celery task for every JPG image found under *folder*.
 
     Returns the total number of tasks enqueued.
@@ -20,8 +31,8 @@ def enqueue_images_in_folder(*, folder: str) -> int:
     return len(paths)
 
 
-def process_images_in_folder(*, folder: str) -> tuple[int, list[str]]:
-    """Process all JPG images in *folder*, skipping those without Fujifilm metadata.
+def _process_images_in_folder(*, folder: str) -> tuple[int, list[str]]:
+    """Process all JPG images in *folder* sequentially, skipping those without Fujifilm metadata.
 
     Returns:
         A tuple of (total_found, skipped_paths).

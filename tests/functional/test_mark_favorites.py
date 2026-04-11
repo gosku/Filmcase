@@ -15,9 +15,9 @@ FIXTURES_DIR = str(Path(__file__).resolve().parent.parent / "fixtures" / "images
 
 @pytest.mark.django_db
 class TestRateImagesCommand:
-    @override_settings(IMAGE_MAX_RATING=5)
+    @override_settings(IMAGE_MAX_RATING=5, USE_ASYNC_TASKS=False)
     def test_rates_matching_images_in_folder(self, capsys):
-        call_command("process_images_sync", FIXTURES_DIR)
+        call_command("process_images", FIXTURES_DIR)
         total = Image.objects.count()
         assert total > 0
 
@@ -50,9 +50,9 @@ class TestRateImagesCommand:
         assert "unable to rate image" in captured.err
         assert Image.objects.count() == 0
 
-    @override_settings(IMAGE_MAX_RATING=5)
+    @override_settings(IMAGE_MAX_RATING=5, USE_ASYNC_TASKS=False)
     def test_does_not_affect_other_images(self, capsys):
-        call_command("process_images_sync", FIXTURES_DIR)
+        call_command("process_images", FIXTURES_DIR)
 
         fixture_image = Path(FIXTURES_DIR) / "XS107114.JPG"
 
