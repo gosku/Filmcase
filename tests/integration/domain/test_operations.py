@@ -112,7 +112,7 @@ class TestProcessImagePersistence:
         assert isinstance(recipe, FujifilmRecipe)
         assert recipe.film_simulation == "Classic Negative"
         assert recipe.grain_roughness == "Off"
-        assert recipe.grain_size == ""
+        assert recipe.grain_size == "Off"
         assert recipe.color_chrome_effect == "Off"
         assert recipe.color_chrome_fx_blue == "Strong"
         assert recipe.white_balance == "Auto"
