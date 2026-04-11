@@ -295,37 +295,20 @@ def _recipe_explorer_filters_from_request(request: http.HttpRequest) -> dict[str
     }
 
 
-def import_folder_suggest_view(request):
-    partial = request.GET.get("folder", "")
-    if not partial:
-        return http.HttpResponse("")
-    path = Path(partial)
-    if partial.endswith("/") or (path.exists() and path.is_dir()):
-        parent, prefix = path, ""
-    else:
-        parent, prefix = path.parent, path.name.lower()
-    if not parent.is_dir():
-        return http.HttpResponse("")
-    try:
-        matches = sorted(
-            entry
-            for entry in parent.iterdir()
-            if entry.is_dir() and not entry.name.startswith(".") and entry.name.lower().startswith(prefix)
-        )
-    except PermissionError:
-        return http.HttpResponse("")
+def import_folder_suggest_view(request: http.HttpRequest) -> http.HttpResponse:
+    matches = image_queries.suggest_subdirectories(partial=request.GET.get("folder", ""))
     items = "".join(
         f'<li class="import-suggestion" tabindex="-1" role="option" data-value="{escape(str(m))}">'
         f'<span class="import-suggestion__name">{escape(m.name)}</span>'
         f'<span class="import-suggestion__parent">{escape(str(m.parent))}</span>'
         f'</li>'
-        for m in matches[:15]
+        for m in matches
     )
     return http.HttpResponse(items)
 
 
 class ImportFolderView(generic.View):
-    def post(self, request):
+    def post(self, request: http.HttpRequest, **kwargs: Any) -> http.HttpResponse:
         is_htmx = request.headers.get("HX-Request")
         folder = request.POST.get("folder", "").strip()
 
@@ -333,7 +316,7 @@ class ImportFolderView(generic.View):
             ctx = {"error": msg, "folder": folder}
             if is_htmx:
                 return shortcuts.render(request, "images/_import_result_partial.html", ctx)
-            return shortcuts.render(request, "images/import.html", ctx)
+            return shortcuts.redirect("gallery")
 
         if not folder:
             return _render_error("Please enter a folder path.")
