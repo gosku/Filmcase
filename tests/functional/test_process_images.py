@@ -2,6 +2,7 @@ from pathlib import Path
 
 import pytest
 from django.core.management import call_command
+from django.test import override_settings
 
 from src.data.models import Image
 from src.domain.images import events
@@ -29,3 +30,14 @@ class TestProcessImagesCommand:
         assert len(started) == 7
         assert len(completed) == 6
         assert len(created) == 6
+
+
+@pytest.mark.django_db
+class TestProcessImagesCommandSync:
+    def test_processes_images_sequentially(self, capsys):
+        with override_settings(USE_ASYNC_TASKS=False):
+            call_command("process_images", FIXTURES_DIR)
+
+        assert Image.objects.count() == 6
+        captured = capsys.readouterr()
+        assert "Successfully processed 7 images." in captured.out
