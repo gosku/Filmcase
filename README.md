@@ -33,18 +33,19 @@ Two installation modes are available depending on your needs:
 
 ### Lite install (recommended for personal use)
 
-No system services required. Python 3.11+ and `libusb` are the only prerequisites.
+No database server or message broker required.
 
-**Install Python and libusb:**
-
-- **macOS:** `brew install python libusb`
-- **Ubuntu:** `sudo apt install python3 python3-pip python3-venv libusb-1.0-0`
-
-**Clone and set up the project:**
+**Clone and install system dependencies:**
 
 ```bash
 git clone <repo-url>
 cd film_simulations_reader
+./setup.sh lite   # installs Python, libusb, exiftool (macOS and Ubuntu)
+```
+
+**Set up the project:**
+
+```bash
 make setup-lite   # creates venv, installs deps, generates SQLite config, runs migrations
 make run          # start the development server
 ```
