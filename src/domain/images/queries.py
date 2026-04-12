@@ -20,6 +20,13 @@ class AmbiguousImageMatch(Exception):
     """Raised when multiple DB records match the given image file."""
 
 
+@attrs.frozen
+class NoFilmSimulationError(Exception):
+    """Raised when an image has no film simulation in its EXIF data."""
+
+    image_path: str = ""
+
+
 EXIFTOOL_FIELD_MAP = {
     # Standard fields (non-FujiFilm group)
     "Make": "camera_make",

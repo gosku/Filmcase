@@ -227,8 +227,8 @@ class FujifilmRecipe(models.Model):
         clarity: object,
         monochromatic_color_warm_cool: object,
         monochromatic_color_magenta_green: object,
-    ) -> "FujifilmRecipe":
-        obj, _ = cls.objects.get_or_create(  # type: ignore[attr-defined]
+    ) -> "tuple[FujifilmRecipe, bool]":
+        return cls.objects.get_or_create(  # type: ignore[attr-defined]
             film_simulation=film_simulation,
             dynamic_range=dynamic_range,
             d_range_priority=d_range_priority,
@@ -248,7 +248,6 @@ class FujifilmRecipe(models.Model):
             monochromatic_color_warm_cool=monochromatic_color_warm_cool,
             monochromatic_color_magenta_green=monochromatic_color_magenta_green,
         )
-        return obj
 
     # Properties
 
