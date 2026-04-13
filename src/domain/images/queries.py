@@ -235,11 +235,15 @@ def exif_to_recipe(*, exif: image_dataclasses.ImageExifData) -> image_dataclasse
     )
 
 
-def _by_filename_and_date(*, exif: image_dataclasses.ImageExifData, filename: str, date_taken: datetime | None) -> models.Image:
+def _by_filepath(*, exif: image_dataclasses.ImageExifData, filename: str, date_taken: datetime | None, image_path: str) -> models.Image:
+    return models.Image.objects.get(filepath=image_path)
+
+
+def _by_filename_and_date(*, exif: image_dataclasses.ImageExifData, filename: str, date_taken: datetime | None, image_path: str) -> models.Image:
     return models.Image.objects.get(filename=filename, taken_at=date_taken)
 
 
-def _by_date_film_and_wb(*, exif: image_dataclasses.ImageExifData, filename: str, date_taken: datetime | None) -> models.Image:
+def _by_date_film_and_wb(*, exif: image_dataclasses.ImageExifData, filename: str, date_taken: datetime | None, image_path: str) -> models.Image:
     return models.Image.objects.get(
         taken_at=date_taken,
         fujifilm_exif__film_simulation=exif.film_simulation,
@@ -247,19 +251,20 @@ def _by_date_film_and_wb(*, exif: image_dataclasses.ImageExifData, filename: str
     )
 
 
-def _by_date_and_image_count(*, exif: image_dataclasses.ImageExifData, filename: str, date_taken: datetime | None) -> models.Image:
+def _by_date_and_image_count(*, exif: image_dataclasses.ImageExifData, filename: str, date_taken: datetime | None, image_path: str) -> models.Image:
     return models.Image.objects.get(taken_at=date_taken, fujifilm_exif__image_count=exif.image_count)
 
 
-def _by_date_and_film_simulation(*, exif: image_dataclasses.ImageExifData, filename: str, date_taken: datetime | None) -> models.Image:
+def _by_date_and_film_simulation(*, exif: image_dataclasses.ImageExifData, filename: str, date_taken: datetime | None, image_path: str) -> models.Image:
     return models.Image.objects.get(taken_at=date_taken, fujifilm_exif__film_simulation=exif.film_simulation)
 
 
-def _by_date_only(*, exif: image_dataclasses.ImageExifData, filename: str, date_taken: datetime | None) -> models.Image:
+def _by_date_only(*, exif: image_dataclasses.ImageExifData, filename: str, date_taken: datetime | None, image_path: str) -> models.Image:
     return models.Image.objects.get(taken_at=date_taken)
 
 
 _LOOKUP_STRATEGIES = [
+    _by_filepath,
     _by_filename_and_date,
     _by_date_and_image_count,
     _by_date_film_and_wb,
@@ -273,7 +278,7 @@ def find_image_for_path(*, image_path: str) -> models.Image:
 
     Strategies are tried in order; the first one that returns a unique match
     wins. To add a new strategy, append a function with the signature
-    (exif, filename, date_taken) -> Image to _LOOKUP_STRATEGIES.
+    (exif, filename, date_taken, image_path) -> Image to _LOOKUP_STRATEGIES.
 
     Raises ImageNotFound if no strategy finds a match.
     Raises AmbiguousImageMatch if a strategy finds more than one match.
@@ -285,7 +290,7 @@ def find_image_for_path(*, image_path: str) -> models.Image:
     any_ambiguous = False
     for strategy in _LOOKUP_STRATEGIES:
         try:
-            return strategy(exif=exif, filename=filename, date_taken=date_taken)
+            return strategy(exif=exif, filename=filename, date_taken=date_taken, image_path=image_path)
         except django_exceptions.ObjectDoesNotExist:
             continue
         except django_exceptions.MultipleObjectsReturned:

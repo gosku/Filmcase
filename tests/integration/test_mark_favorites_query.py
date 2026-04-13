@@ -33,10 +33,31 @@ class TestFindImageForPath:
         with pytest.raises(AmbiguousImageMatch):
             find_image_for_path(image_path=FIXTURE_IMAGE)
 
+    def test_by_filepath_resolves_duplicate_filename_and_date(self):
+        # Two records share the same filename and taken_at (e.g. original + Favorites copy).
+        # _by_filepath matches the exact path immediately without reaching the EXIF strategies.
+        exif = FujifilmExifFactory(image_count="18069", film_simulation="Classic Negative", white_balance_fine_tune="Red +3, Blue -5")
+        image_favorites = ImageFactory(filename="XS107114.JPG", filepath=FIXTURE_IMAGE, taken_at=FIXTURE_DATE_UTC, fujifilm_exif=exif)
+        ImageFactory(filename="XS107114.JPG", filepath="/other/folder/XS107114.JPG", taken_at=FIXTURE_DATE_UTC, fujifilm_exif=exif)
+
+        result = find_image_for_path(image_path=FIXTURE_IMAGE)
+
+        assert result.pk == image_favorites.pk
+
+    def test_by_filename_and_date_finds_image_at_different_path(self):
+        # No DB record at the exact fixture path, but one matches filename + taken_at.
+        # _by_filepath misses; _by_filename_and_date succeeds.
+        image = ImageFactory(filename="XS107114.JPG", filepath="/other/folder/XS107114.JPG", taken_at=FIXTURE_DATE_UTC)
+
+        result = find_image_for_path(image_path=FIXTURE_IMAGE)
+
+        assert result.pk == image.pk
+
     def test_continues_to_next_strategy_after_multiple_matches(self):
-        # Strategy 1 (_by_filename_and_date): no match — wrong filename.
-        # Strategy 2 (_by_date_and_image_count): multiple — both records share image_count.
-        # Strategy 3 (_by_date_film_and_wb): 1 match — film_simulation differs.
+        # _by_filepath: no match — fixture path not in DB.
+        # _by_filename_and_date: no match — records have different filenames.
+        # _by_date_and_image_count: multiple — both records share image_count.
+        # _by_date_film_and_wb: 1 match — film_simulation differs.
         exif_a = FujifilmExifFactory(image_count="18069", film_simulation="Classic Negative", white_balance_fine_tune="Red +3, Blue -5")
         exif_b = FujifilmExifFactory(image_count="18069", film_simulation="Classic Chrome", white_balance_fine_tune="Red +0, Blue +0")
         image_a = ImageFactory(filename="BURST001.JPG", filepath="/a/BURST001.JPG", taken_at=FIXTURE_DATE_UTC, fujifilm_exif=exif_a)
@@ -48,8 +69,9 @@ class TestFindImageForPath:
         assert result.pk == image_a.pk
 
     def test_disambiguates_burst_shots_by_image_count(self):
-        # Two burst shots at the same second — only image_count differs.
-        # The fixture image has image_count="18069".
+        # _by_filepath: no match — fixture path not in DB.
+        # _by_filename_and_date: no match — records have different filenames.
+        # _by_date_and_image_count: 1 match — only image_count="18069" matches the fixture.
         exif_a = FujifilmExifFactory(image_count="18069")
         exif_b = FujifilmExifFactory(image_count="18070")
         image_a = ImageFactory(filename="BURST001.JPG", filepath="/a/BURST001.JPG", taken_at=FIXTURE_DATE_UTC, fujifilm_exif=exif_a)
