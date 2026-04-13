@@ -156,7 +156,7 @@ if [[ "$MODE" == "full" ]]; then
         skip "PostgreSQL user '$DB_USER' already exists"
     else
         info "Creating PostgreSQL user '$DB_USER'..."
-        $PSQL -c "CREATE USER $DB_USER WITH PASSWORD '$DB_PASS';"
+        $PSQL -c "CREATE USER $DB_USER WITH PASSWORD '$DB_PASS' CREATEDB;"
     fi
 
     info "Checking PostgreSQL database '$DB_NAME'..."
