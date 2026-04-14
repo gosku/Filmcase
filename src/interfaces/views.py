@@ -248,6 +248,23 @@ class SetRecipeName(generic.View):
         return shortcuts.render(request, "recipes/_recipe_name_row.html", {"recipe": self.recipe})
 
 
+class SetRecipeCoverImage(generic.View):
+    def post(self, request, recipe_id, image_id):
+        try:
+            recipe_operations.set_cover_image_for_recipe(recipe_id=recipe_id, image_id=image_id)
+        except (
+            recipe_operations.RecipeNotFoundError,
+            recipe_operations.ImageNotFoundError,
+            recipe_operations.ImageNotAssociatedToRecipeError,
+        ):
+            raise http.Http404
+        return shortcuts.render(
+            request,
+            "images/_set_cover_image_btn.html",
+            {"recipe_id": recipe_id, "image_id": image_id, "is_cover": True},
+        )
+
+
 def _recipe_explorer_filters_from_request(request: http.HttpRequest) -> dict[str, list[str]]:
     return {
         field: request.GET.getlist(field)

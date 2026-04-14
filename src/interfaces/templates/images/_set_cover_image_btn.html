@@ -1,0 +1,10 @@
+<div id="cover-image-btn-{{ image_id }}">
+  {% if is_cover %}
+    <span class="cover-image-badge">Cover image set</span>
+  {% else %}
+    <button class="set-cover-btn"
+            hx-post="{% url 'set-recipe-cover-image' recipe_id=recipe_id image_id=image_id %}"
+            hx-target="#cover-image-btn-{{ image_id }}"
+            hx-swap="outerHTML">Set as cover</button>
+  {% endif %}
+</div>

@@ -23,6 +23,7 @@ urlpatterns = [
     path("recipes/<int:recipe_id>/images/<int:image_id>/", views.recipe_compare_image_view, name="recipe-compare-image"),
     path("recipes/path-deltas/", views.recipe_path_deltas_view, name="recipe-path-deltas"),
     path("recipes/<int:recipe_id>/set-name/", views.SetRecipeName.as_view(), name="set-recipe-name"),
+    path("recipes/<int:recipe_id>/set-cover-image/<int:image_id>/", views.SetRecipeCoverImage.as_view(), name="set-recipe-cover-image"),
     path("recipes/<int:recipe_id>/push/", views.SelectSlot.as_view(), name="select-push-slot"),
     path("recipes/<int:recipe_id>/push/<str:slot>/", views.PushRecipeToCamera.as_view(), name="push-recipe-to-camera"),
 ]

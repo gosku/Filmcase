@@ -187,6 +187,14 @@ class FujifilmRecipe(models.Model):
     monochromatic_color_warm_cool = models.DecimalField(max_digits=4, decimal_places=1, null=True, blank=True)
     monochromatic_color_magenta_green = models.DecimalField(max_digits=4, decimal_places=1, null=True, blank=True)
 
+    cover_image = models.ForeignKey(
+        "Image",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="cover_for_recipes",
+    )
+
     class Meta:
         constraints = [
             models.UniqueConstraint(
@@ -248,6 +256,12 @@ class FujifilmRecipe(models.Model):
             monochromatic_color_warm_cool=monochromatic_color_warm_cool,
             monochromatic_color_magenta_green=monochromatic_color_magenta_green,
         )
+
+    # Mutators
+
+    def set_cover_image(self, *, image_id: int) -> None:
+        self.cover_image_id = image_id
+        self.save(update_fields=["cover_image_id"])
 
     # Properties
 

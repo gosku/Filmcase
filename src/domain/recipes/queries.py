@@ -409,7 +409,7 @@ def _to_recipe_data(recipe: models.FujifilmRecipe) -> RecipeData:
         clarity=recipe.clarity,
         monochromatic_color_warm_cool=recipe.monochromatic_color_warm_cool,
         monochromatic_color_magenta_green=recipe.monochromatic_color_magenta_green,
-        cover_image_id=getattr(recipe, "cover_image_id", None),
+        cover_image_id=recipe.cover_image_id or getattr(recipe, "fallback_cover_image_id", None),
         film_sim_logo_filename=FILM_SIM_LOGO.get(recipe.film_simulation),
     )
 
@@ -423,6 +423,10 @@ class RecipeDetailContext:
 def get_recipe_detail(*, recipe_id: int) -> RecipeDetailContext:
     """Return the recipe with the given primary key as a RecipeDetailContext.
 
+    The ``cover_image_id`` on the returned ``RecipeData`` is the recipe's explicit
+    cover image if one has been set, otherwise the highest-rated image associated
+    with the recipe (by rating desc, taken_at desc, id asc).
+
     :raises models.FujifilmRecipe.DoesNotExist: If no recipe with *recipe_id* exists.
     """
     cover_subquery = (
@@ -433,7 +437,7 @@ def get_recipe_detail(*, recipe_id: int) -> RecipeDetailContext:
     recipe = (
         models.FujifilmRecipe.objects.annotate(
             image_count=Count("images"),
-            cover_image_id=Subquery(cover_subquery),
+            fallback_cover_image_id=Subquery(cover_subquery),
         ).get(pk=recipe_id)
     )
     recipe_data = _to_recipe_data(recipe)
@@ -593,7 +597,7 @@ def get_recipe_gallery_data(
             default=Value(1),
             output_field=IntegerField(),
         ),
-        cover_image_id=Subquery(cover_subquery),
+        fallback_cover_image_id=Subquery(cover_subquery),
     )
     for field, values in active_filters.items():
         if values:

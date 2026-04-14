@@ -1,7 +1,7 @@
 import pytest
 
 from src.data.models import FujifilmRecipe
-from src.domain.recipes.queries import RecipeData, RecipeDetailContext, get_recipe_detail
+from src.domain.recipes.queries import RecipeData, RecipeDetailContext, get_recipe_detail, get_recipe_gallery_data
 from src.domain.recipes.constants import MONOCHROMATIC_FILM_SIMULATIONS
 from tests.factories import FujifilmRecipeFactory, ImageFactory
 
@@ -69,6 +69,25 @@ class TestGetRecipeDetail:
 
         assert result.recipe.cover_image_id == image.pk
 
+    def test_cover_image_id_uses_explicit_cover_when_set(self):
+        recipe = FujifilmRecipeFactory()
+        cover = ImageFactory(fujifilm_recipe=recipe, rating=0)
+        _popular = ImageFactory(fujifilm_recipe=recipe, rating=5)
+        recipe.set_cover_image(image_id=cover.pk)
+
+        result = get_recipe_detail(recipe_id=recipe.pk)
+
+        assert result.recipe.cover_image_id == cover.pk
+
+    def test_cover_image_id_falls_back_to_subquery_when_no_explicit_cover(self):
+        recipe = FujifilmRecipeFactory()
+        _low_rated = ImageFactory(fujifilm_recipe=recipe, rating=1)
+        high_rated = ImageFactory(fujifilm_recipe=recipe, rating=5)
+
+        result = get_recipe_detail(recipe_id=recipe.pk)
+
+        assert result.recipe.cover_image_id == high_rated.pk
+
     def test_is_monochromatic_is_true_for_monochromatic_film_simulation(self):
         mono_sim = next(iter(MONOCHROMATIC_FILM_SIMULATIONS))
         recipe = FujifilmRecipeFactory(film_simulation=mono_sim)
@@ -101,3 +120,33 @@ class TestGetRecipeDetail:
         assert r.grain_size == "Large"
         assert r.color_chrome_effect == "Strong"
         assert r.white_balance == "Daylight"
+
+
+@pytest.mark.django_db
+class TestGetRecipeGalleryDataCoverImage:
+    def _get_cover_id(self, recipe):
+        result = get_recipe_gallery_data(
+            active_filters={},
+            page_number=1,
+            page_size=50,
+        )
+        return next(r.cover_image_id for r in result.page_obj.items if r.id == recipe.pk)
+
+    def test_cover_image_id_is_none_when_no_images(self):
+        recipe = FujifilmRecipeFactory()
+        assert self._get_cover_id(recipe) is None
+
+    def test_cover_image_id_falls_back_to_subquery_when_no_explicit_cover(self):
+        recipe = FujifilmRecipeFactory()
+        _low_rated = ImageFactory(fujifilm_recipe=recipe, rating=1)
+        high_rated = ImageFactory(fujifilm_recipe=recipe, rating=5)
+
+        assert self._get_cover_id(recipe) == high_rated.pk
+
+    def test_cover_image_id_uses_explicit_cover_when_set(self):
+        recipe = FujifilmRecipeFactory()
+        cover = ImageFactory(fujifilm_recipe=recipe, rating=0)
+        _popular = ImageFactory(fujifilm_recipe=recipe, rating=5)
+        recipe.set_cover_image(image_id=cover.pk)
+
+        assert self._get_cover_id(recipe) == cover.pk

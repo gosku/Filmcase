@@ -70,6 +70,57 @@ def get_or_create_recipe_from_filepath(*, filepath: str) -> models.FujifilmRecip
 
 
 @attrs.frozen
+class RecipeNotFoundError(Exception):
+    """Raised when no recipe with the given ID exists."""
+
+    recipe_id: int
+
+
+@attrs.frozen
+class ImageNotFoundError(Exception):
+    """Raised when no image with the given ID exists."""
+
+    image_id: int
+
+
+@attrs.frozen
+class ImageNotAssociatedToRecipeError(Exception):
+    """Raised when the image is not linked to the recipe."""
+
+    recipe_id: int
+    image_id: int
+
+
+def set_cover_image_for_recipe(*, recipe_id: int, image_id: int) -> None:
+    """Set the cover image of a recipe to the given image.
+
+    Raises:
+        RecipeNotFoundError: If no recipe with *recipe_id* exists.
+        ImageNotFoundError: If no image with *image_id* exists.
+        ImageNotAssociatedToRecipeError: If the image is not linked to the recipe.
+    """
+    try:
+        recipe = models.FujifilmRecipe.objects.get(pk=recipe_id)
+    except models.FujifilmRecipe.DoesNotExist:
+        raise RecipeNotFoundError(recipe_id)
+
+    try:
+        image = models.Image.objects.get(pk=image_id)
+    except models.Image.DoesNotExist:
+        raise ImageNotFoundError(image_id)
+
+    if image.fujifilm_recipe_id != recipe_id:
+        raise ImageNotAssociatedToRecipeError(recipe_id=recipe_id, image_id=image_id)
+
+    recipe.set_cover_image(image_id=image_id)
+    events.publish_event(
+        event_type=events.RECIPE_COVER_IMAGE_SET,
+        recipe_id=recipe_id,
+        image_id=image_id,
+    )
+
+
+@attrs.frozen
 class RecipeNameValidationError(Exception):
     """Raised when a recipe name fails validation (too long or non-ASCII)."""
 

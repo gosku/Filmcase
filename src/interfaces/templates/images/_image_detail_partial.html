@@ -231,6 +231,36 @@
     color: #ddd;
   }
 
+  .set-cover-btn {
+    flex-shrink: 0;
+    padding: 0.2rem 0.55rem;
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: #5b8dee;
+    background: transparent;
+    border: 1px solid #5b8dee;
+    border-radius: 4px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.15s, color 0.15s;
+  }
+
+  .set-cover-btn:hover {
+    background: #5b8dee;
+    color: #fff;
+  }
+
+  .cover-image-badge {
+    display: inline-block;
+    padding: 0.2rem 0.55rem;
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: #5b8dee;
+    border: 1px solid #5b8dee;
+    border-radius: 4px;
+    opacity: 0.7;
+  }
+
   .recipe-name-input-row {
     display: flex;
     align-items: center;
@@ -524,6 +554,10 @@
               {% endif %}
             </div>
           {% endif %}
+
+          <div class="detail-row">
+            {% include "images/_set_cover_image_btn.html" with recipe_id=image.fujifilm_recipe_id image_id=image.id %}
+          </div>
         </section>
       {% endif %}
 
