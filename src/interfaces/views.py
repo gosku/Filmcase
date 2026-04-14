@@ -283,6 +283,17 @@ def recipes_explorer_results_view(request: http.HttpRequest) -> http.HttpRespons
     return shortcuts.render(request, "recipes/partials/htmx_scroll_response.html", {"page_obj": gallery.page_obj})
 
 
+def recipe_detail_view(request: http.HttpRequest, recipe_id: int) -> http.HttpResponse:
+    try:
+        detail = recipe_queries.get_recipe_detail(recipe_id=recipe_id)
+    except models.FujifilmRecipe.DoesNotExist:
+        raise http.Http404
+    ctx = {"recipe": detail.recipe, "is_monochromatic": detail.is_monochromatic}
+    if request.headers.get("HX-Request"):
+        return shortcuts.render(request, "recipes/partials/recipe_detail.html", ctx)
+    return shortcuts.render(request, "recipes/recipe_detail.html", ctx)
+
+
 _RECIPES_GRAPH_DEFAULT_FILM_SIM = "Provia"
 
 

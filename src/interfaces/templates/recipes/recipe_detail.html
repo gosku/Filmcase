@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% if recipe.name %}{{ recipe.name }}{% else %}{{ recipe.film_simulation }} #{{ recipe.id }}{% endif %}</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; overflow: hidden; }
+    body { background: #1a1a1a; display: flex; flex-direction: column; }
+  </style>
+</head>
+<body>
+
+{% include "recipes/partials/recipe_detail.html" %}
+
+<script>
+  function closeDetail() {
+    window.location.href = document.querySelector('.detail-close').href;
+  }
+  document.querySelector('.detail-close').addEventListener('click', function (e) {
+    e.preventDefault();
+    closeDetail();
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') closeDetail();
+  });
+</script>
+
+</body>
+</html>

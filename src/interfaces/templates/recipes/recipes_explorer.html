@@ -313,6 +313,62 @@
 
     .create-recipes-option:hover { background: #f5f5f5; }
 
+    /* ── Recipe detail overlay ──────────────────────────────────────── */
+    #recipe-detail-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 100;
+      overflow: hidden;
+    }
+
+    #recipe-detail-overlay .detail-overlay {
+      height: 100%;
+    }
+
+    #slot-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 200;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(0,0,0,0.6);
+    }
+
+    #slot-overlay[hidden] { display: none; }
+
+    .slot-card {
+      background: #fff;
+      border-radius: 16px;
+      padding: 2rem;
+      width: 580px;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.2);
+      position: relative;
+      font-family: sans-serif;
+      min-height: 120px;
+      overflow: hidden;
+    }
+
+    .slot-push-loading {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 220px;
+      padding: 2rem;
+    }
+
+    .slot-spinner-large {
+      width: 80px;
+      height: 80px;
+      border: 6px solid #e0e0e0;
+      border-top-color: #2db37a;
+      border-radius: 50%;
+      animation: slot-spin 0.7s linear infinite;
+    }
+
+    @keyframes slot-spin { to { transform: rotate(360deg); } }
+
     /* ── Import modal overlay ───────────────────────────────────────── */
     .import-overlay {
       position: fixed;
@@ -571,7 +627,10 @@
     });
 
     document.addEventListener('keydown', function (e) {
-      if (e.key === 'Escape' && !overlay.hidden) closeModal();
+      if (e.key !== 'Escape') return;
+      var recipeDetailOverlay = document.getElementById('recipe-detail-overlay');
+      if (recipeDetailOverlay && !recipeDetailOverlay.hidden) return;  // handled by recipe detail JS
+      if (!overlay.hidden) closeModal();
     });
 
     // Show selected files
@@ -591,6 +650,58 @@
       submitBtn.hidden = false;
     });
   })();
+</script>
+
+<div id="recipe-detail-overlay" hidden></div>
+<div id="slot-overlay" hidden></div>
+
+<script>
+  // Recipe detail overlay logic.
+  var _explorerUrl = null;
+
+  function closeSlotOverlay() {
+    document.getElementById('slot-overlay').hidden = true;
+  }
+
+  function closeRecipeDetail() {
+    document.getElementById('recipe-detail-overlay').hidden = true;
+    document.getElementById('slot-overlay').hidden = true;
+    document.querySelector('.recipe-gallery-scroll').style.overflow = '';
+    if (_explorerUrl) {
+      history.replaceState(null, '', _explorerUrl);
+      _explorerUrl = null;
+    }
+  }
+
+  window._recipeDetailClose = closeRecipeDetail;
+
+  document.body.addEventListener('htmx:beforeRequest', function (e) {
+    if (e.detail.target && e.detail.target.id === 'recipe-detail-overlay') {
+      var detailOverlay = document.getElementById('recipe-detail-overlay');
+      if (detailOverlay.hidden) _explorerUrl = window.location.href;
+    }
+  });
+
+  document.body.addEventListener('htmx:afterSwap', function (e) {
+    if (e.detail.target.id === 'recipe-detail-overlay') {
+      e.detail.target.hidden = false;
+      document.querySelector('.recipe-gallery-scroll').style.overflow = 'hidden';
+    } else if (e.detail.target.id === 'slot-overlay') {
+      e.detail.target.hidden = false;
+    }
+  });
+
+  document.getElementById('slot-overlay').addEventListener('click', function (e) {
+    if (e.target === this) closeSlotOverlay();
+  });
+
+  document.addEventListener('keydown', function (e) {
+    if (e.key !== 'Escape') return;
+    var slotOverlay = document.getElementById('slot-overlay');
+    if (slotOverlay && !slotOverlay.hidden) { closeSlotOverlay(); return; }
+    var detailOverlay = document.getElementById('recipe-detail-overlay');
+    if (detailOverlay && !detailOverlay.hidden) closeRecipeDetail();
+  });
 </script>
 </body>
 </html>

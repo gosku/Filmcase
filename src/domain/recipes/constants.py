@@ -1,3 +1,16 @@
+# Film simulations that support the monochromatic color shift controls (Warm/Cool, Magenta/Green).
+MONOCHROMATIC_FILM_SIMULATIONS: frozenset[str] = frozenset({
+    "Monochrome STD",
+    "Monochrome Yellow",
+    "Monochrome Red",
+    "Monochrome Green",
+    "Sepia",
+    "Acros STD",
+    "Acros Yellow",
+    "Acros Red",
+    "Acros Green",
+})
+
 # Maps film_simulation field value → logo filename under src/interfaces/static/images/.
 # Keys must exactly match the string values stored in FujifilmRecipe.film_simulation,
 # which are defined by FILM_SIMULATION_TO_PTP in src/data/camera/constants.py.

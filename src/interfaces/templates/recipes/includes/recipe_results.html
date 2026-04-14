@@ -1,6 +1,9 @@
 {% for recipe in page_obj.items %}
 <article class="recipe-card"
-         style="{% if recipe.cover_image_id %}background-image: url('/images/file/{{ recipe.cover_image_id }}/?width=600');{% endif %}">
+         style="{% if recipe.cover_image_id %}background-image: url('/images/file/{{ recipe.cover_image_id }}/?width=600');{% endif %} cursor: pointer;"
+         hx-get="{% url 'recipe-detail' recipe.id %}"
+         hx-target="#recipe-detail-overlay"
+         hx-push-url="{% url 'recipe-detail' recipe.id %}">
   <div class="recipe-card__overlay">
     <div class="recipe-card__bottom">
       {% if recipe.film_sim_logo_filename %}

@@ -10,7 +10,7 @@ from django.db.models.functions import TruncMonth
 
 from src.data import models
 from src.domain.images import filter_queries
-from src.domain.recipes.constants import FILM_SIM_LOGO
+from src.domain.recipes.constants import FILM_SIM_LOGO, MONOCHROMATIC_FILM_SIMULATIONS
 from src.domain.images import dataclasses as image_dataclasses
 
 
@@ -411,6 +411,35 @@ def _to_recipe_data(recipe: models.FujifilmRecipe) -> RecipeData:
         monochromatic_color_magenta_green=recipe.monochromatic_color_magenta_green,
         cover_image_id=getattr(recipe, "cover_image_id", None),
         film_sim_logo_filename=FILM_SIM_LOGO.get(recipe.film_simulation),
+    )
+
+
+@attrs.frozen
+class RecipeDetailContext:
+    recipe: RecipeData
+    is_monochromatic: bool
+
+
+def get_recipe_detail(*, recipe_id: int) -> RecipeDetailContext:
+    """Return the recipe with the given primary key as a RecipeDetailContext.
+
+    :raises models.FujifilmRecipe.DoesNotExist: If no recipe with *recipe_id* exists.
+    """
+    cover_subquery = (
+        models.Image.objects.filter(fujifilm_recipe=OuterRef("pk"))
+        .order_by("-rating", "-taken_at", "id")
+        .values("id")[:1]
+    )
+    recipe = (
+        models.FujifilmRecipe.objects.annotate(
+            image_count=Count("images"),
+            cover_image_id=Subquery(cover_subquery),
+        ).get(pk=recipe_id)
+    )
+    recipe_data = _to_recipe_data(recipe)
+    return RecipeDetailContext(
+        recipe=recipe_data,
+        is_monochromatic=recipe_data.film_simulation in MONOCHROMATIC_FILM_SIMULATIONS,
     )
 
 
