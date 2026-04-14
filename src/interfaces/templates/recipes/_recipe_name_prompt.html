@@ -1,27 +1,46 @@
 <form id="recipe-name-prompt-{{ recipe.id }}"
-      class="detail-row recipe-name-prompt"
+      class="recipe-name-prompt"
       hx-post="{% url 'set-recipe-name' recipe_id=recipe.id %}"
       hx-swap="outerHTML"
       hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
 
+  {# Title text — hidden while editing #}
+  <span class="recipe-title-display"{% if show_form %} style="display:none"{% endif %}>
+    {% if recipe.name %}{{ recipe.name }}{% else %}{{ recipe.film_simulation }} #{{ recipe.id }}{% endif %}
+  </span>
+
+  {# Input — replaces the title while editing #}
+  <input type="text" name="name" class="recipe-title-input" maxlength="25"
+         placeholder="{% if recipe.name %}{{ recipe.name }}{% else %}{{ recipe.film_simulation }} #{{ recipe.id }}{% endif %}"
+         value="{{ submitted_name|default:recipe.name }}"
+         onkeydown="if(event.key==='Escape'){event.stopPropagation();var p=this.closest('form');p.querySelector('.recipe-name-form-state').style.display='none';p.querySelector('.recipe-title-input').style.display='none';p.querySelector('.recipe-title-display').style.display='';p.querySelector('.recipe-name-btn-state').style.display='flex';}"
+         {% if show_form %} autofocus{% else %} style="display:none"{% endif %}>
+
+  {# "Edit recipe name" button — hidden while editing #}
   <div class="recipe-name-btn-state"{% if show_form %} style="display:none"{% endif %}>
     <button type="button" class="name-recipe-btn"
-            onclick="var p=this.closest('form');p.querySelector('.recipe-name-btn-state').style.display='none';p.querySelector('.recipe-name-form-state').style.display='';p.querySelector('.recipe-name-input').focus()">
-      Name this recipe
+            onclick="var p=this.closest('form');
+                     p.querySelector('.recipe-title-display').style.display='none';
+                     p.querySelector('.recipe-title-input').style.display='';
+                     p.querySelector('.recipe-name-btn-state').style.display='none';
+                     p.querySelector('.recipe-name-form-state').style.display='flex';
+                     p.querySelector('.recipe-title-input').focus();">
+      Edit recipe name
     </button>
   </div>
 
+  {# OK + Cancel — shown while editing #}
   <div class="recipe-name-form-state"{% if not show_form %} style="display:none"{% endif %}>
     {% if error %}<span class="recipe-name-error">{{ error }}</span>{% endif %}
-    <div class="recipe-name-input-row">
-      <input type="text" name="name" class="recipe-name-input" maxlength="25"
-             placeholder="Recipe name (max 25 chars)"
-             value="{{ submitted_name|default:'' }}"{% if show_form %} autofocus{% endif %}>
-      <button type="submit" class="recipe-name-ok-btn">OK</button>
-      <button type="button" class="recipe-name-cancel-btn"
-              onclick="var p=this.closest('form');p.querySelector('.recipe-name-form-state').style.display='none';p.querySelector('.recipe-name-btn-state').style.display=''">
-        Cancel
-      </button>
-    </div>
+    <button type="submit" class="recipe-name-ok-btn">OK</button>
+    <button type="button" class="recipe-name-cancel-btn"
+            onclick="var p=this.closest('form');
+                     p.querySelector('.recipe-name-form-state').style.display='none';
+                     p.querySelector('.recipe-title-input').style.display='none';
+                     p.querySelector('.recipe-title-display').style.display='';
+                     p.querySelector('.recipe-name-btn-state').style.display='flex';">
+      Cancel
+    </button>
   </div>
+
 </form>

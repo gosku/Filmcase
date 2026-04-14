@@ -1,0 +1,585 @@
+{% load image_filters %}
+<style>
+  .detail-overlay {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    font-family: sans-serif;
+    background: #1a1a1a;
+  }
+
+  .detail-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.75rem 1.5rem;
+    background: #000;
+    flex-shrink: 0;
+    border-bottom: 1px solid #2a2a2a;
+  }
+
+  .header-logo {
+    height: 1.5rem;
+    width: auto;
+    opacity: 0.85;
+    flex-shrink: 0;
+    margin-right: 0.75rem;
+  }
+
+  .detail-close {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.5rem;
+    height: 2.5rem;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.12);
+    color: #fff;
+    font-size: 1.25rem;
+    text-decoration: none;
+    transition: background 0.15s;
+    line-height: 1;
+    cursor: pointer;
+  }
+
+  .detail-close:hover { background: rgba(255,255,255,0.25); }
+
+  /* Name prompt in header — title and input share the same slot */
+  .recipe-name-prompt {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 0.9rem;
+    min-width: 0;
+    padding: 0;
+    margin: 0;
+  }
+
+  .recipe-title-display {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: #ddd;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    flex-shrink: 1;
+    min-width: 0;
+  }
+
+  .recipe-title-input {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: #ddd;
+    background: transparent;
+    border: none;
+    border-bottom: 1px solid #555;
+    outline: none;
+    width: 22ch;
+    flex-shrink: 0;
+    padding: 0 0 0.1rem 0;
+  }
+
+  .recipe-title-input:focus { border-bottom-color: #2db37a; }
+
+  .recipe-name-btn-state {
+    display: flex;
+    align-items: center;
+    gap: 0.9rem;
+    min-width: 0;
+  }
+
+  .recipe-name-form-state {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .detail-body {
+    display: flex;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+    justify-content: center;
+  }
+
+  /* Left: recipe settings */
+  .detail-settings-col {
+    flex: 0 1 520px;
+    overflow-y: auto;
+    padding: 2rem 1.5rem;
+    color: #ddd;
+  }
+
+  /* Right: actions */
+  .detail-actions-col {
+    flex: 0 1 340px;
+    overflow-y: auto;
+    padding: 2rem 1.5rem;
+    color: #ddd;
+    border-left: 1px solid #2a2a2a;
+  }
+
+  .detail-section-title {
+    font-size: 0.9rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #555;
+    margin-bottom: 1rem;
+    padding-bottom: 0.4rem;
+    border-bottom: 1px solid #2a2a2a;
+  }
+
+  /* Single-field row */
+  .detail-field {
+    display: flex;
+    flex-direction: column;
+    margin-bottom: 0.9rem;
+  }
+
+  .detail-field:last-child { margin-bottom: 0; }
+
+  /* Two-column pair */
+  .detail-pair {
+    display: flex;
+    gap: 1.5rem;
+    margin-bottom: 0.9rem;
+  }
+
+  .detail-pair:last-child { margin-bottom: 0; }
+
+  .detail-pair .detail-field {
+    flex: 1;
+    margin-bottom: 0;
+  }
+
+  .detail-label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.82rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #555;
+    margin-bottom: 0.2rem;
+  }
+
+  .field-icon {
+    width: 13px;
+    height: 13px;
+    flex-shrink: 0;
+    opacity: 0.8;
+  }
+
+  .detail-value {
+    font-size: 0.95rem;
+    color: #ddd;
+    padding-left: calc(13px + 6px); /* align with label text, past the icon */
+  }
+
+  /* Actions */
+  .action-group {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.6rem;
+  }
+
+  .action-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.45rem 1.1rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+    border-radius: 6px;
+    cursor: pointer;
+    border: none;
+    transition: background 0.15s, color 0.15s;
+    white-space: nowrap;
+  }
+
+  .action-btn--primary {
+    background: #2db37a;
+    color: #fff;
+  }
+
+  .action-btn--primary:hover { background: #26a06c; }
+
+  .action-btn--secondary {
+    background: transparent;
+    color: #aaa;
+    border: 1px solid #444;
+    text-decoration: none;
+  }
+
+  .action-btn--secondary:hover { border-color: #aaa; color: #ddd; }
+
+  .action-btn--disabled {
+    background: transparent;
+    color: #444;
+    border: 1px solid #333;
+    cursor: not-allowed;
+  }
+
+  .action-hint {
+    font-size: 0.75rem;
+    color: #444;
+  }
+
+  /* Edit recipe name button + form */
+  .name-recipe-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.3rem 0.75rem;
+    font-size: 0.72rem;
+    font-weight: 600;
+    background: transparent;
+    color: #666;
+    border: 1px solid #3a3a3a;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: border-color 0.15s, color 0.15s;
+    white-space: nowrap;
+    flex-shrink: 0;
+    vertical-align: middle;
+    line-height: 1;
+  }
+
+  .name-recipe-btn:hover {
+    border-color: #777;
+    color: #ccc;
+  }
+
+  .recipe-name-ok-btn {
+    padding: 0.4rem 0.7rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #fff;
+    background: #2db37a;
+    border: 1px solid #2db37a;
+    border-radius: 4px;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+
+  .recipe-name-cancel-btn {
+    padding: 0.4rem 0.7rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #888;
+    background: transparent;
+    border: 1px solid #555;
+    border-radius: 4px;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+
+  .recipe-name-error {
+    display: block;
+    font-size: 0.75rem;
+    color: #e05c5c;
+    margin-bottom: 0.2rem;
+  }
+
+  .detail-image-count {
+    font-size: 0.8rem;
+    color: #444;
+    margin-top: 1.5rem;
+  }
+</style>
+
+<div class="detail-overlay">
+  <header class="detail-header">
+    {% if recipe.film_sim_logo_filename %}
+      <img class="header-logo" src="/static/images/{{ recipe.film_sim_logo_filename }}" alt="{{ recipe.film_simulation }}">
+    {% endif %}
+    {% include "recipes/_recipe_name_prompt.html" with recipe=recipe %}
+    <a href="{% url 'recipes-explorer' %}" class="detail-close" title="Close"
+       onclick="event.preventDefault(); (window._recipeDetailClose || function(){ history.back(); })();">&#x2715;</a>
+  </header>
+
+  <div class="detail-body">
+
+    <!-- Settings -->
+    <div class="detail-settings-col">
+      <h2 class="detail-section-title">Recipe settings</h2>
+
+      {# Film Simulation — film strip #}
+      <div class="detail-field">
+        <span class="detail-label">
+          <svg class="field-icon" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.2">
+            <rect x="1" y="2.5" width="12" height="9" rx="0.8"/>
+            <rect x="1.2" y="4" width="2.2" height="1.8" rx="0.3" fill="currentColor" stroke="none"/>
+            <rect x="1.2" y="8.2" width="2.2" height="1.8" rx="0.3" fill="currentColor" stroke="none"/>
+            <rect x="10.6" y="4" width="2.2" height="1.8" rx="0.3" fill="currentColor" stroke="none"/>
+            <rect x="10.6" y="8.2" width="2.2" height="1.8" rx="0.3" fill="currentColor" stroke="none"/>
+            <line x1="4.8" y1="2.5" x2="4.8" y2="11.5" stroke-width="0.7" opacity="0.45"/>
+            <line x1="9.2" y1="2.5" x2="9.2" y2="11.5" stroke-width="0.7" opacity="0.45"/>
+          </svg>
+          Film Simulation
+        </span>
+        <span class="detail-value">{{ recipe.film_simulation }}</span>
+      </div>
+
+      {% if is_monochromatic %}
+        {# BW tone shifts — bidirectional horizontal / vertical arrows #}
+        <div class="detail-pair">
+          <div class="detail-field">
+            <span class="detail-label">
+              <svg class="field-icon" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round">
+                <line x1="1" y1="7" x2="13" y2="7"/>
+                <polyline points="4,4.5 1,7 4,9.5"/>
+                <polyline points="10,4.5 13,7 10,9.5"/>
+              </svg>
+              BW Warm / Cool
+            </span>
+            <span class="detail-value">{{ recipe.monochromatic_color_warm_cool|signed }}</span>
+          </div>
+          <div class="detail-field">
+            <span class="detail-label">
+              <svg class="field-icon" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round">
+                <line x1="7" y1="1" x2="7" y2="13"/>
+                <polyline points="4.5,4 7,1 9.5,4"/>
+                <polyline points="4.5,10 7,13 9.5,10"/>
+              </svg>
+              BW Magenta / Green
+            </span>
+            <span class="detail-value">{{ recipe.monochromatic_color_magenta_green|signed }}</span>
+          </div>
+        </div>
+      {% endif %}
+
+      {# Grain — scattered dots for roughness, varying sizes for grain size #}
+      <div class="detail-pair">
+        <div class="detail-field">
+          <span class="detail-label">
+            <svg class="field-icon" viewBox="0 0 14 14" fill="currentColor">
+              <circle cx="3" cy="3.5" r="1.1"/>
+              <circle cx="8.5" cy="2.5" r="1.1"/>
+              <circle cx="12" cy="5.5" r="1.1"/>
+              <circle cx="5.5" cy="7.5" r="1.1"/>
+              <circle cx="11" cy="9.5" r="1.1"/>
+              <circle cx="2.5" cy="11" r="1.1"/>
+              <circle cx="7.5" cy="11.5" r="1.1"/>
+            </svg>
+            Grain Roughness
+          </span>
+          <span class="detail-value">{{ recipe.grain_roughness }}</span>
+        </div>
+        <div class="detail-field">
+          <span class="detail-label">
+            <svg class="field-icon" viewBox="0 0 14 14" fill="currentColor">
+              <circle cx="4" cy="9" r="3.5"/>
+              <circle cx="10.5" cy="5" r="1.8"/>
+            </svg>
+            Grain Size
+          </span>
+          <span class="detail-value">{{ recipe.grain_size }}</span>
+        </div>
+      </div>
+
+      {# Color Chrome — prism for CCE, circle-with-dot for FX Blue #}
+      <div class="detail-pair">
+        <div class="detail-field">
+          <span class="detail-label">
+            <svg class="field-icon" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round">
+              <polygon points="7,1 13,12 1,12"/>
+              <line x1="7" y1="1" x2="4" y2="7" stroke-width="0.8" opacity="0.5"/>
+              <line x1="7" y1="1" x2="7.5" y2="5.5" stroke-width="0.8" opacity="0.5"/>
+              <line x1="7" y1="1" x2="10.5" y2="8" stroke-width="0.8" opacity="0.5"/>
+            </svg>
+            Color Chrome Effect
+          </span>
+          <span class="detail-value">{{ recipe.color_chrome_effect }}</span>
+        </div>
+        <div class="detail-field">
+          <span class="detail-label">
+            <svg class="field-icon" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.2">
+              <circle cx="7" cy="7" r="5.5"/>
+              <circle cx="7" cy="7" r="2" fill="currentColor" stroke="none" opacity="0.6"/>
+            </svg>
+            Color Chrome FX Blue
+          </span>
+          <span class="detail-value">{{ recipe.color_chrome_fx_blue }}</span>
+        </div>
+      </div>
+
+      {# White Balance — lightbulb (colour temperature of the light source) #}
+      <div class="detail-field">
+        <span class="detail-label">
+          <svg class="field-icon" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M5 9.5 C5 9.5 3.2 8.3 3.2 6.2 A3.8 3.8 0 0 1 10.8 6.2 C10.8 8.3 9 9.5 9 9.5 Z"/>
+            <line x1="5.2" y1="11" x2="8.8" y2="11"/>
+            <line x1="5.8" y1="12.5" x2="8.2" y2="12.5"/>
+          </svg>
+          White Balance
+        </span>
+        <span class="detail-value">{{ recipe.white_balance }}</span>
+      </div>
+
+      {# WB Shifts — warm thermometer (R) and cool thermometer (B) #}
+      <div class="detail-pair">
+        <div class="detail-field">
+          <span class="detail-label">
+            <svg class="field-icon" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round">
+              <line x1="2" y1="7" x2="11" y2="7"/>
+              <polyline points="8.5,4.5 11,7 8.5,9.5"/>
+              <text x="1" y="12" font-size="5" fill="currentColor" stroke="none" font-weight="700" font-family="sans-serif">R</text>
+            </svg>
+            WB Red Shift
+          </span>
+          <span class="detail-value">{{ recipe.white_balance_red|signed }}</span>
+        </div>
+        <div class="detail-field">
+          <span class="detail-label">
+            <svg class="field-icon" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round">
+              <line x1="2" y1="7" x2="11" y2="7"/>
+              <polyline points="8.5,4.5 11,7 8.5,9.5"/>
+              <text x="1" y="12" font-size="5" fill="currentColor" stroke="none" font-weight="700" font-family="sans-serif">B</text>
+            </svg>
+            WB Blue Shift
+          </span>
+          <span class="detail-value">{{ recipe.white_balance_blue|signed }}</span>
+        </div>
+      </div>
+
+      {# Dynamic Range — histogram bars / DR priority layered bars #}
+      <div class="detail-pair">
+        <div class="detail-field">
+          <span class="detail-label">
+            <svg class="field-icon" viewBox="0 0 14 14" fill="currentColor">
+              <rect x="1" y="9" width="2.5" height="4" rx="0.3"/>
+              <rect x="4.5" y="6" width="2.5" height="7" rx="0.3"/>
+              <rect x="8" y="3.5" width="2.5" height="9.5" rx="0.3"/>
+              <rect x="11.5" y="6.5" width="1.5" height="6.5" rx="0.3"/>
+            </svg>
+            Dynamic Range
+          </span>
+          <span class="detail-value">{{ recipe.dynamic_range }}</span>
+        </div>
+        <div class="detail-field">
+          <span class="detail-label">
+            <svg class="field-icon" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round">
+              <line x1="1" y1="4" x2="13" y2="4"/>
+              <line x1="1" y1="7" x2="10" y2="7"/>
+              <line x1="1" y1="10" x2="7" y2="10"/>
+            </svg>
+            D-Range Priority
+          </span>
+          <span class="detail-value">{{ recipe.d_range_priority }}</span>
+        </div>
+      </div>
+
+      {# Tone curve — Highlight (sun) / Shadow (moon) #}
+      <div class="detail-pair">
+        <div class="detail-field">
+          <span class="detail-label">
+            <svg class="field-icon" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round">
+              <circle cx="7" cy="7" r="2.2"/>
+              <line x1="7" y1="1" x2="7" y2="2"/>
+              <line x1="7" y1="12" x2="7" y2="13"/>
+              <line x1="1" y1="7" x2="2" y2="7"/>
+              <line x1="12" y1="7" x2="13" y2="7"/>
+              <line x1="2.8" y1="2.8" x2="3.5" y2="3.5"/>
+              <line x1="10.5" y1="10.5" x2="11.2" y2="11.2"/>
+              <line x1="11.2" y1="2.8" x2="10.5" y2="3.5"/>
+              <line x1="3.5" y1="10.5" x2="2.8" y2="11.2"/>
+            </svg>
+            Highlight
+          </span>
+          <span class="detail-value">{{ recipe.highlight|signed }}</span>
+        </div>
+        <div class="detail-field">
+          <span class="detail-label">
+            <svg class="field-icon" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.2">
+              <path d="M9 2.5 A5 5 0 1 0 9 11.5 A4 4 0 1 1 9 2.5 Z" fill="currentColor" opacity="0.55" stroke="none"/>
+              <path d="M9 2.5 A5 5 0 1 0 9 11.5 A4 4 0 1 1 9 2.5 Z"/>
+            </svg>
+            Shadow
+          </span>
+          <span class="detail-value">{{ recipe.shadow|signed }}</span>
+        </div>
+      </div>
+
+      {# Color (palette) / Sharpness (diamond) #}
+      <div class="detail-pair">
+        <div class="detail-field">
+          <span class="detail-label">
+            <svg class="field-icon" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.2">
+              <circle cx="7" cy="7" r="5.5"/>
+              <circle cx="5" cy="5.5" r="1.1" fill="currentColor" stroke="none"/>
+              <circle cx="9" cy="5" r="1.1" fill="currentColor" stroke="none"/>
+              <circle cx="10.2" cy="8.5" r="1.1" fill="currentColor" stroke="none"/>
+              <circle cx="4.2" cy="9.2" r="1.1" fill="currentColor" stroke="none"/>
+            </svg>
+            Color
+          </span>
+          <span class="detail-value">{{ recipe.color|signed }}</span>
+        </div>
+        <div class="detail-field">
+          <span class="detail-label">
+            <svg class="field-icon" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round">
+              <polygon points="7,1 13,7 7,13 1,7"/>
+              <polygon points="7,3.5 10.5,7 7,10.5 3.5,7" fill="currentColor" opacity="0.25" stroke="none"/>
+            </svg>
+            Sharpness
+          </span>
+          <span class="detail-value">{{ recipe.sharpness|signed }}</span>
+        </div>
+      </div>
+
+      {# NR (funnel/filter) / Clarity (concentric circles) #}
+      <div class="detail-pair">
+        <div class="detail-field">
+          <span class="detail-label">
+            <svg class="field-icon" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="1,2.5 13,2.5 8.5,7.5 8.5,12 5.5,10.5 5.5,7.5 Z" fill="currentColor" opacity="0.2"/>
+              <polyline points="1,2.5 13,2.5 8.5,7.5 8.5,12 5.5,10.5 5.5,7.5 Z"/>
+            </svg>
+            High ISO NR
+          </span>
+          <span class="detail-value">{{ recipe.high_iso_nr|signed }}</span>
+        </div>
+        <div class="detail-field">
+          <span class="detail-label">
+            <svg class="field-icon" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.2">
+              <circle cx="7" cy="7" r="5.5"/>
+              <circle cx="7" cy="7" r="3.2"/>
+              <circle cx="7" cy="7" r="1" fill="currentColor" stroke="none"/>
+            </svg>
+            Clarity
+          </span>
+          <span class="detail-value">{{ recipe.clarity|signed }}</span>
+        </div>
+      </div>
+
+      <p class="detail-image-count">{{ recipe.image_count }} image{{ recipe.image_count|pluralize }}</p>
+    </div>
+
+    <!-- Actions -->
+    <div class="detail-actions-col">
+      <h2 class="detail-section-title">Actions</h2>
+
+      <div class="action-group">
+        {% if recipe.name %}
+          <button class="action-btn action-btn--primary send-to-camera-btn"
+                  hx-get="{% url 'select-push-slot' recipe_id=recipe.id %}"
+                  hx-target="#slot-overlay"
+                  hx-swap="innerHTML">Send to camera</button>
+        {% else %}
+          <div style="display:flex;align-items:center;gap:0.75rem;">
+            <button class="action-btn action-btn--disabled" disabled>Send to camera</button>
+            <span class="action-hint">Name the recipe first for sending it to camera.</span>
+          </div>
+        {% endif %}
+        {% if recipe.image_count %}
+          <a class="action-btn action-btn--secondary" href="{% url 'gallery' %}?recipe_id={{ recipe.id }}">Browse images</a>
+        {% endif %}
+      </div>
+    </div>
+
+  </div>
+</div>
