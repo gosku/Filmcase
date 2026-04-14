@@ -2,18 +2,14 @@
 <div class="import-result import-result--error">
   <p class="import-result__message">{{ error }}</p>
 </div>
-{% elif imported == 0 and skipped == 0 %}
-<div class="import-result import-result--empty">
-  <p class="import-result__message">No JPEG images found in <code>{{ folder }}</code>.</p>
-</div>
 {% elif imported == 0 %}
 <div class="import-result import-result--empty">
-  <p class="import-result__message">No images imported — all {{ skipped }} file{{ skipped|pluralize }} skipped (no Fujifilm metadata).</p>
+  <p class="import-result__message">No JPEG images found in <code>{{ folder }}</code>.</p>
 </div>
 {% else %}
 <div class="import-result import-result--success">
   <p class="import-result__message">
-    <strong>{{ imported }} image{{ imported|pluralize }} imported</strong> from <code>{{ folder }}</code>.{% if skipped %} {{ skipped }} skipped (no Fujifilm metadata).{% endif %}
+    <strong>{{ imported }} image{{ imported|pluralize }} imported</strong> from <code>{{ folder }}</code>.
   </p>
   <a href="{% url 'gallery' %}" class="import-result__gallery-link">View gallery →</a>
 </div>

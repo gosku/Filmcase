@@ -309,15 +309,14 @@ class ImportFolderView(generic.View):
             return _render_error("Please enter a folder path.")
 
         try:
-            total, skipped = process_images_uc.process_images_in_folder(folder=folder)
+            imported = process_images_uc.import_images_from_folder(folder=folder)
         except process_images_uc.InvalidFolderError:
             return _render_error(f"Path does not exist or is not a directory: {folder}")
         except Exception:
             structlog.get_logger().exception("Unexpected error in ImportFolderView.post")
             return _render_error("An unexpected error occurred. Please try again.")
 
-        imported = total - len(skipped)
-        ctx = {"imported": imported, "skipped": len(skipped), "folder": folder}
+        ctx = {"imported": imported, "folder": folder}
         if is_htmx:
             return shortcuts.render(request, "images/_import_result_partial.html", ctx)
         return shortcuts.redirect("gallery")
