@@ -6,7 +6,7 @@ from bs4 import BeautifulSoup
 
 FIXTURES_DIR = str(Path(__file__).resolve().parent.parent / "fixtures" / "images")
 
-_IMPORT_UC = "src.interfaces.views.process_images_uc.process_images_in_folder"
+_IMPORT_UC = "src.interfaces.views.process_images_uc.import_images_from_folder"
 
 
 @pytest.mark.django_db
@@ -51,7 +51,7 @@ class TestImportFolderViewErrors:
 @pytest.mark.django_db
 class TestImportFolderViewSuccess:
     def test_returns_success_partial_for_htmx_request(self, client):
-        with patch(_IMPORT_UC, return_value=(3, [])) as mock_uc:
+        with patch(_IMPORT_UC, return_value=3) as mock_uc:
             response = client.post(
                 "/images/import/",
                 {"folder": FIXTURES_DIR},
@@ -64,7 +64,7 @@ class TestImportFolderViewSuccess:
         assert soup.find(class_="import-result--success") is not None
 
     def test_success_message_shows_imported_count(self, client):
-        with patch(_IMPORT_UC, return_value=(5, [])):
+        with patch(_IMPORT_UC, return_value=5):
             response = client.post(
                 "/images/import/",
                 {"folder": FIXTURES_DIR},
@@ -73,18 +73,8 @@ class TestImportFolderViewSuccess:
 
         assert "5 images imported" in response.content.decode()
 
-    def test_success_message_shows_skipped_count(self, client):
-        with patch(_IMPORT_UC, return_value=(5, ["/a.jpg", "/b.jpg"])):
-            response = client.post(
-                "/images/import/",
-                {"folder": FIXTURES_DIR},
-                HTTP_HX_REQUEST="true",
-            )
-
-        assert "2 skipped" in response.content.decode()
-
     def test_empty_folder_returns_empty_state(self, client, tmp_path):
-        with patch(_IMPORT_UC, return_value=(0, [])):
+        with patch(_IMPORT_UC, return_value=0):
             response = client.post(
                 "/images/import/",
                 {"folder": str(tmp_path)},
@@ -92,17 +82,6 @@ class TestImportFolderViewSuccess:
             )
 
         assert response.status_code == 200
-        soup = BeautifulSoup(response.content, "html.parser")
-        assert soup.find(class_="import-result--empty") is not None
-
-    def test_all_skipped_returns_empty_state(self, client):
-        with patch(_IMPORT_UC, return_value=(2, ["/a.jpg", "/b.jpg"])):
-            response = client.post(
-                "/images/import/",
-                {"folder": FIXTURES_DIR},
-                HTTP_HX_REQUEST="true",
-            )
-
         soup = BeautifulSoup(response.content, "html.parser")
         assert soup.find(class_="import-result--empty") is not None
 
