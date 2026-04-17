@@ -9,6 +9,7 @@ import-linter==2.11
 grimp==3.14
 
 # Type checking
+mypy==1.15.0
 django-stubs==5.2.9
 django-stubs-ext==5.2.9
 
@@ -19,4 +20,5 @@ pdbpp==0.12.1
 ipython==9.11.0
 
 # Type stubs
+celery-types==0.26.0
 types-PyYAML==6.0.12.20250915
