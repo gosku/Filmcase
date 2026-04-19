@@ -143,3 +143,25 @@ def get_recipe_as_json(*, recipe: models.FujifilmRecipe) -> str:
         else:
             payload[field] = raw
     return json.dumps(payload, separators=(",", ":"))
+
+
+def get_recipe_cover_lines(
+    *,
+    recipe: models.FujifilmRecipe,
+    template: card_templates.CardTemplate,
+) -> tuple[FieldLine, ...]:
+    """Return display lines for the recipe card formatted per template label style.
+
+    Inapplicable fields (same rules as get_recipe_as_json) and null values are omitted.
+    """
+    labels = _LONG_LABELS if template.label_style == "long" else _SHORT_LABELS
+    lines: list[FieldLine] = []
+    for field in _DISPLAY_FIELDS:
+        if not _is_applicable(recipe, field):
+            continue
+        raw = _get_raw_value(recipe, field)
+        if raw is None:
+            continue
+        value = _format_value(field, raw)
+        lines.append(FieldLine(label=labels[field], value=value))
+    return tuple(lines)

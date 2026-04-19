@@ -99,3 +99,66 @@ class TestGetRecipeAsJson:
         recipe = _recipe()  # default model name is ""
         payload = json.loads(queries.get_recipe_as_json(recipe=recipe))
         assert "name" not in payload
+
+
+class TestGetRecipeCoverLines:
+    def test_returns_field_lines(self) -> None:
+        recipe = _recipe()
+        lines = queries.get_recipe_cover_lines(recipe=recipe, template=templates.LONG_LABEL)
+        assert all(isinstance(line, queries.FieldLine) for line in lines)
+
+    def test_uses_long_labels_for_long_template(self) -> None:
+        recipe = _recipe(film_simulation="Provia")
+        lines = queries.get_recipe_cover_lines(recipe=recipe, template=templates.LONG_LABEL)
+        labels = [line.label for line in lines]
+        assert "Film Simulation" in labels
+
+    def test_uses_short_labels_for_short_template(self) -> None:
+        recipe = _recipe(film_simulation="Provia")
+        lines = queries.get_recipe_cover_lines(recipe=recipe, template=templates.SHORT_LABEL)
+        labels = [line.label for line in lines]
+        assert "Film Sim" in labels
+        assert "Film Simulation" not in labels
+
+    def test_film_simulation_value_is_present(self) -> None:
+        recipe = _recipe(film_simulation="Velvia")
+        lines = queries.get_recipe_cover_lines(recipe=recipe, template=templates.LONG_LABEL)
+        film_line = next(l for l in lines if l.label == "Film Simulation")
+        assert film_line.value == "Velvia"
+
+    def test_omits_inapplicable_fields(self) -> None:
+        recipe = _recipe(film_simulation="Acros STD", color=None, color_chrome_effect=None)
+        lines = queries.get_recipe_cover_lines(recipe=recipe, template=templates.LONG_LABEL)
+        labels = [line.label for line in lines]
+        assert "Color" not in labels
+        assert "Color Chrome" not in labels
+
+    def test_omits_grain_size_when_grain_roughness_is_off(self) -> None:
+        recipe = _recipe(grain_roughness="Off", grain_size="Small")
+        lines = queries.get_recipe_cover_lines(recipe=recipe, template=templates.LONG_LABEL)
+        labels = [line.label for line in lines]
+        assert "Grain Size" not in labels
+
+    def test_omits_none_values(self) -> None:
+        recipe = _recipe(highlight=None, shadow=None)
+        lines = queries.get_recipe_cover_lines(recipe=recipe, template=templates.LONG_LABEL)
+        labels = [line.label for line in lines]
+        assert "Highlight" not in labels
+        assert "Shadow" not in labels
+
+    def test_field_order_matches_display_fields(self) -> None:
+        from decimal import Decimal
+        recipe = _recipe(
+            film_simulation="Provia",
+            grain_roughness="Weak",
+            grain_size="Large",
+            white_balance="Daylight",
+            highlight=Decimal("1"),
+            shadow=Decimal("-1"),
+        )
+        lines = queries.get_recipe_cover_lines(recipe=recipe, template=templates.LONG_LABEL)
+        present_fields = [line.label for line in lines]
+        film_idx = present_fields.index("Film Simulation")
+        wb_idx = present_fields.index("White Balance")
+        hl_idx = present_fields.index("Highlight")
+        assert film_idx < wb_idx < hl_idx
