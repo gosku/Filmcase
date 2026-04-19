@@ -544,6 +544,26 @@ def _resolve_card_template(
 
 
 @_attrs.frozen
+class _RecipeCardModalContext:
+    pk: int
+    display_name: str
+
+    @classmethod
+    def from_model(cls, recipe: models.FujifilmRecipe) -> "_RecipeCardModalContext":
+        name = recipe.name or f"{recipe.film_simulation} #{recipe.pk}"
+        return cls(pk=recipe.pk, display_name=name)
+
+
+@_attrs.frozen
+class _ImageThumbnailContext:
+    pk: int
+
+    @classmethod
+    def from_model(cls, image: models.Image) -> "_ImageThumbnailContext":
+        return cls(pk=image.pk)
+
+
+@_attrs.frozen
 class _RecipeCardResultContext:
     pk: int
     recipe_id: int
@@ -552,6 +572,20 @@ class _RecipeCardResultContext:
     def from_model(cls, card: models.RecipeCard) -> "_RecipeCardResultContext":
         return cls(pk=card.pk, recipe_id=card.recipe_id)
 
+
+def recipe_card_modal_view(request: http.HttpRequest, recipe_id: int) -> http.HttpResponse:
+    recipe = shortcuts.get_object_or_404(models.FujifilmRecipe, pk=recipe_id)
+    images = models.Image.objects.filter(
+        fujifilm_recipe=recipe,
+    ).order_by("-rating", "-taken_at")[:12]
+    return shortcuts.render(
+        request,
+        "recipes/partials/recipe_card_modal.html",
+        {
+            "recipe": _RecipeCardModalContext.from_model(recipe),
+            "images": [_ImageThumbnailContext.from_model(img) for img in images],
+        },
+    )
 
 
 class RecipeCardPreview(generic.View):
