@@ -282,8 +282,8 @@ def _recipe_explorer_filters_from_request(request: http.HttpRequest) -> dict[str
     }
 
 
-def import_folder_suggest_view(request):
-    matches = process_images_uc.suggest_import_folder(partial=request.GET.get("folder", ""))
+def import_folder_suggest_view(request: http.HttpRequest) -> http.HttpResponse:
+    matches = image_queries.suggest_subdirectories(partial=request.GET.get("folder", ""))
     items = "".join(
         f'<li class="import-suggestion" tabindex="-1" role="option" data-value="{escape(str(m))}">'
         f'<span class="import-suggestion__name">{escape(m.name)}</span>'
@@ -295,7 +295,7 @@ def import_folder_suggest_view(request):
 
 
 class ImportFolderView(generic.View):
-    def post(self, request):
+    def post(self, request: http.HttpRequest, **kwargs: Any) -> http.HttpResponse:
         is_htmx = request.headers.get("HX-Request")
         folder = request.POST.get("folder", "").strip()
 

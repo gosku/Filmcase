@@ -8,11 +8,6 @@ class InvalidFolderError(Exception):
     """Raised when the supplied folder path is not a valid directory."""
 
 
-def suggest_import_folder(*, partial: str) -> list:
-    """Return subdirectory suggestions matching a partial path typed by the user."""
-    return queries.suggest_subdirectories(partial=partial)
-
-
 def import_images_from_folder(*, folder: str) -> int:
     """Process all JPG images in *folder*, dispatching async or sync based on settings.
 
