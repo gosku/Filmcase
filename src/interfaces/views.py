@@ -594,3 +594,8 @@ def recipe_card_preview_file_view(request: http.HttpRequest, recipe_id: int) -> 
     return http.FileResponse(preview_path.open("rb"), content_type="image/jpeg")
 
 
+def recipe_card_file_view(request: http.HttpRequest, card_id: int) -> http.FileResponse:
+    card = shortcuts.get_object_or_404(models.RecipeCard, pk=card_id)
+    return http.FileResponse(Path(card.filepath).open("rb"), content_type="image/jpeg")
+
+

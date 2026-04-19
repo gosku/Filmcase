@@ -28,4 +28,5 @@ urlpatterns = [
     path("recipes/<int:recipe_id>/push/<str:slot>/", views.PushRecipeToCamera.as_view(), name="push-recipe-to-camera"),
     path("recipes/<int:recipe_id>/card/partial/preview/", views.RecipeCardPreview.as_view(), name="recipe-card-preview"),
     path("recipes/<int:recipe_id>/card/preview/file/", views.recipe_card_preview_file_view, name="recipe-card-preview-file"),
+    path("recipes/card/<int:card_id>/file/", views.recipe_card_file_view, name="recipe-card-file"),
 ]
