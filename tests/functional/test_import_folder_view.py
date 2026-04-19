@@ -3,10 +3,36 @@ from unittest.mock import patch
 
 import pytest
 from bs4 import BeautifulSoup
+from django.test import override_settings
+
+from src.application.usecases.images.process_images import (
+    InvalidFolderError,
+    import_images_from_folder,
+)
 
 FIXTURES_DIR = str(Path(__file__).resolve().parent.parent / "fixtures" / "images")
 
 _IMPORT_UC = "src.interfaces.views.process_images_uc.import_images_from_folder"
+
+
+class TestImportImagesFromFolderInvalidFolder:
+    def test_raises_when_folder_does_not_exist_sync(self):
+        with override_settings(USE_ASYNC_TASKS=False):
+            with patch(
+                "src.application.usecases.images.process_images.queries.collect_image_paths",
+                side_effect=FileNotFoundError,
+            ):
+                with pytest.raises(InvalidFolderError):
+                    import_images_from_folder(folder="/nonexistent/path")
+
+    def test_raises_when_folder_does_not_exist_async(self):
+        with override_settings(USE_ASYNC_TASKS=True):
+            with patch(
+                "src.application.usecases.images.process_images.queries.collect_image_paths",
+                side_effect=FileNotFoundError,
+            ):
+                with pytest.raises(InvalidFolderError):
+                    import_images_from_folder(folder="/nonexistent/path")
 
 
 @pytest.mark.django_db
