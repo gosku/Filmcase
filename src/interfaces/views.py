@@ -15,6 +15,7 @@ from src.application.usecases.camera import get_camera_slots as get_camera_slots
 from src.application.usecases.camera import push_recipe as push_recipe_uc
 from src.application.usecases.recipes import build_graph as build_graph_uc
 from src.application.usecases.recipes import import_recipes_from_uploaded_files as import_recipes_uc
+from src.application.usecases.recipes import preview_recipe_card as preview_recipe_card_uc
 from src.data import models
 from src.domain.camera import ptp_device
 from src.domain.images import filter_queries
@@ -24,6 +25,7 @@ from src.domain.images.thumbnails import operations as thumbnail_operations
 from src.domain.recipes import graph as recipe_graph
 from src.domain.recipes import operations as recipe_operations
 from src.domain.recipes import queries as recipe_queries
+from src.domain.recipes.cards import templates as card_templates
 
 
 def _active_filters_from_request(request: http.HttpRequest) -> dict[str, list[str]]:
@@ -529,3 +531,32 @@ def _resized_image_response(path: Path, width: int) -> http.FileResponse:
     response = http.FileResponse(cache_path.open("rb"), content_type=content_type)
     response["Cache-Control"] = "max-age=86400"
     return response
+
+
+def _resolve_card_template(
+    label_style: str,
+    bg_effect: str,
+) -> card_templates.CardTemplate:
+    key = ("long" if label_style == "long" else "short") + "_label" + ("_sharp" if bg_effect == "sharp" else "")
+    return card_templates.TEMPLATES.get(key, card_templates.LONG_LABEL)
+
+
+def recipe_card_preview_file_view(request: http.HttpRequest, recipe_id: int) -> http.FileResponse:
+    image_id_raw = request.GET.get("image_id")
+    image_id = int(image_id_raw) if image_id_raw else None
+    template = _resolve_card_template(
+        label_style=request.GET.get("label_style", "long"),
+        bg_effect=request.GET.get("bg_effect", "blur"),
+    )
+    try:
+        preview_path = preview_recipe_card_uc.preview_recipe_card(
+            recipe_id=recipe_id,
+            image_id=image_id,
+            template=template,
+        )
+    except Exception:
+        structlog.get_logger().exception("Unexpected error generating recipe card preview file")
+        raise http.Http404
+    return http.FileResponse(preview_path.open("rb"), content_type="image/jpeg")
+
+
