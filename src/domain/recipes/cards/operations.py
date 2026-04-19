@@ -1,13 +1,14 @@
 from __future__ import annotations
 
+import uuid
 from pathlib import Path
 
-import piexif
+import piexif  # type: ignore[import-untyped]
 from PIL import Image as PILImage
 from PIL import ImageDraw, ImageFilter, ImageFont
 
-import qrcode
-import qrcode.image.pil
+import qrcode  # type: ignore[import-untyped]
+import qrcode.image.pil  # type: ignore[import-untyped]
 
 from src.data import models
 from src.domain.recipes.cards import queries as card_queries
@@ -81,9 +82,7 @@ def _compose_card(
 ) -> tuple[PILImage.Image, str, bool]:
     """Build the card PIL image. Returns (canvas, json_str, use_gradient)."""
     target_w, target_h = template.output_size
-    use_gradient = background_image is None
-
-    if use_gradient:
+    if background_image is None:
         canvas = _build_gradient(target_w, target_h)
     else:
         with PILImage.open(background_image.filepath) as img:
@@ -117,7 +116,7 @@ def _compose_card(
     qr_pos = (target_w - _QR_SIZE - _QR_MARGIN, target_h - _QR_SIZE - _QR_MARGIN)
     canvas.paste(qr_img, qr_pos)
 
-    return canvas, json_str, use_gradient
+    return canvas, json_str, background_image is None
 
 
 def _save_card(
@@ -150,3 +149,25 @@ def preview_recipe_card_image(
     )
     _save_card(canvas=canvas, filepath=output_path, json_str=json_str, use_gradient=use_gradient)
     return output_path
+
+
+def create_recipe_card_image(
+    *,
+    recipe: models.FujifilmRecipe,
+    template: card_templates.CardTemplate,
+    background_image: models.Image | None,
+    output_dir: Path,
+) -> Path:
+    """Compose a recipe card image and save it to output_dir. Return the file path.
+
+    If background_image is given, resizes/crops it to template.output_size and
+    applies Gaussian blur when template.background_effect == "blur".
+    If background_image is None, generates a soft gradient background and embeds
+    the recipe JSON into the EXIF UserComment so the card can be re-imported.
+    """
+    canvas, json_str, use_gradient = _compose_card(
+        recipe=recipe, template=template, background_image=background_image,
+    )
+    filepath = output_dir / f"recipe_{recipe.pk}_{uuid.uuid4().hex[:8]}.jpg"
+    _save_card(canvas=canvas, filepath=filepath, json_str=json_str, use_gradient=use_gradient)
+    return filepath
