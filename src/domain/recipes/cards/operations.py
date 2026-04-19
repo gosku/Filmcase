@@ -11,6 +11,7 @@ import qrcode  # type: ignore[import-untyped]
 import qrcode.image.pil  # type: ignore[import-untyped]
 
 from src.data import models
+from src.domain.images import events
 from src.domain.recipes.cards import queries as card_queries
 from src.domain.recipes.cards import templates as card_templates
 
@@ -171,3 +172,36 @@ def create_recipe_card_image(
     filepath = output_dir / f"recipe_{recipe.pk}_{uuid.uuid4().hex[:8]}.jpg"
     _save_card(canvas=canvas, filepath=filepath, json_str=json_str, use_gradient=use_gradient)
     return filepath
+
+
+def create_recipe_card(
+    *,
+    recipe: models.FujifilmRecipe,
+    template: card_templates.CardTemplate,
+    background_image: models.Image | None,
+    output_dir: Path,
+) -> models.RecipeCard:
+    """Create a recipe card image, persist a RecipeCard record, and publish an event.
+
+    Calls create_recipe_card_image internally, then saves a RecipeCard to the DB
+    and publishes a recipe.card.created event.
+    """
+    filepath = create_recipe_card_image(
+        recipe=recipe,
+        template=template,
+        background_image=background_image,
+        output_dir=output_dir,
+    )
+    card = models.RecipeCard.create(
+        filepath=str(filepath),
+        template=template.template_name,
+        recipe_id=recipe.pk,
+        image_id=background_image.pk if background_image is not None else None,
+    )
+    events.publish_event(
+        event_type=events.RECIPE_CARD_CREATED,
+        recipe_id=recipe.pk,
+        card_id=card.pk,
+        template=template.template_name,
+    )
+    return card
