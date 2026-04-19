@@ -359,3 +359,44 @@ class Image(models.Model):
 
     def __str__(self) -> str:
         return f"#{self.id} {self.filename}"
+
+
+class RecipeCard(models.Model):
+    filepath = models.CharField(max_length=1024)
+    template = models.CharField(max_length=50)
+    image = models.ForeignKey(
+        "Image",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="recipe_cards",
+    )
+    recipe = models.ForeignKey(
+        "FujifilmRecipe",
+        on_delete=models.CASCADE,
+        related_name="cards",
+    )
+    created_at = models.DateTimeField(default=timezone.now)
+
+    # Factories
+
+    @classmethod
+    def create(
+        cls,
+        *,
+        filepath: str,
+        template: str,
+        recipe_id: int,
+        image_id: int | None,
+    ) -> "RecipeCard":
+        return cls.objects.create(
+            filepath=filepath,
+            template=template,
+            recipe_id=recipe_id,
+            image_id=image_id,
+        )
+
+    # Properties
+
+    def __str__(self) -> str:
+        return f"#{self.id} card for recipe #{self.recipe_id}"

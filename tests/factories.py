@@ -58,3 +58,12 @@ class ImageFactory(factory.django.DjangoModelFactory):
     camera_make  = "FUJIFILM"
     camera_model = "X-S10"
     # All other fields are blank=True, default="" or have a model-level default.
+
+
+class RecipeCardFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = models.RecipeCard
+
+    filepath = factory.Sequence(lambda n: f"/recipe_cards/card_{n:04d}.jpg")
+    template = "long_label"
+    recipe = factory.SubFactory(FujifilmRecipeFactory)
