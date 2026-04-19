@@ -9,7 +9,7 @@ from unittest.mock import patch
 
 import pytest
 
-from src.data.models import FujifilmExif, Image
+from src.data import models
 from src.domain.images.operations import NoFilmSimulationError, process_image
 
 # Complete exiftool output covering every field mapped in EXIFTOOL_FIELD_MAP,
@@ -237,7 +237,7 @@ class TestProcessImageAllFields:
     def test_fujifilmexif_persisted_to_database(self, tmp_path):
         image = self._run(tmp_path)
 
-        exif_from_db = FujifilmExif.objects.get(pk=image.fujifilm_exif.pk)
+        exif_from_db = models.FujifilmExif.objects.get(pk=image.fujifilm_exif.pk)
         assert exif_from_db.film_simulation == "Classic Negative"
         assert exif_from_db.af_mode == "Zone"
         assert exif_from_db.faces_detected == "1"

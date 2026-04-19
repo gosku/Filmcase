@@ -5,7 +5,7 @@ from unittest.mock import patch
 import pytest
 from bs4 import BeautifulSoup
 
-from src.data.models import FujifilmRecipe
+from src.data import models
 
 FIXTURES_DIR = Path(__file__).resolve().parent.parent / "fixtures" / "images"
 
@@ -75,9 +75,9 @@ class TestImportRecipesViewSuccess:
         assert response.status_code == 200
 
     def test_creates_recipe_in_db(self, client):
-        assert FujifilmRecipe.objects.count() == 0
+        assert models.FujifilmRecipe.objects.count() == 0
         _post(client, "XS107114.JPG")
-        assert FujifilmRecipe.objects.count() == 1
+        assert models.FujifilmRecipe.objects.count() == 1
 
     def test_response_shows_import_count(self, client):
         response = _post(client, "XS107114.JPG")
@@ -92,14 +92,14 @@ class TestImportRecipesViewSuccess:
     def test_imports_multiple_files(self, client):
         response = _post(client, "XS107114.JPG", "XS107209.jpg")
         assert response.status_code == 200
-        assert FujifilmRecipe.objects.count() >= 1
+        assert models.FujifilmRecipe.objects.count() >= 1
         soup = BeautifulSoup(response.content, "html.parser")
         assert "2 recipe" in soup.get_text().lower()
 
     def test_deduplicates_same_recipe(self, client):
         _post(client, "XS107114.JPG")
         _post(client, "XS107114.JPG")
-        assert FujifilmRecipe.objects.count() == 1
+        assert models.FujifilmRecipe.objects.count() == 1
 
 
 # ---------------------------------------------------------------------------

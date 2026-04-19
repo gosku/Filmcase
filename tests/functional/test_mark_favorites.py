@@ -7,7 +7,7 @@ import pytest
 from django.core.management import call_command
 from django.test import override_settings
 
-from src.data.models import Image
+from src.data import models
 from src.domain.images import operations
 
 FIXTURES_DIR = str(Path(__file__).resolve().parent.parent / "fixtures" / "images")
@@ -18,12 +18,12 @@ class TestRateImagesCommand:
     @override_settings(IMAGE_MAX_RATING=5, USE_ASYNC_TASKS=False)
     def test_rates_matching_images_in_folder(self, capsys):
         call_command("process_images", FIXTURES_DIR)
-        total = Image.objects.count()
+        total = models.Image.objects.count()
         assert total > 0
 
         call_command("rate_images", FIXTURES_DIR, "--rating=3")
 
-        assert Image.objects.filter(rating=3).count() == total
+        assert models.Image.objects.filter(rating=3).count() == total
 
     @override_settings(IMAGE_MAX_RATING=5)
     def test_skips_unimported_image_that_is_not_in_db(self, tmp_path, capsys):
@@ -35,7 +35,7 @@ class TestRateImagesCommand:
         captured = capsys.readouterr()
         assert "Skipped" in captured.err
         assert "unable to rate image" in captured.err
-        assert Image.objects.count() == 0
+        assert models.Image.objects.count() == 0
 
     @override_settings(IMAGE_MAX_RATING=5)
     def test_skips_image_that_cannot_be_rated(self, tmp_path, capsys):
@@ -48,7 +48,7 @@ class TestRateImagesCommand:
         captured = capsys.readouterr()
         assert "Skipped" in captured.err
         assert "unable to rate image" in captured.err
-        assert Image.objects.count() == 0
+        assert models.Image.objects.count() == 0
 
     @override_settings(IMAGE_MAX_RATING=5, USE_ASYNC_TASKS=False)
     def test_does_not_affect_other_images(self, capsys):
@@ -60,8 +60,8 @@ class TestRateImagesCommand:
             shutil.copy(fixture_image, Path(tmp) / fixture_image.name)
             call_command("rate_images", tmp, "--rating=3")
 
-        rated = Image.objects.filter(rating=3)
-        unrated = Image.objects.filter(rating=0)
+        rated = models.Image.objects.filter(rating=3)
+        unrated = models.Image.objects.filter(rating=0)
         assert rated.count() == 1
         assert rated.first().filename == "XS107114.JPG"
-        assert unrated.count() == Image.objects.count() - 1
+        assert unrated.count() == models.Image.objects.count() - 1

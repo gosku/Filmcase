@@ -1,7 +1,7 @@
 import pytest
 from django.core.management import call_command
 
-from src.data.models import FujifilmRecipe, Image
+from src.data import models
 from tests.factories import FujifilmRecipeFactory, ImageFactory
 
 
@@ -15,7 +15,7 @@ class TestFixEmptyGrainRecipesCommand:
 
         buggy.refresh_from_db()
         assert buggy.grain_size == "Off"
-        assert FujifilmRecipe.objects.count() == 1
+        assert models.FujifilmRecipe.objects.count() == 1
 
     def test_reassigns_images_and_deletes_buggy_row_when_correct_row_exists(self):
         """When a correct 'Off' row already exists, images are reassigned and the buggy row deleted."""
@@ -39,8 +39,8 @@ class TestFixEmptyGrainRecipesCommand:
 
         image.refresh_from_db()
         assert image.fujifilm_recipe_id == correct.id
-        assert not FujifilmRecipe.objects.filter(pk=buggy_id).exists()
-        assert FujifilmRecipe.objects.count() == 1
+        assert not models.FujifilmRecipe.objects.filter(pk=buggy_id).exists()
+        assert models.FujifilmRecipe.objects.count() == 1
 
     def test_does_not_touch_rows_with_correct_grain_size(self):
         """Rows already storing 'Off' are left untouched."""
@@ -81,7 +81,7 @@ class TestFixEmptyGrainRecipesCommand:
 
         correct.refresh_from_db()
         assert correct.name == "My Recipe"
-        assert not FujifilmRecipe.objects.filter(pk=buggy.pk).exists()
+        assert not models.FujifilmRecipe.objects.filter(pk=buggy.pk).exists()
 
     def test_outputs_summary(self, capsys):
         """The command prints a summary of what was fixed."""

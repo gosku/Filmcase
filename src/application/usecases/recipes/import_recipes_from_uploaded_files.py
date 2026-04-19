@@ -3,7 +3,7 @@ import tempfile
 
 import attrs
 
-from src.data.models import FujifilmRecipe
+from src.data import models
 from src.domain.images.queries import NoFilmSimulationError
 from src.domain.recipes import operations
 
@@ -18,12 +18,12 @@ class UploadedFile:
 
 @attrs.frozen
 class ImportRecipesResult:
-    imported: tuple[FujifilmRecipe, ...]
+    imported: tuple[models.FujifilmRecipe, ...]
     failed: tuple[str, ...]  # original filenames that could not be processed
 
 
 def import_recipes_from_uploaded_files(*, files: list[UploadedFile]) -> ImportRecipesResult:
-    """Extract a FujifilmRecipe from each uploaded file's EXIF data.
+    """Extract a models.FujifilmRecipe from each uploaded file's EXIF data.
 
     For each file the bytes are written to a temporary file under /tmp/,
     the recipe is extracted, and the temporary file is deleted immediately
@@ -35,7 +35,7 @@ def import_recipes_from_uploaded_files(*, files: list[UploadedFile]) -> ImportRe
     Returns an ImportRecipesResult describing which files were imported
     and which failed.
     """
-    imported: list[FujifilmRecipe] = []
+    imported: list[models.FujifilmRecipe] = []
     failed: list[str] = []
 
     for file in files:

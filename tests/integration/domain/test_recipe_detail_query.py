@@ -1,6 +1,6 @@
 import pytest
 
-from src.data.models import FujifilmRecipe
+from src.data import models
 from src.domain.recipes.queries import RecipeData, RecipeDetailContext, get_recipe_detail, get_recipe_gallery_data
 from src.domain.recipes.constants import MONOCHROMATIC_FILM_SIMULATIONS
 from tests.factories import FujifilmRecipeFactory, ImageFactory
@@ -26,7 +26,7 @@ class TestGetRecipeDetail:
         assert result.recipe.film_simulation == "Velvia"
 
     def test_raises_does_not_exist_for_missing_recipe(self):
-        with pytest.raises(FujifilmRecipe.DoesNotExist):
+        with pytest.raises(models.FujifilmRecipe.DoesNotExist):
             get_recipe_detail(recipe_id=99999)
 
     def test_image_count_is_zero_when_no_images(self):
