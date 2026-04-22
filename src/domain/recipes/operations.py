@@ -20,6 +20,46 @@ def _parse_numeric(*, s: str | None) -> Decimal | None:
     return Decimal(s)
 
 
+def get_or_create_recipe_from_data(
+    *, data: image_dataclasses.FujifilmRecipeData,
+) -> models.FujifilmRecipe:
+    """Create or retrieve a FujifilmRecipe for the given recipe data.
+
+    This is the single seam for ``FujifilmRecipe.get_or_create`` — shared by
+    every caller that has already produced a FujifilmRecipeData (from EXIF,
+    from a QR card, or any future source). ``data.name`` is only applied on
+    the create path; a matching existing recipe keeps its current name.
+    """
+    recipe, created = models.FujifilmRecipe.get_or_create(
+        film_simulation=data.film_simulation,
+        dynamic_range=data.dynamic_range or "",
+        d_range_priority=data.d_range_priority,
+        grain_roughness=data.grain_roughness,
+        grain_size=data.grain_size if data.grain_size is not None else "Off",
+        color_chrome_effect=data.color_chrome_effect,
+        color_chrome_fx_blue=data.color_chrome_fx_blue,
+        white_balance=data.white_balance,
+        white_balance_red=data.white_balance_red,
+        white_balance_blue=data.white_balance_blue,
+        highlight=_parse_numeric(s=data.highlight),
+        shadow=_parse_numeric(s=data.shadow),
+        color=_parse_numeric(s=data.color),
+        sharpness=_parse_numeric(s=data.sharpness),
+        high_iso_nr=_parse_numeric(s=data.high_iso_nr),
+        clarity=_parse_numeric(s=data.clarity),
+        monochromatic_color_warm_cool=_parse_numeric(s=data.monochromatic_color_warm_cool),
+        monochromatic_color_magenta_green=_parse_numeric(s=data.monochromatic_color_magenta_green),
+        name=data.name,
+    )
+    if created:
+        events.publish_event(
+            event_type=events.RECIPE_CREATED,
+            recipe_id=recipe.pk,
+            film_simulation=recipe.film_simulation,
+        )
+    return recipe
+
+
 def get_or_create_recipe_from_metadata(*, metadata: image_dataclasses.ImageExifData) -> models.FujifilmRecipe:
     """Create or retrieve a FujifilmRecipe for the given parsed EXIF data.
 
@@ -29,33 +69,7 @@ def get_or_create_recipe_from_metadata(*, metadata: image_dataclasses.ImageExifD
         recipe_data = image_queries.exif_to_recipe(exif=metadata)
     except KeyError:
         raise image_queries.NoFilmSimulationError()
-    recipe, created = models.FujifilmRecipe.get_or_create(
-        film_simulation=recipe_data.film_simulation,
-        dynamic_range=recipe_data.dynamic_range or "",
-        d_range_priority=recipe_data.d_range_priority,
-        grain_roughness=recipe_data.grain_roughness,
-        grain_size=recipe_data.grain_size if recipe_data.grain_size is not None else "Off",
-        color_chrome_effect=recipe_data.color_chrome_effect,
-        color_chrome_fx_blue=recipe_data.color_chrome_fx_blue,
-        white_balance=recipe_data.white_balance,
-        white_balance_red=recipe_data.white_balance_red,
-        white_balance_blue=recipe_data.white_balance_blue,
-        highlight=_parse_numeric(s=recipe_data.highlight),
-        shadow=_parse_numeric(s=recipe_data.shadow),
-        color=_parse_numeric(s=recipe_data.color),
-        sharpness=_parse_numeric(s=recipe_data.sharpness),
-        high_iso_nr=_parse_numeric(s=recipe_data.high_iso_nr),
-        clarity=_parse_numeric(s=recipe_data.clarity),
-        monochromatic_color_warm_cool=_parse_numeric(s=recipe_data.monochromatic_color_warm_cool),
-        monochromatic_color_magenta_green=_parse_numeric(s=recipe_data.monochromatic_color_magenta_green),
-    )
-    if created:
-        events.publish_event(
-            event_type=events.RECIPE_CREATED,
-            recipe_id=recipe.pk,
-            film_simulation=recipe.film_simulation,
-        )
-    return recipe
+    return get_or_create_recipe_from_data(data=recipe_data)
 
 
 def get_or_create_recipe_from_filepath(*, filepath: str) -> models.FujifilmRecipe:
