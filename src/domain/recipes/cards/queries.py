@@ -3,9 +3,11 @@ from __future__ import annotations
 import json
 
 import attrs
-import cv2  # type: ignore[import-untyped]
+import cv2
+import cv2.typing
 
 from src.data import models
+from src.domain.images import dataclasses as image_dataclasses
 from src.domain.recipes import constants as recipe_constants
 from src.domain.recipes import queries as recipe_queries
 from src.domain.recipes.cards import dataclasses as card_dataclasses
@@ -252,26 +254,24 @@ _QR_CROP_PADDING_PX = 20
 _QR_DECODE_UPSCALE = 3
 
 
-def _decode_qr(img: object) -> str:
+def _decode_qr(img: cv2.typing.MatLike) -> str:
     detector = cv2.QRCodeDetector()
     data, _bbox, _rectified = detector.detectAndDecode(img)
     if data:
-        return data
+        return str(data)
 
     retval, pts = detector.detect(img)
     if not retval or pts is None:
         return ""
 
-    pts = pts.reshape(-1, 2).astype(int)
-    x0, y0 = int(pts[:, 0].min()), int(pts[:, 1].min())
-    x1, y1 = int(pts[:, 0].max()), int(pts[:, 1].max())
-    h, w = img.shape[:2]  # type: ignore[attr-defined]
-    x0 = max(0, x0 - _QR_CROP_PADDING_PX)
-    y0 = max(0, y0 - _QR_CROP_PADDING_PX)
-    x1 = min(w, x1 + _QR_CROP_PADDING_PX)
-    y1 = min(h, y1 + _QR_CROP_PADDING_PX)
-    crop = img[y0:y1, x0:x1]  # type: ignore[index]
-    if crop.size == 0:  # type: ignore[attr-defined]
+    pts_int = pts.reshape(-1, 2).astype(int)
+    x0 = max(0, int(pts_int[:, 0].min()) - _QR_CROP_PADDING_PX)
+    y0 = max(0, int(pts_int[:, 1].min()) - _QR_CROP_PADDING_PX)
+    h, w = img.shape[:2]
+    x1 = min(w, int(pts_int[:, 0].max()) + _QR_CROP_PADDING_PX)
+    y1 = min(h, int(pts_int[:, 1].max()) + _QR_CROP_PADDING_PX)
+    crop = img[y0:y1, x0:x1]
+    if crop.size == 0:
         return ""
     upscaled = cv2.resize(
         crop,
@@ -279,7 +279,7 @@ def _decode_qr(img: object) -> str:
         interpolation=cv2.INTER_CUBIC,
     )
     data, _bbox, _rectified = detector.detectAndDecode(upscaled)
-    return data
+    return str(data)
 
 
 def get_qr_recipe_from_image(*, image_path: str) -> card_dataclasses.QRFujifilmRecipe:
@@ -322,3 +322,55 @@ def get_qr_recipe_from_image(*, image_path: str) -> card_dataclasses.QRFujifilmR
         # A required field is missing, or attrs rejected a value. Either way
         # the payload does not match the schema.
         raise InvalidQRRecipePayloadError(image_path=image_path, reason="type_mismatch")
+
+
+def _signed_decimal_or_none(value: int | float | None) -> str | None:
+    return None if value is None else recipe_queries.decimal_str(value)
+
+
+def get_recipe_data_from_qr_recipe(
+    *, qr_recipe: card_dataclasses.QRFujifilmRecipe,
+) -> image_dataclasses.FujifilmRecipeData:
+    """Translate a decoded QRFujifilmRecipe into a FujifilmRecipeData.
+
+    Inverts the formatting decisions made by get_recipe_as_json:
+      - Decimal fields go from int/float back to signed string ("+1", "-1.5",
+        "0"), which is the form FujifilmRecipeData and the downstream
+        get_or_create pipeline expect.
+      - grain_size defaults to "Off" when absent and grain_roughness is "Off",
+        matching the create-side default.
+      - color_chrome_effect / color_chrome_fx_blue default to "" when absent
+        (omitted for monochromatic simulations), matching how those fields
+        are stored for monochrome recipes.
+      - The recipe name is passed through when the payload includes it, and
+        defaults to "" (FujifilmRecipeData's default) when absent.
+    """
+    grain_size = qr_recipe.grain_size
+    if grain_size is None and qr_recipe.grain_roughness == "Off":
+        grain_size = "Off"
+
+    # sharpness / high_iso_nr / clarity are typed `str` on FujifilmRecipeData
+    # because every existing producer (EXIF, DB) fills them. The QR payload
+    # omits them when the DB value is NULL; downstream _parse_numeric handles
+    # None, and attrs.frozen does not enforce types at runtime.
+    return image_dataclasses.FujifilmRecipeData(
+        name=qr_recipe.name or "",
+        film_simulation=qr_recipe.film_simulation,
+        grain_roughness=qr_recipe.grain_roughness,
+        d_range_priority=qr_recipe.d_range_priority,
+        white_balance=qr_recipe.white_balance,
+        white_balance_red=qr_recipe.white_balance_red,
+        white_balance_blue=qr_recipe.white_balance_blue,
+        color_chrome_effect=qr_recipe.color_chrome_effect or "",
+        color_chrome_fx_blue=qr_recipe.color_chrome_fx_blue or "",
+        sharpness=_signed_decimal_or_none(qr_recipe.sharpness),  # type: ignore[arg-type]
+        high_iso_nr=_signed_decimal_or_none(qr_recipe.high_iso_nr),  # type: ignore[arg-type]
+        clarity=_signed_decimal_or_none(qr_recipe.clarity),  # type: ignore[arg-type]
+        dynamic_range=qr_recipe.dynamic_range,
+        grain_size=grain_size,
+        highlight=_signed_decimal_or_none(qr_recipe.highlight),
+        shadow=_signed_decimal_or_none(qr_recipe.shadow),
+        color=_signed_decimal_or_none(qr_recipe.color),
+        monochromatic_color_warm_cool=_signed_decimal_or_none(qr_recipe.monochromatic_color_warm_cool),
+        monochromatic_color_magenta_green=_signed_decimal_or_none(qr_recipe.monochromatic_color_magenta_green),
+    )
