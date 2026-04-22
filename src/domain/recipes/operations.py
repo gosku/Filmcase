@@ -7,6 +7,7 @@ from src.data import models
 from src.domain.images import dataclasses as image_dataclasses
 from src.domain.images import events
 from src.domain.images import queries as image_queries
+from src.domain.recipes.cards import queries as card_queries
 
 
 def _parse_numeric(*, s: str | None) -> Decimal | None:
@@ -81,6 +82,18 @@ def get_or_create_recipe_from_filepath(*, filepath: str) -> models.FujifilmRecip
     if metadata.camera_make.upper() != "FUJIFILM":
         raise image_queries.NoFilmSimulationError(filepath)
     return get_or_create_recipe_from_metadata(metadata=metadata)
+
+
+def get_or_create_recipe_from_qr_card(*, filepath: str) -> models.FujifilmRecipe:
+    """Decode the QR on a recipe-card image and return the matching FujifilmRecipe.
+
+    :raises QRCodeNotFoundError: If no QR code can be decoded from *filepath*.
+    :raises InvalidQRRecipePayloadError: If the decoded content is not a valid
+        QRFujifilmRecipe payload.
+    """
+    qr_recipe = card_queries.get_qr_recipe_from_image(image_path=filepath)
+    recipe_data = card_queries.get_recipe_data_from_qr_recipe(qr_recipe=qr_recipe)
+    return get_or_create_recipe_from_data(data=recipe_data)
 
 
 @attrs.frozen
