@@ -17,6 +17,7 @@ from src.application.usecases.camera import push_recipe as push_recipe_uc
 from src.application.usecases.recipes import build_graph as build_graph_uc
 from src.application.usecases.recipes import create_recipe_card as create_recipe_card_uc
 from src.application.usecases.recipes import import_recipes_from_uploaded_files as import_recipes_uc
+from src.application.usecases.recipes import import_recipes_from_uploaded_qr_cards as import_qr_cards_uc
 from src.application.usecases.recipes import preview_recipe_card as preview_recipe_card_uc
 from src.data import models
 from src.domain.camera import ptp_device
@@ -486,6 +487,38 @@ def import_recipes_from_uploaded_files_view(request: http.HttpRequest) -> http.H
         result = import_recipes_uc.import_recipes_from_uploaded_files(files=files)
     except Exception:
         structlog.get_logger().exception("Unexpected error in import_recipes_from_uploaded_files_view")
+        return shortcuts.render(
+            request,
+            "recipes/partials/_import_result.html",
+            {"error": "An unexpected error occurred. Please try again."},
+        )
+
+    return shortcuts.render(
+        request,
+        "recipes/partials/_import_result.html",
+        {"imported": result.imported, "failed": result.failed},
+    )
+
+
+@http_decorators.require_POST
+def import_recipes_from_uploaded_qr_cards_view(request: http.HttpRequest) -> http.HttpResponse:
+    uploaded = request.FILES.getlist("images")
+    if not uploaded:
+        return shortcuts.render(
+            request,
+            "recipes/partials/_import_result.html",
+            {"error": "No files were uploaded."},
+        )
+
+    files = [
+        recipe_dataclasses.UploadedFile(name=f.name or "", content=f.read())
+        for f in uploaded
+    ]
+
+    try:
+        result = import_qr_cards_uc.import_recipes_from_uploaded_qr_cards(files=files)
+    except Exception:
+        structlog.get_logger().exception("Unexpected error in import_recipes_from_uploaded_qr_cards_view")
         return shortcuts.render(
             request,
             "recipes/partials/_import_result.html",
