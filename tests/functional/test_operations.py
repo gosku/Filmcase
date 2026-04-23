@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from src.data.models import Image
+from src.data import models
 from src.domain.images.operations import process_image
 
 FIXTURES_DIR = Path(__file__).resolve().parent.parent / "fixtures" / "images"
@@ -66,11 +66,11 @@ class TestProcessImageEndToEnd:
         image2 = process_image(image_path=SAMPLE_IMAGE)
 
         assert image1.pk == image2.pk
-        assert Image.objects.filter(filepath=SAMPLE_IMAGE).count() == 1
+        assert models.Image.objects.filter(filepath=SAMPLE_IMAGE).count() == 1
 
     def test_persists_to_database(self):
         process_image(image_path=SAMPLE_IMAGE)
 
-        from_db = Image.objects.get(filepath=SAMPLE_IMAGE)
+        from_db = models.Image.objects.get(filepath=SAMPLE_IMAGE)
         assert from_db.fujifilm_exif.film_simulation == "Classic Negative"
         assert from_db.camera_make == "FUJIFILM"

@@ -4,7 +4,7 @@ from unittest.mock import patch
 
 import pytest
 
-from src.data.models import FujifilmRecipe
+from src.data import models
 from src.domain.images import events
 from src.domain.images.queries import NoFilmSimulationError
 from src.domain.recipes.operations import get_or_create_recipe_from_filepath
@@ -27,7 +27,7 @@ class TestGetOrCreateRecipeFromFilepath:
     def test_creates_recipe_from_fixture_image(self):
         recipe = get_or_create_recipe_from_filepath(filepath=FIXTURE_IMAGE)
 
-        assert isinstance(recipe, FujifilmRecipe)
+        assert isinstance(recipe, models.FujifilmRecipe)
         assert recipe.pk is not None
         assert recipe.film_simulation == "Classic Negative"
 

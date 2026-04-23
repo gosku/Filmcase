@@ -1,7 +1,7 @@
 import pytest
 from datetime import datetime, timezone
 
-from src.data.models import Image
+from src.data import models
 from src.domain.images.queries import get_recipe_image_page
 from tests.factories import FujifilmRecipeFactory, ImageFactory
 
@@ -13,14 +13,14 @@ class TestGetRecipeImagePageRaises:
         other_recipe = FujifilmRecipeFactory()
         image = ImageFactory(fujifilm_recipe=other_recipe)
 
-        with pytest.raises(Image.DoesNotExist):
+        with pytest.raises(models.Image.DoesNotExist):
             get_recipe_image_page(recipe_id=recipe.pk, image_id=image.pk)
 
     def test_raises_when_recipe_has_no_images(self):
         recipe = FujifilmRecipeFactory()
         image = ImageFactory(fujifilm_recipe=None)
 
-        with pytest.raises(Image.DoesNotExist):
+        with pytest.raises(models.Image.DoesNotExist):
             get_recipe_image_page(recipe_id=recipe.pk, image_id=image.pk)
 
 

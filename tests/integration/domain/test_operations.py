@@ -5,7 +5,7 @@ from unittest.mock import patch
 
 import pytest
 
-from src.data.models import FujifilmRecipe, Image
+from src.data import models
 from src.domain.images import events
 from src.domain.images.dataclasses import ImageExifData
 from src.domain.images.operations import NoFilmSimulationError, process_image
@@ -19,7 +19,7 @@ RECIPE_FIXTURES_DIR = Path(__file__).resolve().parent.parent.parent / "fixtures"
 class TestProcessImagePersistence:
     def test_creates_recipe_record(self, captured_logs):
         image = process_image(image_path=FIXTURE_IMAGE)
-        assert isinstance(image, Image)
+        assert isinstance(image, models.Image)
         assert image.pk is not None
         assert image.filename == "XS107114.JPG"
         assert image.filepath == FIXTURE_IMAGE
@@ -109,7 +109,7 @@ class TestProcessImagePersistence:
         # FujifilmRecipe is created and linked
         assert image.fujifilm_recipe is not None
         recipe = image.fujifilm_recipe
-        assert isinstance(recipe, FujifilmRecipe)
+        assert isinstance(recipe, models.FujifilmRecipe)
         assert recipe.film_simulation == "Classic Negative"
         assert recipe.grain_roughness == "Off"
         assert recipe.grain_size == "Off"
@@ -121,7 +121,7 @@ class TestProcessImagePersistence:
         assert recipe.high_iso_nr == -4
         assert recipe.clarity == 0
         # Only one FujifilmRecipe record exists
-        assert FujifilmRecipe.objects.count() == 1
+        assert models.FujifilmRecipe.objects.count() == 1
 
         # Assert event was logged
         created_events = [e for e in captured_logs if e.get("event_type") == events.RECIPE_IMAGE_CREATED]
@@ -136,7 +136,7 @@ class TestProcessImagePersistence:
         image2 = process_image(image_path=FIXTURE_IMAGE)
 
         assert image1.pk == image2.pk
-        assert Image.objects.count() == 1
+        assert models.Image.objects.count() == 1
 
         # First call emits created, second call emits updated
         created_events = [e for e in captured_logs if e.get("event_type") == events.RECIPE_IMAGE_CREATED]
@@ -184,4 +184,4 @@ class TestProcessImageNoFilmSimulation:
             with pytest.raises(NoFilmSimulationError):
                 process_image(image_path="any/path.jpg")
 
-        assert Image.objects.count() == 0
+        assert models.Image.objects.count() == 0

@@ -18,12 +18,12 @@ Usage::
 
 import factory
 
-from src.data.models import FujifilmExif, FujifilmRecipe, Image
+from src.data import models
 
 
 class FujifilmExifFactory(factory.django.DjangoModelFactory):
     class Meta:
-        model = FujifilmExif
+        model = models.FujifilmExif
 
     # All model fields are blank=True, default="" so the only reason to set
     # defaults here is readability.  Override per-test for anything specific.
@@ -32,7 +32,7 @@ class FujifilmExifFactory(factory.django.DjangoModelFactory):
 
 class FujifilmRecipeFactory(factory.django.DjangoModelFactory):
     class Meta:
-        model = FujifilmRecipe
+        model = models.FujifilmRecipe
 
     film_simulation     = "Provia"
     dynamic_range       = "DR100"
@@ -49,7 +49,7 @@ class FujifilmRecipeFactory(factory.django.DjangoModelFactory):
 
 class ImageFactory(factory.django.DjangoModelFactory):
     class Meta:
-        model = Image
+        model = models.Image
 
     # filepath has a unique constraint, so use a sequence to avoid collisions.
     filename = factory.Sequence(lambda n: f"image_{n:04d}.jpg")
@@ -58,3 +58,12 @@ class ImageFactory(factory.django.DjangoModelFactory):
     camera_make  = "FUJIFILM"
     camera_model = "X-S10"
     # All other fields are blank=True, default="" or have a model-level default.
+
+
+class RecipeCardFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = models.RecipeCard
+
+    filepath = factory.Sequence(lambda n: f"/recipe_cards/card_{n:04d}.jpg")
+    template = "long_label"
+    recipe = factory.SubFactory(FujifilmRecipeFactory)

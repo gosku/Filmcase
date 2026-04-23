@@ -1,0 +1,307 @@
+<style>
+  .card-modal {
+    background: #fff;
+    border-radius: 16px;
+    padding: 2rem;
+    width: 960px;
+    max-width: 95vw;
+    max-height: 90vh;
+    overflow-y: auto;
+    position: relative;
+  }
+
+  .card-modal-header {
+    background: #1e1e1e;
+    border-radius: 14px 14px 0 0;
+    padding: 1.1rem 1.5rem;
+    margin: -2rem -2rem 1.5rem -2rem;
+    text-align: center;
+    position: relative;
+  }
+
+  .card-modal-close {
+    position: absolute;
+    top: 0.75rem;
+    right: 0.75rem;
+    width: 1.75rem;
+    height: 1.75rem;
+    border-radius: 50%;
+    border: none;
+    background: rgba(255,255,255,0.1);
+    color: rgba(255,255,255,0.65);
+    font-size: 0.85rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s;
+  }
+
+  .card-modal-close:hover { background: rgba(255,255,255,0.2); }
+
+  .card-modal-title {
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: rgba(255,255,255,0.45);
+    margin-bottom: 0.3rem;
+  }
+
+  .card-modal-recipe-name {
+    font-size: 1rem;
+    font-weight: 700;
+    color: #fff;
+  }
+
+  .card-modal-body {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2rem;
+    align-items: start;
+  }
+
+  .card-section-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #999;
+    margin-bottom: 0.75rem;
+  }
+
+  .card-image-gallery {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .card-image-option {
+    position: relative;
+  }
+
+  .card-image-option input[type="radio"] {
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+  }
+
+  .card-image-option label {
+    display: block;
+    width: 76px;
+    height: 76px;
+    border-radius: 8px;
+    overflow: hidden;
+    border: 3px solid transparent;
+    cursor: pointer;
+    transition: border-color 0.15s;
+  }
+
+  .card-image-option label img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .card-image-option input[type="radio"]:checked + label {
+    border-color: #2db37a;
+  }
+
+  .card-no-image-option {
+    position: relative;
+  }
+
+  .card-no-image-option input[type="radio"] {
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+  }
+
+  .card-no-image-option label {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 76px;
+    height: 76px;
+    border-radius: 8px;
+    border: 3px solid #e0e0e0;
+    cursor: pointer;
+    background: #f5f5f5;
+    color: #999;
+    font-size: 0.65rem;
+    text-align: center;
+    line-height: 1.3;
+    transition: border-color 0.15s;
+  }
+
+  .card-no-image-option input[type="radio"]:checked + label {
+    border-color: #2db37a;
+    color: #2db37a;
+  }
+
+  .card-template-options {
+    display: flex;
+    gap: 0.75rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .card-template-option {
+    position: relative;
+    flex: 1;
+  }
+
+  .card-template-option input[type="radio"] {
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+  }
+
+  .card-template-option label {
+    display: block;
+    padding: 0.75rem 1rem;
+    border-radius: 8px;
+    border: 2px solid #e0e0e0;
+    cursor: pointer;
+    transition: border-color 0.15s;
+  }
+
+  .card-template-option input[type="radio"]:checked + label {
+    border-color: #2db37a;
+    background: #eaf7f0;
+  }
+
+  .card-template-name {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #222;
+    margin-bottom: 0.25rem;
+  }
+
+  .card-template-desc {
+    font-size: 0.72rem;
+    color: #777;
+  }
+
+  .card-create-btn {
+    width: 100%;
+    padding: 0.875rem;
+    border: none;
+    border-radius: 10px;
+    background: #2db37a;
+    color: #fff;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+
+  .card-create-btn:hover { background: #27a06d; }
+  .card-create-btn[aria-busy="true"] { opacity: 0.6; cursor: not-allowed; }
+
+  .card-result-col {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .card-result-placeholder {
+    aspect-ratio: 1;
+    border-radius: 10px;
+    background: #f0f0f0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #bbb;
+    font-size: 0.85rem;
+  }
+</style>
+
+<div class="card-modal">
+  <div class="card-modal-header">
+    <button class="card-modal-close" onclick="closeCardOverlay()" title="Close">&#x2715;</button>
+    <p class="card-modal-title">Create Recipe Card</p>
+    <p class="card-modal-recipe-name">{{ recipe.display_name }}</p>
+  </div>
+
+  <div class="card-modal-body">
+    <form id="card-create-form">
+      {% if images %}
+        <p class="card-section-label">Background image (optional)</p>
+        <div class="card-image-gallery">
+          <div class="card-no-image-option">
+            <input type="radio" name="image_id" id="card-no-image" value="" checked>
+            <label for="card-no-image">Gradient<br>background</label>
+          </div>
+          {% for img in images %}
+            <div class="card-image-option">
+              <input type="radio" name="image_id" id="card-img-{{ img.pk }}" value="{{ img.pk }}">
+              <label for="card-img-{{ img.pk }}">
+                <img src="{% url 'image-file' image_id=img.pk %}?w=160" alt="">
+              </label>
+            </div>
+          {% endfor %}
+        </div>
+      {% endif %}
+
+      <p class="card-section-label">Label style</p>
+      <div class="card-template-options">
+        <div class="card-template-option">
+          <input type="radio" name="label_style" id="card-lbl-long" value="long" checked>
+          <label for="card-lbl-long">
+            <p class="card-template-name">Full labels</p>
+            <p class="card-template-desc">White Balance, Highlights…</p>
+          </label>
+        </div>
+        <div class="card-template-option">
+          <input type="radio" name="label_style" id="card-lbl-short" value="short">
+          <label for="card-lbl-short">
+            <p class="card-template-name">Short labels</p>
+            <p class="card-template-desc">WB, HL, SH…</p>
+          </label>
+        </div>
+      </div>
+
+      <p class="card-section-label">Background effect</p>
+      <div class="card-template-options">
+        <div class="card-template-option">
+          <input type="radio" name="bg_effect" id="card-bg-blur" value="blur" checked>
+          <label for="card-bg-blur">
+            <p class="card-template-name">Blur</p>
+            <p class="card-template-desc">Softens the background photo</p>
+          </label>
+        </div>
+        <div class="card-template-option">
+          <input type="radio" name="bg_effect" id="card-bg-sharp" value="sharp">
+          <label for="card-bg-sharp">
+            <p class="card-template-name">Sharp</p>
+            <p class="card-template-desc">Original photo, no blur</p>
+          </label>
+        </div>
+      </div>
+
+      <button type="button"
+              class="card-create-btn"
+              hx-post="{% url 'create-recipe-card' recipe_id=recipe.pk %}"
+              hx-include="#card-create-form"
+              hx-target="#card-preview-pane"
+              hx-swap="innerHTML"
+              hx-indicator=".card-create-btn">
+        Create Recipe Card
+      </button>
+    </form>
+
+    <div class="card-result-col">
+      <div id="card-preview-pane"
+           hx-get="{% url 'recipe-card-preview' recipe_id=recipe.pk %}"
+           hx-include="#card-create-form"
+           hx-trigger="load, change from:#card-create-form"
+           hx-target="this"
+           hx-swap="innerHTML">
+        <div class="card-result-placeholder">Loading preview…</div>
+      </div>
+    </div>
+  </div>
+</div>

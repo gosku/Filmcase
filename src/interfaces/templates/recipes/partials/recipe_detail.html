@@ -578,8 +578,49 @@
         {% if recipe.image_count %}
           <a class="action-btn action-btn--secondary" href="{% url 'gallery' %}?recipe_id={{ recipe.id }}">Browse images</a>
         {% endif %}
+        <button class="action-btn action-btn--secondary"
+                hx-get="{% url 'recipe-card-modal' recipe_id=recipe.id %}"
+                hx-target="#card-overlay"
+                hx-swap="innerHTML">Create Recipe Card</button>
       </div>
     </div>
 
   </div>
 </div>
+
+<div id="card-overlay" hidden></div>
+
+<style>
+  #card-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 300;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0,0,0,0.6);
+  }
+  #card-overlay[hidden] { display: none; }
+</style>
+
+<script>
+  function closeCardOverlay() {
+    document.getElementById('card-overlay').hidden = true;
+  }
+
+  document.body.addEventListener('htmx:afterSwap', function (e) {
+    if (e.detail.target && e.detail.target.id === 'card-overlay') {
+      e.detail.target.hidden = false;
+    }
+  });
+
+  document.getElementById('card-overlay').addEventListener('click', function (e) {
+    if (e.target === this) closeCardOverlay();
+  });
+
+  document.addEventListener('keydown', function (e) {
+    if (e.key !== 'Escape') return;
+    var overlay = document.getElementById('card-overlay');
+    if (overlay && !overlay.hidden) closeCardOverlay();
+  });
+</script>

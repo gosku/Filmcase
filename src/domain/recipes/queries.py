@@ -41,7 +41,7 @@ RECIPE_FIELDS: tuple[str, ...] = (
 )
 
 
-_DECIMAL_FIELDS: frozenset[str] = frozenset({
+DECIMAL_FIELDS: frozenset[str] = frozenset({
     "highlight",
     "shadow",
     "color",
@@ -95,7 +95,7 @@ class PathDeltaResult:
     missing_ids: tuple[int, ...]
 
 
-def _decimal_str(value: object) -> str:
+def decimal_str(value: object) -> str:
     """Convert a non-null Decimal DB value to a signed string (e.g. Decimal('1.5') → '+1.5')."""
     n = float(value)  # type: ignore[arg-type]
     v: int | float = int(n) if n == int(n) else n
@@ -103,7 +103,7 @@ def _decimal_str(value: object) -> str:
 
 
 def _decimal_str_or_none(value: object) -> str | None:
-    return None if value is None else _decimal_str(value)
+    return None if value is None else decimal_str(value)
 
 
 def recipe_from_db(*, recipe: models.FujifilmRecipe) -> image_dataclasses.FujifilmRecipeData:
@@ -118,9 +118,9 @@ def recipe_from_db(*, recipe: models.FujifilmRecipe) -> image_dataclasses.Fujifi
         white_balance=recipe.white_balance,
         white_balance_red=recipe.white_balance_red,
         white_balance_blue=recipe.white_balance_blue,
-        sharpness=_decimal_str(recipe.sharpness),
-        high_iso_nr=_decimal_str(recipe.high_iso_nr),
-        clarity=_decimal_str(recipe.clarity),
+        sharpness=decimal_str(recipe.sharpness),
+        high_iso_nr=decimal_str(recipe.high_iso_nr),
+        clarity=decimal_str(recipe.clarity),
         dynamic_range=recipe.dynamic_range or None,
         grain_size=None if recipe.grain_roughness == "Off" else recipe.grain_size,
         highlight=_decimal_str_or_none(recipe.highlight),
@@ -284,8 +284,8 @@ def _field_display_value(field: str, raw: object) -> str | None:
     """Return a display-ready string for *field*'s value, or None to omit it."""
     if raw is None:
         return None
-    if field in _DECIMAL_FIELDS:
-        return _decimal_str(raw)
+    if field in DECIMAL_FIELDS:
+        return decimal_str(raw)
     return str(raw)
 
 

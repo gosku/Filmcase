@@ -7,3 +7,5 @@ attrs==25.3.0
 structlog==25.5.0
 envparse==0.2.0
 python-dotenv==1.1.0
+qrcode[pil]==8.1
+piexif==1.1.3

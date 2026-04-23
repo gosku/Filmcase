@@ -1,5 +1,6 @@
 import json
 import mimetypes
+import attrs as _attrs
 import structlog
 from typing import Any
 from pathlib import Path
@@ -14,7 +15,9 @@ from django.views.decorators import http as http_decorators
 from src.application.usecases.camera import get_camera_slots as get_camera_slots_uc
 from src.application.usecases.camera import push_recipe as push_recipe_uc
 from src.application.usecases.recipes import build_graph as build_graph_uc
+from src.application.usecases.recipes import create_recipe_card as create_recipe_card_uc
 from src.application.usecases.recipes import import_recipes_from_uploaded_files as import_recipes_uc
+from src.application.usecases.recipes import preview_recipe_card as preview_recipe_card_uc
 from src.data import models
 from src.domain.camera import ptp_device
 from src.domain.images import filter_queries
@@ -24,6 +27,7 @@ from src.domain.images.thumbnails import operations as thumbnail_operations
 from src.domain.recipes import graph as recipe_graph
 from src.domain.recipes import operations as recipe_operations
 from src.domain.recipes import queries as recipe_queries
+from src.domain.recipes.cards import templates as card_templates
 
 
 def _active_filters_from_request(request: http.HttpRequest) -> dict[str, list[str]]:
@@ -529,3 +533,152 @@ def _resized_image_response(path: Path, width: int) -> http.FileResponse:
     response = http.FileResponse(cache_path.open("rb"), content_type=content_type)
     response["Cache-Control"] = "max-age=86400"
     return response
+
+
+def _resolve_card_template(
+    label_style: str,
+    bg_effect: str,
+) -> card_templates.CardTemplate:
+    key = ("long" if label_style == "long" else "short") + "_label" + ("_sharp" if bg_effect == "sharp" else "")
+    return card_templates.TEMPLATES.get(key, card_templates.LONG_LABEL)
+
+
+@_attrs.frozen
+class _RecipeCardModalContext:
+    pk: int
+    display_name: str
+
+    @classmethod
+    def from_model(cls, recipe: models.FujifilmRecipe) -> "_RecipeCardModalContext":
+        name = recipe.name or f"{recipe.film_simulation} #{recipe.pk}"
+        return cls(pk=recipe.pk, display_name=name)
+
+
+@_attrs.frozen
+class _ImageThumbnailContext:
+    pk: int
+
+    @classmethod
+    def from_model(cls, image: models.Image) -> "_ImageThumbnailContext":
+        return cls(pk=image.pk)
+
+
+@_attrs.frozen
+class _RecipeCardResultContext:
+    pk: int
+    recipe_id: int
+
+    @classmethod
+    def from_model(cls, card: models.RecipeCard) -> "_RecipeCardResultContext":
+        return cls(pk=card.pk, recipe_id=card.recipe_id)
+
+
+def recipe_card_modal_view(request: http.HttpRequest, recipe_id: int) -> http.HttpResponse:
+    recipe = shortcuts.get_object_or_404(models.FujifilmRecipe, pk=recipe_id)
+    images = models.Image.objects.filter(
+        fujifilm_recipe=recipe,
+    ).order_by("-rating", "-taken_at")[:12]
+    return shortcuts.render(
+        request,
+        "recipes/partials/recipe_card_modal.html",
+        {
+            "recipe": _RecipeCardModalContext.from_model(recipe),
+            "images": [_ImageThumbnailContext.from_model(img) for img in images],
+        },
+    )
+
+
+class RecipeCardPreview(generic.View):
+    def get(self, request: http.HttpRequest, recipe_id: int) -> http.HttpResponse:
+        image_id_raw = request.GET.get("image_id")
+        image_id = int(image_id_raw) if image_id_raw else None
+        template = _resolve_card_template(
+            label_style=request.GET.get("label_style", "long"),
+            bg_effect=request.GET.get("bg_effect", "blur"),
+        )
+        try:
+            preview_path = preview_recipe_card_uc.preview_recipe_card(
+                recipe_id=recipe_id,
+                image_id=image_id,
+                template=template,
+            )
+        except Exception:
+            structlog.get_logger().exception("Unexpected error generating recipe card preview")
+            return shortcuts.render(
+                request,
+                "recipes/partials/recipe_card_result.html",
+                {"error": "Could not generate preview."},
+            )
+        return shortcuts.render(
+            request,
+            "recipes/partials/recipe_card_result.html",
+            {
+                "preview_path": str(preview_path),
+                "recipe_id": recipe_id,
+                "image_id": image_id,
+                "label_style": request.GET.get("label_style", "long"),
+                "bg_effect": request.GET.get("bg_effect", "blur"),
+            },
+        )
+
+
+def recipe_card_preview_file_view(request: http.HttpRequest, recipe_id: int) -> http.FileResponse:
+    image_id_raw = request.GET.get("image_id")
+    image_id = int(image_id_raw) if image_id_raw else None
+    template = _resolve_card_template(
+        label_style=request.GET.get("label_style", "long"),
+        bg_effect=request.GET.get("bg_effect", "blur"),
+    )
+    try:
+        preview_path = preview_recipe_card_uc.preview_recipe_card(
+            recipe_id=recipe_id,
+            image_id=image_id,
+            template=template,
+        )
+    except Exception:
+        structlog.get_logger().exception("Unexpected error generating recipe card preview file")
+        raise http.Http404
+    return http.FileResponse(preview_path.open("rb"), content_type="image/jpeg")
+
+
+class CreateRecipeCard(generic.View):
+    recipe: models.FujifilmRecipe
+
+    def setup(self, request: http.HttpRequest, *args: object, **kwargs: object) -> None:
+        super().setup(request, *args, **kwargs)
+        self.recipe = shortcuts.get_object_or_404(
+            models.FujifilmRecipe, pk=kwargs["recipe_id"]
+        )
+
+    def post(self, request: http.HttpRequest, recipe_id: int) -> http.HttpResponse:
+        image_id_raw = request.POST.get("image_id")
+        image_id = int(image_id_raw) if image_id_raw else None
+        template = _resolve_card_template(
+            label_style=request.POST.get("label_style", "long"),
+            bg_effect=request.POST.get("bg_effect", "blur"),
+        )
+        try:
+            card = create_recipe_card_uc.create_recipe_card(
+                recipe_id=recipe_id,
+                image_id=image_id,
+                template=template,
+            )
+        except Exception:
+            structlog.get_logger().exception("Unexpected error creating recipe card")
+            return shortcuts.render(
+                request,
+                "recipes/partials/recipe_card_result.html",
+                {"error": "Something unexpected happened."},
+            )
+        return shortcuts.render(
+            request,
+            "recipes/partials/recipe_card_result.html",
+            {"card": _RecipeCardResultContext.from_model(card), "created": True},
+        )
+
+
+def recipe_card_file_view(request: http.HttpRequest, card_id: int) -> http.FileResponse:
+    card = shortcuts.get_object_or_404(models.RecipeCard, pk=card_id)
+    return http.FileResponse(Path(card.filepath).open("rb"), content_type="image/jpeg")
+
+

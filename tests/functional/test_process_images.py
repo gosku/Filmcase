@@ -4,7 +4,7 @@ import pytest
 from django.core.management import call_command
 from django.test import override_settings
 
-from src.data.models import Image
+from src.data import models
 from src.domain.images import events
 
 FIXTURES_DIR = str(Path(__file__).resolve().parent.parent / "fixtures" / "images")
@@ -15,7 +15,7 @@ class TestProcessImagesCommand:
     def test_processes_all_images_in_folder(self, capsys, captured_logs):
         call_command("process_images", FIXTURES_DIR)
 
-        assert Image.objects.count() == 6
+        assert models.Image.objects.count() == 6
 
         captured = capsys.readouterr()
         assert "Successfully enqueued 7 tasks." in captured.out
@@ -38,6 +38,6 @@ class TestProcessImagesCommandSync:
         with override_settings(USE_ASYNC_TASKS=False):
             call_command("process_images", FIXTURES_DIR)
 
-        assert Image.objects.count() == 6
+        assert models.Image.objects.count() == 6
         captured = capsys.readouterr()
         assert "Successfully processed 7 images." in captured.out

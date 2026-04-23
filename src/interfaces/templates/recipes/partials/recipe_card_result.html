@@ -1,0 +1,63 @@
+<style>
+  .card-result-error {
+    font-size: 0.9rem;
+    color: #dc2626;
+    padding: 1rem 0;
+    text-align: center;
+  }
+
+  .card-result-image {
+    width: 100%;
+    border-radius: 10px;
+    display: block;
+  }
+
+  .card-result-created {
+    margin-top: 0.75rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.6rem 1rem;
+    border-radius: 8px;
+    background: #eaf7f0;
+    color: #1a8a55;
+    font-size: 0.85rem;
+    font-weight: 600;
+  }
+
+  .card-result-download {
+    display: block;
+    text-align: center;
+    padding: 0.6rem 1rem;
+    border-radius: 8px;
+    background: #f0f0f0;
+    color: #333;
+    font-size: 0.85rem;
+    font-weight: 500;
+    text-decoration: none;
+    transition: background 0.15s;
+    margin-top: 0.5rem;
+  }
+
+  .card-result-download:hover { background: #e0e0e0; }
+</style>
+
+{% if error %}
+  <p class="card-result-error">{{ error }}</p>
+{% elif card %}
+  <img class="card-result-image"
+       src="{% url 'recipe-card-file' card_id=card.pk %}"
+       alt="Recipe card">
+  {% if created %}
+    <p class="card-result-created">&#10003; Card saved</p>
+    <a class="card-result-download"
+       href="{% url 'recipe-card-file' card_id=card.pk %}"
+       download="recipe_card_{{ card.recipe_id }}.jpg">
+      Download
+    </a>
+  {% endif %}
+{% elif preview_path %}
+  <img class="card-result-image"
+       src="{% url 'recipe-card-preview-file' recipe_id=recipe_id %}?image_id={{ image_id|default:'' }}&label_style={{ label_style }}&bg_effect={{ bg_effect }}"
+       alt="Recipe card preview">
+{% endif %}

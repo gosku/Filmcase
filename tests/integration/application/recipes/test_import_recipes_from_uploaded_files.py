@@ -7,7 +7,7 @@ from src.application.usecases.recipes.import_recipes_from_uploaded_files import 
     UploadedFile,
     import_recipes_from_uploaded_files,
 )
-from src.data.models import FujifilmRecipe
+from src.data import models
 
 FIXTURES_DIR = Path(__file__).resolve().parent.parent.parent.parent / "fixtures" / "images"
 
@@ -27,7 +27,7 @@ class TestImportRecipesFromUploadedFiles:
         result = import_recipes_from_uploaded_files(files=files)
 
         assert len(result.imported) == 1
-        assert isinstance(result.imported[0], FujifilmRecipe)
+        assert isinstance(result.imported[0], models.FujifilmRecipe)
         assert result.imported[0].film_simulation == "Classic Negative"
         assert result.failed == ()
 
@@ -52,7 +52,7 @@ class TestImportRecipesFromUploadedFiles:
 
         assert len(result.imported) == 2
         assert result.imported[0].pk == result.imported[1].pk
-        assert FujifilmRecipe.objects.count() == 1
+        assert models.FujifilmRecipe.objects.count() == 1
 
     def test_records_failure_for_non_fujifilm_file(self):
         non_fujifilm = UploadedFile(name="canon.jpg", content=b"\xff\xd8\xff\xd9")
