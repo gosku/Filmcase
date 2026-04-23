@@ -3,21 +3,29 @@
 A Django application for managing Fujifilm camera recipes and browsing your image catalog. It reads EXIF data from your JPEG files, matches images to the Fujifilm recipe they were shot with, and lets you filter and group your catalog by recipe. You can push recipes directly to your camera over USB and explore relationships between recipes through an interactive graph.
 
 Read more about it in our [documentation index](docs/index.md).
-
-![Gallery view](docs/images/2026-03-28_19-35.jpg)
-![Recipe graph](docs/images/film_sim_recipe_graph.jpg)
 ![Push recipe to camera](docs/images/push_to_camera_demo.gif)
+![Recipe explorer](docs/images/recipes_explorer.png)
+
+![Recipe graph](docs/images/film_sim_recipe_graph.jpg)
 
 ## Features
 
-- Import Fujifilm JPEGs and browse them in a filterable gallery
+- Import Fujifilm JPEGs to **build your image catalog and recipe collection**, then browse them in a filterable gallery
+- **Push your recipes to your camera**'s custom slots over USB
+- Browse and search your recipe collection with faceted filtering by film simulation, dynamic range, grain, and more
+- **Generate shareable recipe cards** so other Fujifilm shooters can import your recipes
+- **Import recipes** from a Fujifilm JPEG or a shared recipe card (QR code)
+- **Explore relationships between recipes** through an interactive graph, compare differences side by side, and trace how your recipes evolved from one another
 - View full-resolution images with their complete recipe and EXIF data
-- Name recipes and push them to your camera's custom slots over USB
-- Explore relationships between recipes through an interactive graph, compare differences side by side, and trace how your recipes evolved from one another
 - Rate images (0–5 stars) individually or in bulk from the command line
 - Sort the gallery by rating to surface your best shots first
+- Customize the cover image shown for each recipe
 
 ---
+
+![Recipe card creation](docs/images/recipe_card_creation.png)
+![Gallery view](docs/images/2026-03-28_19-35.jpg)
+![Import recipes](docs/images/import_recipes_from_cards.png)
 
 ## Installation
 

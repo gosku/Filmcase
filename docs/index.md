@@ -2,8 +2,7 @@
 
 ## Functionality
 
-- [Web Interface](web_interface.md) — gallery, image detail, recipes, and camera integration
-- [Recipe Graphs](recipe_graphs.md) — exploring recipe relationships, comparing differences, and tracing recipe evolution
+- [Web Interface](web_interface.md) — image gallery, image detail, recipe explorer, recipe detail, and recipe graphs
 - [Management Commands](management_commands.md) — importing images, bulk rating, thumbnails, camera inspection, recipe comparison
 
 ## Reference
