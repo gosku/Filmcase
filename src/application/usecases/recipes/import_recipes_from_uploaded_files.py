@@ -1,28 +1,15 @@
 import os
 import tempfile
 
-import attrs
-
 from src.data import models
 from src.domain.images.queries import NoFilmSimulationError
+from src.domain.recipes import dataclasses as recipe_dataclasses
 from src.domain.recipes import operations
 
 
-@attrs.frozen
-class UploadedFile:
-    """Carries the raw bytes of an uploaded image together with its original filename."""
-
-    name: str
-    content: bytes
-
-
-@attrs.frozen
-class ImportRecipesResult:
-    imported: tuple[models.FujifilmRecipe, ...]
-    failed: tuple[str, ...]  # original filenames that could not be processed
-
-
-def import_recipes_from_uploaded_files(*, files: list[UploadedFile]) -> ImportRecipesResult:
+def import_recipes_from_uploaded_files(
+    *, files: list[recipe_dataclasses.UploadedFile]
+) -> recipe_dataclasses.ImportRecipesResult:
     """Extract a models.FujifilmRecipe from each uploaded file's EXIF data.
 
     For each file the bytes are written to a temporary file under /tmp/,
@@ -52,7 +39,7 @@ def import_recipes_from_uploaded_files(*, files: list[UploadedFile]) -> ImportRe
             if tmp_path is not None:
                 os.unlink(tmp_path)
 
-    return ImportRecipesResult(
+    return recipe_dataclasses.ImportRecipesResult(
         imported=tuple(imported),
         failed=tuple(failed),
     )

@@ -37,7 +37,11 @@ class TestRecipesExplorerCreateButton:
     def test_import_recipes_option_is_present(self, client):
         response = client.get("/recipes/")
         soup = BeautifulSoup(response.content, "html.parser")
-        btn = soup.find("button", id="open-import-modal-btn")
+        btn = soup.find(
+            "button",
+            class_="open-import-modal-btn",
+            attrs={"data-import-url": "/recipes/import/"},
+        )
         assert btn is not None
 
     def test_import_modal_is_in_page(self, client):

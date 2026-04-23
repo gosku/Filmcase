@@ -3,10 +3,14 @@ from __future__ import annotations
 import json
 
 import attrs
+import cv2
+import cv2.typing
 
 from src.data import models
+from src.domain.images import dataclasses as image_dataclasses
 from src.domain.recipes import constants as recipe_constants
 from src.domain.recipes import queries as recipe_queries
+from src.domain.recipes.cards import dataclasses as card_dataclasses
 from src.domain.recipes.cards import templates as card_templates
 
 
@@ -165,3 +169,208 @@ def get_recipe_cover_lines(
         value = _format_value(field, raw)
         lines.append(FieldLine(label=labels[field], value=value))
     return tuple(lines)
+
+
+@attrs.frozen
+class QRCodeNotFoundError(Exception):
+    """No decodable QR code was found in the image."""
+
+    image_path: str = ""
+
+
+@attrs.frozen
+class InvalidQRRecipePayloadError(Exception):
+    """QR decoded but the content is not a valid QRFujifilmRecipe payload.
+
+    ``reason`` is one of:
+      - ``"invalid_json"`` — decoded string is not valid JSON.
+      - ``"unsupported_version"`` — ``v`` field is missing or != 1.
+      - ``"unknown_fields"`` — payload contains keys outside the known schema.
+      - ``"type_mismatch"`` — a field's value has the wrong type, or a
+        required field is missing.
+    """
+
+    image_path: str = ""
+    reason: str = ""
+
+
+_SUPPORTED_QR_SCHEMA_VERSION = 1
+
+_QR_STR_FIELDS: frozenset[str] = frozenset({
+    "film_simulation",
+    "grain_roughness",
+    "d_range_priority",
+    "white_balance",
+    "name",
+    "dynamic_range",
+    "grain_size",
+    "color_chrome_effect",
+    "color_chrome_fx_blue",
+})
+_QR_INT_FIELDS: frozenset[str] = frozenset({
+    "white_balance_red",
+    "white_balance_blue",
+})
+_QR_DECIMAL_FIELDS: frozenset[str] = frozenset({
+    "highlight",
+    "shadow",
+    "color",
+    "sharpness",
+    "high_iso_nr",
+    "clarity",
+    "monochromatic_color_warm_cool",
+    "monochromatic_color_magenta_green",
+})
+_QR_KNOWN_KEYS: frozenset[str] = (
+    frozenset({"v"}) | _QR_STR_FIELDS | _QR_INT_FIELDS | _QR_DECIMAL_FIELDS
+)
+
+
+def _check_payload_types(payload: dict[str, object], *, image_path: str) -> None:
+    """Raise InvalidQRRecipePayloadError if any present field has the wrong type.
+
+    ``bool`` is explicitly rejected for int/decimal fields because Python treats
+    ``bool`` as a subclass of ``int``, which would otherwise let ``true``/``false``
+    slip through.
+    """
+    for key, value in payload.items():
+        if key == "v":
+            continue
+        if key in _QR_STR_FIELDS and not isinstance(value, str):
+            raise InvalidQRRecipePayloadError(image_path=image_path, reason="type_mismatch")
+        if key in _QR_INT_FIELDS and (isinstance(value, bool) or not isinstance(value, int)):
+            raise InvalidQRRecipePayloadError(image_path=image_path, reason="type_mismatch")
+        if key in _QR_DECIMAL_FIELDS and (
+            isinstance(value, bool) or not isinstance(value, (int, float))
+        ):
+            raise InvalidQRRecipePayloadError(image_path=image_path, reason="type_mismatch")
+
+
+# The QR on a 1080-px recipe card is only 200 px wide — small enough that
+# cv2.QRCodeDetector.detectAndDecode() routinely fails to decode it in one pass.
+# Running detect() first to locate the QR, then cropping + upscaling that region
+# for decoding is reliable across both templates.
+_QR_CROP_PADDING_PX = 20
+_QR_DECODE_UPSCALE = 3
+
+
+def _decode_qr(img: cv2.typing.MatLike) -> str:
+    detector = cv2.QRCodeDetector()
+    data, _bbox, _rectified = detector.detectAndDecode(img)
+    if data:
+        return str(data)
+
+    retval, pts = detector.detect(img)
+    if not retval or pts is None:
+        return ""
+
+    pts_int = pts.reshape(-1, 2).astype(int)
+    x0 = max(0, int(pts_int[:, 0].min()) - _QR_CROP_PADDING_PX)
+    y0 = max(0, int(pts_int[:, 1].min()) - _QR_CROP_PADDING_PX)
+    h, w = img.shape[:2]
+    x1 = min(w, int(pts_int[:, 0].max()) + _QR_CROP_PADDING_PX)
+    y1 = min(h, int(pts_int[:, 1].max()) + _QR_CROP_PADDING_PX)
+    crop = img[y0:y1, x0:x1]
+    if crop.size == 0:
+        return ""
+    upscaled = cv2.resize(
+        crop,
+        (crop.shape[1] * _QR_DECODE_UPSCALE, crop.shape[0] * _QR_DECODE_UPSCALE),
+        interpolation=cv2.INTER_CUBIC,
+    )
+    data, _bbox, _rectified = detector.detectAndDecode(upscaled)
+    return str(data)
+
+
+def get_qr_recipe_from_image(*, image_path: str) -> card_dataclasses.QRFujifilmRecipe:
+    """Decode the QR code embedded in a recipe-card image into a QRFujifilmRecipe.
+
+    :raises QRCodeNotFoundError: If the file cannot be opened as an image or no
+        QR code can be decoded from it.
+    :raises InvalidQRRecipePayloadError: If the decoded content is not a valid
+        QRFujifilmRecipe payload (bad JSON, unsupported schema version, unknown
+        fields, or type mismatches).
+    """
+    img = cv2.imread(image_path)
+    if img is None:
+        raise QRCodeNotFoundError(image_path=image_path)
+
+    data = _decode_qr(img)
+    if not data:
+        raise QRCodeNotFoundError(image_path=image_path)
+
+    try:
+        payload = json.loads(data)
+    except json.JSONDecodeError:
+        raise InvalidQRRecipePayloadError(image_path=image_path, reason="invalid_json")
+    if not isinstance(payload, dict):
+        raise InvalidQRRecipePayloadError(image_path=image_path, reason="invalid_json")
+
+    version = payload.get("v")
+    if not isinstance(version, int) or isinstance(version, bool) or version != _SUPPORTED_QR_SCHEMA_VERSION:
+        raise InvalidQRRecipePayloadError(image_path=image_path, reason="unsupported_version")
+
+    unknown = set(payload.keys()) - _QR_KNOWN_KEYS
+    if unknown:
+        raise InvalidQRRecipePayloadError(image_path=image_path, reason="unknown_fields")
+
+    _check_payload_types(payload, image_path=image_path)
+
+    try:
+        return card_dataclasses.QRFujifilmRecipe(**payload)
+    except TypeError:
+        # A required field is missing, or attrs rejected a value. Either way
+        # the payload does not match the schema.
+        raise InvalidQRRecipePayloadError(image_path=image_path, reason="type_mismatch")
+
+
+def _signed_decimal_or_none(value: int | float | None) -> str | None:
+    return None if value is None else recipe_queries.decimal_str(value)
+
+
+def get_recipe_data_from_qr_recipe(
+    *, qr_recipe: card_dataclasses.QRFujifilmRecipe,
+) -> image_dataclasses.FujifilmRecipeData:
+    """Translate a decoded QRFujifilmRecipe into a FujifilmRecipeData.
+
+    Inverts the formatting decisions made by get_recipe_as_json:
+      - Decimal fields go from int/float back to signed string ("+1", "-1.5",
+        "0"), which is the form FujifilmRecipeData and the downstream
+        get_or_create pipeline expect.
+      - grain_size defaults to "Off" when absent and grain_roughness is "Off",
+        matching the create-side default.
+      - color_chrome_effect / color_chrome_fx_blue default to "" when absent
+        (omitted for monochromatic simulations), matching how those fields
+        are stored for monochrome recipes.
+      - The recipe name is passed through when the payload includes it, and
+        defaults to "" (FujifilmRecipeData's default) when absent.
+    """
+    grain_size = qr_recipe.grain_size
+    if grain_size is None and qr_recipe.grain_roughness == "Off":
+        grain_size = "Off"
+
+    # sharpness / high_iso_nr / clarity are typed `str` on FujifilmRecipeData
+    # because every existing producer (EXIF, DB) fills them. The QR payload
+    # omits them when the DB value is NULL; downstream _parse_numeric handles
+    # None, and attrs.frozen does not enforce types at runtime.
+    return image_dataclasses.FujifilmRecipeData(
+        name=qr_recipe.name or "",
+        film_simulation=qr_recipe.film_simulation,
+        grain_roughness=qr_recipe.grain_roughness,
+        d_range_priority=qr_recipe.d_range_priority,
+        white_balance=qr_recipe.white_balance,
+        white_balance_red=qr_recipe.white_balance_red,
+        white_balance_blue=qr_recipe.white_balance_blue,
+        color_chrome_effect=qr_recipe.color_chrome_effect or "",
+        color_chrome_fx_blue=qr_recipe.color_chrome_fx_blue or "",
+        sharpness=_signed_decimal_or_none(qr_recipe.sharpness),  # type: ignore[arg-type]
+        high_iso_nr=_signed_decimal_or_none(qr_recipe.high_iso_nr),  # type: ignore[arg-type]
+        clarity=_signed_decimal_or_none(qr_recipe.clarity),  # type: ignore[arg-type]
+        dynamic_range=qr_recipe.dynamic_range,
+        grain_size=grain_size,
+        highlight=_signed_decimal_or_none(qr_recipe.highlight),
+        shadow=_signed_decimal_or_none(qr_recipe.shadow),
+        color=_signed_decimal_or_none(qr_recipe.color),
+        monochromatic_color_warm_cool=_signed_decimal_or_none(qr_recipe.monochromatic_color_warm_cool),
+        monochromatic_color_magenta_green=_signed_decimal_or_none(qr_recipe.monochromatic_color_magenta_green),
+    )

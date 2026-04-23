@@ -237,7 +237,11 @@ class FujifilmRecipe(models.Model):
         clarity: object,
         monochromatic_color_warm_cool: object,
         monochromatic_color_magenta_green: object,
+        name: str = "",
     ) -> "tuple[FujifilmRecipe, bool]":
+        # name is passed via defaults= so it only applies on the create path;
+        # matching an existing recipe keeps that recipe's current name.
+        # Uniqueness stays settings-only (see UniqueConstraint above).
         return cls.objects.get_or_create(
             film_simulation=film_simulation,
             dynamic_range=dynamic_range,
@@ -257,6 +261,7 @@ class FujifilmRecipe(models.Model):
             clarity=clarity,
             monochromatic_color_warm_cool=monochromatic_color_warm_cool,
             monochromatic_color_magenta_green=monochromatic_color_magenta_green,
+            defaults={"name": name},
         )
 
     # Mutators

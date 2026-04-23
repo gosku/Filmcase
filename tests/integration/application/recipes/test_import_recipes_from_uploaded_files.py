@@ -3,11 +3,10 @@ from pathlib import Path
 import pytest
 
 from src.application.usecases.recipes.import_recipes_from_uploaded_files import (
-    ImportRecipesResult,
-    UploadedFile,
     import_recipes_from_uploaded_files,
 )
 from src.data import models
+from src.domain.recipes.dataclasses import ImportRecipesResult, UploadedFile
 
 FIXTURES_DIR = Path(__file__).resolve().parent.parent.parent.parent / "fixtures" / "images"
 

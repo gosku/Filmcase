@@ -9,3 +9,4 @@ envparse==0.2.0
 python-dotenv==1.1.0
 qrcode[pil]==8.1
 piexif==1.1.3
+opencv-python-headless==4.13.0.92

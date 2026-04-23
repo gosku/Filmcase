@@ -522,7 +522,18 @@
       <div class="create-recipes-wrap">
         <button class="create-recipes-btn" id="create-recipes-btn">+ Create Recipes</button>
         <div class="create-recipes-dropdown" id="create-recipes-dropdown" hidden>
-          <button class="create-recipes-option" id="open-import-modal-btn">Import recipes from images</button>
+          <button class="create-recipes-option open-import-modal-btn"
+                  data-import-url="{% url 'recipes-import' %}"
+                  data-import-title="Import Recipes from Images"
+                  data-import-desc="Select one or more Fujifilm JPEG files. The recipe settings encoded in their EXIF data will be extracted and saved — the image files themselves are not stored.">
+            Import recipes from images
+          </button>
+          <button class="create-recipes-option open-import-modal-btn"
+                  data-import-url="{% url 'recipes-import-qr-cards' %}"
+                  data-import-title="Import Recipes from Cards"
+                  data-import-desc="Select one or more recipe-card JPEGs. The recipe encoded in each card's QR code will be extracted and saved — the card images themselves are not stored.">
+            Import recipes from recipe cards
+          </button>
         </div>
       </div>
     </div>
@@ -587,8 +598,11 @@
   (function () {
     const createBtn      = document.getElementById('create-recipes-btn');
     const dropdown       = document.getElementById('create-recipes-dropdown');
-    const openModalBtn   = document.getElementById('open-import-modal-btn');
+    const openModalBtns  = document.querySelectorAll('.open-import-modal-btn');
     const overlay        = document.getElementById('import-overlay');
+    const form           = document.getElementById('import-form');
+    const modalTitle     = document.getElementById('import-modal-title');
+    const modalDesc      = overlay.querySelector('.import-modal__desc');
     const closeModalBtn  = document.getElementById('close-import-modal-btn');
     const fileInput      = document.getElementById('import-file-input');
     const fileList       = document.getElementById('selected-files-list');
@@ -605,15 +619,25 @@
       dropdown.hidden = true;
     });
 
-    // Open import modal
-    openModalBtn.addEventListener('click', function () {
-      dropdown.hidden = true;
-      overlay.hidden = false;
-      document.getElementById('import-result').innerHTML = '';
-      fileList.innerHTML = '';
-      fileList.hidden = true;
-      submitBtn.hidden = true;
-      fileInput.value = '';
+    // Open import modal — each opener carries its own url/title/desc so the
+    // modal can be reused for EXIF imports and QR-card imports.
+    openModalBtns.forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        form.setAttribute('hx-post', btn.dataset.importUrl);
+        // HTMX caches the verb/url when it first processes the form, so a bare
+        // setAttribute is not enough — htmx.process re-reads the attributes.
+        htmx.process(form);
+        modalTitle.textContent = btn.dataset.importTitle;
+        modalDesc.textContent = btn.dataset.importDesc;
+        submitBtn.textContent = btn.dataset.importTitle;
+        dropdown.hidden = true;
+        overlay.hidden = false;
+        document.getElementById('import-result').innerHTML = '';
+        fileList.innerHTML = '';
+        fileList.hidden = true;
+        submitBtn.hidden = true;
+        fileInput.value = '';
+      });
     });
 
     function closeModal() {

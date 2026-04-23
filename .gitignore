@@ -49,6 +49,7 @@ Thumbs.db
 # Local data directories
 scripts/
 recipe_cards/
+!tests/fixtures/recipe_cards/
 
 # Investigation notes
 investigation/
