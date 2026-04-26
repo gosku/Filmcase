@@ -11,7 +11,7 @@ load_dotenv(BASE_DIR / "src/config/env")
 
 env = Env()
 
-SECRET_KEY: str = env.str("SECRET_KEY", default="django-insecure-film-simulations-reader-dev-key")
+SECRET_KEY: str = env.str("SECRET_KEY", default="django-insecure-filmcase-dev-key")
 
 DEBUG: bool = env.bool("DEBUG", default=True)
 

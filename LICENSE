@@ -1,3 +1,12 @@
+BRANDING EXCEPTION
+The Filmcase name, logo, and all branding assets located under
+src/interfaces/static/images/filmcase_*.svg, filmcase_*.png, and
+src/interfaces/static/images/original-branding/ are Copyright (c) 2026 Gosku,
+All Rights Reserved, and are explicitly excluded from the license below.
+See src/interfaces/static/images/original-branding/LICENSE for details.
+
+-------------------------------------------------------------------------------
+
                     GNU GENERAL PUBLIC LICENSE
                        Version 3, 29 June 2007
 

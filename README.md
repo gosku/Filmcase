@@ -1,6 +1,6 @@
-# Film Simulations Manager
+<img src="src/interfaces/static/images/filmcase_primary_aligned_readme.png" alt="Filmcase" width="400">
 
-A Django application for managing Fujifilm camera recipes and browsing your image catalog. It reads EXIF data from your JPEG files, matches images to the Fujifilm recipe they were shot with, and lets you filter and group your catalog by recipe. You can push recipes directly to your camera over USB and explore relationships between recipes through an interactive graph.
+Filmcase is a Django application for managing Fujifilm camera recipes and browsing your image catalog. It reads EXIF data from your JPEG files, matches images to the Fujifilm recipe they were shot with, and lets you filter and group your catalog by recipe. You can push recipes directly to your camera over USB and explore relationships between recipes through an interactive graph.
 
 Read more about it in our [documentation index](docs/index.md).
 ![Push recipe to camera](docs/images/push_to_camera_demo.gif)
@@ -47,7 +47,7 @@ No database server or message broker required.
 
 ```bash
 git clone <repo-url>
-cd film_simulations_reader
+cd filmcase
 ./setup.sh lite   # installs Python, libusb, exiftool (macOS and Ubuntu)
 ```
 
@@ -168,7 +168,7 @@ Python 3.11+ is required.
 
    ```bash
    git clone <repo-url>
-   cd film_simulations_reader
+   cd filmcase
    ```
 
 2. **Create and activate a virtual environment:**
