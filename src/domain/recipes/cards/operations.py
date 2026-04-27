@@ -26,6 +26,9 @@ _TITLE_FONT_SIZE = 34
 _TITLE_LINE_HEIGHT = 56
 _LABEL_COLOR = (220, 220, 220)
 _VALUE_COLOR = (255, 255, 255)
+_LOGO_PATH = Path(__file__).resolve().parents[3] / "interfaces" / "static" / "images" / "filmcase_stacked_full.png"
+_LOGO_WIDTH = 320
+_LOGO_PADDING = 20
 
 # Gradient colours (dark teal → dark indigo)
 _GRADIENT_TOP = (18, 52, 64)
@@ -122,6 +125,22 @@ def _compose_card(
     qr_img = qr_img.resize((_QR_SIZE, _QR_SIZE), PILImage.Resampling.LANCZOS)
     qr_pos = (target_w - _QR_SIZE - _QR_MARGIN, target_h - _QR_SIZE - _QR_MARGIN)
     canvas.paste(qr_img, qr_pos)
+
+    if _LOGO_PATH.exists():
+        with PILImage.open(_LOGO_PATH) as logo_src:
+            logo_rgba = logo_src.convert("RGBA")
+            bbox = logo_rgba.getbbox()
+            if bbox:
+                logo_rgba = logo_rgba.crop(bbox)
+            content_h = int(_LOGO_WIDTH * logo_rgba.height / logo_rgba.width)
+            logo = logo_rgba.resize((_LOGO_WIDTH, content_h), PILImage.Resampling.LANCZOS)
+        logo_x = _TEXT_PADDING
+        logo_y = target_h - content_h - _TEXT_PADDING
+        white_bg = PILImage.new("RGBA", (_LOGO_WIDTH + _LOGO_PADDING * 2, content_h + _LOGO_PADDING * 2), (255, 255, 255, 255))
+        canvas_rgba = canvas.convert("RGBA")
+        canvas_rgba.paste(white_bg, (logo_x - _LOGO_PADDING, logo_y - _LOGO_PADDING))
+        canvas_rgba.paste(logo, (logo_x, logo_y), logo)
+        canvas = canvas_rgba.convert("RGB")
 
     return canvas, json_str, background_image is None
 

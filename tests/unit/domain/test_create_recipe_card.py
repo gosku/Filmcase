@@ -144,3 +144,26 @@ class TestComposeCardTitle:
         assert self._max_brightness_in_title_region(filepath) < 100
 
 
+class TestComposeCardLogoFallback:
+    def test_missing_logo_file_does_not_raise(self, tmp_path: Path) -> None:
+        recipe = MagicMock()
+        recipe.name = ""
+        recipe.pk = 1
+
+        with (
+            patch.object(card_operations, "_LOGO_PATH", tmp_path / "no_logo.png"),
+            patch.object(card_operations.card_queries, "get_recipe_cover_lines", return_value=()),
+            patch.object(card_operations.card_queries, "get_recipe_as_json", return_value='{"v":1}'),
+        ):
+            output_path = tmp_path / "card.jpg"
+            result = card_operations.preview_recipe_card_image(
+                recipe=recipe,
+                template=card_templates.LONG_LABEL,
+                background_image=None,
+                output_path=output_path,
+            )
+
+        assert result == output_path
+        assert output_path.exists()
+
+
