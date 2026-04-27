@@ -22,6 +22,8 @@ _PANEL_ALPHA = 140  # 0-255 opacity of the text-readability overlay panel
 _TEXT_PADDING = 40
 _LINE_HEIGHT = 44
 _FONT_SIZE = 28
+_TITLE_FONT_SIZE = 34
+_TITLE_LINE_HEIGHT = 56
 _LABEL_COLOR = (220, 220, 220)
 _VALUE_COLOR = (255, 255, 255)
 
@@ -103,6 +105,10 @@ def _compose_card(
     lines = card_queries.get_recipe_cover_lines(recipe=recipe, template=template)
     x = _TEXT_PADDING
     y = _TEXT_PADDING
+    if recipe.name:
+        title_font = _load_font(_TITLE_FONT_SIZE)
+        draw.text((x, y), recipe.name, font=title_font, fill=_VALUE_COLOR)
+        y += _TITLE_LINE_HEIGHT
     for line in lines:
         if y + _LINE_HEIGHT > target_h - _TEXT_PADDING:
             break
