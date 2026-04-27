@@ -7,6 +7,7 @@
   <script src="https://unpkg.com/htmx.org@2.0.4" integrity="sha384-HGfztofotfshcF7+8n44JQL2oJmowVChPTg48S+jvZoztPfvwD79OC/LTtG6dMp+" crossorigin="anonymous"></script>
   <link href="https://cdn.jsdelivr.net/npm/tom-select@2/dist/css/tom-select.css" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/tom-select@2/dist/js/tom-select.complete.min.js"></script>
+  <link rel="stylesheet" href="/static/css/brand.css">
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { display: flex; flex-direction: column; font-family: sans-serif; height: 100vh; overflow: hidden; }
@@ -19,7 +20,7 @@
       padding: 1.5rem;
       border-right: 1px solid #e0e0e0;
       overflow-y: auto;
-      background: #fafafa;
+      background: var(--color-bg-surface);
     }
 
     .sidebar h2 {
@@ -99,6 +100,10 @@
       user-select: none;
     }
 
+    .filter-option input[type="checkbox"] {
+      accent-color: var(--color-accent);
+    }
+
     .filter-option:hover { background: #f0f0f0; }
 
     .filter-option--unavailable {
@@ -176,7 +181,7 @@
     }
 
     .rating-toggle input[type="checkbox"]:checked {
-      background: #f97316;
+      background: var(--color-accent);
     }
 
     .rating-toggle input[type="checkbox"]::after {
@@ -273,28 +278,24 @@
       white-space: nowrap;
     }
 
-    .rl-dr   { background: #fef3c7; color: #92400e; }
-    .rl-drp  { background: #ffedd5; color: #9a3412; }
-    .rl-gr   { background: #ccfbf1; color: #134e4a; }
-    .rl-gs   { background: #a7f3d0; color: #064e3b; }
-    .rl-cce  { background: #ede9fe; color: #4c1d95; }
-    .rl-ccfx { background: #e0e7ff; color: #312e81; }
-    .rl-wb   { background: #bfdbfe; color: #1e3a8a; }
-    .rl-r    { background: #fee2e2; color: #7f1d1d; }
-    .rl-b    { background: #bae6fd; color: #0c4a6e; }
-    .rl-hl   { background: #fef08a; color: #713f12; }
-    .rl-sh   { background: #c7d2fe; color: #1e1b4b; }
-    .rl-co   { background: #bbf7d0; color: #14532d; }
-    .rl-srp  { background: #d9f99d; color: #365314; }
-    .rl-ns   { background: #fbcfe8; color: #831843; }
-    .rl-cl   { background: #e5e7eb; color: #1f2937; }
+    .rl-dr, .rl-drp,
+    .rl-gr, .rl-gs,
+    .rl-cce, .rl-ccfx,
+    .rl-wb,
+    .rl-r, .rl-b,
+    .rl-hl, .rl-sh,
+    .rl-co, .rl-srp,
+    .rl-ns, .rl-cl {
+      background: #eef0f3;
+      color: #3d4754;
+    }
 
     .image-rating {
       display: inline-block;
       font-size: 0.8rem;
       font-weight: 600;
-      color: #c8600a;
-      background: #fff3e0;
+      color: var(--color-accent);
+      background: var(--color-accent-light);
       border-radius: 3px;
       padding: 0.1rem 0.4rem;
     }
@@ -350,7 +351,7 @@
       width: 2rem;
       height: 2rem;
       border: 3px solid #e0e0e0;
-      border-top-color: #2db37a;
+      border-top-color: var(--color-accent);
       border-radius: 50%;
       animation: slot-spin 0.7s linear infinite;
     }
@@ -370,7 +371,7 @@
       width: 80px;
       height: 80px;
       border: 6px solid #e0e0e0;
-      border-top-color: #2db37a;
+      border-top-color: var(--color-accent);
       border-radius: 50%;
       animation: slot-spin 0.7s linear infinite;
     }
@@ -392,7 +393,7 @@
     }
 
     .push-check-circle {
-      stroke: #2db37a;
+      stroke: var(--color-accent);
       stroke-width: 2;
       stroke-dasharray: 166;
       stroke-dashoffset: 166;
@@ -401,7 +402,7 @@
     }
 
     .push-check-mark {
-      stroke: #2db37a;
+      stroke: var(--color-accent);
       stroke-width: 3;
       stroke-linecap: round;
       stroke-linejoin: round;
@@ -430,17 +431,17 @@
       align-items: center;
       justify-content: center;
       padding: 0.75rem 1.5rem;
-      border: 1.5px solid #2db37a;
+      border: 1.5px solid var(--color-accent);
       border-radius: 12px;
       background: white;
-      color: #2db37a;
+      color: var(--color-accent);
       font-size: 0.95rem;
       font-weight: 600;
       cursor: pointer;
       transition: background 0.15s;
     }
 
-    .push-retry-btn:hover { background: #f0faf5; }
+    .push-retry-btn:hover { background: var(--color-accent-light); }
   </style>
 </head>
 <body>
@@ -450,7 +451,6 @@
 <div class="content-area">
 
 <aside class="sidebar">
-  <h2>Filters</h2>
   <a href="{% url 'gallery' %}?rating_first={{ rating_first }}" class="clear-filters-btn">Clear all filters</a>
   <form id="filter-form"
         hx-get="{% url 'gallery' %}"
@@ -470,10 +470,7 @@
 </aside>
 
 <main class="main">
-  <div class="gallery-header">
-    <h1>Images</h1>
-  </div>
-  <div class="gallery-scroll">
+  <div class="gallery-scroll" style="padding-top: 1.5rem;">
     <div id="gallery-results">
       {% include "images/_gallery_results.html" %}
     </div>

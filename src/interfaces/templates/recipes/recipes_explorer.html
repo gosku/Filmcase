@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Recipes</title>
   <script src="https://unpkg.com/htmx.org@2.0.4" integrity="sha384-HGfztofotfshcF7+8n44JQL2oJmowVChPTg48S+jvZoztPfvwD79OC/LTtG6dMp+" crossorigin="anonymous"></script>
+  <link rel="stylesheet" href="/static/css/brand.css">
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { display: flex; flex-direction: column; font-family: sans-serif; height: 100vh; overflow: hidden; }
@@ -17,7 +18,7 @@
       padding: 1.5rem;
       border-right: 1px solid #e0e0e0;
       overflow-y: auto;
-      background: #fafafa;
+      background: var(--color-bg-surface);
     }
 
     .sidebar h2 {
@@ -62,10 +63,10 @@
     }
 
     .sidebar-nav__link--active {
-      background: #f0fdf4;
-      color: #2db37a;
+      background: var(--color-accent-light);
+      color: var(--color-accent);
       font-weight: 600;
-      border-color: #2db37a;
+      border-color: var(--color-accent);
     }
 
     .recipe-name-search {
@@ -82,7 +83,7 @@
 
     .recipe-name-search:focus {
       outline: none;
-      border-color: #2db37a;
+      border-color: var(--color-accent);
     }
 
     .clear-filters-btn {
@@ -139,6 +140,10 @@
       user-select: none;
     }
 
+    .filter-option input[type="checkbox"] {
+      accent-color: var(--color-accent);
+    }
+
     .filter-option:hover { background: #f0f0f0; }
 
     .filter-option--unavailable {
@@ -177,13 +182,9 @@
     .gallery-header {
       display: flex;
       align-items: center;
-      padding: 2rem 2rem 1rem;
+      justify-content: flex-end;
+      padding: 1rem 2rem;
       flex-shrink: 0;
-    }
-
-    .gallery-header h1 {
-      font-size: 1.5rem;
-      color: #222;
     }
 
     .recipe-gallery-scroll {
@@ -272,7 +273,7 @@
 
     .create-recipes-btn {
       padding: 0.4rem 0.85rem;
-      background: #2db37a;
+      background: var(--color-accent);
       color: #fff;
       border: none;
       border-radius: 5px;
@@ -282,7 +283,7 @@
       white-space: nowrap;
     }
 
-    .create-recipes-btn:hover { background: #27a06d; }
+    .create-recipes-btn:hover { background: var(--color-accent-dark); }
 
     .create-recipes-dropdown {
       position: absolute;
@@ -362,7 +363,7 @@
       width: 80px;
       height: 80px;
       border: 6px solid #e0e0e0;
-      border-top-color: #2db37a;
+      border-top-color: var(--color-accent);
       border-radius: 50%;
       animation: slot-spin 0.7s linear infinite;
     }
@@ -460,7 +461,7 @@
       width: 100%;
       margin-top: 1.25rem;
       padding: 0.6rem 1rem;
-      background: #2db37a;
+      background: var(--color-accent);
       color: #fff;
       border: none;
       border-radius: 5px;
@@ -469,14 +470,14 @@
       cursor: pointer;
     }
 
-    .import-submit-btn:hover { background: #27a06d; }
+    .import-submit-btn:hover { background: var(--color-accent-dark); }
     .import-submit-btn[disabled] { opacity: 0.5; cursor: not-allowed; }
 
     /* ── Import result messages ─────────────────────────────────────── */
     .import-result { margin-top: 1.25rem; }
 
     .import-result__message { font-size: 0.875rem; margin-bottom: 0.35rem; }
-    .import-result__message--success { color: #2db37a; font-weight: 600; }
+    .import-result__message--success { color: var(--color-accent); font-weight: 600; }
     .import-result__message--warning { color: #b36b2d; font-weight: 600; }
     .import-result--error .import-result__message { color: #c0392b; }
 
@@ -494,7 +495,6 @@
 <div class="content-area">
 
   <aside class="sidebar">
-    <h2>Recipes</h2>
     <nav class="sidebar-nav">
       <a class="sidebar-nav__link sidebar-nav__link--active">Explorer</a>
       <a href="{% url 'recipes-graph' %}" class="sidebar-nav__link">Graph</a>
@@ -517,8 +517,6 @@
 
   <main class="main">
     <div class="gallery-header">
-      <h1>Explorer</h1>
-
       <div class="create-recipes-wrap">
         <button class="create-recipes-btn" id="create-recipes-btn">+ Create Recipes</button>
         <div class="create-recipes-dropdown" id="create-recipes-dropdown" hidden>

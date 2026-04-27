@@ -106,7 +106,7 @@
   }
 
   .card-image-option input[type="radio"]:checked + label {
-    border-color: #2db37a;
+    border-color: var(--color-accent);
   }
 
   .card-no-image-option {
@@ -138,8 +138,8 @@
   }
 
   .card-no-image-option input[type="radio"]:checked + label {
-    border-color: #2db37a;
-    color: #2db37a;
+    border-color: var(--color-accent);
+    color: var(--color-accent);
   }
 
   .card-template-options {
@@ -170,8 +170,8 @@
   }
 
   .card-template-option input[type="radio"]:checked + label {
-    border-color: #2db37a;
-    background: #eaf7f0;
+    border-color: var(--color-accent);
+    background: var(--color-accent-light);
   }
 
   .card-template-name {
@@ -191,7 +191,7 @@
     padding: 0.875rem;
     border: none;
     border-radius: 10px;
-    background: #2db37a;
+    background: var(--color-accent);
     color: #fff;
     font-size: 0.95rem;
     font-weight: 600;
@@ -199,7 +199,7 @@
     transition: background 0.15s;
   }
 
-  .card-create-btn:hover { background: #27a06d; }
+  .card-create-btn:hover { background: var(--color-accent-dark); }
   .card-create-btn[aria-busy="true"] { opacity: 0.6; cursor: not-allowed; }
 
   .card-result-col {

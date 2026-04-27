@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Recipe Network</title>
   <script src="https://unpkg.com/cytoscape@3.30.2/dist/cytoscape.min.js"></script>
+  <link rel="stylesheet" href="/static/css/brand.css">
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { display: flex; flex-direction: column; font-family: sans-serif; height: 100vh; overflow: hidden; }
@@ -17,7 +18,7 @@
       padding: 1.5rem;
       border-right: 1px solid #e0e0e0;
       overflow-y: auto;
-      background: #fafafa;
+      background: var(--color-bg-surface);
     }
 
     .sidebar h2 {
@@ -53,7 +54,7 @@
 
     .sidebar-nav__link[href] { cursor: pointer; }
     .sidebar-nav__link[href]:hover { background: #e8e8e8; color: #222; border-color: #bbb; }
-    .sidebar-nav__link--active { background: #f0fdf4; color: #2db37a; font-weight: 600; border-color: #2db37a; }
+    .sidebar-nav__link--active { background: var(--color-accent-light); color: var(--color-accent); font-weight: 600; border-color: var(--color-accent); }
 
     .main {
       flex: 1;
@@ -114,12 +115,12 @@
       border: 1px solid #d1d5db;
       border-radius: 4px;
       padding: 0.3rem 0.5rem;
-      background: #fafafa;
+      background: var(--color-bg-surface);
       cursor: pointer;
       width: 100%;
     }
 
-    .film-sim-filter select:focus { outline: 2px solid #2db37a; outline-offset: 1px; }
+    .film-sim-filter select:focus { outline: 2px solid var(--color-accent); outline-offset: 1px; }
 
     /* --- Recipe info card --- */
     .recipe-card {
@@ -215,7 +216,7 @@
     .recipe-card__btn {
       flex-shrink: 0;
       padding: 0.3rem 0.6rem;
-      background: #2db37a;
+      background: var(--color-accent);
       color: #fff;
       font-size: 0.72rem;
       font-weight: 600;
@@ -225,7 +226,7 @@
       white-space: nowrap;
     }
 
-    .recipe-card__btn:hover { background: #22956a; }
+    .recipe-card__btn:hover { background: var(--color-accent-dark); }
 
     .recipe-card__loading {
       color: #aaa;
@@ -258,7 +259,6 @@
 <div class="content-area">
 
   <aside class="sidebar">
-    <h2>Recipes</h2>
     <nav class="sidebar-nav">
       <a href="{% url 'recipes-explorer' %}" class="sidebar-nav__link">Explorer</a>
       <a href="{% url 'recipes-graph' %}" class="sidebar-nav__link sidebar-nav__link--active">Graph</a>
@@ -267,7 +267,6 @@
 
   <main class="main">
     <div class="section-header">
-      <h1>Recipe Network</h1>
       <span class="graph-hint">Root = most-used recipe &mdash; click a node to inspect it</span>
     </div>
 
@@ -334,10 +333,10 @@
   var SELECTED_ID      = null;
   var SELECTED_LABEL   = "";
 
-  var NODE_COLOR        = "#3b82f6";
-  var NODE_BORDER_COLOR = "#1d4ed8";
-  var ROOT_COLOR        = "#f97316";
-  var ROOT_BORDER_COLOR = "#c2410c";
+  var NODE_COLOR        = "#334155";
+  var NODE_BORDER_COLOR = "#111827";
+  var ROOT_COLOR        = "#ef4444";
+  var ROOT_BORDER_COLOR = "#dc2626";
 
   var MIN_NODE_SIZE = 14;
   var MAX_NODE_SIZE = 80;
@@ -649,7 +648,7 @@
     clearPathHighlight();
     for (var i = 0; i < path.length - 1; i++) {
       cy.getElementById(path[i]).edgesWith(cy.getElementById(path[i + 1])).forEach(function (edge) {
-        edge.style({ "line-color": "#22c55e", "width": 3, "opacity": 1 });
+        edge.style({ "line-color": "#ef4444", "width": 3, "opacity": 1 });
         _pathEdges.push(edge);
       });
     }

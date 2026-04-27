@@ -1,0 +1,42 @@
+/* ------------------------------------ */
+/* Brand tokens                         */
+/* ------------------------------------ */
+
+:root {
+    /* Accent */
+    --color-accent: #ef4444;
+    --color-accent-dark: #dc2626;
+    --color-accent-light: #fee2e2;
+
+    /* Backgrounds */
+    --color-bg-nav: #111827;
+    --color-bg-page: #ffffff;
+    --color-bg-surface: #f1f5f9;
+    --color-bg-dark: #111827;
+
+    /* Text */
+    --color-text-primary: #111827;
+    --color-text-muted: #94a3b8;
+    --color-text-light: #ffffff;
+
+    /* Borders */
+    --color-border: #e2e8f0;
+}
+
+/* ------------------------------------ */
+/* Button component                     */
+/* ------------------------------------ */
+
+.button--primary {
+    background: var(--color-accent);
+    color: var(--color-text-light);
+    border: none;
+    border-radius: 6px;
+    padding: 8px 16px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.button--primary:hover {
+    background: var(--color-accent-dark);
+}

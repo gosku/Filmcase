@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Push recipe to camera</title>
+  <link rel="stylesheet" href="/static/css/brand.css">
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: sans-serif; display: flex; justify-content: center; align-items: center; min-height: 100vh; background: #f0f0f0; }
@@ -55,7 +56,7 @@
     }
 
     .slot-row:last-child { border-bottom: none; }
-    .slot-row:hover { background: #f6fdf9; }
+    .slot-row:hover { background: var(--color-accent-light); }
 
     .slot-badge {
       width: 2.25rem;
@@ -94,8 +95,8 @@
       margin-top: 0.2rem;
       font-size: 0.68rem;
       font-weight: 500;
-      color: #2db37a;
-      background: #eaf7f0;
+      color: var(--color-accent);
+      background: var(--color-accent-light);
       border-radius: 3px;
       padding: 0.15rem 0.4rem;
       letter-spacing: 0.02em;
