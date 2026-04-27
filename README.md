@@ -4,7 +4,7 @@ Filmcase is a Django application for managing Fujifilm camera recipes and browsi
 
 Read more about it in our [documentation index](docs/index.md).
 ![Push recipe to camera](docs/images/push_to_camera_demo.gif)
-![Recipe explorer](docs/images/recipes_explorer.png)
+![Recipe explorer](docs/images/recipes_explorer.jpg)
 
 ![Recipe graph](docs/images/film_sim_recipe_graph.jpg)
 
@@ -23,9 +23,9 @@ Read more about it in our [documentation index](docs/index.md).
 
 ---
 
-![Recipe card creation](docs/images/recipe_card_creation.png)
-![Gallery view](docs/images/2026-03-28_19-35.jpg)
-![Import recipes](docs/images/import_recipes_from_cards.png)
+![Recipe card creation](docs/images/recipe_card_creation.jpeg)
+![Gallery view](docs/images/images_gallery.jpg)
+![Import recipes](docs/images/import_recipes_from_cards.jpeg)
 
 ## Installation
 

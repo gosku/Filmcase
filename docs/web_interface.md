@@ -52,7 +52,7 @@ From the detail view you can:
 - **Set as recipe cover** — mark this image as the cover photo for its recipe, replacing
   whatever was shown before.
 
-![Image detail view](images/image_detail_view.png)
+![Image detail view](images/image_detail_view.jpeg)
 
 ---
 
@@ -73,9 +73,9 @@ Recipes can be **imported** in two ways directly from the explorer:
 - **From a recipe card** — upload a recipe card image (a QR code shared by another
   Fujifilm shooter) and the recipe is added to your library automatically.
 
-![Recipes explorer](images/recipes_explorer.png)
+![Recipes explorer](images/recipes_explorer.jpg)
 
-![Importing recipes from cards](images/import_recipes_from_cards.png)
+![Importing recipes from cards](images/import_recipes_from_cards.jpeg)
 
 ---
 
@@ -93,9 +93,9 @@ Opening a recipe shows all its settings at a glance. From this page you can:
 - **Create a recipe card** — generate a shareable QR code card for the recipe, which other
   Fujifilm shooters can import into their own library.
 
-![Recipe detail view](images/recipe_detail_view.png)
+![Recipe detail view](images/recipe_detail_view.jpg)
 
-![Recipe card creation](images/recipe_card_creation.png)
+![Recipe card creation](images/recipe_card_creation.jpeg)
 
 ---
 

@@ -204,3 +204,24 @@ class TestCreateRecipeCardEventPublishing:
             e for e in captured_logs if e.get("event_type") == events.RECIPE_CARD_CREATED
         ]
         assert card_events[0]["template"] == "short_label"
+
+
+@pytest.mark.django_db
+class TestRecipeCardLogo:
+    def test_logo_white_background_appears_bottom_left(self, tmp_path: Path) -> None:
+        recipe = FujifilmRecipeFactory()
+        filepath = card_operations.create_recipe_card_image(
+            recipe=recipe,
+            template=card_templates.LONG_LABEL,
+            background_image=None,
+            output_dir=tmp_path,
+        )
+        with PILImage.open(filepath) as img:
+            # Sample inside the left padding strip of the white logo pill.
+            # This strip (x < _TEXT_PADDING) contains only the white background,
+            # not the logo itself, so it is reliably white regardless of logo content.
+            x = card_operations._TEXT_PADDING - card_operations._LOGO_PADDING // 2
+            y = img.height - card_operations._TEXT_PADDING - card_operations._LOGO_PADDING
+            r, g, b = img.getpixel((x, y))
+        # The gradient background at this position is near-black (~30, 20, 70).
+        assert r > 200 and g > 200 and b > 200

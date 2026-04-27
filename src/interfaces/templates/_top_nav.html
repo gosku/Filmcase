@@ -1,13 +1,23 @@
 <style>
   .top-nav {
+    position: relative;
     display: flex;
     align-items: center;
-    height: 48px;
-    padding: 0 1.5rem;
+    height: 96px;
+    padding: 0 1.5rem 0 320px;
     gap: 0.25rem;
-    background: #fff;
-    border-bottom: 1px solid #e0e0e0;
+    background: var(--color-bg-page);
+    border-bottom: 1px solid var(--color-border);
     flex-shrink: 0;
+  }
+
+  .top-nav__logo {
+    position: absolute;
+    left: 1.5rem;
+    top: 50%;
+    transform: translateY(-50%);
+    height: 5rem;
+    width: auto;
   }
 
   .top-nav__link {
@@ -17,7 +27,7 @@
     border-radius: 4px;
     font-size: 0.875rem;
     font-weight: 500;
-    color: #555;
+    color: #6b7280;
     text-decoration: none;
     cursor: default;
   }
@@ -27,18 +37,20 @@
   }
 
   .top-nav__link[href]:hover {
-    background: #f3f4f6;
-    color: #222;
+    background: var(--color-bg-surface);
+    color: var(--color-text-primary);
   }
 
   .top-nav__link--active {
-    background: #f0fdf4;
-    color: #2db37a;
+    color: var(--color-text-primary);
     font-weight: 600;
+    border-bottom: 2px solid var(--color-accent);
+    border-radius: 0;
   }
 </style>
 
 <nav class="top-nav">
+  <img class="top-nav__logo" src="/static/images/filmcase_primary_aligned.svg" alt="Filmcase">
   <a href="{% url 'gallery' %}" class="top-nav__link{% if active_section == 'images' %} top-nav__link--active{% endif %}">Images</a>
   <a href="{% url 'recipes-explorer' %}" class="top-nav__link{% if active_section == 'recipes' %} top-nav__link--active{% endif %}">Recipes</a>
   <a class="top-nav__link{% if active_section == 'camera' %} top-nav__link--active{% endif %}">Camera</a>
