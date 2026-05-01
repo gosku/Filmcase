@@ -198,6 +198,9 @@ class FujifilmRecipe(models.Model):
     )
 
     class Meta:
+        indexes = [
+            models.Index(fields=["film_simulation"], name="idx_recipe_film_sim"),
+        ]
         constraints = [
             models.UniqueConstraint(
                 fields=[
@@ -336,6 +339,12 @@ class Image(models.Model):
     rating = models.IntegerField(default=0)
 
     class Meta:
+        indexes = [
+            models.Index(fields=["-taken_at", "id"], name="idx_image_taken_id"),
+            models.Index(fields=["-rating", "-taken_at", "id"], name="idx_image_rating_taken"),
+            models.Index(fields=["fujifilm_recipe", "-rating", "-taken_at"], name="idx_image_recipe_rating"),
+            models.Index(fields=["is_favorite", "-taken_at"], name="idx_image_favorite_taken"),
+        ]
         constraints = [
             models.UniqueConstraint(fields=["filepath"], name="unique_image_filepath"),
         ]
