@@ -310,6 +310,40 @@ def find_image_for_path(*, image_path: str) -> models.Image:
     raise ImageNotFound(image_path)
 
 
+def suggest_subdirectories(*, partial: str) -> list[Path]:
+    """Return subdirectories matching a partial path prefix, up to 15 results.
+
+    Given a partial filesystem path typed by the user, resolves the parent
+    directory and filters its immediate children by the typed prefix.
+    Hidden directories (starting with '.') are excluded.
+
+    Args:
+        partial: The user-supplied partial path string.
+
+    Returns:
+        A sorted list of up to 15 matching Path objects.
+    """
+    if not partial:
+        return []
+    path = Path(partial)
+    if partial.endswith("/") or (path.exists() and path.is_dir()):
+        parent, prefix = path, ""
+    else:
+        parent, prefix = path.parent, path.name.lower()
+    if not parent.is_dir():
+        return []
+    try:
+        return sorted(
+            entry
+            for entry in parent.iterdir()
+            if entry.is_dir()
+            and not entry.name.startswith(".")
+            and entry.name.lower().startswith(prefix)
+        )[:15]
+    except PermissionError:
+        return []
+
+
 def collect_image_paths(*, folder: str) -> list[str]:
     """Return absolute paths of all JPG files inside *folder* (recursively)."""
     root = Path(folder)

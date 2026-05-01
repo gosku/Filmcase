@@ -442,6 +442,285 @@
     }
 
     .push-retry-btn:hover { background: var(--color-accent-light); }
+
+    /* Import trigger button */
+    .import-trigger-btn {
+      padding: 0.4rem 1rem;
+      background: #fff;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      font-size: 0.875rem;
+      font-weight: 500;
+      color: #555;
+      cursor: pointer;
+      transition: background 0.15s, border-color 0.15s, color 0.15s;
+    }
+
+    .import-trigger-btn:hover {
+      background: #f0fdf4;
+      border-color: #2db37a;
+      color: #2db37a;
+    }
+
+    .import-trigger-btn:focus-visible {
+      outline: none;
+      box-shadow: 0 0 0 2px rgba(45,179,122,0.3);
+    }
+
+    /* Import overlay */
+    #import-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 150;
+      background: rgba(0,0,0,0.45);
+    }
+
+    #import-overlay[hidden] { display: none; }
+
+    .import-modal {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 520px;
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.15), 0 2px 8px rgba(0,0,0,0.08);
+    }
+
+    .import-modal__header {
+      background: #fff;
+      border-bottom: 1px solid #e0e0e0;
+      padding: 0.85rem 1.25rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-radius: 12px 12px 0 0;
+      cursor: move;
+      user-select: none;
+    }
+
+    .import-modal__close {
+      flex-shrink: 0;
+      width: 2.75rem;
+      height: 2.75rem;
+      border-radius: 50%;
+      border: none;
+      background: transparent;
+      color: #888;
+      font-size: 0.85rem;
+      line-height: 1;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.15s, color 0.15s;
+    }
+
+    .import-modal__close:hover { background: #f3f4f6; color: #222; }
+
+    .import-modal__close:focus-visible {
+      outline: 2px solid #2db37a;
+      outline-offset: 2px;
+    }
+
+    .import-modal__title {
+      font-size: 0.875rem;
+      font-weight: 600;
+      color: #333;
+    }
+
+    .import-modal__body { padding: 1.25rem 1.25rem 1.5rem; border-radius: 0 0 12px 12px; }
+
+    .import-modal__desc {
+      font-size: 0.875rem;
+      color: #666;
+      margin-bottom: 1.25rem;
+      line-height: 1.5;
+    }
+
+    .import-modal__input-label {
+      display: block;
+      font-size: 0.78rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: #444;
+      margin-bottom: 0.4rem;
+    }
+
+    .import-modal__input-row {
+      display: flex;
+      gap: 0.5rem;
+    }
+
+    .import-modal__input {
+      flex: 1;
+      padding: 0.5rem 0.75rem;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      font-size: 0.9rem;
+      font-family: monospace;
+      color: #222;
+      background: #fff;
+    }
+
+    .import-modal__input:focus {
+      outline: none;
+      border-color: #2db37a;
+      box-shadow: 0 0 0 2px rgba(45,179,122,0.15);
+    }
+
+    .import-modal__submit {
+      padding: 0.5rem 1.25rem;
+      background: #2db37a;
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background 0.15s;
+    }
+
+    .import-modal__submit:hover { background: #27a36e; }
+
+    .import-modal__submit:focus-visible {
+      outline: none;
+      box-shadow: 0 0 0 3px rgba(45,179,122,0.35);
+    }
+
+    .htmx-request .import-modal__submit {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    .htmx-request .import-modal__submit::after { content: "…"; }
+
+    .import-modal__sub-hint {
+      margin-top: 0.5rem;
+      font-size: 0.875rem;
+      color: #999;
+    }
+
+    .import-modal__input-wrap {
+      position: relative;
+      flex: 1;
+    }
+
+    .import-modal__input { width: 100%; }
+
+    .import-suggestions {
+      position: absolute;
+      top: 100%;
+      left: 0;
+      right: 0;
+      margin-top: 2px;
+      background: #fff;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      list-style: none;
+      max-height: 220px;
+      overflow-y: auto;
+      z-index: 10;
+      padding: 0.25rem 0;
+    }
+
+    .import-suggestion {
+      display: flex;
+      flex-direction: column;
+      padding: 0.4rem 0.75rem;
+      cursor: pointer;
+      transition: background 0.1s;
+      outline: none;
+    }
+
+    .import-suggestion:hover,
+    .import-suggestion:focus { background: #f0fdf4; }
+
+    .import-suggestion:hover .import-suggestion__name,
+    .import-suggestion:focus .import-suggestion__name { color: #2db37a; }
+
+    .import-suggestion__name {
+      font-size: 0.875rem;
+      font-family: monospace;
+      color: #222;
+      font-weight: 500;
+      transition: color 0.1s;
+    }
+
+    .import-suggestion__parent {
+      font-size: 0.72rem;
+      color: #aaa;
+      font-family: monospace;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    #import-modal-result { margin-top: 1.25rem; }
+
+    .import-result--error {
+      padding: 0.85rem 1rem;
+      background: #fef2f2;
+      border: 1px solid #fecaca;
+      border-radius: 6px;
+    }
+
+    .import-result--error .import-result__message {
+      font-size: 0.875rem;
+      color: #dc2626;
+    }
+
+    .import-result--empty {
+      padding: 0.85rem 1rem;
+      background: #fffbeb;
+      border: 1px solid #fef3c7;
+      border-radius: 6px;
+    }
+
+    .import-result--empty .import-result__message {
+      font-size: 0.875rem;
+      color: #92400e;
+    }
+
+    .import-result--success {
+      padding: 0.85rem 1rem;
+      background: #f0fdf4;
+      border: 1px solid #bbf7d0;
+      border-radius: 6px;
+    }
+
+    .import-result--success .import-result__message {
+      font-size: 0.875rem;
+      color: #166534;
+    }
+
+    .import-result--success .import-result__message code {
+      font-size: 0.82rem;
+      background: #dcfce7;
+      padding: 0.1rem 0.3rem;
+      border-radius: 3px;
+    }
+
+    .import-result__hint {
+      margin-top: 0.35rem;
+      font-size: 0.875rem;
+      color: #15803d;
+    }
+
+    .import-result__gallery-link {
+      display: inline-block;
+      margin-top: 0.6rem;
+      font-size: 0.875rem;
+      font-weight: 600;
+      color: #2db37a;
+      text-decoration: none;
+    }
+
+    .import-result__gallery-link:hover { text-decoration: underline; }
   </style>
 </head>
 <body>
@@ -470,7 +749,11 @@
 </aside>
 
 <main class="main">
-  <div class="gallery-scroll" style="padding-top: 1.5rem;">
+  <div class="gallery-header">
+    <h1>Images</h1>
+    <button class="import-trigger-btn" onclick="openImportOverlay()">Add Image</button>
+  </div>
+  <div class="gallery-scroll">
     <div id="gallery-results">
       {% include "images/_gallery_results.html" %}
     </div>
@@ -493,6 +776,47 @@
 
 <div id="detail-overlay" hidden></div>
 <div id="slot-overlay" hidden></div>
+
+<div id="import-overlay" hidden>
+  <div class="import-modal" role="dialog" aria-modal="true" aria-labelledby="import-modal-title">
+    <div class="import-modal__header" id="import-modal-drag-handle">
+      <h2 id="import-modal-title" class="import-modal__title">Import images</h2>
+      <button class="import-modal__close" onclick="closeImportOverlay()" aria-label="Close">&#x2715;</button>
+    </div>
+    <div class="import-modal__body">
+      <p class="import-modal__desc">
+        Enter the path to a folder.
+      </p>
+      <form hx-post="{% url 'import-folder' %}"
+            hx-target="#import-modal-result"
+            hx-swap="innerHTML">
+        {% csrf_token %}
+        <label class="import-modal__input-label" for="import-folder-input">Folder path</label>
+        <div class="import-modal__input-row">
+          <div class="import-modal__input-wrap">
+            <input id="import-folder-input"
+                   class="import-modal__input"
+                   type="text"
+                   name="folder"
+                   hx-get="{% url 'import-folder-suggest' %}"
+                   hx-target="#import-dir-suggestions"
+                   hx-trigger="keyup changed delay:300ms"
+                   hx-swap="innerHTML"
+                   placeholder="/path/to/your/photos"
+                   autocomplete="off"
+                   spellcheck="false"
+                   aria-autocomplete="list"
+                   aria-controls="import-dir-suggestions">
+            <ul id="import-dir-suggestions" class="import-suggestions" role="listbox" hidden></ul>
+          </div>
+          <button type="submit" class="import-modal__submit">Import</button>
+        </div>
+        <p class="import-modal__sub-hint">Only JPEG files are imported.</p>
+      </form>
+      <div id="import-modal-result" aria-live="polite" aria-atomic="true"></div>
+    </div>
+  </div>
+</div>
 
 <script>
   // Multi-select recipe dropdown with search and removable tags.
@@ -571,7 +895,149 @@
     });
   }());
 
-  // Slot overlay logic.
+  // Import overlay logic.
+  var _importTriggerEl = null;
+
+  function openImportOverlay() {
+    _importTriggerEl = document.activeElement;
+    var overlay = document.getElementById('import-overlay');
+    var modal = overlay.querySelector('.import-modal');
+    // Reset to centered position each time it opens.
+    modal.style.transform = 'translate(-50%, -50%)';
+    modal.style.left = '50%';
+    modal.style.top = '50%';
+    overlay.hidden = false;
+    var input = document.getElementById('import-folder-input');
+    if (input) input.focus();
+  }
+
+  function closeImportOverlay() {
+    document.getElementById('import-overlay').hidden = true;
+    document.getElementById('import-modal-result').innerHTML = '';
+    var list = document.getElementById('import-dir-suggestions');
+    list.hidden = true;
+    list.innerHTML = '';
+    if (_importTriggerEl) { _importTriggerEl.focus(); _importTriggerEl = null; }
+  }
+
+  document.getElementById('import-overlay').addEventListener('click', function (e) {
+    if (e.target === this) closeImportOverlay();
+  });
+
+  // Focus trap: keep Tab within the modal while it is open.
+  document.addEventListener('keydown', function (e) {
+    if (e.key !== 'Tab') return;
+    var overlay = document.getElementById('import-overlay');
+    if (overlay.hidden) return;
+    var modal = overlay.querySelector('.import-modal');
+    var focusable = Array.from(modal.querySelectorAll(
+      'a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
+    )).filter(function (el) { return !el.closest('[hidden]'); });
+    if (focusable.length === 0) return;
+    var first = focusable[0];
+    var last = focusable[focusable.length - 1];
+    if (e.shiftKey) {
+      if (document.activeElement === first) { e.preventDefault(); last.focus(); }
+    } else {
+      if (document.activeElement === last) { e.preventDefault(); first.focus(); }
+    }
+  });
+
+  // Drag logic — initiated from the header handle.
+  (function () {
+    var modal = document.querySelector('.import-modal');
+    var handle = document.getElementById('import-modal-drag-handle');
+    var isDragging = false;
+    var dragStartX, dragStartY, modalStartLeft, modalStartTop;
+
+    handle.addEventListener('mousedown', function (e) {
+      if (e.target.closest('.import-modal__close')) return;
+      var rect = modal.getBoundingClientRect();
+      modal.style.transform = 'none';
+      modal.style.left = rect.left + 'px';
+      modal.style.top = rect.top + 'px';
+      dragStartX = e.clientX;
+      dragStartY = e.clientY;
+      modalStartLeft = rect.left;
+      modalStartTop = rect.top;
+      isDragging = true;
+      e.preventDefault();
+    });
+
+    document.addEventListener('mousemove', function (e) {
+      if (!isDragging) return;
+      modal.style.left = (modalStartLeft + e.clientX - dragStartX) + 'px';
+      modal.style.top  = (modalStartTop  + e.clientY - dragStartY) + 'px';
+    });
+
+    document.addEventListener('mouseup', function () { isDragging = false; });
+  }());
+
+  // Path autocomplete suggestions 
+  (function () {
+    var input = document.getElementById('import-folder-input');
+    var list  = document.getElementById('import-dir-suggestions');
+
+    function hideSuggestions() {
+      list.hidden = true;
+    }
+
+    function selectSuggestion(item) {
+      input.value = item.dataset.value;
+      hideSuggestions();
+      input.focus();
+    }
+
+    document.body.addEventListener('htmx:afterSwap', function (e) {
+      if (e.detail.target.id !== 'import-dir-suggestions') return;
+      list.hidden = list.children.length === 0;
+    });
+
+    list.addEventListener('click', function (e) {
+      var item = e.target.closest('.import-suggestion');
+      if (item) selectSuggestion(item);
+    });
+
+    input.addEventListener('keydown', function (e) {
+      if (list.hidden) return;
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        var first = list.querySelector('.import-suggestion');
+        if (first) first.focus();
+      }
+      if (e.key === 'Escape') {
+        hideSuggestions();
+      }
+    });
+
+    list.addEventListener('keydown', function (e) {
+      var focused = document.activeElement;
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        var next = focused.nextElementSibling;
+        if (next) next.focus();
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        var prev = focused.previousElementSibling;
+        if (prev) prev.focus(); else input.focus();
+      }
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        selectSuggestion(focused);
+      }
+      if (e.key === 'Escape') {
+        hideSuggestions();
+        input.focus();
+      }
+    });
+
+    // Close when clicking outside the input window.
+    document.addEventListener('click', function (e) {
+      if (!e.target.closest('.import-modal__input-wrap')) hideSuggestions();
+    });
+  }());
+
   var _slotSpinnerHTML = '<div class="slot-card slot-card--loading"><div class="slot-spinner"></div></div>';
   var _slotPushLoadingHTML = '<div class="slot-push-loading"><div class="slot-spinner-large"></div></div>';
 
@@ -595,7 +1061,6 @@
     if (e.target === this) closeSlotOverlay();
   });
 
-  // Detail overlay logic.
   var _galleryUrl = null;
 
   function closeDetail() {
@@ -655,6 +1120,8 @@
 
   document.addEventListener('keydown', function (e) {
     if (e.key === 'Escape') {
+      var importOverlay = document.getElementById('import-overlay');
+      if (importOverlay && !importOverlay.hidden) { closeImportOverlay(); return; }
       var slotOverlay = document.getElementById('slot-overlay');
       if (slotOverlay && !slotOverlay.hidden) { closeSlotOverlay(); return; }
     }

@@ -9,6 +9,8 @@ urlpatterns = [
     path("static/<path:path>", static_serve, {"document_root": settings.STATIC_FILES_DIR}),
     path("", RedirectView.as_view(pattern_name="gallery"), name="root"),
     path("images/", views.gallery_view, name="gallery"),
+    path("images/import/suggest/", views.import_folder_suggest_view, name="import-folder-suggest"),
+    path("images/import/", views.ImportFolderView.as_view(), name="import-folder"),
     path("images/results/", views.gallery_results_view, name="gallery-results"),
     path("images/file/<int:image_id>/", views.image_file_view, name="image-file"),
     path("images/<int:image_id>/", views.image_detail_view, name="image-detail"),
