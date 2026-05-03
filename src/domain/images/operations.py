@@ -11,20 +11,25 @@ from src.domain.recipes import operations as recipe_operations
 
 @attrs.frozen
 class InvalidImageRatingError(Exception):
-    """Raised when a rating value is outside the allowed range [0, IMAGE_MAX_RATING]."""
+    """
+    Raised when a rating value is outside the allowed range [0, IMAGE_MAX_RATING].
+    """
 
     rating: int
 
 
 @attrs.frozen
 class UnableToRateImage(Exception):
-    """Raised when an image cannot be rated for any reason."""
+    """
+    Raised when an image cannot be rated for any reason.
+    """
 
     image_path: str
 
 
 def set_image_rating(*, image: models.Image, rating: int) -> None:
-    """Set the rating of *image* to *rating*.
+    """
+    Set the rating of *image* to *rating*.
 
     Raises:
         InvalidImageRatingError: If *rating* is negative or exceeds
@@ -41,7 +46,8 @@ def set_image_rating(*, image: models.Image, rating: int) -> None:
 
 
 def rate_image(*, image_path: str, rating: int) -> models.Image:
-    """Find the Image for *image_path* and set its rating.
+    """
+    Find the Image for *image_path* and set its rating.
 
     Does not create a new DB record if the image is not found.
 
@@ -61,7 +67,8 @@ def rate_image(*, image_path: str, rating: int) -> models.Image:
 
 
 def toggle_image_favorite(*, image_id: int) -> bool:
-    """Toggle the is_favorite flag for the image with the given *image_id*.
+    """
+    Toggle the is_favorite flag for the image with the given *image_id*.
 
     Returns the new value of is_favorite after toggling.
     """
@@ -72,7 +79,8 @@ def toggle_image_favorite(*, image_id: int) -> bool:
 
 
 def process_image(*, image_path: str) -> models.Image:
-    """Read EXIF data from *image_path* and persist it to the database.
+    """
+    Read EXIF data from *image_path* and persist it to the database.
 
     If a record for the same filepath already exists it is updated in-place.
     A FujifilmExif record is looked up or created for the image's EXIF field

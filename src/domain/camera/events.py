@@ -11,5 +11,7 @@ PTP_READ_SUCCEEDED = "camera.ptp_read.succeeded"
 
 
 def publish_event(*, event_type: str, **kwargs: object) -> None:
-    """Publish a structured camera event."""
+    """
+    Publish a structured camera event.
+    """
     logger.info(event_type, event_type=event_type, **kwargs)

@@ -86,20 +86,26 @@ _RETRY_BACKOFF    = _settings.CAMERA_RETRY_BACKOFF_S
 # ---------------------------------------------------------------------------
 
 def _command_packet(code: int, tx_id: int, *params: int) -> bytes:
-    """Build a PTP command container packet (no data payload)."""
+    """
+    Build a PTP command container packet (no data payload).
+    """
     param_bytes = struct.pack(f"<{len(params)}I", *params)
     length = 12 + len(param_bytes)
     return struct.pack("<IHHI", length, _PTP_COMMAND, code, tx_id) + param_bytes
 
 
 def _data_packet(code: int, tx_id: int, payload: bytes) -> bytes:
-    """Build a PTP data container packet."""
+    """
+    Build a PTP data container packet.
+    """
     length = 12 + len(payload)
     return struct.pack("<IHHI", length, _PTP_DATA, code, tx_id) + payload
 
 
 def _parse_response(raw: bytes) -> tuple[int, list[int]]:
-    """Parse a PTP response container. Returns (response_code, [params])."""
+    """
+    Parse a PTP response container. Returns (response_code, [params]).
+    """
     if len(raw) < 12:
         raise ptp_device.CameraConnectionError(
             f"PTP response too short ({len(raw)} bytes); camera may have disconnected."
@@ -116,7 +122,9 @@ def _parse_response(raw: bytes) -> tuple[int, list[int]]:
 # ---------------------------------------------------------------------------
 
 def _decode_ptp_string(data: bytes, offset: int) -> tuple[str, int]:
-    """Decode a PTP string starting at *offset*. Returns (string, new_offset)."""
+    """
+    Decode a PTP string starting at *offset*. Returns (string, new_offset).
+    """
     if offset >= len(data):
         return "", offset
     num_chars = data[offset]
@@ -130,7 +138,9 @@ def _decode_ptp_string(data: bytes, offset: int) -> tuple[str, int]:
 
 
 def _encode_ptp_string(s: str) -> bytes:
-    """Encode a Python string as a PTP string (includes NUL terminator char)."""
+    """
+    Encode a Python string as a PTP string (includes NUL terminator char).
+    """
     if not s:
         return b"\x00"  # numChars = 0
     chars = [ord(c) for c in s] + [0]  # NUL terminated
@@ -139,13 +149,17 @@ def _encode_ptp_string(s: str) -> bytes:
 
 
 def _skip_ptp_string(data: bytes, offset: int) -> int:
-    """Skip a PTP string and return the new offset."""
+    """
+    Skip a PTP string and return the new offset.
+    """
     _, offset = _decode_ptp_string(data, offset)
     return offset
 
 
 def _skip_ptp_uint16_array(data: bytes, offset: int) -> int:
-    """Skip a PTP uint16 array (uint32 count + count × uint16)."""
+    """
+    Skip a PTP uint16 array (uint32 count + count × uint16).
+    """
     if offset + 4 > len(data):
         return offset
     count: int = struct.unpack_from("<I", data, offset)[0]
@@ -190,7 +204,9 @@ def _device_info_offsets(data: bytes) -> tuple[int, int]:
 
 
 def _parse_device_info_model(data: bytes) -> str:
-    """Extract the Model string from a PTP GetDeviceInfo response payload."""
+    """
+    Extract the Model string from a PTP GetDeviceInfo response payload.
+    """
     _, mfr_off = _device_info_offsets(data)
     off = _skip_ptp_string(data, mfr_off)   # Manufacturer
     model, _ = _decode_ptp_string(data, off)
@@ -198,7 +214,9 @@ def _parse_device_info_model(data: bytes) -> str:
 
 
 def _parse_device_info_supported_props(data: bytes) -> list[int]:
-    """Extract DevicePropertiesSupported codes from a PTP GetDeviceInfo response payload."""
+    """
+    Extract DevicePropertiesSupported codes from a PTP GetDeviceInfo response payload.
+    """
     props_off, _ = _device_info_offsets(data)
     if props_off + 4 > len(data):
         return []
@@ -297,7 +315,9 @@ class PTPUSBDevice:
         self._dev = None
 
     def ping(self) -> int:
-        """Read 0xD023 (GrainEffect / ping register). Returns 0 if alive."""
+        """
+        Read 0xD023 (GrainEffect / ping register). Returns 0 if alive.
+        """
         from src.data.camera.constants import PROP_PING
         try:
             self.get_property_int(PROP_PING)
@@ -359,17 +379,23 @@ class PTPUSBDevice:
         return value
 
     def set_property_int(self, code: int, value: int) -> int:
-        """Write a 32-bit signed integer property."""
+        """
+        Write a 32-bit signed integer property.
+        """
         payload = struct.pack("<i", value)
         return self._set_prop(code, payload)
 
     def set_property_uint16(self, code: int, value: int) -> int:
-        """Write a uint16 property."""
+        """
+        Write a uint16 property.
+        """
         payload = struct.pack("<H", value & 0xFFFF)
         return self._set_prop(code, payload)
 
     def set_property_string(self, code: int, value: str) -> int:
-        """Write a PTP string property (used for slot name, 0xD18D)."""
+        """
+        Write a PTP string property (used for slot name, 0xD18D).
+        """
         payload = _encode_ptp_string(value)
         return self._set_prop(code, payload)
 
@@ -399,7 +425,9 @@ class PTPUSBDevice:
     # ------------------------------------------------------------------
 
     def _get_prop_with_retry(self, code: int) -> bytes:
-        """Send GetDevicePropValue and return the raw data, retrying on USB timeout."""
+        """
+        Send GetDevicePropValue and return the raw data, retrying on USB timeout.
+        """
         last_err: ptp_device.CameraConnectionError = ptp_device.CameraConnectionError("No retries attempted")
         for attempt in range(_PROP_MAX_RETRIES):
             if attempt > 0:
@@ -428,7 +456,9 @@ class PTPUSBDevice:
             raise ptp_device.CameraConnectionError(f"USB write failed: {e}") from e
 
     def _recv_data(self) -> bytes:
-        """Receive a data container from the camera (may be empty)."""
+        """
+        Receive a data container from the camera (may be empty).
+        """
         assert self._ep_in is not None
         try:
             raw = bytes(self._ep_in.read(_READ_BUFFER, timeout=_USB_TIMEOUT_MS))
@@ -538,7 +568,9 @@ class PTPUSBDevice:
             )
 
     def _fetch_camera_name(self) -> str:
-        """Read camera model via PTP GetDeviceInfo."""
+        """
+        Read camera model via PTP GetDeviceInfo.
+        """
         try:
             tx = self._next_tx()
             self._send(_command_packet(_OC_GET_DEVICE_INFO, tx))

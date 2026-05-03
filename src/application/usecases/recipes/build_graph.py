@@ -12,7 +12,8 @@ class RecipeNetworkResult:
 
 
 def build_recipe_network(*, film_simulation: str) -> RecipeNetworkResult:
-    """Build a spanning tree of recipes for a single film simulation.
+    """
+    Build a spanning tree of recipes for a single film simulation.
 
     The tree is rooted at the most-used recipe for that film simulation (the one
     with the most images; ties broken by lowest pk). All recipes for the film

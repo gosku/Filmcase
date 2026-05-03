@@ -9,20 +9,25 @@ from src.services import events
 
 @attrs.frozen
 class TaskNotFoundError(Exception):
-    """Raised when *task_name* cannot be resolved to a Python object."""
+    """
+    Raised when *task_name* cannot be resolved to a Python object.
+    """
 
     task_name: str
 
 
 @attrs.frozen
 class NotACeleryTaskError(Exception):
-    """Raised when *task_name* resolves to an object that is not a Celery task."""
+    """
+    Raised when *task_name* resolves to an object that is not a Celery task.
+    """
 
     task_name: str
 
 
 def enqueue_task(*, task_name: str, kwargs: Mapping[str, object], queue: str) -> None:
-    """Dispatch a Celery task by its dotted Python path to the given queue.
+    """
+    Dispatch a Celery task by its dotted Python path to the given queue.
 
     Use this instead of calling task objects directly to avoid circular imports
     and to keep the application layer decoupled from task implementation details.

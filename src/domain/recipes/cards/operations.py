@@ -36,7 +36,9 @@ _GRADIENT_BOTTOM = (30, 20, 70)
 
 
 def _cover_fill(img: PILImage.Image, target_w: int, target_h: int) -> PILImage.Image:
-    """Scale *img* so it fills (target_w × target_h) with no empty space, then center-crop."""
+    """
+    Scale *img* so it fills (target_w × target_h) with no empty space, then center-crop.
+    """
     scale = max(target_w / img.width, target_h / img.height)
     new_w = int(img.width * scale)
     new_h = int(img.height * scale)
@@ -47,7 +49,9 @@ def _cover_fill(img: PILImage.Image, target_w: int, target_h: int) -> PILImage.I
 
 
 def _build_gradient(width: int, height: int) -> PILImage.Image:
-    """Return a soft vertical gradient from _GRADIENT_TOP to _GRADIENT_BOTTOM."""
+    """
+    Return a soft vertical gradient from _GRADIENT_TOP to _GRADIENT_BOTTOM.
+    """
     img = PILImage.new("RGB", (width, height))
     draw = ImageDraw.Draw(img)
     r0, g0, b0 = _GRADIENT_TOP
@@ -71,7 +75,9 @@ def _load_font(size: int) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
 
 
 def _embed_recipe_exif(*, filepath: Path, json_str: str) -> None:
-    """Embed recipe JSON into the UserComment EXIF field of the saved JPEG at filepath."""
+    """
+    Embed recipe JSON into the UserComment EXIF field of the saved JPEG at filepath.
+    """
     exif_bytes = piexif.dump({
         "Exif": {
             piexif.ExifIFD.UserComment: b"ASCII\x00\x00\x00" + json_str.encode("ascii"),
@@ -86,7 +92,9 @@ def _compose_card(
     template: card_templates.CardTemplate,
     background_image: models.Image | None,
 ) -> tuple[PILImage.Image, str, bool]:
-    """Build the card PIL image. Returns (canvas, json_str, use_gradient)."""
+    """
+    Build the card PIL image. Returns (canvas, json_str, use_gradient).
+    """
     target_w, target_h = template.output_size
     if background_image is None:
         canvas = _build_gradient(target_w, target_h)
@@ -164,7 +172,8 @@ def preview_recipe_card_image(
     background_image: models.Image | None,
     output_path: Path,
 ) -> Path:
-    """Compose a recipe card image and save it to output_path. Return output_path.
+    """
+    Compose a recipe card image and save it to output_path. Return output_path.
 
     Intended for previews: the caller controls the exact output path (e.g. a
     deterministic /tmp/ path) so successive previews for the same options
@@ -184,7 +193,8 @@ def create_recipe_card_image(
     background_image: models.Image | None,
     output_dir: Path,
 ) -> Path:
-    """Compose a recipe card image and save it to output_dir. Return the file path.
+    """
+    Compose a recipe card image and save it to output_dir. Return the file path.
 
     If background_image is given, resizes/crops it to template.output_size and
     applies Gaussian blur when template.background_effect == "blur".
@@ -206,7 +216,8 @@ def create_recipe_card(
     background_image: models.Image | None,
     output_dir: Path,
 ) -> models.RecipeCard:
-    """Create a recipe card image, persist a RecipeCard record, and publish an event.
+    """
+    Create a recipe card image, persist a RecipeCard record, and publish an event.
 
     Calls create_recipe_card_image internally, then saves a RecipeCard to the DB
     and publishes a recipe.card.created event.

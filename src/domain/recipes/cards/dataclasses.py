@@ -5,7 +5,8 @@ import attrs
 
 @attrs.frozen
 class QRFujifilmRecipe:
-    """Parsed recipe payload decoded from a recipe-card QR code.
+    """
+    Parsed recipe payload decoded from a recipe-card QR code.
 
     Mirrors the JSON payload produced by
     :func:`src.domain.recipes.cards.queries.get_recipe_as_json`. Field names

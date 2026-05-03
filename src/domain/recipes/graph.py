@@ -33,7 +33,9 @@ def hamming_distance(
     a: models.FujifilmRecipe,
     b: models.FujifilmRecipe,
 ) -> int:
-    """Return the number of recipe fields that differ between *a* and *b*."""
+    """
+    Return the number of recipe fields that differ between *a* and *b*.
+    """
     return sum(
         1 for field in _RECIPE_GRAPH_FIELDS
         if getattr(a, field) != getattr(b, field)
@@ -104,7 +106,8 @@ def build_film_sim_tree(
     all_recipes: list[models.FujifilmRecipe],
     image_counts: dict[int, int],
 ) -> FilmSimTreeData:
-    """Build a shortest-path spanning tree rooted at *root*.
+    """
+    Build a shortest-path spanning tree rooted at *root*.
 
     Each node is connected to a parent such that the sum of edge distances along
     the path from root to that node equals hamming_distance(root, node). This means
@@ -189,7 +192,8 @@ def build_all_recipe_graph(
     all_recipes: list[models.FujifilmRecipe],
     image_counts: dict[int, int],
 ) -> AllRecipeGraphData:
-    """Build a per-film-simulation recipe network.
+    """
+    Build a per-film-simulation recipe network.
 
     Recipes are only connected to other recipes sharing the same film simulation,
     producing one island per film sim. Within each island, edges are drawn for pairs
@@ -229,8 +233,10 @@ def build_all_recipe_graph(
                 distances_present[pk_j].add(d)
 
     def _blocked(pk: int, d: int) -> bool:
-        """A node is blocked from distance-d edges if it already has neighbours at
-        both d-1 and d-2. Distances 1 and 2 are never blocked (d-2 <= 0 never exists)."""
+        """
+        A node is blocked from distance-d edges if it already has neighbours at
+        both d-1 and d-2. Distances 1 and 2 are never blocked (d-2 <= 0 never exists).
+        """
         present = distances_present[pk]
         return (d - 1) in present and (d - 2) in present
 
@@ -250,7 +256,8 @@ def build_recipe_graph(
     max_distance: int,
     image_counts: dict[int, int],
 ) -> RecipeGraphData:
-    """Build a recipe graph centred on *root*.
+    """
+    Build a recipe graph centred on *root*.
 
     Nodes: all recipes (including root) whose Hamming distance from *root* is
     strictly less than *max_distance*.

@@ -23,14 +23,17 @@ _ALWAYS_REQUIRED_STR_FIELDS: tuple[str, ...] = (
 
 @attrs.frozen
 class InvalidFujifilmRecipeData(Exception):
-    """Raised when FujifilmRecipeData fails cross-field consistency validation."""
+    """
+    Raised when FujifilmRecipeData fails cross-field consistency validation.
+    """
 
     field: str
     value: object
 
 
 def validate_recipe_data(data: image_dataclasses.FujifilmRecipeData) -> None:
-    """Validate cross-field consistency of *data* before storing in the database.
+    """
+    Validate cross-field consistency of *data* before storing in the database.
 
     Checks that conditional optional fields are present or absent according to
     the values of the fields that control them (d_range_priority, grain_roughness,

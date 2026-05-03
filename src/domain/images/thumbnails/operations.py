@@ -19,9 +19,11 @@ _ORIENTATION_TO_TRANSPOSE = {
 
 
 def generate_thumbnail(*, original_path: Path, width: int) -> Path:
-    """Resize *original_path* to *width* px wide, applying EXIF orientation, and
+    """
+    Resize *original_path* to *width* px wide, applying EXIF orientation, and
     save to the thumbnail cache.  Returns the cache path.  Skips generation if
-    a cached file already exists."""
+    a cached file already exists.
+    """
     cache_path = thumbnail_queries.thumbnail_cache_path(original_path=original_path, width=width)
     if cache_path.is_file():
         return cache_path
@@ -61,6 +63,8 @@ def generate_thumbnail(*, original_path: Path, width: int) -> Path:
 
 
 def generate_thumbnail_with_content_type(*, original_path: Path, width: int) -> tuple[Path, str]:
-    """Generate a thumbnail and return ``(cache_path, content_type)`` in one call."""
+    """
+    Generate a thumbnail and return ``(cache_path, content_type)`` in one call.
+    """
     cache_path = generate_thumbnail(original_path=original_path, width=width)
     return cache_path, thumbnail_queries.thumbnail_content_type(cache_path=cache_path)

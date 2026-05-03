@@ -13,7 +13,8 @@ from src.domain.recipes.cards import queries as card_queries
 
 
 def _parse_numeric(*, s: str | None) -> Decimal | None:
-    """Convert a signed numeric string like '+4', '-1.5', '0' to Decimal, or None.
+    """
+    Convert a signed numeric string like '+4', '-1.5', '0' to Decimal, or None.
 
     Decimal is used (not float or int) so that half-step values like -1.5 and
     +0.5 are stored exactly in the DecimalField without rounding.
@@ -25,8 +26,10 @@ def _parse_numeric(*, s: str | None) -> Decimal | None:
 
 def get_or_create_recipe_from_data(
     *, data: image_dataclasses.FujifilmRecipeData,
+
 ) -> tuple[models.FujifilmRecipe, bool]:
-    """Create or retrieve a FujifilmRecipe for the given recipe data.
+    """
+    Create or retrieve a FujifilmRecipe for the given recipe data.
 
     Returns ``(recipe, created)``. Uniqueness is determined by the recipe
     settings only — ``data.name`` is applied via ``defaults`` on the create
@@ -77,7 +80,8 @@ def get_or_create_recipe_from_data(
 def get_or_create_recipe_from_metadata(
     *, metadata: image_dataclasses.ImageExifData,
 ) -> tuple[models.FujifilmRecipe, bool]:
-    """Create or retrieve a FujifilmRecipe for the given parsed EXIF data.
+    """
+    Create or retrieve a FujifilmRecipe for the given parsed EXIF data.
 
     :raises NoFilmSimulationError: If the EXIF data contains no known film simulation.
     """
@@ -91,7 +95,8 @@ def get_or_create_recipe_from_metadata(
 def get_or_create_recipe_from_filepath(
     *, filepath: str,
 ) -> tuple[models.FujifilmRecipe, bool]:
-    """Read EXIF from *filepath* and return the matching FujifilmRecipe, creating it if needed.
+    """
+    Read EXIF from *filepath* and return the matching FujifilmRecipe, creating it if needed.
 
     :raises NoFilmSimulationError: If the file is not a Fujifilm image or has no film simulation.
     """
@@ -104,7 +109,8 @@ def get_or_create_recipe_from_filepath(
 def get_or_create_recipe_from_qr_card(
     *, filepath: str,
 ) -> tuple[models.FujifilmRecipe, bool]:
-    """Decode the QR on a recipe-card image and return the matching FujifilmRecipe.
+    """
+    Decode the QR on a recipe-card image and return the matching FujifilmRecipe.
 
     :raises QRCodeNotFoundError: If no QR code can be decoded from *filepath*.
     :raises InvalidQRRecipePayloadError: If the decoded content is not a valid
@@ -117,28 +123,35 @@ def get_or_create_recipe_from_qr_card(
 
 @attrs.frozen
 class RecipeNotFoundError(Exception):
-    """Raised when no recipe with the given ID exists."""
+    """
+    Raised when no recipe with the given ID exists.
+    """
 
     recipe_id: int
 
 
 @attrs.frozen
 class ImageNotFoundError(Exception):
-    """Raised when no image with the given ID exists."""
+    """
+    Raised when no image with the given ID exists.
+    """
 
     image_id: int
 
 
 @attrs.frozen
 class ImageNotAssociatedToRecipeError(Exception):
-    """Raised when the image is not linked to the recipe."""
+    """
+    Raised when the image is not linked to the recipe.
+    """
 
     recipe_id: int
     image_id: int
 
 
 def set_cover_image_for_recipe(*, recipe_id: int, image_id: int) -> None:
-    """Set the cover image of a recipe to the given image.
+    """
+    Set the cover image of a recipe to the given image.
 
     Raises:
         RecipeNotFoundError: If no recipe with *recipe_id* exists.
@@ -168,13 +181,16 @@ def set_cover_image_for_recipe(*, recipe_id: int, image_id: int) -> None:
 
 @attrs.frozen
 class RecipeNameValidationError(Exception):
-    """Raised when a recipe name fails validation (too long or non-ASCII)."""
+    """
+    Raised when a recipe name fails validation (too long or non-ASCII).
+    """
 
     name: str
 
 
 def set_recipe_name(*, recipe: models.FujifilmRecipe, name: str) -> None:
-    """Set the name of *recipe* to *name* after validating it.
+    """
+    Set the name of *recipe* to *name* after validating it.
 
     Raises:
         RecipeNameValidationError: If the name is empty, longer than

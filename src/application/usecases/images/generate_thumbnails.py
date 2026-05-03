@@ -17,7 +17,8 @@ class ThumbnailGenerationResult:
 
 
 def generate_thumbnails_for_all_images(*, width: int) -> ThumbnailGenerationResult:
-    """Generate or enqueue a thumbnail for every image in the database.
+    """
+    Generate or enqueue a thumbnail for every image in the database.
 
     When USE_ASYNC_TASKS is True, enqueues one Celery task per image.
     When USE_ASYNC_TASKS is False, generates thumbnails synchronously in the calling process.

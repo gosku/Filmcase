@@ -8,5 +8,7 @@ TASK_ENQUEUED = "task.enqueued"
 
 
 def publish_event(*, event_type: str, **kwargs: object) -> None:
-    """Publish a structured service event."""
+    """
+    Publish a structured service event.
+    """
     logger.info(event_type, event_type=event_type, **kwargs)

@@ -9,7 +9,8 @@ from src.domain.recipes import constants as recipe_constants
 def normalize_recipe_data(
     data: image_dataclasses.FujifilmRecipeData,
 ) -> image_dataclasses.FujifilmRecipeData:
-    """Return a copy of *data* with inapplicable fields set to None.
+    """
+    Return a copy of *data* with inapplicable fields set to None.
 
     Applies the applicability rules defined in ADR 007:
     - Mono sim  → color = None; mono color fields preserved.

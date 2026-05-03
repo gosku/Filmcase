@@ -91,7 +91,8 @@ def verify_written_properties(
     device: ptp_device.PTPDevice,
     written: list[tuple[int, str | int]],
 ) -> list[int]:
-    """Read back each successfully written property and check its value.
+    """
+    Read back each successfully written property and check its value.
 
     Returns a list of PTP codes where the read-back value did not match.
     """

@@ -49,7 +49,9 @@ _DR_PRIORITY_TO_PTP: dict[str, int] = {v: k for k, v in constants.CUSTOM_SLOT_DR
 
 
 def _get_int(device: ptp_device.PTPDevice, code: int) -> int:
-    """Read a 32-bit int property, publishing a read event on success or failure."""
+    """
+    Read a 32-bit int property, publishing a read event on success or failure.
+    """
     try:
         value = device.get_property_int(code)
         events.publish_event(
@@ -66,7 +68,9 @@ def _get_int(device: ptp_device.PTPDevice, code: int) -> int:
 
 
 def _get_int16(device: ptp_device.PTPDevice, code: int) -> int:
-    """Read an int16 property, publishing a read event on success or failure."""
+    """
+    Read an int16 property, publishing a read event on success or failure.
+    """
     try:
         value = device.get_property_int16(code)
         events.publish_event(
@@ -83,7 +87,9 @@ def _get_int16(device: ptp_device.PTPDevice, code: int) -> int:
 
 
 def _get_str(device: ptp_device.PTPDevice, code: int) -> str:
-    """Read a string property, publishing a read event on success or failure."""
+    """
+    Read a string property, publishing a read event on success or failure.
+    """
     try:
         value = device.get_property_string(code)
         events.publish_event(
@@ -100,7 +106,8 @@ def _get_str(device: ptp_device.PTPDevice, code: int) -> str:
 
 
 def _signed(v: int | float) -> str:
-    """Format a signed number as a recipe string (e.g. 2 → '+2', -1.5 → '-1.5').
+    """
+    Format a signed number as a recipe string (e.g. 2 → '+2', -1.5 → '-1.5').
 
     Integer values are formatted without a decimal point; half-steps are preserved.
     """
@@ -115,7 +122,9 @@ def _signed(v: int | float) -> str:
 
 @attrs.frozen
 class CameraInfo:
-    """Snapshot of camera identity and status, collected without modifying state."""
+    """
+    Snapshot of camera identity and status, collected without modifying state.
+    """
     camera_name: str
     battery_raw: int       # raw PTP value from PROP_BATTERY
     usb_mode: int          # raw PTP value from 0xD16E (USBMode)
@@ -145,7 +154,9 @@ def camera_info(device: ptp_device.PTPDevice) -> CameraInfo:
 
 @attrs.frozen
 class SlotState:
-    """Current state of one custom C1–Cn slot as read from the camera."""
+    """
+    Current state of one custom C1–Cn slot as read from the camera.
+    """
     index: int       # 1-based slot number
     name: str        # display name stored in the slot
     film_sim_ptp: int  # raw PTP FilmSimulation value (see constants.PTP_TO_FILM_SIMULATION)
@@ -311,7 +322,8 @@ class RecipePTPValues:
     MonochromaticColorMagentaGreen: int | None = None
 
     def items(self) -> list[tuple[int, int]]:
-        """Return (ptp_code, value) pairs for all properties that are set.
+        """
+        Return (ptp_code, value) pairs for all properties that are set.
 
         Write order matters: WhiteBalanceColorTemperature must be written
         before WhiteBalanceRed/WhiteBalanceBlue; otherwise the camera resets

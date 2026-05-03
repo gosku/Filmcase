@@ -7,7 +7,9 @@ from src.data import models
 
 @attrs.frozen
 class UploadedFile:
-    """Carries the raw bytes of an uploaded image together with its original filename."""
+    """
+    Carries the raw bytes of an uploaded image together with its original filename.
+    """
 
     name: str
     content: bytes

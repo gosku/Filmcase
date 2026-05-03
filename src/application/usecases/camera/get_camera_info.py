@@ -13,7 +13,8 @@ class CameraStatusResult:
 
 
 def get_camera_status(*, read_slots: bool) -> CameraStatusResult:
-    """Connect to the camera, read its identity, and optionally read slot states.
+    """
+    Connect to the camera, read its identity, and optionally read slot states.
 
     Manages the full device lifecycle: connect → read → disconnect.
 

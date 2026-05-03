@@ -14,7 +14,9 @@ from src.domain.camera import ptp_device
 
 
 def get_device() -> ptp_device.PTPDevice:
-    """Return a fresh, unconnected PTP device as configured in settings.PTP_DEVICE."""
+    """
+    Return a fresh, unconnected PTP device as configured in settings.PTP_DEVICE.
+    """
     factory = django_settings.PTP_DEVICE
     if isinstance(factory, str):
         module_path, cls_name = factory.rsplit(".", 1)

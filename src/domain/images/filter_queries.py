@@ -194,7 +194,9 @@ def get_gallery_data(
     page_number: int | str,
     page_size: int,
 ) -> GalleryData:
-    """Return all data needed to render the gallery page in a single query bundle."""
+    """
+    Return all data needed to render the gallery page in a single query bundle.
+    """
     active_field_filters = {k: v for k, v in active_filters.items() if k != "recipe_id"}
     qs = get_filtered_images(active_filters=active_filters, rating_first=rating_first)
     page_obj = django_paginator.Paginator(qs, page_size).get_page(page_number)

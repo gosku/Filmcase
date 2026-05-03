@@ -10,7 +10,8 @@ class RateFolderResult:
 
 
 def rate_images_in_folder(*, folder: str, rating: int) -> RateFolderResult:
-    """Rate every Fujifilm image found under *folder* with *rating*.
+    """
+    Rate every Fujifilm image found under *folder* with *rating*.
 
     Returns a result describing which files were rated and which were
     skipped. An IMAGE_RATING_FAILED event is published for each image

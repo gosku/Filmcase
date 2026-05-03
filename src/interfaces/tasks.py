@@ -10,7 +10,9 @@ from src.domain.images.thumbnails import operations as thumbnail_operations
 
 @shared_task(name="domain.process_image", bind=True, queue=settings.PROCESS_IMAGE_QUEUE)
 def process_image_task(self: Any, /, *, image_path: str, **kwargs: object) -> str:
-    """Celery task that processes a single image and stores its recipe in DB."""
+    """
+    Celery task that processes a single image and stores its recipe in DB.
+    """
     events.publish_event(
         event_type=events.TASK_IMAGE_STARTED,
         image_path=image_path,
@@ -31,6 +33,8 @@ def process_image_task(self: Any, /, *, image_path: str, **kwargs: object) -> st
 
 @shared_task(name="domain.generate_thumbnail", bind=True, queue=settings.PROCESS_IMAGE_QUEUE)
 def generate_thumbnail_task(self: Any, /, *, filepath: str, width: int, **kwargs: object) -> str:
-    """Celery task that generates a thumbnail for a single image file."""
+    """
+    Celery task that generates a thumbnail for a single image file.
+    """
     thumbnail_operations.generate_thumbnail(original_path=Path(filepath), width=width)
     return f"Generated thumbnail for {Path(filepath).name}"

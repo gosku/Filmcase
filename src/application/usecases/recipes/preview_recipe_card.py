@@ -13,7 +13,8 @@ def preview_recipe_card(
     image_id: int | None,
     template: card_templates.CardTemplate,
 ) -> Path:
-    """Generate a recipe card preview in /tmp/ and return its path.
+    """
+    Generate a recipe card preview in /tmp/ and return its path.
 
     The output path is deterministic from the arguments, so repeated calls with
     the same options overwrite the previous file rather than accumulating.

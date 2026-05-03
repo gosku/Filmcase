@@ -10,7 +10,8 @@ class FixResult:
 
 
 def fix_empty_grain_recipes() -> FixResult:
-    """Fix FujifilmRecipe rows where grain_roughness is 'Off' but grain_size is ''.
+    """
+    Fix FujifilmRecipe rows where grain_roughness is 'Off' but grain_size is ''.
 
     Two cases are handled:
 

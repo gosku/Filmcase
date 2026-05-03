@@ -42,7 +42,9 @@ def _decimal_str(value: object) -> str | None:
 
 
 def _recipe_data_raw(recipe: models.FujifilmRecipe) -> image_dataclasses.FujifilmRecipeData:
-    """Build FujifilmRecipeData from DB columns without applying normalization."""
+    """
+    Build FujifilmRecipeData from DB columns without applying normalization.
+    """
     return image_dataclasses.FujifilmRecipeData(
         name=recipe.name,
         film_simulation=recipe.film_simulation,
@@ -82,7 +84,8 @@ _NORMALIZABLE_FIELDS: tuple[str, ...] = tuple(_INAPPLICABLE_DB_VALUE)
 
 
 def normalize_recipe_rows() -> NormalizeRecipesResult:
-    """Normalize FujifilmRecipe rows whose inapplicable fields are set to non-null/non-empty values.
+    """
+    Normalize FujifilmRecipe rows whose inapplicable fields are set to non-null/non-empty values.
 
     For each row:
     - Fields that are inapplicable for the row's film sim, DRP state, or grain state

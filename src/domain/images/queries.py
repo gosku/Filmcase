@@ -16,16 +16,22 @@ from src.domain.recipes import constants as recipe_constants
 from src.domain.recipes import normalization as recipe_normalization
 
 class ImageNotFound(Exception):
-    """Raised when no DB record matches the given image file."""
+    """
+    Raised when no DB record matches the given image file.
+    """
 
 
 class AmbiguousImageMatch(Exception):
-    """Raised when multiple DB records match the given image file."""
+    """
+    Raised when multiple DB records match the given image file.
+    """
 
 
 @attrs.frozen
 class NoFilmSimulationError(Exception):
-    """Raised when an image has no film simulation in its EXIF data."""
+    """
+    Raised when an image has no film simulation in its EXIF data.
+    """
 
     image_path: str = ""
 
@@ -153,7 +159,9 @@ _GROUP_OVERRIDES = {
 
 
 def parse_exif_date(*, value: str) -> datetime | None:
-    """Parse an exiftool date string into a timezone-aware datetime."""
+    """
+    Parse an exiftool date string into a timezone-aware datetime.
+    """
     m = _EXIF_DATE_RE.match(value.strip())
     if not m:
         return None
@@ -169,14 +177,18 @@ def parse_exif_date(*, value: str) -> datetime | None:
 
 
 def _normalize_wb_fine_tune(*, raw: str) -> str:
-    """Divide exiftool White Balance Fine Tune values by 20 to get camera values."""
+    """
+    Divide exiftool White Balance Fine Tune values by 20 to get camera values.
+    """
     def _divide(m: re.Match[str]) -> str:
         return f"{m.group(1)} {int(m.group(2)) // 20:+d}"
     return _WB_FINE_TUNE_RE.sub(_divide, raw)
 
 
 def read_image_exif(*, image_path: str) -> image_dataclasses.ImageExifData:
-    """Run exiftool on the given image and return a dict of recipe-relevant fields."""
+    """
+    Run exiftool on the given image and return a dict of recipe-relevant fields.
+    """
     result = subprocess.run(
         ["exiftool", "-a", "-G1", image_path],
         capture_output=True,
@@ -217,7 +229,9 @@ def read_image_exif(*, image_path: str) -> image_dataclasses.ImageExifData:
 
 
 def exif_to_recipe(*, exif: image_dataclasses.ImageExifData) -> image_dataclasses.FujifilmRecipeData:
-    """Convert an ImageExifData instance to a FujifilmRecipeData."""
+    """
+    Convert an ImageExifData instance to a FujifilmRecipeData.
+    """
     film_simulation = recipe_values.film_simulation_from_exif(film_simulation=exif.film_simulation, color=exif.color).display_name
     is_mono = film_simulation in recipe_constants.MONOCHROMATIC_FILM_SIMULATIONS
     d_range_priority = recipe_values.d_range_priority_from_exif(d_range_priority=exif.d_range_priority, d_range_priority_auto=exif.d_range_priority_auto)
@@ -287,7 +301,8 @@ _LOOKUP_STRATEGIES = [
 
 
 def find_image_for_path(*, image_path: str) -> models.Image:
-    """Return the DB Image record that corresponds to the given image file.
+    """
+    Return the DB Image record that corresponds to the given image file.
 
     Strategies are tried in order; the first one that returns a unique match
     wins. To add a new strategy, append a function with the signature
@@ -316,7 +331,9 @@ def find_image_for_path(*, image_path: str) -> models.Image:
 
 
 def collect_image_paths(*, folder: str) -> list[str]:
-    """Return absolute paths of all JPG files inside *folder* (recursively)."""
+    """
+    Return absolute paths of all JPG files inside *folder* (recursively).
+    """
     root = Path(folder)
     if not root.is_dir():
         raise FileNotFoundError(f"Directory not found: {folder}")
@@ -345,7 +362,8 @@ def get_image_detail(
     active_filters: Mapping[str, Sequence[str]],
     rating_first: bool,
 ) -> ImageDetailContext:
-    """Fetch an image and its prev/next neighbours within the filtered image sequence.
+    """
+    Fetch an image and its prev/next neighbours within the filtered image sequence.
 
     Raises:
         models.Image.DoesNotExist: If no image with *image_id* exists.
@@ -386,7 +404,8 @@ class RecipeImagePage:
 
 
 def get_recipe_image_page(*, recipe_id: int, image_id: int) -> RecipeImagePage:
-    """Return prev/next image IDs for *image_id* within a recipe's ordered sequence.
+    """
+    Return prev/next image IDs for *image_id* within a recipe's ordered sequence.
 
     Raises:
         models.Image.DoesNotExist: if *image_id* does not belong to *recipe_id*.
@@ -403,7 +422,8 @@ def get_recipe_image_page(*, recipe_id: int, image_id: int) -> RecipeImagePage:
 
 
 def get_images_for_recipe(*, recipe_id: int) -> list[int]:
-    """Return image IDs belonging to a recipe, ordered by rating desc then taken_at desc.
+    """
+    Return image IDs belonging to a recipe, ordered by rating desc then taken_at desc.
 
     Images are ordered so the highest-rated, most-recent images appear first.
     A stable tiebreaker on ``id`` ensures consistent pagination across pages.

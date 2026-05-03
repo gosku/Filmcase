@@ -434,7 +434,8 @@ def recipe_graph_view(request: http.HttpRequest, recipe_id: int) -> http.HttpRes
 
 
 def recipe_images_view(request: http.HttpRequest, recipe_id: int) -> http.HttpResponse:
-    """Return thumbnail URLs for all images belonging to a recipe.
+    """
+    Return thumbnail URLs for all images belonging to a recipe.
 
     Images are ordered by rating descending, then taken_at descending.
     Response: JSON ``{"images": [{"id": int, "thumbnail_url": str}]}``.
@@ -454,7 +455,8 @@ def recipe_images_view(request: http.HttpRequest, recipe_id: int) -> http.HttpRe
 
 
 def recipe_compare_image_view(request: http.HttpRequest, recipe_id: int, image_id: int) -> http.HttpResponse:
-    """Return image URLs and prev/next IDs for one image within a recipe sequence.
+    """
+    Return image URLs and prev/next IDs for one image within a recipe sequence.
 
     Response: JSON ``{"id": int, "thumbnail_url": str, "full_url": str, "prev_id": int|null, "next_id": int|null}``.
     """
@@ -537,7 +539,8 @@ def import_recipes_from_uploaded_qr_cards_view(request: http.HttpRequest) -> htt
 
 
 def recipe_path_deltas_view(request: http.HttpRequest) -> http.HttpResponse:
-    """Return per-node field deltas for an ordered path of recipe IDs.
+    """
+    Return per-node field deltas for an ordered path of recipe IDs.
 
     Accepts GET ?ids=1,2,3 where IDs are ordered root → clicked node.
     Returns JSON with root_diffs (root vs clicked) and path_nodes (per-step diffs).

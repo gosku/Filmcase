@@ -10,21 +10,26 @@ from src.domain.recipes import validation as recipe_validation
 
 @attrs.frozen
 class RecipeAlreadyExistsError(Exception):
-    """Raised when a recipe with the same settings already exists in the database."""
+    """
+    Raised when a recipe with the same settings already exists in the database.
+    """
 
     name: str
 
 
 @attrs.frozen
 class InvalidRecipeDataError(Exception):
-    """Raised when recipe data fails normalization or validation."""
+    """
+    Raised when recipe data fails normalization or validation.
+    """
 
     field: str
     value: object
 
 
 def create_recipe_manually(*, data: image_dataclasses.FujifilmRecipeData) -> models.FujifilmRecipe:
-    """Create a new recipe from manually entered data.
+    """
+    Create a new recipe from manually entered data.
 
     :raises InvalidRecipeDataError: If the data fails normalization or validation.
     :raises RecipeAlreadyExistsError: If a recipe with the same settings already exists.

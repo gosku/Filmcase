@@ -54,7 +54,9 @@ _EMPTY_OR_NA: frozenset[str] = frozenset(("", "N/A"))
 
 
 class RecipeValidationError(ValueError):
-    """Raised when a FujifilmRecipeData field contains a value the camera cannot accept."""
+    """
+    Raised when a FujifilmRecipeData field contains a value the camera cannot accept.
+    """
 
     def __init__(self, field: str, value: object) -> None:
         self.field = field

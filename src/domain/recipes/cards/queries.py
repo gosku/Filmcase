@@ -121,7 +121,9 @@ _DRP_CONTROLLED_FIELDS: frozenset[str] = frozenset({
 
 
 def _is_applicable(recipe: models.FujifilmRecipe, field: str) -> bool:
-    """Return False when a field is semantically inapplicable for this recipe."""
+    """
+    Return False when a field is semantically inapplicable for this recipe.
+    """
     is_monochromatic = recipe.film_simulation in recipe_constants.MONOCHROMATIC_FILM_SIMULATIONS
     drp_active = recipe.d_range_priority != "Off"
     if field in _COLOR_ONLY_FIELDS and is_monochromatic:
@@ -136,7 +138,8 @@ def _is_applicable(recipe: models.FujifilmRecipe, field: str) -> bool:
 
 
 def get_recipe_as_json(*, recipe: models.FujifilmRecipe) -> str:
-    """Return a minified JSON string encoding the recipe (used as QR payload).
+    """
+    Return a minified JSON string encoding the recipe (used as QR payload).
 
     Uses short snake_case keys. Fields that are None and semantically inapplicable
     for the current film simulation are omitted. Values of 0 or other defaults are
@@ -164,7 +167,8 @@ def get_recipe_cover_lines(
     recipe: models.FujifilmRecipe,
     template: card_templates.CardTemplate,
 ) -> tuple[FieldLine, ...]:
-    """Return display lines for the recipe card formatted per template label style.
+    """
+    Return display lines for the recipe card formatted per template label style.
 
     Inapplicable fields (same rules as get_recipe_as_json) and null values are omitted.
     """
@@ -183,14 +187,17 @@ def get_recipe_cover_lines(
 
 @attrs.frozen
 class QRCodeNotFoundError(Exception):
-    """No decodable QR code was found in the image."""
+    """
+    No decodable QR code was found in the image.
+    """
 
     image_path: str = ""
 
 
 @attrs.frozen
 class InvalidQRRecipePayloadError(Exception):
-    """QR decoded but the content is not a valid QRFujifilmRecipe payload.
+    """
+    QR decoded but the content is not a valid QRFujifilmRecipe payload.
 
     ``reason`` is one of:
       - ``"invalid_json"`` — decoded string is not valid JSON.
@@ -237,7 +244,8 @@ _QR_KNOWN_KEYS: frozenset[str] = (
 
 
 def _check_payload_types(payload: dict[str, object], *, image_path: str) -> None:
-    """Raise InvalidQRRecipePayloadError if any present field has the wrong type.
+    """
+    Raise InvalidQRRecipePayloadError if any present field has the wrong type.
 
     ``bool`` is explicitly rejected for int/decimal fields because Python treats
     ``bool`` as a subclass of ``int``, which would otherwise let ``true``/``false``
@@ -270,7 +278,9 @@ def _decode_qr(*, image_path: str) -> str:
 
 
 def _read_exif_recipe(*, image_path: str) -> str:
-    """Read the recipe JSON embedded in the EXIF UserComment field, or return an empty string."""
+    """
+    Read the recipe JSON embedded in the EXIF UserComment field, or return an empty string.
+    """
     try:
         exif = piexif.load(image_path)
     except Exception:  # noqa: BLE001 — piexif raises bare Exception on malformed files
@@ -282,7 +292,8 @@ def _read_exif_recipe(*, image_path: str) -> str:
 
 
 def get_qr_recipe_from_image(*, image_path: str) -> card_dataclasses.QRFujifilmRecipe:
-    """Decode the QR code embedded in a recipe-card image into a QRFujifilmRecipe.
+    """
+    Decode the QR code embedded in a recipe-card image into a QRFujifilmRecipe.
 
     :raises QRCodeNotFoundError: If the file cannot be opened as an image or no
         QR code can be decoded from it.
@@ -328,7 +339,8 @@ def _signed_decimal_or_none(value: int | float | None) -> str | None:
 def get_recipe_data_from_qr_recipe(
     *, qr_recipe: card_dataclasses.QRFujifilmRecipe,
 ) -> image_dataclasses.FujifilmRecipeData:
-    """Translate a decoded QRFujifilmRecipe into a FujifilmRecipeData.
+    """
+    Translate a decoded QRFujifilmRecipe into a FujifilmRecipeData.
 
     Inverts the formatting decisions made by get_recipe_as_json and fills in
     canonical defaults for fields that the QR payload omits:

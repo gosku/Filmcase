@@ -13,7 +13,8 @@ def create_recipe_card(
     image_id: int | None,
     template: card_templates.CardTemplate,
 ) -> models.RecipeCard:
-    """Create a recipe card for the given recipe and persist it.
+    """
+    Create a recipe card for the given recipe and persist it.
 
     :raises FujifilmRecipe.DoesNotExist: If recipe_id does not exist.
     :raises Image.DoesNotExist: If image_id is given but does not exist.

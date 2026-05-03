@@ -90,10 +90,14 @@ def _set_cursor_with_retry(device: ptp_device.PTPDevice, slot_index: int) -> Non
 
 
 def _read_str_with_retry(device: ptp_device.PTPDevice, code: int) -> str:
-    """Read a string property, retrying on transport failures."""
+    """
+    Read a string property, retrying on transport failures.
+    """
     return _retry(lambda: device.get_property_string(code))
 
 
 def _read_int_with_retry(device: ptp_device.PTPDevice, code: int) -> int:
-    """Read an integer property, retrying on transport failures."""
+    """
+    Read an integer property, retrying on transport failures.
+    """
     return _retry(lambda: device.get_property_int(code))

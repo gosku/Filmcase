@@ -22,7 +22,9 @@ _CODE_TO_PROP_NAME: dict[int, str] = {
 
 
 class RecipeWriteError(Exception):
-    """Raised when one or more properties could not be written or verified."""
+    """
+    Raised when one or more properties could not be written or verified.
+    """
 
     def __init__(self, failed_properties: list[str]) -> None:
         self.failed_properties = failed_properties

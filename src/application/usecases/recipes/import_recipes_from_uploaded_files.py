@@ -10,7 +10,8 @@ from src.domain.recipes import operations
 def import_recipes_from_uploaded_files(
     *, files: list[recipe_dataclasses.UploadedFile]
 ) -> recipe_dataclasses.ImportRecipesResult:
-    """Extract a models.FujifilmRecipe from each uploaded file's EXIF data.
+    """
+    Extract a models.FujifilmRecipe from each uploaded file's EXIF data.
 
     For each file the bytes are written to a temporary file under /tmp/,
     the recipe is extracted, and the temporary file is deleted immediately

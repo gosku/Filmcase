@@ -19,5 +19,7 @@ TASK_IMAGE_COMPLETED = "task.image.completed"
 
 
 def publish_event(*, event_type: str, **kwargs: object) -> None:
-    """Publish a structured application event."""
+    """
+    Publish a structured application event.
+    """
     logger.info(event_type, event_type=event_type, **kwargs)

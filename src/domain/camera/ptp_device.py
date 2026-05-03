@@ -13,15 +13,21 @@ from typing import Protocol, runtime_checkable
 
 
 class CameraConnectionError(Exception):
-    """Raised when the camera is not reachable or the connection fails."""
+    """
+    Raised when the camera is not reachable or the connection fails.
+    """
 
 
 class CameraBusyError(Exception):
-    """Raised when the camera returns a 'busy' status (-5 in libujxp terms)."""
+    """
+    Raised when the camera returns a 'busy' status (-5 in libujxp terms).
+    """
 
 
 class CameraWriteError(Exception):
-    """Raised when the camera actively rejects a property write (non-zero rc)."""
+    """
+    Raised when the camera actively rejects a property write (non-zero rc).
+    """
 
     def __init__(self, code: int, value: str | int, rc: int) -> None:
         self.code = code
@@ -55,7 +61,9 @@ class PTPDevice(Protocol):
         ...
 
     def disconnect(self) -> None:
-        """Close the PTP session and release USB resources."""
+        """
+        Close the PTP session and release USB resources.
+        """
         ...
 
     def ping(self) -> int:

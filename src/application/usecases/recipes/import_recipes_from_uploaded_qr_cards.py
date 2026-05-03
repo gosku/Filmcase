@@ -14,7 +14,8 @@ from src.domain.recipes.cards.queries import (
 def import_recipes_from_uploaded_qr_cards(
     *, files: list[recipe_dataclasses.UploadedFile]
 ) -> recipe_dataclasses.ImportRecipesResult:
-    """Extract a FujifilmRecipe from the QR code on each uploaded card image.
+    """
+    Extract a FujifilmRecipe from the QR code on each uploaded card image.
 
     For each file the bytes are written to a temporary file under /tmp/, the
     QR code is decoded and the recipe extracted, and the temporary file is

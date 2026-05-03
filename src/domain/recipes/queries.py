@@ -97,7 +97,9 @@ class PathDeltaResult:
 
 
 def decimal_str(value: object) -> str:
-    """Convert a non-null Decimal DB value to a signed string (e.g. Decimal('1.5') → '+1.5')."""
+    """
+    Convert a non-null Decimal DB value to a signed string (e.g. Decimal('1.5') → '+1.5').
+    """
     n = float(value)  # type: ignore[arg-type]
     v: int | float = int(n) if n == int(n) else n
     return f"+{v}" if v > 0 else str(v)
@@ -108,7 +110,9 @@ def _decimal_str_or_none(value: object) -> str | None:
 
 
 def recipe_from_db(*, recipe: models.FujifilmRecipe) -> image_dataclasses.FujifilmRecipeData:
-    """Convert a FujifilmRecipe DB model instance to a FujifilmRecipeData domain object."""
+    """
+    Convert a FujifilmRecipe DB model instance to a FujifilmRecipeData domain object.
+    """
     return recipe_normalization.normalize_recipe_data(
         image_dataclasses.FujifilmRecipeData(
             name=recipe.name,
@@ -154,7 +158,8 @@ class RecipeComparisonResult:
 def get_default_recipe_for_film_simulation(
     *, film_simulation: str,
 ) -> models.FujifilmRecipe | None:
-    """Return the most-used recipe for the given film simulation.
+    """
+    Return the most-used recipe for the given film simulation.
 
     "Most-used" is defined as the recipe linked to the greatest number of images.
     Ties are broken by ascending pk (earliest created recipe wins).
@@ -171,12 +176,16 @@ def get_default_recipe_for_film_simulation(
 
 
 def get_recipes_by_film_simulation(*, film_simulation: str) -> list[models.FujifilmRecipe]:
-    """Return all recipes whose film_simulation matches exactly."""
+    """
+    Return all recipes whose film_simulation matches exactly.
+    """
     return list(models.FujifilmRecipe.objects.filter(film_simulation=film_simulation))
 
 
 def get_distinct_film_simulations() -> list[str]:
-    """Return all distinct film_simulation values present in the recipe table, sorted."""
+    """
+    Return all distinct film_simulation values present in the recipe table, sorted.
+    """
     return list(
         models.FujifilmRecipe.objects
         .values_list("film_simulation", flat=True)
@@ -186,7 +195,8 @@ def get_distinct_film_simulations() -> list[str]:
 
 
 def get_film_simulations_with_multiple_recipes() -> list[str]:
-    """Return film simulations that have more than one recipe, sorted.
+    """
+    Return film simulations that have more than one recipe, sorted.
 
     Film simulations with only one recipe produce a trivial (single-node) graph
     and are excluded from graph filter controls.
@@ -203,7 +213,9 @@ def get_film_simulations_with_multiple_recipes() -> list[str]:
 
 
 def get_image_counts_for_film_simulation(*, film_simulation: str) -> dict[int, int]:
-    """Return a mapping of recipe_id → image count for all recipes with the given film sim."""
+    """
+    Return a mapping of recipe_id → image count for all recipes with the given film sim.
+    """
     from django.db.models import Count
     return {
         row["fujifilm_recipe_id"]: row["count"]
@@ -217,7 +229,9 @@ def get_image_counts_for_film_simulation(*, film_simulation: str) -> dict[int, i
 
 
 def get_image_counts(*, recipe_pks: list[int]) -> dict[int, int]:
-    """Return a mapping of recipe_id → image count for the given recipe PKs."""
+    """
+    Return a mapping of recipe_id → image count for the given recipe PKs.
+    """
     return {
         row["fujifilm_recipe_id"]: row["count"]
         for row in (
@@ -230,7 +244,8 @@ def get_image_counts(*, recipe_pks: list[int]) -> dict[int, int]:
 
 
 def get_recipe_comparison(*, recipe_ids: list[int]) -> RecipeComparisonResult:
-    """Fetch recipes, usage stats, and monthly breakdowns for the given IDs.
+    """
+    Fetch recipes, usage stats, and monthly breakdowns for the given IDs.
 
     Returns a structured result containing all data needed to render a comparison,
     so callers make a single query into the domain rather than issuing multiple
@@ -284,7 +299,9 @@ def get_recipe_comparison(*, recipe_ids: list[int]) -> RecipeComparisonResult:
 
 
 def _field_display_value(field: str, raw: object) -> str | None:
-    """Return a display-ready string for *field*'s value, or None to omit it."""
+    """
+    Return a display-ready string for *field*'s value, or None to omit it.
+    """
     if raw is None:
         return None
     if field in DECIMAL_FIELDS:
@@ -305,7 +322,9 @@ def _recipe_diff_fields(
     a: models.FujifilmRecipe,
     b: models.FujifilmRecipe,
 ) -> tuple[FieldValue, ...]:
-    """Return FieldValues for fields where *a* and *b* differ, with before and after values."""
+    """
+    Return FieldValues for fields where *a* and *b* differ, with before and after values.
+    """
     result = []
     for field in RECIPE_FIELDS:
         if getattr(a, field) != getattr(b, field):
@@ -320,12 +339,15 @@ def _recipe_diff_fields(
 
 
 def get_recipe_all_fields(*, recipe: models.FujifilmRecipe) -> tuple[FieldValue, ...]:
-    """Return all non-None RECIPE_FIELDS of *recipe* as display-ready FieldValue tuples."""
+    """
+    Return all non-None RECIPE_FIELDS of *recipe* as display-ready FieldValue tuples.
+    """
     return _recipe_all_fields(recipe)
 
 
 def get_path_deltas(*, path_ids: list[int]) -> PathDeltaResult:
-    """Compute per-node field deltas for an ordered path through the recipe graph.
+    """
+    Compute per-node field deltas for an ordered path through the recipe graph.
 
     *path_ids* must be ordered root → clicked node. For each recipe:
     - The root (index 0) gets all its non-None field values.
@@ -428,7 +450,8 @@ class RecipeDetailContext:
 
 
 def get_recipe_detail(*, recipe_id: int) -> RecipeDetailContext:
-    """Return the recipe with the given primary key as a RecipeDetailContext.
+    """
+    Return the recipe with the given primary key as a RecipeDetailContext.
 
     The ``cover_image_id`` on the returned ``RecipeData`` is the recipe's explicit
     cover image if one has been set, otherwise the highest-rated image associated
@@ -459,7 +482,8 @@ def get_filtered_recipes(
     active_filters: Mapping[str, Sequence[str]],
     name_search: str = "",
 ) -> list[RecipeData]:
-    """Return all recipes matching the given multi-valued field filters.
+    """
+    Return all recipes matching the given multi-valued field filters.
 
     *active_filters* maps recipe field names to lists of allowed values,
     e.g. ``{"film_simulation": ["Provia", "Classic Chrome"], "grain_roughness": ["Off"]}``.
@@ -495,7 +519,8 @@ def get_recipe_sidebar_filter_options(
     active_filters: Mapping[str, Sequence[str]],
     name_search: str = "",
 ) -> dict[str, dict[str, object]]:
-    """Return faceted filter options for the recipe explorer sidebar.
+    """
+    Return faceted filter options for the recipe explorer sidebar.
 
     For each field in RECIPE_FILTER_FIELDS, counts the number of recipes matching
     that field value while applying all OTHER active filters (faceted search).
@@ -578,7 +603,8 @@ def get_recipe_gallery_data(
     page_number: int | str,
     page_size: int,
 ) -> RecipeGalleryData:
-    """Return all data needed to render the recipe explorer page.
+    """
+    Return all data needed to render the recipe explorer page.
 
     Filters recipes by *active_filters* (multi-valued field lookups), annotates
     each with its image count and the ID of its most popular image (for the card
@@ -638,7 +664,8 @@ def get_recipe_list(
     page_number: int | str,
     page_size: int,
 ) -> RecipeListPage:
-    """Return a paginated list of recipes matching the given field filters.
+    """
+    Return a paginated list of recipes matching the given field filters.
 
     *filters* is a mapping of ORM field lookup kwargs (equality by default),
     e.g. ``{"film_simulation": "Provia"}``.  Pass an empty dict to list all recipes.
