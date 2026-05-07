@@ -1,0 +1,670 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Create Recipe</title>
+  <link rel="stylesheet" href="/static/css/brand.css">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: var(--color-bg-page); font-family: sans-serif; }
+
+    .page-content {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 2rem 1.5rem 4rem;
+    }
+
+    .form-columns {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0 2.5rem;
+      align-items: start;
+    }
+
+    .form-full-width {
+      grid-column: 1 / -1;
+    }
+
+    .page-title {
+      font-size: 1.4rem;
+      font-weight: 700;
+      color: var(--color-text-primary);
+      margin-bottom: 2rem;
+    }
+
+    /* ── Field groups ─────────────────────────────────────────── */
+
+    .field-group {
+      margin-bottom: 2rem;
+    }
+
+    .field-group-title {
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--color-text-muted);
+      margin-bottom: 1rem;
+      padding-bottom: 0.4rem;
+      border-bottom: 1px solid var(--color-border);
+    }
+
+    .field-row {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      margin-bottom: 0.75rem;
+    }
+
+    .field-label {
+      width: 200px;
+      flex-shrink: 0;
+      font-size: 0.85rem;
+      font-weight: 500;
+      color: var(--color-text-primary);
+    }
+
+    .field-input {
+      flex: 1;
+    }
+
+    /* ── Native inputs ─────────────────────────────────────────── */
+
+    select,
+    input[type="text"],
+    input[type="number"] {
+      width: 100%;
+      padding: 0.4rem 0.6rem;
+      border: 1px solid var(--color-border);
+      border-radius: 5px;
+      font-size: 0.875rem;
+      color: var(--color-text-primary);
+      background: #fff;
+    }
+
+    select:focus,
+    input[type="text"]:focus,
+    input[type="number"]:focus {
+      outline: none;
+      border-color: var(--color-accent);
+    }
+
+    /* ── Slider ────────────────────────────────────────────────── */
+
+    .slider-wrap {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .slider-wrap input[type="range"] {
+      flex: 1;
+      accent-color: var(--color-accent);
+    }
+
+    .slider-value {
+      width: 2.5rem;
+      text-align: right;
+      font-size: 0.875rem;
+      font-variant-numeric: tabular-nums;
+      color: var(--color-text-primary);
+      flex-shrink: 0;
+    }
+
+    /* ── White Balance widget ──────────────────────────────────── */
+
+    .wb-layout {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 2rem;
+      align-items: start;
+    }
+
+    .wb-controls .field-row {
+      margin-bottom: 1.25rem;
+    }
+
+.wb-grid-wrap {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      gap: 20px;
+      padding: 12px;
+      border-radius: 6px;
+      transition: box-shadow 0.2s;
+    }
+
+    .wb-grid-wrap--focused {
+      box-shadow: 0 0 0 2px var(--color-accent);
+    }
+
+    .wb-grid-info {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: 16px;
+    }
+
+    .wb-grid-legend {
+      font-size: 20px;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      color: var(--color-text);
+    }
+
+    .wb-grid-hint {
+      font-size: 13px;
+      color: var(--color-text-muted);
+      opacity: 0.4;
+      transition: opacity 0.2s, color 0.2s;
+    }
+
+    .wb-grid-wrap--focused .wb-grid-hint {
+      opacity: 1;
+      color: var(--color-accent);
+    }
+
+    .wb-reset-btn {
+      align-self: flex-start;
+      padding: 0.3rem 0.75rem;
+      font-size: 12px;
+      color: var(--color-text-muted);
+      background: transparent;
+      border: 1px solid var(--color-border);
+      border-radius: 6px;
+      cursor: pointer;
+      transition: border-color 0.15s, color 0.15s;
+    }
+
+    .wb-reset-btn:hover {
+      border-color: var(--color-accent);
+      color: var(--color-accent);
+    }
+
+    .wb-grid {
+      display: grid;
+      grid-template-columns: repeat(19, 14px);
+      grid-template-rows: repeat(19, 14px);
+      gap: 2px;
+    }
+
+    .wb-cell {
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      cursor: pointer;
+      transition: transform 0.1s;
+    }
+
+    .wb-cell:hover {
+      transform: scale(1.3);
+      z-index: 1;
+    }
+
+    .wb-cell--selected {
+      outline: 2px solid #fff;
+      outline-offset: 1px;
+      box-shadow: 0 0 0 3px var(--color-accent);
+      transform: scale(1.2);
+      z-index: 2;
+    }
+
+    /* ── Submit ─────────────────────────────────────────────────── */
+
+    .submit-row {
+      margin-top: 2.5rem;
+    }
+
+    .submit-btn {
+      padding: 0.75rem 2rem;
+      background: var(--color-accent);
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .submit-btn:hover {
+      background: var(--color-accent-dark);
+    }
+
+    /* ── Error banner ───────────────────────────────────────────── */
+
+    .form-error-banner {
+      background: #fef2f2;
+      border: 1px solid #fca5a5;
+      border-radius: 8px;
+      padding: 1rem 1.25rem;
+      margin-bottom: 2rem;
+    }
+
+    .form-error-banner-title {
+      font-size: 0.875rem;
+      font-weight: 600;
+      color: #b91c1c;
+      margin-bottom: 0.5rem;
+    }
+
+    .form-error-list {
+      margin: 0;
+      padding-left: 1.25rem;
+      font-size: 0.825rem;
+      color: #b91c1c;
+      line-height: 1.6;
+    }
+
+    /* ── Constraint states ──────────────────────────────────────── */
+
+    .field-row--hidden,
+    .field-group--hidden {
+      display: none;
+    }
+
+    .field-row--disabled .field-label {
+      opacity: 0.4;
+    }
+
+    .field-row--disabled .field-input {
+      opacity: 0.4;
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body>
+
+{% include "_top_nav.html" with active_section="recipes" %}
+
+<div class="page-content">
+  <h1 class="page-title">Create Recipe</h1>
+
+  <form method="post">
+    {% csrf_token %}
+
+    {% if form.errors %}
+    <div class="form-error-banner">
+      <p class="form-error-banner-title">Please fix the following errors before saving.</p>
+      <ul class="form-error-list">
+        {% for field in form %}{% for error in field.errors %}<li><strong>{{ field.label }}</strong>: {{ error }}</li>{% endfor %}{% endfor %}
+        {% for error in form.non_field_errors %}<li>{{ error }}</li>{% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+
+    <div class="form-columns">
+
+    <!-- ── Basic info ──────────────────────────────────────────── -->
+    <div class="field-group">
+      <p class="field-group-title">Basic</p>
+
+      <div class="field-row">
+        <label class="field-label" for="{{ form.name.id_for_label }}">Name</label>
+        <div class="field-input">{{ form.name }}</div>
+      </div>
+
+      <div class="field-row">
+        <label class="field-label" for="{{ form.film_simulation.id_for_label }}">Film Simulation</label>
+        <div class="field-input">{{ form.film_simulation }}</div>
+      </div>
+
+      <div class="field-row field-row--hidden" id="field-row-mono-warm-cool">
+        <label class="field-label">Warm / Cool</label>
+        <div class="field-input">
+          <div class="slider-wrap">
+            <input type="range" name="monochromatic_color_warm_cool" id="id_mono_warm_cool"
+                   min="-9" max="9" step="1" value="0"
+                   oninput="document.getElementById('mono-wc-val').textContent = formatSign(this.value)">
+            <span class="slider-value" id="mono-wc-val">0</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="field-row field-row--hidden" id="field-row-mono-magenta-green">
+        <label class="field-label">Magenta / Green</label>
+        <div class="field-input">
+          <div class="slider-wrap">
+            <input type="range" name="monochromatic_color_magenta_green" id="id_mono_mag_green"
+                   min="-9" max="9" step="1" value="0"
+                   oninput="document.getElementById('mono-mg-val').textContent = formatSign(this.value)">
+            <span class="slider-value" id="mono-mg-val">0</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Dynamic Range (paired with Basic) ─────────────────── -->
+    <div class="field-group">
+      <p class="field-group-title">Dynamic Range</p>
+
+      <div class="field-row" id="field-row-dynamic-range">
+        <label class="field-label" for="{{ form.dynamic_range.id_for_label }}">Dynamic Range</label>
+        <div class="field-input">{{ form.dynamic_range }}</div>
+      </div>
+
+      <div class="field-row">
+        <label class="field-label" for="{{ form.d_range_priority.id_for_label }}">D-Range Priority</label>
+        <div class="field-input">{{ form.d_range_priority }}</div>
+      </div>
+    </div>
+
+    </div><!-- /.form-columns: Basic + Dynamic Range -->
+
+    <div class="form-columns">
+
+    <!-- ── Grain ──────────────────────────────────────────────── -->
+    <div class="field-group">
+      <p class="field-group-title">Grain</p>
+
+      <div class="field-row">
+        <label class="field-label" for="{{ form.grain_roughness.id_for_label }}">Grain Roughness</label>
+        <div class="field-input">{{ form.grain_roughness }}</div>
+      </div>
+
+      <div class="field-row" id="field-row-grain-size">
+        <label class="field-label" for="{{ form.grain_size.id_for_label }}">Grain Size</label>
+        <div class="field-input">{{ form.grain_size }}</div>
+      </div>
+    </div>
+
+    <!-- ── Color Chrome ───────────────────────────────────────── -->
+    <div class="field-group" id="field-group-color-chrome">
+      <p class="field-group-title">Color Chrome</p>
+
+      <div class="field-row">
+        <label class="field-label" for="{{ form.color_chrome_effect.id_for_label }}">Color Chrome Effect</label>
+        <div class="field-input">{{ form.color_chrome_effect }}</div>
+      </div>
+
+      <div class="field-row">
+        <label class="field-label" for="{{ form.color_chrome_fx_blue.id_for_label }}">Color Chrome FX Blue</label>
+        <div class="field-input">{{ form.color_chrome_fx_blue }}</div>
+      </div>
+    </div>
+
+    </div><!-- /.form-columns: Grain + Color Chrome -->
+
+    <!-- ── White Balance (full width) ────────────────────────── -->
+    <div class="field-group">
+      <p class="field-group-title">White Balance</p>
+
+      <div class="wb-layout">
+        <div class="wb-controls">
+          <div class="field-row">
+            <label class="field-label" for="{{ form.white_balance.id_for_label }}">White Balance</label>
+            <div class="field-input">{{ form.white_balance }}</div>
+          </div>
+
+          <div class="field-row field-row--hidden" id="field-row-kelvin">
+            <label class="field-label" for="{{ form.kelvin_temperature.id_for_label }}">Temperature (K)</label>
+            <div class="field-input">{{ form.kelvin_temperature }}</div>
+          </div>
+
+          <div class="field-row">
+            <label class="field-label" for="id_white_balance_red">Red</label>
+            <div class="field-input">
+              <div class="slider-wrap">
+                <input type="range" id="id_white_balance_red" name="white_balance_red"
+                       min="-9" max="9" step="1" value="0">
+                <span class="slider-value" id="wb-red-display">0</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="field-row">
+            <label class="field-label" for="id_white_balance_blue">Blue</label>
+            <div class="field-input">
+              <div class="slider-wrap">
+                <input type="range" id="id_white_balance_blue" name="white_balance_blue"
+                       min="-9" max="9" step="1" value="0">
+                <span class="slider-value" id="wb-blue-display">0</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="wb-grid-wrap" id="wb-grid-wrap">
+          <div class="wb-grid" id="wb-grid"></div>
+          <div class="wb-grid-info">
+            <span class="wb-grid-legend" id="wb-grid-legend">R 0 · B 0</span>
+            <span class="wb-grid-hint">↑ ↓ ← → to adjust</span>
+            <button type="button" class="wb-reset-btn" id="wb-reset-btn">Reset</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="form-columns">
+
+    <!-- ── Tone ───────────────────────────────────────────────── -->
+    <div class="field-group">
+      <p class="field-group-title">Tone</p>
+
+      <div class="field-row">
+        <label class="field-label">Highlight</label>
+        <div class="field-input">
+          <div class="slider-wrap">
+            <input type="range" name="highlight" id="id_highlight" min="-2" max="4" step="0.5" value="0"
+                   oninput="document.getElementById('highlight-val').textContent = formatSign(this.value)">
+            <span class="slider-value" id="highlight-val">0</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="field-row">
+        <label class="field-label">Shadow</label>
+        <div class="field-input">
+          <div class="slider-wrap">
+            <input type="range" name="shadow" id="id_shadow" min="-2" max="4" step="0.5" value="0"
+                   oninput="document.getElementById('shadow-val').textContent = formatSign(this.value)">
+            <span class="slider-value" id="shadow-val">0</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Color & Detail ─────────────────────────────────────── -->
+    <div class="field-group">
+      <p class="field-group-title">Color &amp; Detail</p>
+
+      <div class="field-row" id="field-row-color">
+        <label class="field-label">Color</label>
+        <div class="field-input">
+          <div class="slider-wrap">
+            <input type="range" name="color" id="id_color" min="-4" max="4" step="1" value="0"
+                   oninput="document.getElementById('color-val').textContent = formatSign(this.value)">
+            <span class="slider-value" id="color-val">0</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="field-row">
+        <label class="field-label">Sharpness</label>
+        <div class="field-input">
+          <div class="slider-wrap">
+            <input type="range" name="sharpness" id="id_sharpness" min="-4" max="4" step="1" value="0"
+                   oninput="document.getElementById('sharpness-val').textContent = formatSign(this.value)">
+            <span class="slider-value" id="sharpness-val">0</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="field-row">
+        <label class="field-label">High ISO NR</label>
+        <div class="field-input">
+          <div class="slider-wrap">
+            <input type="range" name="high_iso_nr" id="id_high_iso_nr" min="-4" max="4" step="1" value="0"
+                   oninput="document.getElementById('nr-val').textContent = formatSign(this.value)">
+            <span class="slider-value" id="nr-val">0</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="field-row">
+        <label class="field-label">Clarity</label>
+        <div class="field-input">
+          <div class="slider-wrap">
+            <input type="range" name="clarity" id="id_clarity" min="-5" max="5" step="1" value="0"
+                   oninput="document.getElementById('clarity-val').textContent = formatSign(this.value)">
+            <span class="slider-value" id="clarity-val">0</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    </div><!-- /.form-columns: Tone + Color & Detail -->
+
+    <div class="submit-row">
+      <button type="submit" class="submit-btn">Create Recipe</button>
+    </div>
+  </form>
+</div>
+
+<script>
+  function formatSign(v) {
+    const n = parseFloat(v);
+    return n > 0 ? '+' + n : String(n);
+  }
+
+  (function () {
+    const wrap = document.getElementById('wb-grid-wrap');
+    const grid = document.getElementById('wb-grid');
+    const legendEl = document.getElementById('wb-grid-legend');
+    const resetBtn = document.getElementById('wb-reset-btn');
+    const redSlider = document.getElementById('id_white_balance_red');
+    const blueSlider = document.getElementById('id_white_balance_blue');
+    const redDisplay = document.getElementById('wb-red-display');
+    const blueDisplay = document.getElementById('wb-blue-display');
+
+    function cellColor(r, b) {
+      // Only red and blue channels move; green stays fixed.
+      // This produces cyan (R-), yellow (B-), green (R- B-), magenta (R+ B+), etc.
+      var neutral = 160;
+      var scale = 10;
+      var red   = Math.round(Math.max(0, Math.min(255, neutral + r * scale)));
+      var green = neutral;
+      var blue  = Math.round(Math.max(0, Math.min(255, neutral + b * scale)));
+      return 'rgb(' + red + ',' + green + ',' + blue + ')';
+    }
+
+    function formatSign(n) {
+      return n > 0 ? '+' + n : String(n);
+    }
+
+    function buildGrid() {
+      for (var b = 9; b >= -9; b--) {
+        for (var r = -9; r <= 9; r++) {
+          var cell = document.createElement('div');
+          cell.className = 'wb-cell';
+          cell.dataset.r = r;
+          cell.dataset.b = b;
+          cell.style.backgroundColor = cellColor(r, b);
+          cell.addEventListener('click', function () {
+            selectCell(parseInt(this.dataset.r), parseInt(this.dataset.b));
+          });
+          grid.appendChild(cell);
+        }
+      }
+    }
+
+    function selectCell(r, b) {
+      redSlider.value = r;
+      blueSlider.value = b;
+      redDisplay.textContent = formatSign(r);
+      blueDisplay.textContent = formatSign(b);
+      legendEl.textContent = 'R ' + formatSign(r) + ' · B ' + formatSign(b);
+      grid.querySelectorAll('.wb-cell--selected').forEach(function (c) {
+        c.classList.remove('wb-cell--selected');
+      });
+      var sel = grid.querySelector('[data-r="' + r + '"][data-b="' + b + '"]');
+      if (sel) sel.classList.add('wb-cell--selected');
+    }
+
+    redSlider.addEventListener('input', function () {
+      selectCell(parseInt(redSlider.value), parseInt(blueSlider.value));
+    });
+
+    blueSlider.addEventListener('input', function () {
+      selectCell(parseInt(redSlider.value), parseInt(blueSlider.value));
+    });
+
+    buildGrid();
+    selectCell(0, 0);
+
+    var focused = false;
+
+    resetBtn.addEventListener('click', function (e) {
+      selectCell(0, 0);
+      e.stopPropagation();
+    });
+
+    wrap.addEventListener('click', function (e) {
+      focused = true;
+      wrap.classList.add('wb-grid-wrap--focused');
+      e.stopPropagation();
+    });
+
+    document.addEventListener('click', function () {
+      focused = false;
+      wrap.classList.remove('wb-grid-wrap--focused');
+    });
+
+    document.addEventListener('keydown', function (e) {
+      if (!focused) return;
+      var r = parseInt(redSlider.value);
+      var b = parseInt(blueSlider.value);
+      if (e.key === 'ArrowRight') { e.preventDefault(); selectCell(Math.min(9, r + 1), b); }
+      else if (e.key === 'ArrowLeft')  { e.preventDefault(); selectCell(Math.max(-9, r - 1), b); }
+      else if (e.key === 'ArrowUp')    { e.preventDefault(); selectCell(r, Math.min(9, b + 1)); }
+      else if (e.key === 'ArrowDown')  { e.preventDefault(); selectCell(r, Math.max(-9, b - 1)); }
+    });
+  })();
+
+  (function () {
+    var MONO_SIMS = new Set({{ monochromatic_film_sims_json|safe }});
+
+    var filmSimSelect        = document.getElementById('id_film_simulation');
+    var grainRoughnessSelect = document.getElementById('id_grain_roughness');
+    var dRangePrioritySelect = document.getElementById('id_d_range_priority');
+    var dynamicRangeSelect   = document.getElementById('id_dynamic_range');
+    var wbSelect             = document.getElementById('id_white_balance');
+
+    function applyFilmSimConstraints() {
+      var isMono = MONO_SIMS.has(filmSimSelect.value);
+      document.getElementById('field-row-mono-warm-cool').classList.toggle('field-row--hidden', !isMono);
+      document.getElementById('field-row-mono-magenta-green').classList.toggle('field-row--hidden', !isMono);
+      document.getElementById('field-group-color-chrome').classList.toggle('field-group--hidden', isMono);
+      document.getElementById('field-row-color').classList.toggle('field-row--hidden', isMono);
+    }
+
+    function applyGrainConstraints() {
+      var isOff = grainRoughnessSelect.value === 'Off';
+      document.getElementById('field-row-grain-size').classList.toggle('field-row--hidden', isOff);
+    }
+
+    function applyWBConstraints() {
+      var isKelvin = wbSelect.value === 'Kelvin';
+      document.getElementById('field-row-kelvin').classList.toggle('field-row--hidden', !isKelvin);
+    }
+
+    function applyDRangeConstraints() {
+      var priorityActive = dRangePrioritySelect.value !== 'Off';
+      dynamicRangeSelect.disabled = priorityActive;
+      document.getElementById('field-row-dynamic-range').classList.toggle('field-row--disabled', priorityActive);
+    }
+
+    filmSimSelect.addEventListener('change', applyFilmSimConstraints);
+    grainRoughnessSelect.addEventListener('change', applyGrainConstraints);
+    dRangePrioritySelect.addEventListener('change', applyDRangeConstraints);
+    wbSelect.addEventListener('change', applyWBConstraints);
+
+    applyFilmSimConstraints();
+    applyGrainConstraints();
+    applyDRangeConstraints();
+    applyWBConstraints();
+  })();
+</script>
+
+</body>
+</html>

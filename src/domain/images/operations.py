@@ -96,7 +96,7 @@ def process_image(*, image_path: str) -> models.Image:
 
     fujifilm_exif = models.FujifilmExif.get_or_create(**recipe_fields)
 
-    fujifilm_recipe = recipe_operations.get_or_create_recipe_from_metadata(metadata=metadata)
+    fujifilm_recipe, _ = recipe_operations.get_or_create_recipe_from_metadata(metadata=metadata)
 
     image, created = models.Image.update_or_create(
         filepath=image_path,

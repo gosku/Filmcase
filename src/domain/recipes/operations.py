@@ -7,6 +7,8 @@ from src.data import models
 from src.domain.images import dataclasses as image_dataclasses
 from src.domain.images import events
 from src.domain.images import queries as image_queries
+from src.domain.recipes import normalization as recipe_normalization
+from src.domain.recipes import validation as recipe_validation
 from src.domain.recipes.cards import queries as card_queries
 
 
@@ -23,14 +25,19 @@ def _parse_numeric(*, s: str | None) -> Decimal | None:
 
 def get_or_create_recipe_from_data(
     *, data: image_dataclasses.FujifilmRecipeData,
-) -> models.FujifilmRecipe:
+) -> tuple[models.FujifilmRecipe, bool]:
     """Create or retrieve a FujifilmRecipe for the given recipe data.
+
+    Returns ``(recipe, created)``. Uniqueness is determined by the recipe
+    settings only — ``data.name`` is applied via ``defaults`` on the create
+    path and is never considered during lookup or written back on the get path.
 
     This is the single seam for ``FujifilmRecipe.get_or_create`` — shared by
     every caller that has already produced a FujifilmRecipeData (from EXIF,
-    from a QR card, or any future source). ``data.name`` is only applied on
-    the create path; a matching existing recipe keeps its current name.
+    from a QR card, or any future source).
     """
+    data = recipe_normalization.normalize_recipe_data(data)
+    recipe_validation.validate_recipe_data(data)
     recipe, created = models.FujifilmRecipe.get_or_create(
         film_simulation=data.film_simulation,
         dynamic_range=data.dynamic_range or "",
@@ -58,10 +65,18 @@ def get_or_create_recipe_from_data(
             recipe_id=recipe.pk,
             film_simulation=recipe.film_simulation,
         )
-    return recipe
+    else:
+        events.publish_event(
+            event_type=events.RECIPE_DEDUPLICATED,
+            recipe_id=recipe.pk,
+            film_simulation=recipe.film_simulation,
+        )
+    return recipe, created
 
 
-def get_or_create_recipe_from_metadata(*, metadata: image_dataclasses.ImageExifData) -> models.FujifilmRecipe:
+def get_or_create_recipe_from_metadata(
+    *, metadata: image_dataclasses.ImageExifData,
+) -> tuple[models.FujifilmRecipe, bool]:
     """Create or retrieve a FujifilmRecipe for the given parsed EXIF data.
 
     :raises NoFilmSimulationError: If the EXIF data contains no known film simulation.
@@ -73,7 +88,9 @@ def get_or_create_recipe_from_metadata(*, metadata: image_dataclasses.ImageExifD
     return get_or_create_recipe_from_data(data=recipe_data)
 
 
-def get_or_create_recipe_from_filepath(*, filepath: str) -> models.FujifilmRecipe:
+def get_or_create_recipe_from_filepath(
+    *, filepath: str,
+) -> tuple[models.FujifilmRecipe, bool]:
     """Read EXIF from *filepath* and return the matching FujifilmRecipe, creating it if needed.
 
     :raises NoFilmSimulationError: If the file is not a Fujifilm image or has no film simulation.
@@ -84,7 +101,9 @@ def get_or_create_recipe_from_filepath(*, filepath: str) -> models.FujifilmRecip
     return get_or_create_recipe_from_metadata(metadata=metadata)
 
 
-def get_or_create_recipe_from_qr_card(*, filepath: str) -> models.FujifilmRecipe:
+def get_or_create_recipe_from_qr_card(
+    *, filepath: str,
+) -> tuple[models.FujifilmRecipe, bool]:
     """Decode the QR on a recipe-card image and return the matching FujifilmRecipe.
 
     :raises QRCodeNotFoundError: If no QR code can be decoded from *filepath*.

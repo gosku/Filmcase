@@ -65,38 +65,44 @@ class TestGetRecipeDataFromQRRecipe:
         assert result.shadow == "-1"
         assert result.high_iso_nr == "-4"
 
-    def test_formats_half_step_decimals_as_signed_floats(self) -> None:
+    def test_formats_half_step_tone_decimals_as_signed_floats(self) -> None:
+        qr = _valid_qr(highlight=1.5, shadow=-1.5)
+
+        result = card_queries.get_recipe_data_from_qr_recipe(qr_recipe=qr)
+
+        assert result.highlight == "+1.5"
+        assert result.shadow == "-1.5"
+
+    def test_formats_half_step_mono_color_decimals_as_signed_floats(self) -> None:
         qr = _valid_qr(
-            highlight=1.5,
-            shadow=-1.5,
+            film_simulation="Acros STD",
             monochromatic_color_warm_cool=-2.5,
             monochromatic_color_magenta_green=0.5,
         )
 
         result = card_queries.get_recipe_data_from_qr_recipe(qr_recipe=qr)
 
-        assert result.highlight == "+1.5"
-        assert result.shadow == "-1.5"
         assert result.monochromatic_color_warm_cool == "-2.5"
         assert result.monochromatic_color_magenta_green == "+0.5"
 
-    def test_passes_through_none_for_omitted_optional_decimal(self) -> None:
-        qr = _valid_qr()  # highlight, shadow, color, etc. default to None
+    def test_defaults_absent_decimal_fields_to_zero_string(self) -> None:
+        # For a non-mono sim with DRP off, absent decimal fields get "0" defaults.
+        qr = _valid_qr()
 
         result = card_queries.get_recipe_data_from_qr_recipe(qr_recipe=qr)
 
-        assert result.highlight is None
-        assert result.shadow is None
-        assert result.color is None
+        assert result.highlight == "0"
+        assert result.shadow == "0"
+        assert result.color == "0"
         assert result.monochromatic_color_warm_cool is None
         assert result.monochromatic_color_magenta_green is None
 
-    def test_defaults_grain_size_to_off_when_absent_and_grain_roughness_is_off(self) -> None:
+    def test_defaults_grain_size_to_none_when_roughness_is_off(self) -> None:
         qr = _valid_qr(grain_roughness="Off", grain_size=None)
 
         result = card_queries.get_recipe_data_from_qr_recipe(qr_recipe=qr)
 
-        assert result.grain_size == "Off"
+        assert result.grain_size is None
 
     def test_preserves_grain_size_when_present(self) -> None:
         qr = _valid_qr(grain_roughness="Weak", grain_size="Small")
@@ -105,18 +111,13 @@ class TestGetRecipeDataFromQRRecipe:
 
         assert result.grain_size == "Small"
 
-    def test_defaults_colour_chrome_fields_to_empty_when_absent(self) -> None:
-        # These are omitted for monochromatic film simulations.
-        qr = _valid_qr(
-            film_simulation="Acros STD",
-            color_chrome_effect=None,
-            color_chrome_fx_blue=None,
-        )
+    def test_defaults_colour_chrome_fields_to_off_when_absent(self) -> None:
+        qr = _valid_qr(color_chrome_effect=None, color_chrome_fx_blue=None)
 
         result = card_queries.get_recipe_data_from_qr_recipe(qr_recipe=qr)
 
-        assert result.color_chrome_effect == ""
-        assert result.color_chrome_fx_blue == ""
+        assert result.color_chrome_effect == "Off"
+        assert result.color_chrome_fx_blue == "Off"
 
     def test_preserves_colour_chrome_fields_when_present(self) -> None:
         qr = _valid_qr(color_chrome_effect="Strong", color_chrome_fx_blue="Weak")
@@ -139,3 +140,20 @@ class TestGetRecipeDataFromQRRecipe:
         result = card_queries.get_recipe_data_from_qr_recipe(qr_recipe=qr)
 
         assert result.name == "My Summer Recipe"
+
+    def test_nulls_drp_fields_when_drp_is_active(self) -> None:
+        qr = _valid_qr(d_range_priority="Auto", dynamic_range="DR100", highlight=1, shadow=-1)
+
+        result = card_queries.get_recipe_data_from_qr_recipe(qr_recipe=qr)
+
+        assert result.dynamic_range is None
+        assert result.highlight is None
+        assert result.shadow is None
+
+    def test_nulls_mono_fields_for_colour_sim_when_present_in_qr(self) -> None:
+        qr = _valid_qr(monochromatic_color_warm_cool=5.0, monochromatic_color_magenta_green=-3.0)
+
+        result = card_queries.get_recipe_data_from_qr_recipe(qr_recipe=qr)
+
+        assert result.monochromatic_color_warm_cool is None
+        assert result.monochromatic_color_magenta_green is None

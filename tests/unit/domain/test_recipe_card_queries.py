@@ -80,6 +80,14 @@ class TestGetRecipeAsJson:
         assert "highlight" not in payload
         assert "shadow" not in payload
 
+    def test_omits_drp_fields_when_drp_is_active(self) -> None:
+        from decimal import Decimal
+        recipe = _recipe(d_range_priority="Auto", dynamic_range="DR100", highlight=Decimal("1"), shadow=Decimal("-1"))
+        payload = json.loads(queries.get_recipe_as_json(recipe=recipe))
+        assert "dynamic_range" not in payload
+        assert "highlight" not in payload
+        assert "shadow" not in payload
+
     def test_omits_grain_size_when_grain_roughness_is_off(self) -> None:
         recipe = _recipe(grain_roughness="Off", grain_size="Small")
         payload = json.loads(queries.get_recipe_as_json(recipe=recipe))
@@ -143,6 +151,15 @@ class TestGetRecipeCoverLines:
         recipe = _recipe(highlight=None, shadow=None)
         lines = queries.get_recipe_cover_lines(recipe=recipe, template=templates.LONG_LABEL)
         labels = [line.label for line in lines]
+        assert "Highlight" not in labels
+        assert "Shadow" not in labels
+
+    def test_omits_drp_fields_when_drp_is_active(self) -> None:
+        from decimal import Decimal
+        recipe = _recipe(d_range_priority="Auto", dynamic_range="DR100", highlight=Decimal("1"), shadow=Decimal("-1"))
+        lines = queries.get_recipe_cover_lines(recipe=recipe, template=templates.LONG_LABEL)
+        labels = [line.label for line in lines]
+        assert "Dynamic Range" not in labels
         assert "Highlight" not in labels
         assert "Shadow" not in labels
 

@@ -12,6 +12,8 @@ from src.data import models
 from src.domain.images import dataclasses as image_dataclasses
 from src.domain.images import filter_queries
 from src.domain.images import recipe_values
+from src.domain.recipes import constants as recipe_constants
+from src.domain.recipes import normalization as recipe_normalization
 
 class ImageNotFound(Exception):
     """Raised when no DB record matches the given image file."""
@@ -217,29 +219,32 @@ def read_image_exif(*, image_path: str) -> image_dataclasses.ImageExifData:
 def exif_to_recipe(*, exif: image_dataclasses.ImageExifData) -> image_dataclasses.FujifilmRecipeData:
     """Convert an ImageExifData instance to a FujifilmRecipeData."""
     film_simulation = recipe_values.film_simulation_from_exif(film_simulation=exif.film_simulation, color=exif.color).display_name
+    is_mono = film_simulation in recipe_constants.MONOCHROMATIC_FILM_SIMULATIONS
     d_range_priority = recipe_values.d_range_priority_from_exif(d_range_priority=exif.d_range_priority, d_range_priority_auto=exif.d_range_priority_auto)
     drp_active = d_range_priority.value != "Off"
     wb_red, wb_blue = recipe_values.white_balance_fine_tune_from_exif(white_balance_fine_tune=exif.white_balance_fine_tune)
     grain_roughness = exif.grain_effect_roughness
-    return image_dataclasses.FujifilmRecipeData(
-        film_simulation=film_simulation,
-        d_range_priority=d_range_priority.value,
-        grain_roughness=grain_roughness,
-        color_chrome_effect=recipe_values.color_chrome_effect_from_exif(value=exif.color_chrome_effect).value,
-        color_chrome_fx_blue=recipe_values.color_chrome_fx_blue_from_exif(value=exif.color_chrome_fx_blue).value,
-        white_balance=recipe_values.white_balance_from_exif(white_balance=exif.white_balance, color_temperature=exif.color_temperature),
-        white_balance_red=wb_red,
-        white_balance_blue=wb_blue,
-        sharpness=recipe_values.sharpness_from_exif(sharpness=exif.sharpness),
-        high_iso_nr=recipe_values.noise_reduction_from_exif(noise_reduction=exif.noise_reduction),
-        clarity=recipe_values.clarity_from_exif(clarity=exif.clarity),
-        dynamic_range=None if drp_active else recipe_values.dynamic_range_from_exif(dynamic_range_setting=exif.dynamic_range_setting, development_dynamic_range=exif.development_dynamic_range),
-        grain_size=None if grain_roughness == "Off" else exif.grain_effect_size,
-        highlight=None if drp_active else recipe_values.highlight_from_exif(highlight_tone=exif.highlight_tone),
-        shadow=None if drp_active else recipe_values.shadow_from_exif(shadow_tone=exif.shadow_tone),
-        color=recipe_values.color_from_exif(color=exif.color),
-        monochromatic_color_warm_cool=recipe_values.monochromatic_color_from_exif(value=exif.bw_adjustment),
-        monochromatic_color_magenta_green=recipe_values.monochromatic_color_from_exif(value=exif.bw_magenta_green),
+    return recipe_normalization.normalize_recipe_data(
+        image_dataclasses.FujifilmRecipeData(
+            film_simulation=film_simulation,
+            d_range_priority=d_range_priority.value,
+            grain_roughness=grain_roughness,
+            color_chrome_effect=recipe_values.color_chrome_effect_from_exif(value=exif.color_chrome_effect).value,
+            color_chrome_fx_blue=recipe_values.color_chrome_fx_blue_from_exif(value=exif.color_chrome_fx_blue).value,
+            white_balance=recipe_values.white_balance_from_exif(white_balance=exif.white_balance, color_temperature=exif.color_temperature),
+            white_balance_red=wb_red,
+            white_balance_blue=wb_blue,
+            sharpness=recipe_values.sharpness_from_exif(sharpness=exif.sharpness),
+            high_iso_nr=recipe_values.noise_reduction_from_exif(noise_reduction=exif.noise_reduction),
+            clarity=recipe_values.clarity_from_exif(clarity=exif.clarity),
+            dynamic_range=None if drp_active else recipe_values.dynamic_range_from_exif(dynamic_range_setting=exif.dynamic_range_setting, development_dynamic_range=exif.development_dynamic_range),
+            grain_size=None if grain_roughness == "Off" else exif.grain_effect_size,
+            highlight=None if drp_active else recipe_values.highlight_from_exif(highlight_tone=exif.highlight_tone),
+            shadow=None if drp_active else recipe_values.shadow_from_exif(shadow_tone=exif.shadow_tone),
+            color=None if is_mono else recipe_values.color_from_exif(color=exif.color),
+            monochromatic_color_warm_cool=recipe_values.monochromatic_color_from_exif(value=exif.bw_adjustment) if is_mono else None,
+            monochromatic_color_magenta_green=recipe_values.monochromatic_color_from_exif(value=exif.bw_magenta_green) if is_mono else None,
+        )
     )
 
 

@@ -73,7 +73,13 @@ Recipes can be **imported** in two ways directly from the explorer:
 - **From a recipe card** — upload a recipe card image (a QR code shared by another
   Fujifilm shooter) and the recipe is added to your library automatically.
 
+Alternatively, you can **create a recipe manually** using the _Create Recipe_ button.
+This opens a form where you can dial in every parameter — film simulation, tone, grain,
+white balance, and more — without needing a source image or card.
+
 ![Recipes explorer](images/recipes_explorer.jpg)
+
+![Create recipe manually](images/create_recipe_manually.jpg)
 
 ![Importing recipes from cards](images/import_recipes_from_cards.jpeg)
 

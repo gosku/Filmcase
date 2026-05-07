@@ -1032,3 +1032,95 @@ class TestRecipeToPTPValuesDirect:
     def test_mono_magenta_green_none_when_absent(self):
         recipe = _make_recipe(monochromatic_color_magenta_green=None)
         assert recipe_to_ptp_values(recipe).MonochromaticColorMagentaGreen is None
+
+
+# ---------------------------------------------------------------------------
+# Normalization coverage for slot_recipe() and recipe_from_db()
+# ---------------------------------------------------------------------------
+
+
+class TestSlotRecipeNormalization:
+    """slot_recipe() applies normalize_recipe_data() — inapplicable fields are None."""
+
+    def test_nulls_color_for_mono_sim(self) -> None:
+        device = FakePTPDevice(
+            int_values={cam_constants.CUSTOM_SLOT_CODES["FilmSimulation"]: 12},  # Acros STD
+        )
+        result = slot_recipe(device, slot_index=1)
+        assert result.color is None
+
+    def test_preserves_mono_fields_for_mono_sim(self) -> None:
+        device = FakePTPDevice(
+            int_values={cam_constants.CUSTOM_SLOT_CODES["FilmSimulation"]: 12},  # Acros STD
+        )
+        result = slot_recipe(device, slot_index=1)
+        assert result.monochromatic_color_warm_cool == "0"
+        assert result.monochromatic_color_magenta_green == "0"
+
+    def test_nulls_mono_fields_for_colour_sim(self) -> None:
+        device = FakePTPDevice(
+            int_values={cam_constants.CUSTOM_SLOT_CODES["FilmSimulation"]: 1},  # Provia
+        )
+        result = slot_recipe(device, slot_index=1)
+        assert result.monochromatic_color_warm_cool is None
+        assert result.monochromatic_color_magenta_green is None
+
+    def test_nulls_drp_fields_when_drp_is_active(self) -> None:
+        device = FakePTPDevice(
+            int_values={cam_constants.CUSTOM_SLOT_CODES["DRangePriority"]: 1},  # Weak
+        )
+        result = slot_recipe(device, slot_index=1)
+        assert result.dynamic_range is None
+        assert result.highlight is None
+        assert result.shadow is None
+
+    def test_nulls_grain_size_when_roughness_is_off(self) -> None:
+        # Camera stores 6 or 7 for Off; 1 is write-only.
+        device = FakePTPDevice(
+            int_values={cam_constants.CUSTOM_SLOT_CODES["GrainEffect"]: 6},
+        )
+        result = slot_recipe(device, slot_index=1)
+        assert result.grain_size is None
+
+
+class TestRecipeFromDbNormalization:
+    """recipe_from_db() applies normalize_recipe_data() — inapplicable fields are None."""
+
+    def test_nulls_color_for_mono_sim(self) -> None:
+        db_recipe = FujifilmRecipeFactory.build(
+            film_simulation="Acros STD",
+            color=Decimal("2"),
+            sharpness=Decimal("0"),
+            high_iso_nr=Decimal("0"),
+            clarity=Decimal("0"),
+        )
+        result = recipe_from_db(recipe=db_recipe)
+        assert result.color is None
+
+    def test_nulls_mono_fields_for_colour_sim(self) -> None:
+        db_recipe = FujifilmRecipeFactory.build(
+            film_simulation="Provia",
+            monochromatic_color_warm_cool=Decimal("2"),
+            monochromatic_color_magenta_green=Decimal("-1"),
+            sharpness=Decimal("0"),
+            high_iso_nr=Decimal("0"),
+            clarity=Decimal("0"),
+        )
+        result = recipe_from_db(recipe=db_recipe)
+        assert result.monochromatic_color_warm_cool is None
+        assert result.monochromatic_color_magenta_green is None
+
+    def test_nulls_drp_fields_when_drp_active(self) -> None:
+        db_recipe = FujifilmRecipeFactory.build(
+            d_range_priority="Auto",
+            dynamic_range="DR100",
+            highlight=Decimal("1"),
+            shadow=Decimal("-1"),
+            sharpness=Decimal("0"),
+            high_iso_nr=Decimal("0"),
+            clarity=Decimal("0"),
+        )
+        result = recipe_from_db(recipe=db_recipe)
+        assert result.dynamic_range is None
+        assert result.highlight is None
+        assert result.shadow is None

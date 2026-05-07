@@ -12,19 +12,23 @@ from django import shortcuts
 from django.views import generic
 from django.views.decorators import http as http_decorators
 
+from src.interfaces import forms as interface_forms
 from src.application.usecases.camera import get_camera_slots as get_camera_slots_uc
 from src.application.usecases.camera import push_recipe as push_recipe_uc
 from src.application.usecases.recipes import build_graph as build_graph_uc
 from src.application.usecases.recipes import create_recipe_card as create_recipe_card_uc
+from src.application.usecases.recipes import create_recipe_manually as create_recipe_manually_uc
 from src.application.usecases.recipes import import_recipes_from_uploaded_files as import_recipes_uc
 from src.application.usecases.recipes import import_recipes_from_uploaded_qr_cards as import_qr_cards_uc
 from src.application.usecases.recipes import preview_recipe_card as preview_recipe_card_uc
 from src.data import models
 from src.domain.camera import ptp_device
+from src.domain.images import dataclasses as image_dataclasses
 from src.domain.images import filter_queries
 from src.domain.images import operations as image_operations
 from src.domain.images import queries as image_queries
 from src.domain.images.thumbnails import operations as thumbnail_operations
+from src.domain.recipes import constants as recipe_constants
 from src.domain.recipes import dataclasses as recipe_dataclasses
 from src.domain.recipes import graph as recipe_graph
 from src.domain.recipes import operations as recipe_operations
@@ -714,5 +718,61 @@ class CreateRecipeCard(generic.View):
 def recipe_card_file_view(request: http.HttpRequest, card_id: int) -> http.FileResponse:
     card = shortcuts.get_object_or_404(models.RecipeCard, pk=card_id)
     return http.FileResponse(Path(card.filepath).open("rb"), content_type="image/jpeg")
+
+
+class CreateRecipe(generic.FormView):  # type: ignore[type-arg]  # django_stubs_ext.monkeypatch() not called
+    template_name = "recipes/create_recipe.html"
+    form_class = interface_forms.CreateRecipe
+
+    def get_context_data(self, **kwargs: object) -> dict[str, object]:
+        context: dict[str, object] = super().get_context_data(**kwargs)
+        context["monochromatic_film_sims_json"] = json.dumps(
+            sorted(recipe_constants.MONOCHROMATIC_FILM_SIMULATIONS)
+        )
+        return context
+
+    def form_valid(self, form: interface_forms.CreateRecipe) -> http.HttpResponse:
+        cd = form.cleaned_data
+        wb = cd["white_balance"]
+        kelvin_temp = cd.get("kelvin_temperature")
+        white_balance_str = f"{kelvin_temp}K" if wb == "Kelvin" else wb
+
+        def _to_str(value: object) -> str | None:
+            return None if value is None else str(value)
+
+        recipe_data = image_dataclasses.FujifilmRecipeData(
+            name=cd["name"],
+            film_simulation=cd["film_simulation"],
+            d_range_priority=cd["d_range_priority"],
+            grain_roughness=cd["grain_roughness"],
+            color_chrome_effect=cd["color_chrome_effect"],
+            color_chrome_fx_blue=cd["color_chrome_fx_blue"],
+            white_balance=white_balance_str,
+            white_balance_red=cd["white_balance_red"],
+            white_balance_blue=cd["white_balance_blue"],
+            sharpness=str(cd["sharpness"]),
+            high_iso_nr=str(cd["high_iso_nr"]),
+            clarity=str(cd["clarity"]),
+            dynamic_range=cd.get("dynamic_range"),
+            grain_size=cd.get("grain_size"),
+            highlight=_to_str(cd.get("highlight")),
+            shadow=_to_str(cd.get("shadow")),
+            color=_to_str(cd.get("color")),
+            monochromatic_color_warm_cool=_to_str(cd.get("monochromatic_color_warm_cool")),
+            monochromatic_color_magenta_green=_to_str(cd.get("monochromatic_color_magenta_green")),
+        )
+
+        try:
+            recipe = create_recipe_manually_uc.create_recipe_manually(data=recipe_data)
+        except create_recipe_manually_uc.RecipeAlreadyExistsError as exc:
+            existing_name = exc.name if exc.name else "(unnamed)"
+            form.add_error(None, f'A recipe like this already exists with name "{existing_name}".')
+            return self.render_to_response(self.get_context_data(form=form))
+        except Exception:
+            structlog.get_logger().exception("Unexpected error in CreateRecipe.form_valid")
+            form.add_error(None, "An unexpected error occurred creating the recipe.")
+            return self.render_to_response(self.get_context_data(form=form))
+
+        return shortcuts.redirect("recipe-detail", recipe_id=recipe.pk)
 
 

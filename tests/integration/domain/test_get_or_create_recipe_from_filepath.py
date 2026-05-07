@@ -25,14 +25,15 @@ NO_FILM_MODE_EXIFTOOL_OUTPUT = """\
 @pytest.mark.django_db
 class TestGetOrCreateRecipeFromFilepath:
     def test_creates_recipe_from_fixture_image(self):
-        recipe = get_or_create_recipe_from_filepath(filepath=FIXTURE_IMAGE)
+        recipe, created = get_or_create_recipe_from_filepath(filepath=FIXTURE_IMAGE)
 
         assert isinstance(recipe, models.FujifilmRecipe)
         assert recipe.pk is not None
         assert recipe.film_simulation == "Classic Negative"
+        assert created is True
 
     def test_publishes_recipe_created_event(self, captured_logs):
-        recipe = get_or_create_recipe_from_filepath(filepath=FIXTURE_IMAGE)
+        recipe, _ = get_or_create_recipe_from_filepath(filepath=FIXTURE_IMAGE)
 
         created_events = [e for e in captured_logs if e.get("event_type") == events.RECIPE_CREATED]
         assert len(created_events) == 1
@@ -48,10 +49,11 @@ class TestGetOrCreateRecipeFromFilepath:
         assert created_events == []
 
     def test_returns_existing_recipe_when_called_twice(self):
-        first = get_or_create_recipe_from_filepath(filepath=FIXTURE_IMAGE)
-        second = get_or_create_recipe_from_filepath(filepath=FIXTURE_IMAGE)
+        first, _ = get_or_create_recipe_from_filepath(filepath=FIXTURE_IMAGE)
+        second, created = get_or_create_recipe_from_filepath(filepath=FIXTURE_IMAGE)
 
         assert first.pk == second.pk
+        assert created is False
 
     def test_raises_for_non_fujifilm_image(self, tmp_path):
         image_path = str(tmp_path / "canon.jpg")

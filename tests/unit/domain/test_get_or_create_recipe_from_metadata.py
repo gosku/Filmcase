@@ -38,8 +38,9 @@ class TestGetOrCreateRecipeFromMetadataEventPublishing:
         recipe.film_simulation = "Classic Negative"
 
         with patch("src.data.models.FujifilmRecipe.get_or_create", return_value=(recipe, True)):
-            get_or_create_recipe_from_metadata(metadata=METADATA)
+            _, created = get_or_create_recipe_from_metadata(metadata=METADATA)
 
+        assert created is True
         created_events = [e for e in captured_logs if e.get("event_type") == events.RECIPE_CREATED]
         assert len(created_events) == 1
         assert created_events[0]["recipe_id"] == 99
@@ -49,7 +50,8 @@ class TestGetOrCreateRecipeFromMetadataEventPublishing:
         recipe = MagicMock()
 
         with patch("src.data.models.FujifilmRecipe.get_or_create", return_value=(recipe, False)):
-            get_or_create_recipe_from_metadata(metadata=METADATA)
+            _, created = get_or_create_recipe_from_metadata(metadata=METADATA)
 
+        assert created is False
         created_events = [e for e in captured_logs if e.get("event_type") == events.RECIPE_CREATED]
         assert created_events == []

@@ -14,6 +14,7 @@ urlpatterns = [
     path("images/<int:image_id>/", views.image_detail_view, name="image-detail"),
     path("images/<int:image_id>/set-rating/", views.set_image_rating_view, name="image-set-rating"),
     path("recipes/", views.recipes_explorer_view, name="recipes-explorer"),
+    path("recipes/create/", views.CreateRecipe.as_view(), name="create-recipe"),
     path("recipes/import/", views.import_recipes_from_uploaded_files_view, name="recipes-import"),
     path("recipes/import-qr-cards/", views.import_recipes_from_uploaded_qr_cards_view, name="recipes-import-qr-cards"),
     path("recipes/partial/results/", views.recipes_explorer_results_view, name="recipes-explorer-partial-results"),

@@ -14,6 +14,7 @@ from django.db.models.functions import TruncMonth
 
 from src.data import models
 from src.domain.images import filter_queries
+from src.domain.recipes import normalization as recipe_normalization
 from src.domain.recipes.constants import FILM_SIM_LOGO, MONOCHROMATIC_FILM_SIMULATIONS
 from src.domain.images import dataclasses as image_dataclasses
 
@@ -108,26 +109,28 @@ def _decimal_str_or_none(value: object) -> str | None:
 
 def recipe_from_db(*, recipe: models.FujifilmRecipe) -> image_dataclasses.FujifilmRecipeData:
     """Convert a FujifilmRecipe DB model instance to a FujifilmRecipeData domain object."""
-    return image_dataclasses.FujifilmRecipeData(
-        name=recipe.name,
-        film_simulation=recipe.film_simulation,
-        d_range_priority=recipe.d_range_priority,
-        grain_roughness=recipe.grain_roughness,
-        color_chrome_effect=recipe.color_chrome_effect,
-        color_chrome_fx_blue=recipe.color_chrome_fx_blue,
-        white_balance=recipe.white_balance,
-        white_balance_red=recipe.white_balance_red,
-        white_balance_blue=recipe.white_balance_blue,
-        sharpness=decimal_str(recipe.sharpness),
-        high_iso_nr=decimal_str(recipe.high_iso_nr),
-        clarity=decimal_str(recipe.clarity),
-        dynamic_range=recipe.dynamic_range or None,
-        grain_size=None if recipe.grain_roughness == "Off" else recipe.grain_size,
-        highlight=_decimal_str_or_none(recipe.highlight),
-        shadow=_decimal_str_or_none(recipe.shadow),
-        color=_decimal_str_or_none(recipe.color),
-        monochromatic_color_warm_cool=_decimal_str_or_none(recipe.monochromatic_color_warm_cool),
-        monochromatic_color_magenta_green=_decimal_str_or_none(recipe.monochromatic_color_magenta_green),
+    return recipe_normalization.normalize_recipe_data(
+        image_dataclasses.FujifilmRecipeData(
+            name=recipe.name,
+            film_simulation=recipe.film_simulation,
+            d_range_priority=recipe.d_range_priority,
+            grain_roughness=recipe.grain_roughness,
+            color_chrome_effect=recipe.color_chrome_effect,
+            color_chrome_fx_blue=recipe.color_chrome_fx_blue,
+            white_balance=recipe.white_balance,
+            white_balance_red=recipe.white_balance_red,
+            white_balance_blue=recipe.white_balance_blue,
+            sharpness=_decimal_str_or_none(recipe.sharpness) or "0",
+            high_iso_nr=_decimal_str_or_none(recipe.high_iso_nr) or "0",
+            clarity=_decimal_str_or_none(recipe.clarity) or "0",
+            dynamic_range=recipe.dynamic_range or None,
+            grain_size=recipe.grain_size or None,
+            highlight=_decimal_str_or_none(recipe.highlight),
+            shadow=_decimal_str_or_none(recipe.shadow),
+            color=_decimal_str_or_none(recipe.color),
+            monochromatic_color_warm_cool=_decimal_str_or_none(recipe.monochromatic_color_warm_cool),
+            monochromatic_color_magenta_green=_decimal_str_or_none(recipe.monochromatic_color_magenta_green),
+        )
     )
 
 

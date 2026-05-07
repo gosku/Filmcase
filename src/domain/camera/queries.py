@@ -21,6 +21,7 @@ from src.domain.camera import events
 from src.domain.camera import ptp_device
 from src.domain.camera import validation
 from src.domain.images import dataclasses as image_dataclasses
+from src.domain.recipes import normalization as recipe_normalization
 
 # ---------------------------------------------------------------------------
 # Lookup tables for read (PTP int → domain value)
@@ -238,26 +239,28 @@ def slot_recipe(device: ptp_device.PTPDevice, slot_index: int) -> image_dataclas
 
     grain_roughness, grain_size = constants.CUSTOM_SLOT_GRAIN_PTP.get(grain_raw, ("", ""))
 
-    return image_dataclasses.FujifilmRecipeData(
-        name=name,
-        film_simulation=constants.PTP_TO_FILM_SIMULATION.get(film_sim_raw, ""),
-        white_balance=wb_str,
-        white_balance_red=wb_red,
-        white_balance_blue=wb_blue,
-        dynamic_range=_PTP_TO_DR.get(dr_raw, ""),
-        d_range_priority=constants.CUSTOM_SLOT_DR_PRIORITY_DECODE.get(dr_pri_raw, ""),
-        grain_roughness=grain_roughness,
-        grain_size=grain_size,
-        color_chrome_effect=constants.CUSTOM_SLOT_CCE_PTP.get(cce_raw, ""),
-        color_chrome_fx_blue=constants.CUSTOM_SLOT_CFX_PTP.get(cfx_raw, ""),
-        color=_signed(color_raw / 10),
-        sharpness=_signed(sharp_raw / 10),
-        highlight=_signed(hi_raw / 10),
-        shadow=_signed(sh_raw / 10),
-        high_iso_nr=nr_str,
-        clarity=_signed(clarity_raw / 10),
-        monochromatic_color_warm_cool=_signed(mc_wc_raw / 10),
-        monochromatic_color_magenta_green=_signed(mc_mg_raw / 10),
+    return recipe_normalization.normalize_recipe_data(
+        image_dataclasses.FujifilmRecipeData(
+            name=name,
+            film_simulation=constants.PTP_TO_FILM_SIMULATION.get(film_sim_raw, ""),
+            white_balance=wb_str,
+            white_balance_red=wb_red,
+            white_balance_blue=wb_blue,
+            dynamic_range=_PTP_TO_DR.get(dr_raw, ""),
+            d_range_priority=constants.CUSTOM_SLOT_DR_PRIORITY_DECODE.get(dr_pri_raw, ""),
+            grain_roughness=grain_roughness,
+            grain_size=grain_size,
+            color_chrome_effect=constants.CUSTOM_SLOT_CCE_PTP.get(cce_raw, ""),
+            color_chrome_fx_blue=constants.CUSTOM_SLOT_CFX_PTP.get(cfx_raw, ""),
+            color=_signed(color_raw / 10),
+            sharpness=_signed(sharp_raw / 10),
+            highlight=_signed(hi_raw / 10),
+            shadow=_signed(sh_raw / 10),
+            high_iso_nr=nr_str,
+            clarity=_signed(clarity_raw / 10),
+            monochromatic_color_warm_cool=_signed(mc_wc_raw / 10),
+            monochromatic_color_magenta_green=_signed(mc_mg_raw / 10),
+        )
     )
 
 
