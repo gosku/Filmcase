@@ -88,10 +88,41 @@ class TestGetOrCreateRecipeFromData:
         assert created_b is True
         assert models.FujifilmRecipe.objects.count() == 2
 
+    # ── Normalization ─────────────────────────────────────────────────────────
+
+    def test_normalizes_inapplicable_mono_fields_for_colour_sim(self) -> None:
+        recipe, _ = get_or_create_recipe_from_data(data=_make_data(
+            monochromatic_color_warm_cool="3",
+            monochromatic_color_magenta_green="-2",
+        ))
+        assert recipe.monochromatic_color_warm_cool is None
+        assert recipe.monochromatic_color_magenta_green is None
+
+    def test_normalizes_drp_fields_when_d_range_priority_is_active(self) -> None:
+        recipe, _ = get_or_create_recipe_from_data(data=_make_data(
+            d_range_priority="Auto",
+            dynamic_range="DR100",
+            highlight="0",
+            shadow="0",
+        ))
+        assert recipe.highlight is None
+        assert recipe.shadow is None
+        assert recipe.dynamic_range == ""
+
+    def test_deduplicates_unnormalised_data_against_existing_clean_recipe(self) -> None:
+        first, _ = get_or_create_recipe_from_data(data=_make_data())
+        second, created = get_or_create_recipe_from_data(data=_make_data(
+            monochromatic_color_warm_cool="3",
+            monochromatic_color_magenta_green="-2",
+        ))
+        assert second.pk == first.pk
+        assert created is False
+
     def test_raises_invalid_recipe_data_before_touching_db(self) -> None:
-        # DRP active but dynamic_range is provided — structurally inconsistent.
-        invalid_data = _make_data(d_range_priority="Auto", dynamic_range="DR100", highlight=None, shadow=None)
+        # Mono sim with no monochromatic colour fields — normalization preserves None
+        # for missing required fields and cannot recover them, so validation still raises.
+        invalid_data = _make_data(film_simulation="Acros STD")
         with pytest.raises(InvalidFujifilmRecipeData) as exc_info:
             get_or_create_recipe_from_data(data=invalid_data)
-        assert exc_info.value.field == "dynamic_range"
+        assert exc_info.value.field == "monochromatic_color_warm_cool"
         assert models.FujifilmRecipe.objects.count() == 0
