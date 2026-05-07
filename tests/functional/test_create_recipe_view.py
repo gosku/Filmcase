@@ -1,6 +1,11 @@
 from decimal import Decimal
+from unittest.mock import patch
 
 import pytest
+
+from src.application.usecases.recipes import create_recipe_manually as create_recipe_manually_uc
+from src.data import models
+from src.interfaces import forms as interface_forms
 
 _URL = "/recipes/create/"
 
@@ -29,16 +34,22 @@ def _valid_data(**overrides: object) -> dict[str, object]:
     return base
 
 
+def _bound_form(**overrides: object) -> interface_forms.CreateRecipe:
+    """Return a bound, validated CreateRecipe form without going through the view."""
+    form = interface_forms.CreateRecipe(data=_valid_data(**overrides))
+    form.is_valid()
+    return form
+
+
 @pytest.mark.django_db
 class TestCreateRecipeView:
     def test_get_renders_the_form(self, client) -> None:
         response = client.get(_URL)
         assert response.status_code == 200
 
-    def test_post_with_valid_data_returns_no_errors(self, client) -> None:
+    def test_post_with_valid_data_redirects(self, client) -> None:
         response = client.post(_URL, _valid_data())
-        assert response.status_code == 200
-        assert not response.context["form"].errors
+        assert response.status_code == 302
 
     def test_post_without_name_shows_error(self, client) -> None:
         data = _valid_data()
@@ -72,9 +83,9 @@ class TestCreateRecipeView:
         form = client.post(_URL, _valid_data(highlight="1.3")).context["form"]
         assert "highlight" in form.errors
 
-    def test_post_with_highlight_on_valid_half_step_returns_no_error(self, client) -> None:
-        form = client.post(_URL, _valid_data(highlight="1.5")).context["form"]
-        assert "highlight" not in form.errors
+    def test_post_with_highlight_on_valid_half_step_redirects(self, client) -> None:
+        response = client.post(_URL, _valid_data(highlight="1.5"))
+        assert response.status_code == 302
 
     def test_post_with_sharpness_above_max_shows_error(self, client) -> None:
         form = client.post(_URL, _valid_data(sharpness="5")).context["form"]
@@ -98,35 +109,35 @@ class TestCreateRecipeView:
         form = client.post(_URL, _valid_data(white_balance="Kelvin")).context["form"]
         assert "kelvin_temperature" in form.errors
 
-    def test_post_with_kelvin_wb_and_valid_temperature_returns_no_errors(self, client) -> None:
-        form = client.post(_URL, _valid_data(white_balance="Kelvin", kelvin_temperature="6500")).context["form"]
-        assert not form.errors
+    def test_post_with_kelvin_wb_and_valid_temperature_redirects(self, client) -> None:
+        response = client.post(_URL, _valid_data(white_balance="Kelvin", kelvin_temperature="6500"))
+        assert response.status_code == 302
 
     def test_post_with_kelvin_temperature_out_of_range_shows_error(self, client) -> None:
         form = client.post(_URL, _valid_data(white_balance="Kelvin", kelvin_temperature="100")).context["form"]
         assert "kelvin_temperature" in form.errors
 
-    def test_post_with_non_kelvin_wb_cleans_temperature_to_none(self, client) -> None:
-        form = client.post(_URL, _valid_data(white_balance="Auto", kelvin_temperature="6500")).context["form"]
+    def test_non_kelvin_wb_cleans_temperature_to_none(self) -> None:
+        form = _bound_form(white_balance="Auto", kelvin_temperature="6500")
         assert form.cleaned_data["kelvin_temperature"] is None
 
     # ── Monochromatic cross-field cleaning ────────────────────────
 
-    def test_post_with_mono_film_sim_preserves_mono_fields(self, client) -> None:
-        form = client.post(_URL, _valid_data(
+    def test_mono_film_sim_preserves_mono_fields(self) -> None:
+        form = _bound_form(
             film_simulation="Acros STD",
             monochromatic_color_warm_cool="3",
             monochromatic_color_magenta_green="-2",
-        )).context["form"]
+        )
         assert form.cleaned_data["monochromatic_color_warm_cool"] == Decimal("3")
         assert form.cleaned_data["monochromatic_color_magenta_green"] == Decimal("-2")
 
-    def test_post_with_non_mono_film_sim_cleans_mono_fields_to_none(self, client) -> None:
-        form = client.post(_URL, _valid_data(
+    def test_non_mono_film_sim_cleans_mono_fields_to_none(self) -> None:
+        form = _bound_form(
             film_simulation="Provia",
             monochromatic_color_warm_cool="3",
             monochromatic_color_magenta_green="-2",
-        )).context["form"]
+        )
         assert form.cleaned_data["monochromatic_color_warm_cool"] is None
         assert form.cleaned_data["monochromatic_color_magenta_green"] is None
 
@@ -139,30 +150,30 @@ class TestCreateRecipeView:
 
     # ── Grain cross-field cleaning ────────────────────────────────
 
-    def test_post_with_grain_roughness_off_cleans_grain_size_to_none(self, client) -> None:
-        form = client.post(_URL, _valid_data(grain_roughness="Off", grain_size="Large")).context["form"]
+    def test_grain_roughness_off_cleans_grain_size_to_none(self) -> None:
+        form = _bound_form(grain_roughness="Off", grain_size="Large")
         assert form.cleaned_data["grain_size"] is None
 
-    def test_post_with_grain_roughness_set_preserves_grain_size(self, client) -> None:
-        form = client.post(_URL, _valid_data(grain_roughness="Weak", grain_size="Large")).context["form"]
+    def test_grain_roughness_set_preserves_grain_size(self) -> None:
+        form = _bound_form(grain_roughness="Weak", grain_size="Large")
         assert form.cleaned_data["grain_size"] == "Large"
 
     # ── D-Range Priority cross-field cleaning ─────────────────────
 
-    def test_post_with_active_d_range_priority_cleans_dynamic_range_to_none(self, client) -> None:
-        form = client.post(_URL, _valid_data(d_range_priority="Weak", dynamic_range="DR200")).context["form"]
+    def test_active_d_range_priority_cleans_dynamic_range_to_none(self) -> None:
+        form = _bound_form(d_range_priority="Weak", dynamic_range="DR200")
         assert form.cleaned_data["dynamic_range"] is None
 
-    def test_post_with_active_d_range_priority_without_dynamic_range_returns_no_error(self, client) -> None:
+    def test_post_with_active_d_range_priority_without_dynamic_range_redirects(self, client) -> None:
         # Browser does not submit disabled selects; dynamic_range must not be required
         # when D-Range Priority is active.
         data = _valid_data(d_range_priority="Weak")
         del data["dynamic_range"]
-        form = client.post(_URL, data).context["form"]
-        assert "dynamic_range" not in form.errors
+        response = client.post(_URL, data)
+        assert response.status_code == 302
 
-    def test_post_with_d_range_priority_off_preserves_dynamic_range(self, client) -> None:
-        form = client.post(_URL, _valid_data(d_range_priority="Off", dynamic_range="DR400")).context["form"]
+    def test_d_range_priority_off_preserves_dynamic_range(self) -> None:
+        form = _bound_form(d_range_priority="Off", dynamic_range="DR400")
         assert form.cleaned_data["dynamic_range"] == "DR400"
 
     def test_post_with_d_range_priority_off_and_no_dynamic_range_shows_error(self, client) -> None:
@@ -170,3 +181,36 @@ class TestCreateRecipeView:
         del data["dynamic_range"]
         form = client.post(_URL, data).context["form"]
         assert "dynamic_range" in form.errors
+
+
+@pytest.mark.django_db
+class TestCreateRecipeViewSubmission:
+    def test_valid_post_creates_recipe_in_db(self, client) -> None:
+        client.post(_URL, _valid_data())
+        assert models.FujifilmRecipe.objects.count() == 1
+
+    def test_valid_post_redirects_to_recipe_detail(self, client) -> None:
+        response = client.post(_URL, _valid_data())
+        recipe = models.FujifilmRecipe.objects.get()
+        assert response.status_code == 302
+        assert response["Location"] == f"/recipes/{recipe.pk}/"
+
+    def test_duplicate_settings_show_already_exists_error(self, client) -> None:
+        client.post(_URL, _valid_data(name="First"))
+        response = client.post(_URL, _valid_data(name="Second"))
+        assert response.status_code == 200
+        errors = response.context["form"].non_field_errors()
+        assert any("already exists" in e for e in errors)
+
+    def test_already_exists_error_includes_existing_recipe_name(self, client) -> None:
+        client.post(_URL, _valid_data(name="My Preset"))
+        response = client.post(_URL, _valid_data(name="Other Name"))
+        errors = " ".join(response.context["form"].non_field_errors())
+        assert "My Preset" in errors
+
+    def test_unexpected_error_shows_generic_message(self, client) -> None:
+        with patch.object(create_recipe_manually_uc, "create_recipe_manually", side_effect=RuntimeError("boom")):
+            response = client.post(_URL, _valid_data())
+        assert response.status_code == 200
+        errors = response.context["form"].non_field_errors()
+        assert any("unexpected error" in e.lower() for e in errors)
