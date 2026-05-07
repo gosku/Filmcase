@@ -265,13 +265,39 @@
       font-style: italic;
     }
 
-    /* ── Create Recipes button + dropdown ───────────────────────────── */
-    .create-recipes-wrap {
-      position: relative;
+    /* ── Header action buttons ───────────────────────────────────────── */
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
       margin-left: auto;
     }
 
+    .create-recipe-link-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      padding: 0.4rem 0.85rem;
+      background: var(--color-accent);
+      color: #fff;
+      border: none;
+      border-radius: 5px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      text-decoration: none;
+      white-space: nowrap;
+    }
+
+    .create-recipe-link-btn:hover { background: var(--color-accent-dark); }
+
+    .create-recipes-wrap {
+      position: relative;
+    }
+
     .create-recipes-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
       padding: 0.4rem 0.85rem;
       background: var(--color-accent);
       color: #fff;
@@ -289,7 +315,7 @@
       position: absolute;
       top: calc(100% + 6px);
       right: 0;
-      min-width: 210px;
+      min-width: 260px;
       background: #fff;
       border: 1px solid #ddd;
       border-radius: 6px;
@@ -517,21 +543,34 @@
 
   <main class="main">
     <div class="gallery-header">
-      <div class="create-recipes-wrap">
-        <button class="create-recipes-btn" id="create-recipes-btn">+ Create Recipes</button>
-        <div class="create-recipes-dropdown" id="create-recipes-dropdown" hidden>
-          <button class="create-recipes-option open-import-modal-btn"
-                  data-import-url="{% url 'recipes-import' %}"
-                  data-import-title="Import Recipes from Images"
-                  data-import-desc="Select one or more Fujifilm JPEG files. The recipe settings encoded in their EXIF data will be extracted and saved — the image files themselves are not stored.">
-            Import recipes from images
+      <div class="header-actions">
+        <a href="{% url 'create-recipe' %}" class="create-recipe-link-btn">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+          </svg>
+          Create Recipe
+        </a>
+        <div class="create-recipes-wrap">
+          <button class="create-recipes-btn" id="create-recipes-btn">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+            </svg>
+            Import Recipes
           </button>
-          <button class="create-recipes-option open-import-modal-btn"
-                  data-import-url="{% url 'recipes-import-qr-cards' %}"
-                  data-import-title="Import Recipes from Cards"
-                  data-import-desc="Select one or more recipe-card JPEGs. The recipe encoded in each card's QR code will be extracted and saved — the card images themselves are not stored.">
-            Import recipes from recipe cards
-          </button>
+          <div class="create-recipes-dropdown" id="create-recipes-dropdown" hidden>
+            <button class="create-recipes-option open-import-modal-btn"
+                    data-import-url="{% url 'recipes-import' %}"
+                    data-import-title="Import Recipes from Images"
+                    data-import-desc="Select one or more Fujifilm JPEG files. The recipe settings encoded in their EXIF data will be extracted and saved — the image files themselves are not stored.">
+              Import recipes from images
+            </button>
+            <button class="create-recipes-option open-import-modal-btn"
+                    data-import-url="{% url 'recipes-import-qr-cards' %}"
+                    data-import-title="Import Recipes from Cards"
+                    data-import-desc="Select one or more recipe-card JPEGs. The recipe encoded in each card's QR code will be extracted and saved — the card images themselves are not stored.">
+              Import recipes from recipe cards
+            </button>
+          </div>
         </div>
       </div>
     </div>
