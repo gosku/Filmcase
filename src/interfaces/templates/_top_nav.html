@@ -50,7 +50,9 @@
 </style>
 
 <nav class="top-nav">
-  <img class="top-nav__logo" src="/static/images/filmcase_primary_aligned.svg" alt="Filmcase">
+  <a href="/" style="display: contents;">
+    <img class="top-nav__logo" src="/static/images/filmcase_primary_aligned.svg" alt="Filmcase">
+  </a>
   <a href="{% url 'recipes-explorer' %}" class="top-nav__link{% if active_section == 'recipes' %} top-nav__link--active{% endif %}">Recipes</a>
   <a href="{% url 'gallery' %}" class="top-nav__link{% if active_section == 'images' %} top-nav__link--active{% endif %}">Images</a>
   <a class="top-nav__link{% if active_section == 'camera' %} top-nav__link--active{% endif %}">Camera</a>
