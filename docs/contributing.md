@@ -79,7 +79,7 @@ Work on a branch in your own fork of the repository. Do not push feature branche
 
 ### Follow the coding conventions
 
-All PRs must satisfy the [Octopus Energy public conventions](https://github.com/octoenergy/public-conventions) in full. Read them before opening a PR. In particular:
+All PRs must satisfy the [Kraken Technologies coding conventions](https://github.com/octoenergy/public-conventions) in full. Read them before opening a PR. In particular:
 
 - **Layered architecture** — place new code in the correct layer. Dependencies must flow inward only.
 - **Django conventions** — serialize template context; don't pass model instances into templates.
