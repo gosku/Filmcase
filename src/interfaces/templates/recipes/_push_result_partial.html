@@ -1,3 +1,71 @@
+<style>
+  .push-result-center {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 220px;
+    padding: 2rem;
+    text-align: center;
+  }
+
+  .push-check-svg {
+    width: 80px;
+    height: 80px;
+    margin-bottom: 1.25rem;
+  }
+
+  .push-check-circle {
+    stroke: var(--color-accent);
+    stroke-width: 2;
+    stroke-dasharray: 166;
+    stroke-dashoffset: 166;
+    stroke-miterlimit: 10;
+    animation: push-stroke 0.6s cubic-bezier(0.65, 0, 0.45, 1) forwards;
+  }
+
+  .push-check-mark {
+    stroke: var(--color-accent);
+    stroke-width: 3;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    stroke-dasharray: 48;
+    stroke-dashoffset: 48;
+    animation: push-stroke 0.3s cubic-bezier(0.65, 0, 0.45, 1) 0.6s forwards;
+  }
+
+  @keyframes push-stroke { 100% { stroke-dashoffset: 0; } }
+
+  .push-result-message {
+    font-size: 1.3rem;
+    font-weight: 700;
+    color: #222;
+  }
+
+  .push-result-err-message {
+    font-size: 1rem;
+    color: #dc2626;
+    margin-bottom: 1.5rem;
+    line-height: 1.5;
+  }
+
+  .push-retry-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.75rem 1.5rem;
+    border: 1.5px solid var(--color-accent);
+    border-radius: 12px;
+    background: white;
+    color: var(--color-accent);
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+
+  .push-retry-btn:hover { background: var(--color-accent-light); }
+</style>
 <button class="slot-card-close" onclick="closeSlotOverlay()" title="Close">&#x2715;</button>
 {% if success %}
 <div class="push-result-center">
