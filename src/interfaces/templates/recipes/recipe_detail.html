@@ -761,6 +761,8 @@
 
   document.addEventListener('keydown', function (e) {
     if (e.key !== 'Escape') return;
+    var cardOverlay = document.getElementById('card-overlay');
+    if (cardOverlay && !cardOverlay.hidden) return;
     var slotOverlay = document.getElementById('slot-overlay');
     if (slotOverlay && !slotOverlay.hidden) { closeSlotOverlay(); return; }
     var detailOverlay = document.getElementById('recipe-detail-overlay');
