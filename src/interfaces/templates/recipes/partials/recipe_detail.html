@@ -298,7 +298,7 @@
     {% endif %}
     {% include "recipes/_recipe_name_prompt.html" with recipe=recipe %}
     <a href="{% url 'recipes-explorer' %}" class="detail-close" title="Close"
-       onclick="event.preventDefault(); (window._recipeDetailClose || function(){ history.back(); })();">&#x2715;</a>
+       onclick="event.preventDefault(); (window._recipeDetailClose || window.closeRecipeDetail || function(){ history.back(); })();">&#x2715;</a>
   </header>
 
   <div class="detail-body">

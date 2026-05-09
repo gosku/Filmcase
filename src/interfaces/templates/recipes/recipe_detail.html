@@ -4,81 +4,719 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{% if recipe.name %}{{ recipe.name }}{% else %}{{ recipe.film_simulation }} #{{ recipe.id }}{% endif %}</title>
+  <script src="https://unpkg.com/htmx.org@2.0.4" integrity="sha384-HGfztofotfshcF7+8n44JQL2oJmowVChPTg48S+jvZoztPfvwD79OC/LTtG6dMp+" crossorigin="anonymous"></script>
   <link rel="stylesheet" href="/static/css/brand.css">
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    html, body { height: 100%; overflow: hidden; }
-    body { background: #1a1a1a; display: flex; flex-direction: column; }
+    body { display: flex; flex-direction: column; font-family: sans-serif; height: 100vh; overflow: hidden; }
+
+    .content-area { display: flex; flex: 1; overflow: hidden; min-height: 0; }
+
+    .sidebar {
+      width: 320px;
+      min-width: 320px;
+      padding: 1.5rem;
+      border-right: 1px solid #e0e0e0;
+      overflow-y: auto;
+      background: var(--color-bg-surface);
+    }
+
+    .sidebar h2 {
+      font-size: 1rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #666;
+      margin-bottom: 1.5rem;
+    }
+
+    .sidebar-nav {
+      display: flex;
+      flex-direction: row;
+      gap: 0.25rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .sidebar-nav__link {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0.35rem 0.6rem;
+      border-radius: 4px;
+      border: 1px solid #ccc;
+      font-size: 0.8rem;
+      font-weight: 500;
+      color: #555;
+      text-decoration: none;
+      cursor: default;
+      text-align: center;
+    }
+
+    .sidebar-nav__link[href] {
+      cursor: pointer;
+    }
+
+    .sidebar-nav__link[href]:hover {
+      background: #e8e8e8;
+      color: #222;
+      border-color: #bbb;
+    }
+
+    .sidebar-nav__link--active {
+      background: var(--color-accent-light);
+      color: var(--color-accent);
+      font-weight: 600;
+      border-color: var(--color-accent);
+    }
+
+    .recipe-name-search {
+      display: block;
+      width: 100%;
+      padding: 0.35rem 0.5rem;
+      margin-bottom: 0.75rem;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      font-size: 0.8rem;
+      color: #333;
+      background: #fff;
+    }
+
+    .recipe-name-search:focus {
+      outline: none;
+      border-color: var(--color-accent);
+    }
+
+    .clear-filters-btn {
+      display: block;
+      width: 100%;
+      padding: 0.35rem 0.5rem;
+      margin-bottom: 1.2rem;
+      background: none;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      font-size: 0.8rem;
+      color: #666;
+      cursor: pointer;
+      text-align: center;
+      text-decoration: none;
+    }
+
+    .clear-filters-btn:hover {
+      background: #f0f0f0;
+      color: #333;
+    }
+
+    .filter-group {
+      margin-bottom: 1.2rem;
+    }
+
+    .filter-label {
+      display: block;
+      font-weight: 600;
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: #444;
+      margin-bottom: 0.35rem;
+    }
+
+    .filter-checkboxes {
+      display: flex;
+      flex-direction: column;
+      gap: 0.15rem;
+      max-height: 180px;
+      overflow-y: auto;
+    }
+
+    .filter-option {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      font-size: 0.85rem;
+      cursor: pointer;
+      padding: 0.1rem 0.2rem;
+      border-radius: 3px;
+      color: #333;
+      user-select: none;
+    }
+
+    .filter-option input[type="checkbox"] {
+      accent-color: var(--color-accent);
+    }
+
+    .filter-option:hover { background: #f0f0f0; }
+
+    .filter-option--unavailable {
+      color: #bbb;
+    }
+
+    .filter-option--unavailable input[type="checkbox"] {
+      opacity: 0.4;
+    }
+
+    .filter-option-value {
+      flex: 1;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .filter-option-count {
+      font-size: 0.75rem;
+      color: #999;
+      flex-shrink: 0;
+    }
+
+    .filter-option--unavailable .filter-option-count {
+      color: #ccc;
+    }
+
+    .main {
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .gallery-header {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      padding: 1rem 2rem;
+      flex-shrink: 0;
+    }
+
+    .recipe-gallery-scroll {
+      flex: 1;
+      overflow-y: auto;
+      padding: 0 2rem 2rem;
+    }
+
+    #recipe-gallery-results {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1rem;
+    }
+
+    .infinite-scroll-sentinel {
+      height: 300px;
+      visibility: hidden;
+      pointer-events: none;
+    }
+
+    .recipe-card {
+      position: relative;
+      height: 260px;
+      border-radius: 8px;
+      overflow: hidden;
+      background: #1a1a1a no-repeat center/cover;
+    }
+
+    .recipe-card__overlay {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
+      padding: 0.75rem;
+      background: linear-gradient(to top, rgba(0,0,0,0.72) 0%, transparent 55%);
+    }
+
+    .recipe-card__bottom {
+      display: flex;
+      align-items: flex-end;
+      gap: 0.5rem;
+    }
+
+    .recipe-card__logo {
+      width: 46.4px;
+      height: 46.4px;
+      flex-shrink: 0;
+      object-fit: contain;
+      filter: drop-shadow(0 1px 2px rgba(0,0,0,0.6));
+    }
+
+    .recipe-card__info {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .recipe-card__name {
+      display: block;
+      color: #fff;
+      font-weight: 700;
+      font-size: 1.2rem;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .recipe-card__count {
+      display: block;
+      color: rgba(255,255,255,0.75);
+      font-size: 0.75rem;
+      margin-top: 0.15rem;
+    }
+
+    .no-results {
+      grid-column: 1 / -1;
+      color: #888;
+      font-style: italic;
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-left: auto;
+    }
+
+    .create-recipe-link-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      padding: 0.4rem 0.85rem;
+      background: var(--color-accent);
+      color: #fff;
+      border: none;
+      border-radius: 5px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      text-decoration: none;
+      white-space: nowrap;
+    }
+
+    .create-recipe-link-btn:hover { background: var(--color-accent-dark); }
+
+    .create-recipes-wrap {
+      position: relative;
+    }
+
+    .create-recipes-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      padding: 0.4rem 0.85rem;
+      background: var(--color-accent);
+      color: #fff;
+      border: none;
+      border-radius: 5px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+
+    .create-recipes-btn:hover { background: var(--color-accent-dark); }
+
+    .create-recipes-dropdown {
+      position: absolute;
+      top: calc(100% + 6px);
+      right: 0;
+      min-width: 260px;
+      background: #fff;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+      z-index: 100;
+      overflow: hidden;
+    }
+
+    .create-recipes-dropdown[hidden] { display: none; }
+
+    .create-recipes-option {
+      display: block;
+      width: 100%;
+      padding: 0.65rem 1rem;
+      background: none;
+      border: none;
+      text-align: left;
+      font-size: 0.875rem;
+      color: #333;
+      cursor: pointer;
+    }
+
+    .create-recipes-option:hover { background: #f5f5f5; }
+
+    #recipe-detail-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 100;
+      overflow: hidden;
+    }
+
+    #recipe-detail-overlay .detail-overlay {
+      height: 100%;
+    }
+
+    #slot-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 200;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(0,0,0,0.6);
+    }
+
+    #slot-overlay[hidden] { display: none; }
+
+    .slot-card {
+      background: #fff;
+      border-radius: 16px;
+      padding: 2rem;
+      width: 580px;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.2);
+      position: relative;
+      font-family: sans-serif;
+      min-height: 120px;
+      overflow: hidden;
+    }
+
+    .slot-card--loading {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .slot-spinner {
+      width: 2rem;
+      height: 2rem;
+      border: 3px solid #e0e0e0;
+      border-top-color: var(--color-accent);
+      border-radius: 50%;
+      animation: slot-spin 0.7s linear infinite;
+    }
+
+    .slot-push-loading {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 220px;
+      padding: 2rem;
+    }
+
+    .slot-spinner-large {
+      width: 80px;
+      height: 80px;
+      border: 6px solid #e0e0e0;
+      border-top-color: var(--color-accent);
+      border-radius: 50%;
+      animation: slot-spin 0.7s linear infinite;
+    }
+
+    @keyframes slot-spin { to { transform: rotate(360deg); } }
+
+    .import-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.45);
+      z-index: 200;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .import-overlay[hidden] { display: none; }
+
+    .import-modal {
+      background: #fff;
+      border-radius: 10px;
+      padding: 2rem;
+      width: 480px;
+      max-width: calc(100vw - 2rem);
+      max-height: calc(100vh - 4rem);
+      overflow-y: auto;
+      position: relative;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+    }
+
+    .import-modal__close {
+      position: absolute;
+      top: 1rem;
+      right: 1rem;
+      background: none;
+      border: none;
+      font-size: 1.4rem;
+      color: #888;
+      cursor: pointer;
+      line-height: 1;
+      padding: 0.2rem 0.4rem;
+    }
+
+    .import-modal__close:hover { color: #333; }
+
+    .import-modal h2 {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: #222;
+      margin-bottom: 0.5rem;
+    }
+
+    .import-modal__desc {
+      font-size: 0.875rem;
+      color: #666;
+      margin-bottom: 1.5rem;
+      line-height: 1.5;
+    }
+
+    .upload-from-computer-btn {
+      display: inline-block;
+      padding: 0.5rem 1rem;
+      background: #f3f4f6;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+      font-size: 0.875rem;
+      font-weight: 600;
+      color: #333;
+      cursor: pointer;
+    }
+
+    .upload-from-computer-btn:hover { background: #e8e8e8; }
+
+    #import-file-input { display: none; }
+
+    .selected-files-list {
+      margin: 1rem 0 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .selected-files-list li {
+      font-size: 0.825rem;
+      color: #444;
+      padding: 0.2rem 0;
+      border-bottom: 1px solid #f0f0f0;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .import-submit-btn {
+      display: block;
+      width: 100%;
+      margin-top: 1.25rem;
+      padding: 0.6rem 1rem;
+      background: var(--color-accent);
+      color: #fff;
+      border: none;
+      border-radius: 5px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .import-submit-btn:hover { background: var(--color-accent-dark); }
+    .import-submit-btn[disabled] { opacity: 0.5; cursor: not-allowed; }
+
+    .import-result { margin-top: 1.25rem; }
+
+    .import-result__message { font-size: 0.875rem; margin-bottom: 0.35rem; }
+    .import-result__message--success { color: var(--color-accent); font-weight: 600; }
+    .import-result__message--warning { color: #b36b2d; font-weight: 600; }
+    .import-result--error .import-result__message { color: #c0392b; }
+
+    .import-result__failed-list {
+      margin: 0.25rem 0 0 1rem;
+      font-size: 0.8rem;
+      color: #666;
+    }
   </style>
 </head>
 <body>
 
-{% include "recipes/partials/recipe_detail.html" %}
+{% include "_top_nav.html" with active_section="recipes" %}
 
-<div id="slot-overlay" hidden></div>
+<div class="content-area">
 
-<style>
-  #slot-overlay {
-    position: fixed;
-    inset: 0;
-    z-index: 200;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: rgba(0,0,0,0.6);
-  }
-  #slot-overlay[hidden] { display: none; }
-  .slot-card {
-    background: #fff;
-    border-radius: 16px;
-    padding: 2rem;
-    width: 580px;
-    box-shadow: 0 4px 24px rgba(0,0,0,0.2);
-    position: relative;
-    font-family: sans-serif;
-    min-height: 120px;
-    overflow: hidden;
-  }
-  .slot-card--loading {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-  .slot-spinner {
-    width: 2rem;
-    height: 2rem;
-    border: 3px solid #e0e0e0;
-    border-top-color: var(--color-accent);
-    border-radius: 50%;
-    animation: slot-spin 0.7s linear infinite;
-  }
-  .slot-push-loading {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    min-height: 220px;
-    padding: 2rem;
-  }
-  .slot-spinner-large {
-    width: 80px;
-    height: 80px;
-    border: 6px solid #e0e0e0;
-    border-top-color: var(--color-accent);
-    border-radius: 50%;
-    animation: slot-spin 0.7s linear infinite;
-  }
-  @keyframes slot-spin { to { transform: rotate(360deg); } }
-</style>
+  <aside class="sidebar">
+    <nav class="sidebar-nav">
+      <a class="sidebar-nav__link sidebar-nav__link--active">Explorer</a>
+      <a href="{% url 'recipes-graph' %}" class="sidebar-nav__link">Graph</a>
+    </nav>
+    <a href="{% url 'recipes-explorer' %}" class="clear-filters-btn">Clear all filters</a>
+    <form id="recipe-filter-form"
+          hx-get="{% url 'recipes-explorer' %}"
+          hx-trigger="change, input delay:300ms from:#recipe-name-search"
+          hx-target="#recipe-gallery-results"
+          hx-push-url="true">
+      <input id="recipe-name-search"
+             type="search"
+             name="name_search"
+             class="recipe-name-search"
+             placeholder="Search by name…"
+             value="{{ request.GET.name_search }}">
+      <div id="recipe-sidebar-filters"></div>
+    </form>
+  </aside>
+
+  <main class="main">
+    <div class="gallery-header">
+      <div class="header-actions">
+        <a href="{% url 'create-recipe' %}" class="create-recipe-link-btn">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+          </svg>
+          Create Recipe
+        </a>
+        <div class="create-recipes-wrap">
+          <button class="create-recipes-btn" id="create-recipes-btn">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+            </svg>
+            Import Recipes
+          </button>
+          <div class="create-recipes-dropdown" id="create-recipes-dropdown" hidden>
+            <button class="create-recipes-option open-import-modal-btn"
+                    data-import-url="{% url 'recipes-import' %}"
+                    data-import-title="Import Recipes from Images"
+                    data-import-desc="Select one or more Fujifilm JPEG files. The recipe settings encoded in their EXIF data will be extracted and saved — the image files themselves are not stored.">
+              Import recipes from images
+            </button>
+            <button class="create-recipes-option open-import-modal-btn"
+                    data-import-url="{% url 'recipes-import-qr-cards' %}"
+                    data-import-title="Import Recipes from Cards"
+                    data-import-desc="Select one or more recipe-card JPEGs. The recipe encoded in each card's QR code will be extracted and saved — the card images themselves are not stored.">
+              Import recipes from recipe cards
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Import modal -->
+    <div class="import-overlay" id="import-overlay" hidden>
+      <div class="import-modal" role="dialog" aria-modal="true" aria-labelledby="import-modal-title">
+        <button class="import-modal__close" id="close-import-modal-btn" aria-label="Close">&#x2715;</button>
+        <h2 id="import-modal-title">Import Recipes from Images</h2>
+        <p class="import-modal__desc">
+          Select one or more Fujifilm JPEG files. The recipe settings encoded in
+          their EXIF data will be extracted and saved — the image files themselves
+          are not stored.
+        </p>
+
+        <form id="import-form"
+              hx-post="{% url 'recipes-import' %}"
+              hx-encoding="multipart/form-data"
+              hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+              hx-target="#import-result"
+              hx-swap="innerHTML"
+              hx-disabled-elt="#import-submit-btn">
+
+          <label class="upload-from-computer-btn" for="import-file-input">
+            Upload from computer
+          </label>
+          <input type="file" id="import-file-input" name="images"
+                 multiple accept=".jpg,.jpeg">
+
+          <ul class="selected-files-list" id="selected-files-list" hidden></ul>
+
+          <button type="submit" class="import-submit-btn" id="import-submit-btn" hidden>
+            Import Recipes from Images
+          </button>
+        </form>
+
+        <div id="import-result"></div>
+      </div>
+    </div>
+
+    <div class="recipe-gallery-scroll">
+      <div id="recipe-gallery-results" class="recipe-grid"
+           hx-get="{% url 'recipes-explorer' %}{% if request.GET %}?{{ request.GET.urlencode }}{% endif %}"
+           hx-trigger="load"
+           hx-target="#recipe-gallery-results"
+           hx-swap="innerHTML">
+      </div>
+      <div id="recipe-load-more-sentinel"></div>
+    </div>
+  </main>
+
+</div><!-- .content-area -->
 
 <script>
-  function closeDetail() {
-    window.location.href = document.querySelector('.detail-close').href;
-  }
-  document.querySelector('.detail-close').addEventListener('click', function (e) {
-    e.preventDefault();
-    closeDetail();
-  });
+  (function () {
+    const createBtn      = document.getElementById('create-recipes-btn');
+    const dropdown       = document.getElementById('create-recipes-dropdown');
+    const openModalBtns  = document.querySelectorAll('.open-import-modal-btn');
+    const overlay        = document.getElementById('import-overlay');
+    const form           = document.getElementById('import-form');
+    const modalTitle     = document.getElementById('import-modal-title');
+    const modalDesc      = overlay.querySelector('.import-modal__desc');
+    const closeModalBtn  = document.getElementById('close-import-modal-btn');
+    const fileInput      = document.getElementById('import-file-input');
+    const fileList       = document.getElementById('selected-files-list');
+    const submitBtn      = document.getElementById('import-submit-btn');
+
+    createBtn.addEventListener('click', function (e) {
+      e.stopPropagation();
+      dropdown.hidden = !dropdown.hidden;
+    });
+
+    document.addEventListener('click', function () {
+      dropdown.hidden = true;
+    });
+
+    openModalBtns.forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        form.setAttribute('hx-post', btn.dataset.importUrl);
+        htmx.process(form);
+        modalTitle.textContent = btn.dataset.importTitle;
+        modalDesc.textContent = btn.dataset.importDesc;
+        submitBtn.textContent = btn.dataset.importTitle;
+        dropdown.hidden = true;
+        overlay.hidden = false;
+        document.getElementById('import-result').innerHTML = '';
+        fileList.innerHTML = '';
+        fileList.hidden = true;
+        submitBtn.hidden = true;
+        fileInput.value = '';
+      });
+    });
+
+    function closeModal() {
+      overlay.hidden = true;
+    }
+
+    closeModalBtn.addEventListener('click', closeModal);
+
+    overlay.addEventListener('click', function (e) {
+      if (e.target === overlay) closeModal();
+    });
+
+    fileInput.addEventListener('change', function () {
+      fileList.innerHTML = '';
+      if (fileInput.files.length === 0) {
+        fileList.hidden = true;
+        submitBtn.hidden = true;
+        return;
+      }
+      Array.from(fileInput.files).forEach(function (file) {
+        const li = document.createElement('li');
+        li.textContent = file.name;
+        fileList.appendChild(li);
+      });
+      fileList.hidden = false;
+      submitBtn.hidden = false;
+    });
+  })();
+</script>
+
+<div id="recipe-detail-overlay">
+  {% include "recipes/partials/recipe_detail.html" %}
+</div>
+<div id="slot-overlay" hidden></div>
+
+<script>
+  window.closeRecipeDetail = function () {
+    document.getElementById('recipe-detail-overlay').hidden = true;
+    document.getElementById('slot-overlay').hidden = true;
+    var scroll = document.querySelector('.recipe-gallery-scroll');
+    if (scroll) scroll.style.overflow = '';
+    var params = new URLSearchParams(window.location.search);
+    history.replaceState(null, '', '/recipes/' + (params.toString() ? '?' + params.toString() : ''));
+  };
 
   function closeSlotOverlay() {
     document.getElementById('slot-overlay').hidden = true;
@@ -98,8 +736,21 @@
     }
   });
 
+  document.body.addEventListener('htmx:beforeHistoryUpdate', function (e) {
+    if (e.detail.target && e.detail.target.id === 'recipe-detail-overlay') {
+      var params = new URLSearchParams(window.location.search);
+      if (params.toString()) {
+        e.detail.history.path = e.detail.history.path + '?' + params.toString();
+      }
+    }
+  });
+
   document.body.addEventListener('htmx:afterSwap', function (e) {
-    if (e.detail.target.id === 'slot-overlay') {
+    if (e.detail.target.id === 'recipe-detail-overlay') {
+      e.detail.target.hidden = false;
+      var scroll = document.querySelector('.recipe-gallery-scroll');
+      if (scroll) scroll.style.overflow = 'hidden';
+    } else if (e.detail.target.id === 'slot-overlay') {
       e.detail.target.hidden = false;
     }
   });
@@ -109,11 +760,11 @@
   });
 
   document.addEventListener('keydown', function (e) {
-    if (e.key === 'Escape') {
-      var slotOverlay = document.getElementById('slot-overlay');
-      if (slotOverlay && !slotOverlay.hidden) { closeSlotOverlay(); return; }
-      closeDetail();
-    }
+    if (e.key !== 'Escape') return;
+    var slotOverlay = document.getElementById('slot-overlay');
+    if (slotOverlay && !slotOverlay.hidden) { closeSlotOverlay(); return; }
+    var detailOverlay = document.getElementById('recipe-detail-overlay');
+    if (detailOverlay && !detailOverlay.hidden) window.closeRecipeDetail();
   });
 </script>
 

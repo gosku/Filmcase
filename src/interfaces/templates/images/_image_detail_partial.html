@@ -320,7 +320,7 @@
     <div class="detail-header-spacer"></div>
     {% include "images/_rating_widget.html" with image_id=image.id rating=image.rating %}
     <a href="{% url 'gallery' %}" class="detail-close" title="Close"
-       onclick="event.preventDefault(); (window._detailClose || function(){ history.back(); })();">&#x2715;</a>
+       onclick="event.preventDefault(); (window._detailClose || window.closeImageDetail || function(){ history.back(); })();">&#x2715;</a>
   </header>
 
   <div class="detail-body">

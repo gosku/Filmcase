@@ -596,23 +596,22 @@
   });
 
   // Detail overlay logic.
-  var _galleryUrl = null;
 
   function closeDetail() {
     document.getElementById('detail-overlay').hidden = true;
     document.querySelector('.gallery-scroll').style.overflow = '';
-    if (_galleryUrl) {
-      history.replaceState(null, '', _galleryUrl);
-      _galleryUrl = null;
-    }
+    var params = new URLSearchParams(window.location.search);
+    history.replaceState(null, '', '/images/' + (params.toString() ? '?' + params.toString() : ''));
   }
 
   window._detailClose = closeDetail;
 
-  document.body.addEventListener('htmx:beforeRequest', function (e) {
+  document.body.addEventListener('htmx:beforeHistoryUpdate', function (e) {
     if (e.detail.target && e.detail.target.id === 'detail-overlay') {
-      var overlay = document.getElementById('detail-overlay');
-      if (overlay.hidden) _galleryUrl = window.location.href;
+      var params = new URLSearchParams(window.location.search);
+      if (params.toString()) {
+        e.detail.history.path = e.detail.history.path + '?' + params.toString();
+      }
     }
   });
 

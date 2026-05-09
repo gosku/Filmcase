@@ -4,26 +4,586 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{{ image.filename }}</title>
+  <script src="https://unpkg.com/htmx.org@2.0.4" integrity="sha384-HGfztofotfshcF7+8n44JQL2oJmowVChPTg48S+jvZoztPfvwD79OC/LTtG6dMp+" crossorigin="anonymous"></script>
+  <link href="https://cdn.jsdelivr.net/npm/tom-select@2/dist/css/tom-select.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/tom-select@2/dist/js/tom-select.complete.min.js"></script>
+  <link rel="stylesheet" href="/static/css/brand.css">
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    html, body { height: 100%; overflow: hidden; }
-    body { background: #111; display: flex; flex-direction: column; }
+    body { display: flex; flex-direction: column; font-family: sans-serif; height: 100vh; overflow: hidden; }
+
+    .content-area { display: flex; flex: 1; overflow: hidden; min-height: 0; }
+
+    .sidebar {
+      width: 320px;
+      min-width: 320px;
+      padding: 1.5rem;
+      border-right: 1px solid #e0e0e0;
+      overflow-y: auto;
+      background: var(--color-bg-surface);
+    }
+
+    .filter-group {
+      margin-bottom: 1.2rem;
+    }
+
+    .filter-label {
+      display: block;
+      font-weight: 600;
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: #444;
+      margin-bottom: 0.35rem;
+    }
+
+    .filter-select {
+      width: 100%;
+      padding: 0.4rem 0.5rem;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      font-size: 0.9rem;
+      background: #fff;
+      cursor: pointer;
+    }
+
+    .ts-wrapper { width: 100%; }
+    .ts-control { font-size: 0.9rem; }
+    .ts-wrapper.single.has-items .ts-control input { width: 0; min-width: 0; }
+
+    .clear-filters-btn {
+      display: block;
+      width: 100%;
+      padding: 0.35rem 0.5rem;
+      margin-bottom: 1.2rem;
+      background: none;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      font-size: 0.8rem;
+      color: #666;
+      cursor: pointer;
+      text-align: center;
+      text-decoration: none;
+    }
+
+    .clear-filters-btn:hover {
+      background: #f0f0f0;
+      color: #333;
+    }
+
+    .filter-checkboxes {
+      display: flex;
+      flex-direction: column;
+      gap: 0.15rem;
+      max-height: 180px;
+      overflow-y: auto;
+    }
+
+    .filter-option {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      font-size: 0.85rem;
+      cursor: pointer;
+      padding: 0.1rem 0.2rem;
+      border-radius: 3px;
+      color: #333;
+      user-select: none;
+    }
+
+    .filter-option input[type="checkbox"] {
+      accent-color: var(--color-accent);
+    }
+
+    .filter-option:hover { background: #f0f0f0; }
+
+    .filter-option--unavailable { color: #bbb; }
+
+    .filter-option--unavailable input[type="checkbox"] { opacity: 0.4; }
+
+    .filter-option-value {
+      flex: 1;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .filter-option-count {
+      font-size: 0.75rem;
+      color: #999;
+      flex-shrink: 0;
+    }
+
+    .filter-option--unavailable .filter-option-count { color: #ccc; }
+
+    .main {
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .gallery-scroll {
+      flex: 1;
+      overflow-y: auto;
+      padding: 0 2rem 2rem;
+    }
+
+    .rating-toggle {
+      display: flex;
+      align-items: center;
+      gap: 0.45rem;
+      cursor: pointer;
+      font-size: 0.85rem;
+      color: #555;
+      user-select: none;
+    }
+
+    .rating-toggle input[type="checkbox"] {
+      appearance: none;
+      width: 2rem;
+      height: 1.1rem;
+      background: #ccc;
+      border-radius: 1rem;
+      position: relative;
+      cursor: pointer;
+      transition: background 0.2s;
+      flex-shrink: 0;
+    }
+
+    .rating-toggle input[type="checkbox"]:checked { background: var(--color-accent); }
+
+    .rating-toggle input[type="checkbox"]::after {
+      content: '';
+      position: absolute;
+      width: 0.85rem;
+      height: 0.85rem;
+      background: #fff;
+      border-radius: 50%;
+      top: 0.125rem;
+      left: 0.125rem;
+      transition: left 0.2s;
+    }
+
+    .rating-toggle input[type="checkbox"]:checked::after {
+      left: calc(100% - 0.975rem);
+    }
+
+    #gallery-results {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1rem;
+    }
+
+    .infinite-scroll-sentinel {
+      height: 300px;
+      visibility: hidden;
+      pointer-events: none;
+    }
+
+    .image-card {
+      min-width: 0;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      padding: 0.5rem;
+      background: #fff;
+    }
+
+    .image-thumbnail {
+      width: 100%;
+      height: 300px;
+      object-fit: contain;
+      display: block;
+      border-radius: 4px;
+      margin-bottom: 0.5rem;
+      background: #f0f0f0;
+    }
+
+    .image-recipe {
+      display: block;
+      font-weight: 600;
+      font-size: 1rem;
+      color: #222;
+      margin-bottom: 0.15rem;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .image-meta-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 0.5rem;
+      margin-bottom: 0.15rem;
+    }
+
+    .image-exposure { font-size: 0.9rem; color: #555; }
+
+    .image-filename {
+      font-size: 0.85rem;
+      color: #888;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      text-align: right;
+    }
+
+    .recipe-labels {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.25rem;
+      margin-bottom: 0.3rem;
+    }
+
+    .recipe-label {
+      font-size: 0.7rem;
+      font-weight: 600;
+      padding: 0.1rem 0.35rem;
+      border-radius: 3px;
+      white-space: nowrap;
+    }
+
+    .rl-dr, .rl-drp, .rl-gr, .rl-gs, .rl-cce, .rl-ccfx,
+    .rl-wb, .rl-r, .rl-b, .rl-hl, .rl-sh, .rl-co, .rl-srp,
+    .rl-ns, .rl-cl {
+      background: #eef0f3;
+      color: #3d4754;
+    }
+
+    .image-rating {
+      display: inline-block;
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--color-accent);
+      background: var(--color-accent-light);
+      border-radius: 3px;
+      padding: 0.1rem 0.4rem;
+    }
+
+    .no-results {
+      grid-column: 1 / -1;
+      color: #888;
+      font-style: italic;
+    }
+
+    #detail-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 100;
+      overflow: hidden;
+    }
+
+    #detail-overlay .detail-overlay { height: 100%; }
+
+    #slot-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 200;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(0,0,0,0.6);
+    }
+
+    #slot-overlay[hidden] { display: none; }
+
+    .slot-card {
+      background: #fff;
+      border-radius: 16px;
+      padding: 2rem;
+      width: 580px;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.2);
+      position: relative;
+      font-family: sans-serif;
+      min-height: 120px;
+      overflow: hidden;
+    }
+
+    .slot-card--loading {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .slot-spinner {
+      width: 2rem;
+      height: 2rem;
+      border: 3px solid #e0e0e0;
+      border-top-color: var(--color-accent);
+      border-radius: 50%;
+      animation: slot-spin 0.7s linear infinite;
+    }
+
+    @keyframes slot-spin { to { transform: rotate(360deg); } }
+
+    .slot-push-loading {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 220px;
+      padding: 2rem;
+    }
+
+    .slot-spinner-large {
+      width: 80px;
+      height: 80px;
+      border: 6px solid #e0e0e0;
+      border-top-color: var(--color-accent);
+      border-radius: 50%;
+      animation: slot-spin 0.7s linear infinite;
+    }
+
+    .push-result-center {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 220px;
+      padding: 2rem;
+      text-align: center;
+    }
+
+    .push-check-svg { width: 80px; height: 80px; margin-bottom: 1.25rem; }
+
+    .push-check-circle {
+      stroke: var(--color-accent);
+      stroke-width: 2;
+      stroke-dasharray: 166;
+      stroke-dashoffset: 166;
+      stroke-miterlimit: 10;
+      animation: push-stroke 0.6s cubic-bezier(0.65, 0, 0.45, 1) forwards;
+    }
+
+    .push-check-mark {
+      stroke: var(--color-accent);
+      stroke-width: 3;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      stroke-dasharray: 48;
+      stroke-dashoffset: 48;
+      animation: push-stroke 0.3s cubic-bezier(0.65, 0, 0.45, 1) 0.6s forwards;
+    }
+
+    @keyframes push-stroke { 100% { stroke-dashoffset: 0; } }
+
+    .push-result-message { font-size: 1.3rem; font-weight: 700; color: #222; }
+
+    .push-result-err-message {
+      font-size: 1rem;
+      color: #dc2626;
+      margin-bottom: 1.5rem;
+      line-height: 1.5;
+    }
+
+    .push-retry-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0.75rem 1.5rem;
+      border: 1.5px solid var(--color-accent);
+      border-radius: 12px;
+      background: white;
+      color: var(--color-accent);
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+
+    .push-retry-btn:hover { background: var(--color-accent-light); }
   </style>
 </head>
 <body>
 
-{% include "images/_image_detail_partial.html" %}
+{% include "_top_nav.html" with active_section="images" %}
+
+<div class="content-area">
+
+<aside class="sidebar">
+  <a href="{% url 'gallery' %}" class="clear-filters-btn">Clear all filters</a>
+  <form id="filter-form"
+        hx-get="{% url 'gallery' %}"
+        hx-trigger="change"
+        hx-target="#gallery-results"
+        hx-push-url="true">
+    <div class="filter-group">
+      <label class="rating-toggle" for="rating-first-toggle">
+        <input type="checkbox" id="rating-first-toggle">
+        Sort by rating
+      </label>
+      <input type="hidden" name="rating_first" id="rating-first-input" value="{{ request.GET.rating_first|default:'1' }}">
+    </div>
+    <div id="recipe-filter"></div>
+    <div id="sidebar-filters"></div>
+  </form>
+</aside>
+
+<main class="main">
+  <div class="gallery-scroll" style="padding-top: 1.5rem;">
+    <div id="gallery-results"
+         hx-get="{% url 'gallery' %}{% if request.GET %}?{{ request.GET.urlencode }}{% endif %}"
+         hx-trigger="load"
+         hx-target="#gallery-results"
+         hx-swap="innerHTML">
+    </div>
+    <div id="load-more-sentinel"></div>
+  </div>
+</main>
+
+</div><!-- .content-area -->
+
+<div id="detail-overlay">
+  {% include "images/_image_detail_partial.html" %}
+</div>
+<div id="slot-overlay" hidden></div>
 
 <script>
-  function closeDetail() {
-    window.location.href = document.querySelector('.detail-close').href;
+  function initRecipeSelects() {
+    document.querySelectorAll('.filter-select-search').forEach(function (el) {
+      if (el.tomselect) return;
+      new TomSelect(el, {
+        create: false,
+        plugins: ['remove_button'],
+        onChange: function () {
+          document.getElementById('filter-form').dispatchEvent(new Event('change'));
+        },
+      });
+    });
   }
-  document.querySelector('.detail-close').addEventListener('click', function (e) {
-    e.preventDefault();
-    closeDetail();
+  initRecipeSelects();
+
+  document.body.addEventListener('htmx:oobBeforeSwap', function (evt) {
+    if (!evt.detail.target || evt.detail.target.id !== 'recipe-filter') return;
+    var select = evt.detail.target.querySelector('.filter-select-search');
+    if (!select || !select.tomselect) return;
+    var newSelect = evt.detail.fragment.querySelector('select');
+    if (!newSelect) return;
+    var ts = select.tomselect;
+    var newOpts = Array.from(newSelect.querySelectorAll('option')).map(function (opt) {
+      return { value: opt.value, text: opt.textContent.trim() };
+    });
+    ts.clearOptions();
+    ts.addOptions(newOpts);
+    ts.refreshOptions(false);
+    evt.detail.shouldSwap = false;
   });
+
+  (function () {
+    var urlParams = new URLSearchParams(window.location.search);
+    var hiddenInput = document.getElementById('rating-first-input');
+    var toggle = document.getElementById('rating-first-toggle');
+
+    var val;
+    if (urlParams.has('rating_first')) {
+      val = urlParams.get('rating_first');
+    } else {
+      val = localStorage.getItem('ratingFirst') ?? '1';
+      urlParams.set('rating_first', val);
+      history.replaceState(null, '', '?' + urlParams.toString());
+    }
+
+    hiddenInput.value = val;
+    toggle.checked = val === '1';
+
+    toggle.addEventListener('change', function () {
+      var newVal = toggle.checked ? '1' : '0';
+      localStorage.setItem('ratingFirst', newVal);
+      hiddenInput.value = newVal;
+      document.getElementById('filter-form').dispatchEvent(new Event('change'));
+    });
+  })();
+
+  document.body.addEventListener('htmx:afterSettle', function (e) {
+    if (e.detail.target && e.detail.target.id === 'gallery-results') {
+      initRecipeSelects();
+    }
+  });
+
+  document.body.addEventListener('htmx:afterSwap', function (e) {
+    if (e.detail.target.id !== 'detail-overlay') return;
+    var overlay = e.detail.target;
+    overlay.hidden = false;
+    document.querySelector('.gallery-scroll').style.overflow = 'hidden';
+
+    var img = overlay.querySelector('.detail-image');
+    if (!img || !img.dataset.fullSrc) return;
+    var fullSrc = img.dataset.fullSrc;
+
+    function afterFullLoaded() {
+      img.src = fullSrc;
+      var nextUrl = overlay.querySelector('.detail-nav-next')?.dataset.preloadUrl;
+      var prevUrl = overlay.querySelector('.detail-nav-prev')?.dataset.preloadUrl;
+      if (nextUrl && !preloadedUrls.has(nextUrl)) {
+        var n = new Image(); n.onload = function () { preloadedUrls.add(nextUrl); }; n.src = nextUrl;
+      }
+      if (prevUrl && !preloadedUrls.has(prevUrl)) {
+        var p = new Image(); p.onload = function () { preloadedUrls.add(prevUrl); }; p.src = prevUrl;
+      }
+    }
+
+    if (preloadedUrls.has(fullSrc)) { afterFullLoaded(); }
+    else { var full = new Image(); full.onload = afterFullLoaded; full.src = fullSrc; }
+  });
+
+  var preloadedUrls = new Set();
+
+  window.closeImageDetail = function () {
+    document.getElementById('detail-overlay').hidden = true;
+    document.querySelector('.gallery-scroll').style.overflow = '';
+    var params = new URLSearchParams(window.location.search);
+    history.replaceState(null, '', '/images/' + (params.toString() ? '?' + params.toString() : ''));
+  };
+
+  function closeSlotOverlay() {
+    document.getElementById('slot-overlay').hidden = true;
+  }
+
+  var _slotSpinnerHTML = '<div class="slot-card slot-card--loading"><div class="slot-spinner"></div></div>';
+  var _slotPushLoadingHTML = '<div class="slot-push-loading"><div class="slot-spinner-large"></div></div>';
+
+  document.body.addEventListener('htmx:beforeRequest', function (e) {
+    if (e.detail.target && e.detail.target.id === 'slot-overlay') {
+      var overlay = document.getElementById('slot-overlay');
+      overlay.innerHTML = _slotSpinnerHTML;
+      overlay.hidden = false;
+    }
+    if (e.detail.target && e.detail.target.id === 'slot-card') {
+      e.detail.target.innerHTML = _slotPushLoadingHTML;
+    }
+  });
+
+  document.body.addEventListener('htmx:afterSwap', function (e) {
+    if (e.detail.target.id === 'slot-overlay') {
+      e.detail.target.hidden = false;
+    }
+  });
+
+  document.body.addEventListener('htmx:beforeHistoryUpdate', function (e) {
+    if (e.detail.target && e.detail.target.id === 'detail-overlay') {
+      var params = new URLSearchParams(window.location.search);
+      if (params.toString()) {
+        e.detail.history.path = e.detail.history.path + '?' + params.toString();
+      }
+    }
+  });
+
+  document.getElementById('slot-overlay').addEventListener('click', function (e) {
+    if (e.target === this) closeSlotOverlay();
+  });
+
   document.addEventListener('keydown', function (e) {
-    if (e.key === 'Escape') closeDetail();
+    if (e.key === 'Escape') {
+      var slotOverlay = document.getElementById('slot-overlay');
+      if (slotOverlay && !slotOverlay.hidden) { closeSlotOverlay(); return; }
+    }
+    var overlay = document.getElementById('detail-overlay');
+    if (!overlay || overlay.hidden) return;
+    if (e.key === 'Escape') window.closeImageDetail();
+    if (e.key === 'ArrowLeft') { var btn = overlay.querySelector('.detail-nav-prev'); if (btn) btn.click(); }
+    if (e.key === 'ArrowRight') { var btn = overlay.querySelector('.detail-nav-next'); if (btn) btn.click(); }
   });
 </script>
 
