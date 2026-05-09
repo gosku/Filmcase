@@ -376,6 +376,21 @@
       overflow: hidden;
     }
 
+    .slot-card--loading {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .slot-spinner {
+      width: 2rem;
+      height: 2rem;
+      border: 3px solid #e0e0e0;
+      border-top-color: var(--color-accent);
+      border-radius: 50%;
+      animation: slot-spin 0.7s linear infinite;
+    }
+
     .slot-push-loading {
       display: flex;
       flex-direction: column;
@@ -736,10 +751,21 @@
 
   window._recipeDetailClose = closeRecipeDetail;
 
+  var _slotSpinnerHTML = '<div class="slot-card slot-card--loading"><div class="slot-spinner"></div></div>';
+  var _slotPushLoadingHTML = '<div class="slot-push-loading"><div class="slot-spinner-large"></div></div>';
+
   document.body.addEventListener('htmx:beforeRequest', function (e) {
     if (e.detail.target && e.detail.target.id === 'recipe-detail-overlay') {
       var detailOverlay = document.getElementById('recipe-detail-overlay');
       if (detailOverlay.hidden) _explorerUrl = window.location.href;
+    }
+    if (e.detail.target && e.detail.target.id === 'slot-overlay') {
+      var overlay = document.getElementById('slot-overlay');
+      overlay.innerHTML = _slotSpinnerHTML;
+      overlay.hidden = false;
+    }
+    if (e.detail.target && e.detail.target.id === 'slot-card') {
+      e.detail.target.innerHTML = _slotPushLoadingHTML;
     }
   });
 
