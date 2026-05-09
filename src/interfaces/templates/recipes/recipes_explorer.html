@@ -733,7 +733,6 @@
 
 <script>
   // Recipe detail overlay logic.
-  var _explorerUrl = null;
 
   function closeSlotOverlay() {
     document.getElementById('slot-overlay').hidden = true;
@@ -743,10 +742,8 @@
     document.getElementById('recipe-detail-overlay').hidden = true;
     document.getElementById('slot-overlay').hidden = true;
     document.querySelector('.recipe-gallery-scroll').style.overflow = '';
-    if (_explorerUrl) {
-      history.replaceState(null, '', _explorerUrl);
-      _explorerUrl = null;
-    }
+    var params = new URLSearchParams(window.location.search);
+    history.replaceState(null, '', '/recipes/' + (params.toString() ? '?' + params.toString() : ''));
   }
 
   window._recipeDetailClose = closeRecipeDetail;
@@ -754,11 +751,16 @@
   var _slotSpinnerHTML = '<div class="slot-card slot-card--loading"><div class="slot-spinner"></div></div>';
   var _slotPushLoadingHTML = '<div class="slot-push-loading"><div class="slot-spinner-large"></div></div>';
 
-  document.body.addEventListener('htmx:beforeRequest', function (e) {
+  document.body.addEventListener('htmx:beforeHistoryUpdate', function (e) {
     if (e.detail.target && e.detail.target.id === 'recipe-detail-overlay') {
-      var detailOverlay = document.getElementById('recipe-detail-overlay');
-      if (detailOverlay.hidden) _explorerUrl = window.location.href;
+      var params = new URLSearchParams(window.location.search);
+      if (params.toString()) {
+        e.detail.history.path = e.detail.history.path + '?' + params.toString();
+      }
     }
+  });
+
+  document.body.addEventListener('htmx:beforeRequest', function (e) {
     if (e.detail.target && e.detail.target.id === 'slot-overlay') {
       var overlay = document.getElementById('slot-overlay');
       overlay.innerHTML = _slotSpinnerHTML;
@@ -784,6 +786,8 @@
 
   document.addEventListener('keydown', function (e) {
     if (e.key !== 'Escape') return;
+    var cardOverlay = document.getElementById('card-overlay');
+    if (cardOverlay && !cardOverlay.hidden) return;
     var slotOverlay = document.getElementById('slot-overlay');
     if (slotOverlay && !slotOverlay.hidden) { closeSlotOverlay(); return; }
     var detailOverlay = document.getElementById('recipe-detail-overlay');

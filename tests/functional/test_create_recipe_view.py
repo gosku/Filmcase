@@ -193,7 +193,7 @@ class TestCreateRecipeViewSubmission:
         response = client.post(_URL, _valid_data())
         recipe = models.FujifilmRecipe.objects.get()
         assert response.status_code == 302
-        assert response["Location"] == f"/recipes/{recipe.pk}/"
+        assert response["Location"] == f"/recipes/{recipe.pk}/?name_search=My+Recipe"
 
     def test_duplicate_settings_show_already_exists_error(self, client) -> None:
         client.post(_URL, _valid_data(name="First"))

@@ -1,5 +1,6 @@
 import json
 import mimetypes
+from urllib.parse import urlencode
 import attrs as _attrs
 import structlog
 from typing import Any
@@ -96,12 +97,20 @@ def image_detail_view(request: http.HttpRequest, image_id: int) -> http.HttpResp
             "max_rating": max_rating,
             "rating_range": rating_range,
         })
-    image = shortcuts.get_object_or_404(
-        models.Image.objects.select_related("fujifilm_recipe", "fujifilm_exif"),
-        pk=image_id,
-    )
+    active_filters = _active_filters_from_request(request)
+    rating_first = request.GET.get("rating_first", "1") == "1"
+    try:
+        detail = image_queries.get_image_detail(
+            image_id=image_id,
+            active_filters=active_filters,
+            rating_first=rating_first,
+        )
+    except models.Image.DoesNotExist:
+        raise http.Http404
     return shortcuts.render(request, "images/image_detail.html", {
-        "image": image,
+        "image": detail.image,
+        "prev_id": detail.prev_id,
+        "next_id": detail.next_id,
         "max_rating": max_rating,
         "rating_range": rating_range,
     })
@@ -776,6 +785,9 @@ class CreateRecipe(generic.FormView):  # type: ignore[type-arg]  # django_stubs_
             form.add_error(None, "An unexpected error occurred creating the recipe.")
             return self.render_to_response(self.get_context_data(form=form))
 
-        return shortcuts.redirect("recipe-detail", recipe_id=recipe.pk)
+        redirect_url = shortcuts.resolve_url("recipe-detail", recipe_id=recipe.pk)
+        if recipe.name:
+            redirect_url += "?" + urlencode({"name_search": recipe.name})
+        return shortcuts.redirect(redirect_url)
 
 
