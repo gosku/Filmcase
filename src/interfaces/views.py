@@ -7,7 +7,7 @@ from typing import Any
 from pathlib import Path
 
 from django.conf import settings
-from django.utils.html import escape
+from django.utils import html
 from django.core import paginator as django_paginator
 from django import http
 from django import shortcuts
@@ -297,17 +297,14 @@ def _recipe_explorer_filters_from_request(request: http.HttpRequest) -> dict[str
 
 def import_folder_suggest_view(request: http.HttpRequest) -> http.HttpResponse:
     matches = image_queries.suggest_subdirectories(partial=request.GET.get("folder", ""))
-    items = "".join(
-        f'<li class="import-suggestion" tabindex="-1" role="option" data-value="{escape(str(m))}">'
-        f'<span class="import-suggestion__name">{escape(m.name)}</span>'
-        f'<span class="import-suggestion__parent">{escape(str(m.parent))}</span>'
-        f'</li>'
-        for m in matches
+    return shortcuts.render(
+        request,
+        "images/partials/_import_suggestions.html",
+        {"matches": [{"path": html.escape(str(m)), "name": html.escape(m.name), "parent": html.escape(str(m.parent))} for m in matches]},
     )
-    return http.HttpResponse(items)
 
 
-class ImportFolderView(generic.View):
+class ImportFolder(generic.View):
     def post(self, request: http.HttpRequest, **kwargs: Any) -> http.HttpResponse:
         is_htmx = request.headers.get("HX-Request")
         folder = request.POST.get("folder", "").strip()
@@ -315,7 +312,7 @@ class ImportFolderView(generic.View):
         def _render_error(msg):
             ctx = {"error": msg, "folder": folder}
             if is_htmx:
-                return shortcuts.render(request, "images/_import_result_partial.html", ctx)
+                return shortcuts.render(request, "images/partials/_import_result_partial.html", ctx)
             return shortcuts.redirect("gallery")
 
         if not folder:
@@ -326,12 +323,12 @@ class ImportFolderView(generic.View):
         except process_images_uc.InvalidFolderError:
             return _render_error(f"Path does not exist or is not a directory: {folder}")
         except Exception:
-            structlog.get_logger().exception("Unexpected error in ImportFolderView.post")
+            structlog.get_logger().exception("Unexpected error in ImportFolder.post")
             return _render_error("An unexpected error occurred. Please try again.")
 
         ctx = {"imported": imported, "folder": folder}
         if is_htmx:
-            return shortcuts.render(request, "images/_import_result_partial.html", ctx)
+            return shortcuts.render(request, "images/partials/_import_result_partial.html", ctx)
         return shortcuts.redirect("gallery")
 
 

@@ -330,8 +330,11 @@ def find_image_for_path(*, image_path: str) -> models.Image:
     raise ImageNotFound(image_path)
 
 
+_MAX_SUGGESTIONS = 15
+
+
 def suggest_subdirectories(*, partial: str) -> list[Path]:
-    """Return subdirectories matching a partial path prefix, up to 15 results.
+    """Return subdirectories matching a partial path prefix, up to _MAX_SUGGESTIONS results.
 
     Given a partial filesystem path typed by the user, resolves the parent
     directory and filters its immediate children by the typed prefix.
@@ -359,7 +362,7 @@ def suggest_subdirectories(*, partial: str) -> list[Path]:
             if entry.is_dir()
             and not entry.name.startswith(".")
             and entry.name.lower().startswith(prefix)
-        )[:15]
+        )[:_MAX_SUGGESTIONS]
     except PermissionError:
         return []
 

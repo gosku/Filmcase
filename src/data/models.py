@@ -157,11 +157,8 @@ class FujifilmExif(models.Model):
     # Factories
 
     @classmethod
-    def get_or_create(cls, **fields: Any) -> "FujifilmExif":
-        obj, _ = cls.objects.get_or_create(**fields)
-    def get_or_create(cls, **fields) -> "FujifilmExif":
-        obj, _ = cls.objects.get_or_create(**fields)  # type: ignore[attr-defined]
-        return obj
+    def create(cls, **fields: Any) -> "FujifilmExif":
+        return cls.objects.create(**fields)
 
     # Properties
 

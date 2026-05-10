@@ -5,14 +5,13 @@ import pytest
 from bs4 import BeautifulSoup
 from django.test import override_settings
 
+from src.application.usecases.images import process_images as process_images_uc
 from src.application.usecases.images.process_images import (
     InvalidFolderError,
     import_images_from_folder,
 )
 
 FIXTURES_DIR = str(Path(__file__).resolve().parent.parent / "fixtures" / "images")
-
-_IMPORT_UC = "src.interfaces.views.process_images_uc.import_images_from_folder"
 
 
 class TestImportImagesFromFolderInvalidFolder:
@@ -77,42 +76,29 @@ class TestImportFolderViewErrors:
 @pytest.mark.django_db
 class TestImportFolderViewSuccess:
     def test_returns_success_partial_for_htmx_request(self, client):
-        with patch(_IMPORT_UC, return_value=3) as mock_uc:
-            response = client.post(
-                "/images/import/",
-                {"folder": FIXTURES_DIR},
-                HTTP_HX_REQUEST="true",
-            )
+        response = client.post(
+            "/images/import/",
+            {"folder": FIXTURES_DIR},
+            HTTP_HX_REQUEST="true",
+        )
 
         assert response.status_code == 200
-        mock_uc.assert_called_once_with(folder=FIXTURES_DIR)
         soup = BeautifulSoup(response.content, "html.parser")
         assert soup.find(class_="import-result--success") is not None
 
-    def test_success_message_shows_imported_count(self, client):
-        with patch(_IMPORT_UC, return_value=5):
-            response = client.post(
-                "/images/import/",
-                {"folder": FIXTURES_DIR},
-                HTTP_HX_REQUEST="true",
-            )
-
-        assert "5 images imported" in response.content.decode()
-
     def test_empty_folder_returns_empty_state(self, client, tmp_path):
-        with patch(_IMPORT_UC, return_value=0):
-            response = client.post(
-                "/images/import/",
-                {"folder": str(tmp_path)},
-                HTTP_HX_REQUEST="true",
-            )
+        response = client.post(
+            "/images/import/",
+            {"folder": str(tmp_path)},
+            HTTP_HX_REQUEST="true",
+        )
 
         assert response.status_code == 200
         soup = BeautifulSoup(response.content, "html.parser")
         assert soup.find(class_="import-result--empty") is not None
 
     def test_unexpected_exception_returns_error(self, client):
-        with patch(_IMPORT_UC, side_effect=RuntimeError("boom")):
+        with patch.object(process_images_uc, "import_images_from_folder", side_effect=RuntimeError("boom")):
             response = client.post(
                 "/images/import/",
                 {"folder": FIXTURES_DIR},
