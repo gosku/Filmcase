@@ -97,7 +97,14 @@ update:
 
 ## run         — start the Django development server
 run:
-	$(PYTHON) manage.py runserver
+	@git fetch origin main --quiet 2>/dev/null; \
+	BEHIND=$$(git rev-list --count main..origin/main 2>/dev/null); \
+	if [ "$$BEHIND" -gt 0 ] 2>/dev/null; then \
+		printf '\n\033[1;33m[update] %s new commit(s) available. Run '"'"'make update'"'"' to get the latest changes.\033[0m\n\n' "$$BEHIND"; \
+	else \
+		printf '\n\033[1;32mYou are on the latest version.\033[0m\n\n'; \
+	fi
+	@$(PYTHON) manage.py runserver
 
 ## worker      — start a Celery worker (full stack only; requires RabbitMQ)
 worker:
