@@ -201,8 +201,7 @@ def set_recipe_name(*, recipe: models.FujifilmRecipe, name: str) -> None:
     """
     if not name or len(name) > image_dataclasses.RECIPE_NAME_MAX_LEN or not name.isascii():
         raise RecipeNameValidationError(name)
-    recipe.name = name
-    recipe.save(update_fields=["name"])
+    recipe.set_name(name=name)
     events.publish_event(
         event_type=events.RECIPE_IMAGE_UPDATED,
         name=name,

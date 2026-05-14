@@ -271,6 +271,10 @@ class FujifilmRecipe(models.Model):
         self.cover_image_id = image_id
         self.save(update_fields=["cover_image_id"])
 
+    def set_name(self, *, name: str) -> None:
+        self.name = name
+        self.save(update_fields=["name"])
+
     def update_settings(
         self,
         *,

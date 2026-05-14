@@ -21,7 +21,7 @@ class TestSetRecipeNameValidation:
         recipe = MagicMock()
         with pytest.raises(RecipeNameValidationError):
             set_recipe_name(recipe=recipe, name="caf\xe9")
-        recipe.save.assert_not_called()
+        recipe.set_name.assert_not_called()
 
 
 class TestSetRecipeNameEventPublishing:
