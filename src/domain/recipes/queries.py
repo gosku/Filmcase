@@ -443,10 +443,18 @@ def _to_recipe_data(recipe: models.FujifilmRecipe) -> RecipeData:
     )
 
 
+def recipe_is_editable(*, recipe_id: int) -> bool:
+    """
+    Return True if the recipe has no associated Images and can therefore be edited.
+    """
+    return not models.Image.objects.filter(fujifilm_recipe_id=recipe_id).exists()
+
+
 @attrs.frozen
 class RecipeDetailContext:
     recipe: RecipeData
     is_monochromatic: bool
+    is_editable: bool
 
 
 def get_recipe_detail(*, recipe_id: int) -> RecipeDetailContext:
@@ -474,6 +482,7 @@ def get_recipe_detail(*, recipe_id: int) -> RecipeDetailContext:
     return RecipeDetailContext(
         recipe=recipe_data,
         is_monochromatic=recipe_data.film_simulation in MONOCHROMATIC_FILM_SIMULATIONS,
+        is_editable=recipe_is_editable(recipe_id=recipe_id),
     )
 
 

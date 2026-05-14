@@ -3,11 +3,13 @@ from __future__ import annotations
 import attrs
 from decimal import Decimal
 
+from django.db import IntegrityError, transaction
 from src.data import models
 from src.domain.images import dataclasses as image_dataclasses
 from src.domain.images import events
 from src.domain.images import queries as image_queries
 from src.domain.recipes import normalization as recipe_normalization
+from src.domain.recipes import queries as recipe_queries
 from src.domain.recipes import validation as recipe_validation
 from src.domain.recipes.cards import operations as card_operations
 from src.domain.recipes.cards import queries as card_queries
@@ -199,8 +201,7 @@ def set_recipe_name(*, recipe: models.FujifilmRecipe, name: str) -> None:
     """
     if not name or len(name) > image_dataclasses.RECIPE_NAME_MAX_LEN or not name.isascii():
         raise RecipeNameValidationError(name)
-    recipe.name = name
-    recipe.save(update_fields=["name"])
+    recipe.set_name(name=name)
     events.publish_event(
         event_type=events.RECIPE_IMAGE_UPDATED,
         name=name,
@@ -217,6 +218,81 @@ class RecipeHasImagesError(Exception):
     recipe_id: int
     image_count: int
     name: str
+
+
+@attrs.frozen
+class RecipeCannotBeEditedError(Exception):
+    """
+    Raised when a recipe cannot be edited because it has associated Images.
+    """
+
+    recipe_id: int
+    image_count: int
+    name: str
+
+
+@attrs.frozen
+class RecipeSettingsConflictError(Exception):
+    """
+    Raised when updating a recipe would duplicate the settings of an existing recipe.
+    """
+
+    recipe_id: int
+
+
+def update_recipe(*, recipe: models.FujifilmRecipe, data: image_dataclasses.FujifilmRecipeData) -> None:
+    """
+    Update the settings of an existing FujifilmRecipe from the given data.
+
+    Normalises and validates *data* before writing. All recipe fields are
+    overwritten; ``recipe.name`` is updated only when ``data.name`` is non-empty.
+
+    :raises RecipeCannotBeEditedError: If the recipe has one or more Images associated to it.
+    :raises RecipeSettingsConflictError: If the new settings would duplicate an existing recipe.
+    """
+    if not recipe_queries.recipe_is_editable(recipe_id=recipe.pk):
+        image_count = models.Image.objects.filter(fujifilm_recipe_id=recipe.pk).count()
+        raise RecipeCannotBeEditedError(
+            recipe_id=recipe.pk,
+            image_count=image_count,
+            name=recipe.name,
+        )
+
+    data = recipe_normalization.normalize_recipe_data(data)
+    recipe_validation.validate_recipe_data(data)
+
+    name = data.name if data.name else recipe.name
+    try:
+        with transaction.atomic():
+            recipe.update_settings(
+                film_simulation=data.film_simulation,
+                dynamic_range=data.dynamic_range or "",
+                d_range_priority=data.d_range_priority,
+                grain_roughness=data.grain_roughness,
+                grain_size=data.grain_size if data.grain_size is not None else "Off",
+                color_chrome_effect=data.color_chrome_effect,
+                color_chrome_fx_blue=data.color_chrome_fx_blue,
+                white_balance=data.white_balance,
+                white_balance_red=data.white_balance_red,
+                white_balance_blue=data.white_balance_blue,
+                highlight=_parse_numeric(s=data.highlight),
+                shadow=_parse_numeric(s=data.shadow),
+                color=_parse_numeric(s=data.color),
+                sharpness=_parse_numeric(s=data.sharpness),
+                high_iso_nr=_parse_numeric(s=data.high_iso_nr),
+                clarity=_parse_numeric(s=data.clarity),
+                monochromatic_color_warm_cool=_parse_numeric(s=data.monochromatic_color_warm_cool),
+                monochromatic_color_magenta_green=_parse_numeric(s=data.monochromatic_color_magenta_green),
+                name=name,
+            )
+    except IntegrityError:
+        raise RecipeSettingsConflictError(recipe_id=recipe.pk)
+
+    events.publish_event(
+        event_type=events.RECIPE_UPDATED,
+        recipe_id=recipe.pk,
+        film_simulation=recipe.film_simulation,
+    )
 
 
 def remove_recipe(*, recipe_id: int, remove_recipe_card_file: bool) -> None:

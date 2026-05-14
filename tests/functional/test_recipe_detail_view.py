@@ -171,3 +171,25 @@ class TestRecipeCardHtmxAttributes:
         overlay = soup.find(id="recipe-detail-overlay")
         assert overlay is not None
         assert overlay.has_attr("hidden")
+
+
+@pytest.mark.django_db
+class TestRecipeDetailEditButton:
+    def _edit_link(self, client, recipe):
+        response = client.get(f"/recipes/{recipe.pk}/")
+        soup = BeautifulSoup(response.content, "html.parser")
+        return soup.find("a", string=lambda t: t and "edit recipe" in t.lower())
+
+    def test_edit_button_present_when_recipe_has_no_images(self, client):
+        recipe = FujifilmRecipeFactory()
+        assert self._edit_link(client, recipe) is not None
+
+    def test_edit_button_links_to_edit_url(self, client):
+        recipe = FujifilmRecipeFactory()
+        link = self._edit_link(client, recipe)
+        assert link["href"] == f"/recipes/{recipe.pk}/edit/"
+
+    def test_edit_button_absent_when_recipe_has_images(self, client):
+        recipe = FujifilmRecipeFactory()
+        ImageFactory(fujifilm_recipe=recipe)
+        assert self._edit_link(client, recipe) is None

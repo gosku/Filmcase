@@ -582,6 +582,9 @@
                 hx-get="{% url 'recipe-card-modal' recipe_id=recipe.id %}"
                 hx-target="#card-overlay"
                 hx-swap="innerHTML">Create Recipe Card</button>
+        {% if is_editable %}
+          <a class="action-btn action-btn--secondary" href="{% url 'edit-recipe' recipe_id=recipe.id %}">Edit recipe</a>
+        {% endif %}
       </div>
     </div>
 

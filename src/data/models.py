@@ -1,3 +1,4 @@
+from decimal import Decimal
 from typing import Any
 
 from django.db import models
@@ -269,6 +270,62 @@ class FujifilmRecipe(models.Model):
     def set_cover_image(self, *, image_id: int) -> None:
         self.cover_image_id = image_id
         self.save(update_fields=["cover_image_id"])
+
+    def set_name(self, *, name: str) -> None:
+        self.name = name
+        self.save(update_fields=["name"])
+
+    def update_settings(
+        self,
+        *,
+        film_simulation: str,
+        dynamic_range: str,
+        d_range_priority: str,
+        grain_roughness: str,
+        grain_size: str,
+        color_chrome_effect: str,
+        color_chrome_fx_blue: str,
+        white_balance: str,
+        white_balance_red: int,
+        white_balance_blue: int,
+        highlight: Decimal | None,
+        shadow: Decimal | None,
+        color: Decimal | None,
+        sharpness: Decimal | None,
+        high_iso_nr: Decimal | None,
+        clarity: Decimal | None,
+        monochromatic_color_warm_cool: Decimal | None,
+        monochromatic_color_magenta_green: Decimal | None,
+        name: str,
+    ) -> None:
+        self.film_simulation = film_simulation
+        self.dynamic_range = dynamic_range
+        self.d_range_priority = d_range_priority
+        self.grain_roughness = grain_roughness
+        self.grain_size = grain_size
+        self.color_chrome_effect = color_chrome_effect
+        self.color_chrome_fx_blue = color_chrome_fx_blue
+        self.white_balance = white_balance
+        self.white_balance_red = white_balance_red
+        self.white_balance_blue = white_balance_blue
+        self.highlight = highlight
+        self.shadow = shadow
+        self.color = color
+        self.sharpness = sharpness
+        self.high_iso_nr = high_iso_nr
+        self.clarity = clarity
+        self.monochromatic_color_warm_cool = monochromatic_color_warm_cool
+        self.monochromatic_color_magenta_green = monochromatic_color_magenta_green
+        self.name = name
+        self.save(update_fields=[
+            "film_simulation", "dynamic_range", "d_range_priority",
+            "grain_roughness", "grain_size", "color_chrome_effect",
+            "color_chrome_fx_blue", "white_balance", "white_balance_red",
+            "white_balance_blue", "highlight", "shadow", "color",
+            "sharpness", "high_iso_nr", "clarity",
+            "monochromatic_color_warm_cool", "monochromatic_color_magenta_green",
+            "name",
+        ])
 
     # Properties
 

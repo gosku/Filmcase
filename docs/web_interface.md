@@ -99,6 +99,10 @@ Opening a recipe shows all its settings at a glance. From this page you can:
 
 - **Set the recipe name** — limited to 25 ASCII characters, matching the camera's own slot
   naming rules. See [recipe_naming.md](recipe_naming.md) for more detail.
+- **Edit the recipe** — if the recipe has no images associated with it, an _Edit recipe_
+  button appears. Clicking it opens a form pre-populated with the current settings so you can
+  adjust any parameter. Recipes that already have images cannot be edited, because those
+  images represent historical shooting data tied to the recipe's exact settings.
 - **Browse the recipe's images** — jump to the gallery filtered to photos shot with this
   recipe.
 - **Send the recipe to your camera** — write the recipe to one of your camera's custom slots
