@@ -70,3 +70,33 @@ Creating a new version means creating a new `FujifilmRecipe` row — never mutat
 - A recipe can belong to at most one `VERSION_LINE` group (DB-enforced) and any number of `FAMILY` groups.
 - The `group_type` field on `RecipeGroupMember` must be kept in sync with `RecipeGroup.group_type` by the domain layer on every write. This is the tradeoff for getting a DB-level partial unique index without a cross-table constraint.
 - `RecipeCard` and all other existing models are unchanged.
+
+---
+
+## Interface layer
+
+### Options considered
+
+**Option 1 — extend the existing `CreateRecipe` view.**
+Add a `recipe_id` query parameter to `recipes/create/`. When present, the view pre-populates the form from the source recipe and routes the submission to a `create_recipe_version` use case instead of `create_recipe_manually`. The `CreateRecipe` form class is reused unchanged.
+
+**Option 2 — a dedicated view and use case (chosen).**
+Introduce a new URL `recipes/<int:recipe_id>/create-version/`, a new `CreateRecipeVersion` view, and a new `create_recipe_version` use case. The existing `interface_forms.CreateRecipe` form class is reused as the shared form between `CreateRecipe`, `EditRecipe`, and the new view.
+
+### Why Option 2
+
+Option 1 would force every extension point of `CreateRecipe` — `dispatch`, `get_initial`, `form_valid` — to branch on the presence of `recipe_id`. The template would need conditionals for the heading and submit label. The URL would conflate two operations with different preconditions (creating from scratch vs. creating from an existing version line).
+
+Option 2 keeps each view responsible for exactly one operation. The form is the right level of reuse; the view and use case are not. The URL makes intent explicit and each view can be tested in isolation without conditional paths.
+
+### Implementation
+
+| Artifact | Location |
+|---|---|
+| Use case | `src/application/usecases/recipes/create_recipe_version.py` |
+| View | `CreateRecipeVersion` in `src/interfaces/views.py` |
+| URL | `recipes/<int:recipe_id>/create-version/` (name: `create-recipe-version`) |
+| Template | `src/interfaces/templates/recipes/create_recipe_version.html` |
+| Form | `interface_forms.CreateRecipe` (shared with `CreateRecipe` and `EditRecipe`) |
+
+The view uses `setup` to load the source recipe and its version line membership, `dispatch` to return 400 if no membership exists, `get_initial` to pre-populate all form fields from the source recipe, and `form_valid` to delegate to the use case and redirect to the new recipe's detail page.
