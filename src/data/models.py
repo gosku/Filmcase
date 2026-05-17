@@ -1,3 +1,4 @@
+from datetime import datetime
 from decimal import Decimal
 from typing import Any
 
@@ -462,3 +463,87 @@ class RecipeCard(models.Model):
 
     def __str__(self) -> str:
         return f"#{self.id} card for recipe #{self.recipe_id}"
+
+
+_GROUP_TYPE_VERSION_LINE = "VERSION_LINE"
+_GROUP_TYPE_FAMILY = "FAMILY"
+
+
+class RecipeGroup(models.Model):
+    GROUP_TYPE_VERSION_LINE = _GROUP_TYPE_VERSION_LINE
+    GROUP_TYPE_FAMILY = _GROUP_TYPE_FAMILY
+
+    name = models.CharField(max_length=100, blank=True, default="")
+    group_type = models.CharField(max_length=50)
+    created_at = models.DateTimeField(default=timezone.now)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    # Factories
+
+    @classmethod
+    def new_version_line(cls, *, name: str = "") -> "RecipeGroup":
+        return cls.objects.create(group_type=_GROUP_TYPE_VERSION_LINE, name=name)
+
+    @classmethod
+    def new_family(cls, *, name: str) -> "RecipeGroup":
+        return cls.objects.create(group_type=_GROUP_TYPE_FAMILY, name=name)
+
+    # Properties
+
+    def __str__(self) -> str:
+        return f"#{self.id} {self.group_type} {self.name!r}"
+
+
+class RecipeGroupMember(models.Model):
+    group = models.ForeignKey(
+        RecipeGroup,
+        on_delete=models.CASCADE,
+        related_name="members",
+    )
+    recipe = models.ForeignKey(
+        FujifilmRecipe,
+        on_delete=models.PROTECT,
+        related_name="group_memberships",
+    )
+    group_type = models.CharField(max_length=50)
+    position = models.PositiveIntegerField(null=True, blank=True)
+    added_at = models.DateTimeField()
+    created_at = models.DateTimeField(default=timezone.now)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["group", "recipe"],
+                name="unique_recipe_per_group",
+            ),
+            models.UniqueConstraint(
+                fields=["recipe"],
+                condition=models.Q(group_type=_GROUP_TYPE_VERSION_LINE),
+                name="unique_version_line_per_recipe",
+            ),
+        ]
+
+    # Factories
+
+    @classmethod
+    def new(
+        cls,
+        *,
+        group: RecipeGroup,
+        recipe_id: int,
+        position: int | None,
+        added_at: datetime,
+    ) -> "RecipeGroupMember":
+        return cls.objects.create(
+            group=group,
+            recipe_id=recipe_id,
+            group_type=group.group_type,
+            position=position,
+            added_at=added_at,
+        )
+
+    # Properties
+
+    def __str__(self) -> str:
+        return f"#{self.id} recipe #{self.recipe_id} in group #{self.group_id}"

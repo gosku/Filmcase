@@ -3,6 +3,7 @@ from __future__ import annotations
 from unittest.mock import patch
 
 import pytest
+from bs4 import BeautifulSoup
 
 from src.application.usecases.recipes import update_recipe_manually as update_recipe_manually_uc
 from src.data import models
@@ -115,25 +116,88 @@ class TestEditRecipeViewPost:
 
 @pytest.mark.django_db
 class TestEditRecipeViewHasImages:
-    def test_post_when_recipe_has_images_returns_200(self, client) -> None:
+    def test_get_includes_is_settings_editable_false_when_recipe_has_images(self, client) -> None:
         recipe = FujifilmRecipeFactory()
         ImageFactory(fujifilm_recipe=recipe)
-        response = client.post(_url(recipe.pk), _valid_data())
+        response = client.get(_url(recipe.pk))
+        assert response.context["is_settings_editable"] is False
+
+    def test_get_includes_is_settings_editable_true_when_recipe_has_no_images(self, client) -> None:
+        recipe = FujifilmRecipeFactory()
+        response = client.get(_url(recipe.pk))
+        assert response.context["is_settings_editable"] is True
+
+    def test_post_settings_change_when_recipe_has_images_returns_200(self, client) -> None:
+        recipe = FujifilmRecipeFactory(film_simulation="Provia")
+        ImageFactory(fujifilm_recipe=recipe)
+        response = client.post(_url(recipe.pk), _valid_data(film_simulation="Velvia"))
         assert response.status_code == 200
 
-    def test_post_when_recipe_has_images_shows_cannot_edit_error(self, client) -> None:
-        recipe = FujifilmRecipeFactory()
+    def test_post_settings_change_when_recipe_has_images_shows_error(self, client) -> None:
+        recipe = FujifilmRecipeFactory(film_simulation="Provia")
         ImageFactory(fujifilm_recipe=recipe)
-        response = client.post(_url(recipe.pk), _valid_data())
+        response = client.post(_url(recipe.pk), _valid_data(film_simulation="Velvia"))
         errors = response.context["form"].non_field_errors()
-        assert any("cannot be edited" in e.lower() for e in errors)
+        assert any("cannot be changed" in e.lower() for e in errors)
 
-    def test_post_when_recipe_has_images_does_not_update_recipe(self, client) -> None:
+    def test_post_settings_change_when_recipe_has_images_does_not_update_recipe(self, client) -> None:
         recipe = FujifilmRecipeFactory(film_simulation="Provia")
         ImageFactory(fujifilm_recipe=recipe)
         client.post(_url(recipe.pk), _valid_data(film_simulation="Velvia"))
         recipe.refresh_from_db()
         assert recipe.film_simulation == "Provia"
+
+    def test_post_name_only_change_when_recipe_has_images_redirects(self, client) -> None:
+        from decimal import Decimal
+        # Recipe must have explicit decimal values so the injected form data matches exactly.
+        recipe = FujifilmRecipeFactory(
+            name="Old Name",
+            film_simulation="Provia",
+            dynamic_range="DR100",
+            d_range_priority="Off",
+            grain_roughness="Off",
+            grain_size="Off",
+            color_chrome_effect="Off",
+            color_chrome_fx_blue="Off",
+            white_balance="Auto",
+            white_balance_red=0,
+            white_balance_blue=0,
+            highlight=Decimal("0"),
+            shadow=Decimal("0"),
+            color=0,
+            sharpness=0,
+            high_iso_nr=0,
+            clarity=0,
+        )
+        ImageFactory(fujifilm_recipe=recipe)
+        response = client.post(_url(recipe.pk), _valid_data(film_simulation="Provia", name="New Name"))
+        assert response.status_code == 302
+
+    def test_post_name_only_change_when_recipe_has_images_updates_name(self, client) -> None:
+        from decimal import Decimal
+        recipe = FujifilmRecipeFactory(
+            name="Old Name",
+            film_simulation="Provia",
+            dynamic_range="DR100",
+            d_range_priority="Off",
+            grain_roughness="Off",
+            grain_size="Off",
+            color_chrome_effect="Off",
+            color_chrome_fx_blue="Off",
+            white_balance="Auto",
+            white_balance_red=0,
+            white_balance_blue=0,
+            highlight=Decimal("0"),
+            shadow=Decimal("0"),
+            color=0,
+            sharpness=0,
+            high_iso_nr=0,
+            clarity=0,
+        )
+        ImageFactory(fujifilm_recipe=recipe)
+        client.post(_url(recipe.pk), _valid_data(film_simulation="Provia", name="New Name"))
+        recipe.refresh_from_db()
+        assert recipe.name == "New Name"
 
     def _make_conflicting_existing_recipe(self) -> None:
         """Create a recipe with the exact settings _valid_data(film_simulation="Velvia") would produce."""
@@ -179,3 +243,20 @@ class TestEditRecipeViewHasImages:
         assert response.status_code == 200
         errors = response.context["form"].non_field_errors()
         assert any("unexpected error" in e.lower() for e in errors)
+
+
+@pytest.mark.django_db
+class TestEditRecipeNoticeBanner:
+    def _create_version_link(self, client, recipe):
+        response = client.get(_url(recipe.pk))
+        soup = BeautifulSoup(response.content, "html.parser")
+        return soup.find("a", href=f"/recipes/{recipe.pk}/create-version/")
+
+    def test_notice_banner_absent_when_recipe_has_no_images(self, client) -> None:
+        recipe = FujifilmRecipeFactory()
+        assert self._create_version_link(client, recipe) is None
+
+    def test_notice_banner_contains_create_version_link_when_recipe_has_images(self, client) -> None:
+        recipe = FujifilmRecipeFactory()
+        ImageFactory(fujifilm_recipe=recipe)
+        assert self._create_version_link(client, recipe) is not None

@@ -121,20 +121,20 @@ class TestGetRecipeDetail:
         assert r.color_chrome_effect == "Strong"
         assert r.white_balance == "Daylight"
 
-    def test_is_editable_true_when_recipe_has_no_images(self):
+    def test_settings_editable_true_when_recipe_has_no_images(self):
         recipe = FujifilmRecipeFactory()
 
         result = get_recipe_detail(recipe_id=recipe.pk)
 
-        assert result.is_editable is True
+        assert result.settings_editable is True
 
-    def test_is_editable_false_when_recipe_has_images(self):
+    def test_settings_editable_false_when_recipe_has_images(self):
         recipe = FujifilmRecipeFactory()
         ImageFactory(fujifilm_recipe=recipe)
 
         result = get_recipe_detail(recipe_id=recipe.pk)
 
-        assert result.is_editable is False
+        assert result.settings_editable is False
 
 
 @pytest.mark.django_db

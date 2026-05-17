@@ -189,7 +189,24 @@ class TestRecipeDetailEditButton:
         link = self._edit_link(client, recipe)
         assert link["href"] == f"/recipes/{recipe.pk}/edit/"
 
-    def test_edit_button_absent_when_recipe_has_images(self, client):
+    def test_edit_button_present_when_recipe_has_images(self, client):
         recipe = FujifilmRecipeFactory()
         ImageFactory(fujifilm_recipe=recipe)
-        assert self._edit_link(client, recipe) is None
+        assert self._edit_link(client, recipe) is not None
+
+
+@pytest.mark.django_db
+class TestRecipeDetailCreateVersionButton:
+    def _create_version_link(self, client, recipe):
+        response = client.get(f"/recipes/{recipe.pk}/")
+        soup = BeautifulSoup(response.content, "html.parser")
+        return soup.find("a", string=lambda t: t and "create new version" in t.lower())
+
+    def test_create_version_button_is_present(self, client):
+        recipe = FujifilmRecipeFactory()
+        assert self._create_version_link(client, recipe) is not None
+
+    def test_create_version_button_links_to_correct_url(self, client):
+        recipe = FujifilmRecipeFactory()
+        link = self._create_version_link(client, recipe)
+        assert link["href"] == f"/recipes/{recipe.pk}/create-version/"

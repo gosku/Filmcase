@@ -4,6 +4,8 @@ import attrs
 from decimal import Decimal
 
 from django.db import IntegrityError, transaction
+from django.db.models import aggregates
+from django.utils import timezone
 from src.data import models
 from src.domain.images import dataclasses as image_dataclasses
 from src.domain.images import events
@@ -27,9 +29,93 @@ def _parse_numeric(*, s: str | None) -> Decimal | None:
     return Decimal(s)
 
 
-def get_or_create_recipe_from_data(
-    *, data: image_dataclasses.FujifilmRecipeData,
+def _settings_values_equal(field: str, a: object, b: object) -> bool:
+    """
+    Compare two FujifilmRecipeData field values for equality.
 
+    Decimal fields may be formatted differently between sources ('+2' from
+    recipe_from_db vs '2' from the form), so they are compared as Decimal
+    values to avoid false positives in the settings-changing check.
+    """
+    if field in recipe_queries.DECIMAL_FIELDS:
+        try:
+            a_dec = Decimal(str(a)) if a is not None else None
+            b_dec = Decimal(str(b)) if b is not None else None
+            return a_dec == b_dec
+        except Exception:  # noqa: BLE001 — fall back to direct comparison on unexpected values
+            pass
+    return a == b
+
+
+@attrs.frozen
+class VersionLineGroupNotFoundError(Exception):
+    """
+    Raised when no VERSION_LINE group with the given ID exists.
+    """
+
+    group_id: int
+
+
+@transaction.atomic
+def add_recipe_to_version_line(
+    *,
+    recipe: models.FujifilmRecipe,
+    group_id: int | None,
+) -> models.RecipeGroupMember:
+    """
+    Add a newly created recipe to a version line group.
+
+    If *group_id* is None, creates a new VERSION_LINE group and adds the
+    recipe as position=1. Otherwise appends the recipe to the given group at
+    max(position)+1.
+
+    :raises VersionLineGroupNotFoundError: If no VERSION_LINE group with
+        *group_id* exists.
+    """
+    now = timezone.now()
+
+    if group_id is None:
+        group = models.RecipeGroup.new_version_line()
+        member = models.RecipeGroupMember.new(
+            group=group,
+            recipe_id=recipe.pk,
+            position=1,
+            added_at=now,
+        )
+    else:
+        try:
+            group = models.RecipeGroup.objects.get(
+                pk=group_id,
+                group_type=models.RecipeGroup.GROUP_TYPE_VERSION_LINE,
+            )
+        except models.RecipeGroup.DoesNotExist:
+            raise VersionLineGroupNotFoundError(group_id=group_id)
+
+        result = models.RecipeGroupMember.objects.filter(group=group).aggregate(
+            max_position=aggregates.Max("position")
+        )
+        next_position = (result["max_position"] or 0) + 1
+        member = models.RecipeGroupMember.new(
+            group=group,
+            recipe_id=recipe.pk,
+            position=next_position,
+            added_at=now,
+        )
+
+    events.publish_event(
+        event_type=events.RECIPE_ADDED_TO_VERSION_LINE,
+        recipe_id=recipe.pk,
+        group_id=group.pk,
+        position=member.position,
+    )
+    return member
+
+
+@transaction.atomic
+def get_or_create_recipe_from_data(
+    *,
+    data: image_dataclasses.FujifilmRecipeData,
+    group_id: int | None = None,
 ) -> tuple[models.FujifilmRecipe, bool]:
     """
     Create or retrieve a FujifilmRecipe for the given recipe data.
@@ -37,6 +123,10 @@ def get_or_create_recipe_from_data(
     Returns ``(recipe, created)``. Uniqueness is determined by the recipe
     settings only — ``data.name`` is applied via ``defaults`` on the create
     path and is never considered during lookup or written back on the get path.
+
+    When *created* is True, adds the recipe to a version line via
+    ``add_recipe_to_version_line``. Pass *group_id* to append
+    the new recipe to an existing version line; omit it to start a new one.
 
     This is the single seam for ``FujifilmRecipe.get_or_create`` — shared by
     every caller that has already produced a FujifilmRecipeData (from EXIF,
@@ -66,6 +156,7 @@ def get_or_create_recipe_from_data(
         name=data.name,
     )
     if created:
+        add_recipe_to_version_line(recipe=recipe, group_id=group_id)
         events.publish_event(
             event_type=events.RECIPE_CREATED,
             recipe_id=recipe.pk,
@@ -223,7 +314,7 @@ class RecipeHasImagesError(Exception):
 @attrs.frozen
 class RecipeCannotBeEditedError(Exception):
     """
-    Raised when a recipe cannot be edited because it has associated Images.
+    Raised when the settings fields of a recipe cannot be changed because it has associated Images.
     """
 
     recipe_id: int
@@ -242,51 +333,63 @@ class RecipeSettingsConflictError(Exception):
 
 def update_recipe(*, recipe: models.FujifilmRecipe, data: image_dataclasses.FujifilmRecipeData) -> None:
     """
-    Update the settings of an existing FujifilmRecipe from the given data.
+    Update an existing FujifilmRecipe from the given data.
 
-    Normalises and validates *data* before writing. All recipe fields are
-    overwritten; ``recipe.name`` is updated only when ``data.name`` is non-empty.
+    Normalises *data* before comparing. Settings fields (film simulation, tone
+    curves, etc.) are only written when they differ from the current values and
+    the recipe has no associated Images. Metadata fields (name) are always
+    writable regardless of image association.
 
-    :raises RecipeCannotBeEditedError: If the recipe has one or more Images associated to it.
+    :raises RecipeCannotBeEditedError: If settings fields changed but the recipe has associated Images.
     :raises RecipeSettingsConflictError: If the new settings would duplicate an existing recipe.
     """
-    if not recipe_queries.recipe_is_editable(recipe_id=recipe.pk):
-        image_count = models.Image.objects.filter(fujifilm_recipe_id=recipe.pk).count()
-        raise RecipeCannotBeEditedError(
-            recipe_id=recipe.pk,
-            image_count=image_count,
-            name=recipe.name,
-        )
-
     data = recipe_normalization.normalize_recipe_data(data)
-    recipe_validation.validate_recipe_data(data)
+    current_data = recipe_queries.recipe_from_db(recipe=recipe)
 
-    name = data.name if data.name else recipe.name
-    try:
-        with transaction.atomic():
-            recipe.update_settings(
-                film_simulation=data.film_simulation,
-                dynamic_range=data.dynamic_range or "",
-                d_range_priority=data.d_range_priority,
-                grain_roughness=data.grain_roughness,
-                grain_size=data.grain_size if data.grain_size is not None else "Off",
-                color_chrome_effect=data.color_chrome_effect,
-                color_chrome_fx_blue=data.color_chrome_fx_blue,
-                white_balance=data.white_balance,
-                white_balance_red=data.white_balance_red,
-                white_balance_blue=data.white_balance_blue,
-                highlight=_parse_numeric(s=data.highlight),
-                shadow=_parse_numeric(s=data.shadow),
-                color=_parse_numeric(s=data.color),
-                sharpness=_parse_numeric(s=data.sharpness),
-                high_iso_nr=_parse_numeric(s=data.high_iso_nr),
-                clarity=_parse_numeric(s=data.clarity),
-                monochromatic_color_warm_cool=_parse_numeric(s=data.monochromatic_color_warm_cool),
-                monochromatic_color_magenta_green=_parse_numeric(s=data.monochromatic_color_magenta_green),
-                name=name,
+    settings_changing = any(
+        not _settings_values_equal(field, getattr(data, field), getattr(current_data, field))
+        for field in recipe_queries.RECIPE_FIELDS
+    )
+
+    if settings_changing:
+        recipe_validation.validate_recipe_data(data)
+        if not recipe_queries.recipe_is_editable(recipe_id=recipe.pk):
+            image_count = models.Image.objects.filter(fujifilm_recipe_id=recipe.pk).count()
+            raise RecipeCannotBeEditedError(
+                recipe_id=recipe.pk,
+                image_count=image_count,
+                name=recipe.name,
             )
-    except IntegrityError:
-        raise RecipeSettingsConflictError(recipe_id=recipe.pk)
+        name = data.name if data.name else recipe.name
+        try:
+            with transaction.atomic():
+                recipe.update_settings(
+                    film_simulation=data.film_simulation,
+                    dynamic_range=data.dynamic_range or "",
+                    d_range_priority=data.d_range_priority,
+                    grain_roughness=data.grain_roughness,
+                    grain_size=data.grain_size if data.grain_size is not None else "Off",
+                    color_chrome_effect=data.color_chrome_effect,
+                    color_chrome_fx_blue=data.color_chrome_fx_blue,
+                    white_balance=data.white_balance,
+                    white_balance_red=data.white_balance_red,
+                    white_balance_blue=data.white_balance_blue,
+                    highlight=_parse_numeric(s=data.highlight),
+                    shadow=_parse_numeric(s=data.shadow),
+                    color=_parse_numeric(s=data.color),
+                    sharpness=_parse_numeric(s=data.sharpness),
+                    high_iso_nr=_parse_numeric(s=data.high_iso_nr),
+                    clarity=_parse_numeric(s=data.clarity),
+                    monochromatic_color_warm_cool=_parse_numeric(s=data.monochromatic_color_warm_cool),
+                    monochromatic_color_magenta_green=_parse_numeric(s=data.monochromatic_color_magenta_green),
+                    name=name,
+                )
+        except IntegrityError:
+            raise RecipeSettingsConflictError(recipe_id=recipe.pk)
+    else:
+        name = data.name if data.name else recipe.name
+        if name != recipe.name:
+            recipe.set_name(name=name)
 
     events.publish_event(
         event_type=events.RECIPE_UPDATED,

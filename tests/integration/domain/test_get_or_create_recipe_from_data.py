@@ -126,3 +126,48 @@ class TestGetOrCreateRecipeFromData:
             get_or_create_recipe_from_data(data=invalid_data)
         assert exc_info.value.field == "monochromatic_color_warm_cool"
         assert models.FujifilmRecipe.objects.count() == 0
+
+
+@pytest.mark.django_db
+class TestGetOrCreateRecipeFromDataVersionLine:
+
+    def test_creates_version_line_membership_when_recipe_is_new(self) -> None:
+        recipe, created = get_or_create_recipe_from_data(data=_make_data())
+
+        assert created is True
+        assert models.RecipeGroupMember.objects.filter(
+            recipe=recipe,
+            group_type=models.RecipeGroup.GROUP_TYPE_VERSION_LINE,
+        ).count() == 1
+
+    def test_new_recipe_is_at_position_1_in_its_own_group(self) -> None:
+        recipe, _ = get_or_create_recipe_from_data(data=_make_data())
+
+        member = models.RecipeGroupMember.objects.get(recipe=recipe)
+        assert member.position == 1
+
+    def test_does_not_create_additional_membership_when_recipe_is_deduplicated(self) -> None:
+        recipe, _ = get_or_create_recipe_from_data(data=_make_data())
+        get_or_create_recipe_from_data(data=_make_data())
+
+        assert models.RecipeGroupMember.objects.filter(recipe=recipe).count() == 1
+
+    def test_appends_to_existing_version_line_when_group_id_given(self) -> None:
+        original, _ = get_or_create_recipe_from_data(data=_make_data(white_balance_red=1))
+        original_member = models.RecipeGroupMember.objects.get(recipe=original)
+
+        new_version, _ = get_or_create_recipe_from_data(
+            data=_make_data(white_balance_red=2),
+            group_id=original_member.group_id,
+        )
+
+        new_member = models.RecipeGroupMember.objects.get(recipe=new_version)
+        assert new_member.group_id == original_member.group_id
+        assert new_member.position == 2
+
+    def test_does_not_raise_when_invalid_group_id_given_on_get_path(self) -> None:
+        get_or_create_recipe_from_data(data=_make_data())
+
+        recipe, created = get_or_create_recipe_from_data(data=_make_data(), group_id=99999)
+
+        assert created is False

@@ -29,4 +29,5 @@
 - [ADR 005 — Recipe Sharing via Image Cards](ADRs/005-recipe-sharing-via-image-cards.md) — recipe sharing via image cards with embedded QR codes
 - [ADR 006 — QR Decode Library and Minimum QR Code Size](ADRs/006-qr-decode-library-and-size.md) — QR decode library choice and minimum QR code size
 - [ADR 007 — Normalize Recipe Data Before Storage](ADRs/007-normalize-recipe-data.md) — normalizing recipe data before storage
+- [ADR 008 — Recipe Versioning via Generalised Grouping](ADRs/008-recipe-versioning.md) — version lines and recipe families via a shared grouping abstraction
 

@@ -19,6 +19,7 @@ from src.application.usecases.camera import push_recipe as push_recipe_uc
 from src.application.usecases.recipes import build_graph as build_graph_uc
 from src.application.usecases.recipes import create_recipe_card as create_recipe_card_uc
 from src.application.usecases.recipes import create_recipe_manually as create_recipe_manually_uc
+from src.application.usecases.recipes import create_recipe_version as create_recipe_version_uc
 from src.application.usecases.recipes import import_recipes_from_uploaded_files as import_recipes_uc
 from src.application.usecases.recipes import import_recipes_from_uploaded_qr_cards as import_qr_cards_uc
 from src.application.usecases.recipes import preview_recipe_card as preview_recipe_card_uc
@@ -327,7 +328,7 @@ def recipe_detail_view(request: http.HttpRequest, recipe_id: int) -> http.HttpRe
         detail = recipe_queries.get_recipe_detail(recipe_id=recipe_id)
     except models.FujifilmRecipe.DoesNotExist:
         raise http.Http404
-    ctx = {"recipe": detail.recipe, "is_monochromatic": detail.is_monochromatic, "is_editable": detail.is_editable}
+    ctx = {"recipe": detail.recipe, "is_monochromatic": detail.is_monochromatic, "settings_editable": detail.settings_editable}
     if request.headers.get("HX-Request"):
         return shortcuts.render(request, "recipes/partials/recipe_detail.html", ctx)
     return shortcuts.render(request, "recipes/recipe_detail.html", ctx)
@@ -809,9 +810,50 @@ class EditRecipe(generic.FormView):  # type: ignore[type-arg]
             "monochromatic_color_magenta_green": r.monochromatic_color_magenta_green,
         }
 
+    def get_form_kwargs(self) -> dict[str, object]:
+        kwargs = super().get_form_kwargs()
+        if self.request.method == "POST" and not recipe_queries.recipe_is_editable(recipe_id=self.recipe.pk):
+            # Settings fields are disabled in the form when the recipe has images,
+            # so they are not submitted. Inject the current recipe values so the
+            # form validates without errors on those fields.
+            data = kwargs["data"].copy()
+            r = self.recipe
+            wb_value, kelvin = _parse_white_balance_for_form(r.white_balance)
+            settings_defaults: dict[str, str] = {
+                "film_simulation": r.film_simulation,
+                "dynamic_range": r.dynamic_range or "",
+                "d_range_priority": r.d_range_priority,
+                "grain_roughness": r.grain_roughness,
+                "grain_size": r.grain_size or "",
+                "color_chrome_effect": r.color_chrome_effect,
+                "color_chrome_fx_blue": r.color_chrome_fx_blue,
+                "white_balance": wb_value,
+                "white_balance_red": str(r.white_balance_red),
+                "white_balance_blue": str(r.white_balance_blue),
+                # required=False fields: omit when None so the form cleans them to None,
+                # matching what recipe_from_db produces for null DB values.
+                **({"highlight": str(r.highlight)} if r.highlight is not None else {}),
+                **({"shadow": str(r.shadow)} if r.shadow is not None else {}),
+                **({"color": str(r.color)} if r.color is not None else {}),
+                **({"monochromatic_color_warm_cool": str(r.monochromatic_color_warm_cool)} if r.monochromatic_color_warm_cool is not None else {}),
+                **({"monochromatic_color_magenta_green": str(r.monochromatic_color_magenta_green)} if r.monochromatic_color_magenta_green is not None else {}),
+                # required fields: default to "0" when null (matches recipe_from_db's "or '0'" fallback).
+                "sharpness": str(r.sharpness) if r.sharpness is not None else "0",
+                "high_iso_nr": str(r.high_iso_nr) if r.high_iso_nr is not None else "0",
+                "clarity": str(r.clarity) if r.clarity is not None else "0",
+            }
+            if kelvin is not None:
+                settings_defaults["kelvin_temperature"] = str(kelvin)
+            for key, value in settings_defaults.items():
+                if key not in data:
+                    data[key] = value
+            kwargs["data"] = data
+        return kwargs
+
     def get_context_data(self, **kwargs: object) -> dict[str, object]:
         context: dict[str, object] = super().get_context_data(**kwargs)
         context["recipe"] = self.recipe
+        context["is_settings_editable"] = recipe_queries.recipe_is_editable(recipe_id=self.recipe.pk)
         context["monochromatic_film_sims_json"] = json.dumps(
             sorted(recipe_constants.MONOCHROMATIC_FILM_SIMULATIONS)
         )
@@ -851,7 +893,7 @@ class EditRecipe(generic.FormView):  # type: ignore[type-arg]
         try:
             update_recipe_manually_uc.update_recipe_manually(recipe=self.recipe, data=recipe_data)
         except update_recipe_manually_uc.RecipeCannotBeEditedError:
-            form.add_error(None, "This recipe cannot be edited because it already has images associated to it.")
+            form.add_error(None, "This recipe's settings cannot be changed because it has associated images. You can still edit the name.")
             return self.form_invalid(form)
         except update_recipe_manually_uc.RecipeAlreadyExistsError:
             form.add_error(None, "A recipe with these settings already exists.")
@@ -864,6 +906,111 @@ class EditRecipe(generic.FormView):  # type: ignore[type-arg]
         redirect_url = shortcuts.resolve_url("recipe-detail", recipe_id=self.recipe.pk)
         if self.recipe.name:
             redirect_url += "?" + urlencode({"name_search": self.recipe.name})
+        return shortcuts.redirect(redirect_url)
+
+
+class CreateRecipeVersion(generic.FormView):  # type: ignore[type-arg]
+    template_name = "recipes/create_recipe_version.html"
+    form_class = interface_forms.CreateRecipe
+    recipe: models.FujifilmRecipe
+    source_member: models.RecipeGroupMember | None
+
+    def setup(self, request: http.HttpRequest, *args: object, **kwargs: object) -> None:
+        super().setup(request, *args, **kwargs)
+        self.recipe = shortcuts.get_object_or_404(models.FujifilmRecipe, pk=kwargs["recipe_id"])
+        self.source_member = models.RecipeGroupMember.objects.filter(
+            recipe=self.recipe,
+            group_type=models.RecipeGroup.GROUP_TYPE_VERSION_LINE,
+        ).first()
+
+    def dispatch(self, request: http.HttpRequest, *args: object, **kwargs: object) -> http.HttpResponseBase:
+        if self.source_member is None:
+            return http.HttpResponseBadRequest()
+        return super().dispatch(request, *args, **kwargs)
+
+    def get_initial(self) -> dict[str, object]:
+        r = self.recipe
+        wb_value, kelvin = _parse_white_balance_for_form(r.white_balance)
+        return {
+            "name": r.name,
+            "film_simulation": r.film_simulation,
+            "dynamic_range": r.dynamic_range,
+            "d_range_priority": r.d_range_priority,
+            "grain_roughness": r.grain_roughness,
+            "grain_size": r.grain_size,
+            "color_chrome_effect": r.color_chrome_effect,
+            "color_chrome_fx_blue": r.color_chrome_fx_blue,
+            "white_balance": wb_value,
+            "kelvin_temperature": kelvin,
+            "white_balance_red": r.white_balance_red,
+            "white_balance_blue": r.white_balance_blue,
+            "highlight": r.highlight,
+            "shadow": r.shadow,
+            "color": r.color,
+            "sharpness": r.sharpness,
+            "high_iso_nr": r.high_iso_nr,
+            "clarity": r.clarity,
+            "monochromatic_color_warm_cool": r.monochromatic_color_warm_cool,
+            "monochromatic_color_magenta_green": r.monochromatic_color_magenta_green,
+        }
+
+    def get_context_data(self, **kwargs: object) -> dict[str, object]:
+        context: dict[str, object] = super().get_context_data(**kwargs)
+        context["recipe"] = self.recipe
+        context["monochromatic_film_sims_json"] = json.dumps(
+            sorted(recipe_constants.MONOCHROMATIC_FILM_SIMULATIONS)
+        )
+        return context
+
+    def form_valid(self, form: interface_forms.CreateRecipe) -> http.HttpResponse:
+        assert self.source_member is not None
+        cd = form.cleaned_data
+        wb = cd["white_balance"]
+        kelvin_temp = cd.get("kelvin_temperature")
+        white_balance_str = f"{kelvin_temp}K" if wb == "Kelvin" else wb
+
+        def _to_str(value: object) -> str | None:
+            return None if value is None else str(value)
+
+        recipe_data = image_dataclasses.FujifilmRecipeData(
+            name=cd["name"],
+            film_simulation=cd["film_simulation"],
+            d_range_priority=cd["d_range_priority"],
+            grain_roughness=cd["grain_roughness"],
+            color_chrome_effect=cd["color_chrome_effect"],
+            color_chrome_fx_blue=cd["color_chrome_fx_blue"],
+            white_balance=white_balance_str,
+            white_balance_red=cd["white_balance_red"],
+            white_balance_blue=cd["white_balance_blue"],
+            sharpness=str(cd["sharpness"]),
+            high_iso_nr=str(cd["high_iso_nr"]),
+            clarity=str(cd["clarity"]),
+            dynamic_range=cd.get("dynamic_range"),
+            grain_size=cd.get("grain_size"),
+            highlight=_to_str(cd.get("highlight")),
+            shadow=_to_str(cd.get("shadow")),
+            color=_to_str(cd.get("color")),
+            monochromatic_color_warm_cool=_to_str(cd.get("monochromatic_color_warm_cool")),
+            monochromatic_color_magenta_green=_to_str(cd.get("monochromatic_color_magenta_green")),
+        )
+
+        try:
+            new_recipe = create_recipe_version_uc.create_recipe_version(
+                data=recipe_data,
+                group_id=self.source_member.group.pk,
+            )
+        except create_recipe_version_uc.RecipeAlreadyExistsError as exc:
+            existing_name = exc.name if exc.name else "(unnamed)"
+            form.add_error(None, f'A recipe like this already exists with name "{existing_name}".')
+            return self.form_invalid(form)
+        except Exception:
+            structlog.get_logger().exception("Unexpected error in CreateRecipeVersion.form_valid")
+            form.add_error(None, "An unexpected error occurred creating the recipe.")
+            return self.form_invalid(form)
+
+        redirect_url = shortcuts.resolve_url("recipe-detail", recipe_id=new_recipe.pk)
+        if new_recipe.name:
+            redirect_url += "?" + urlencode({"name_search": new_recipe.name})
         return shortcuts.redirect(redirect_url)
 
 

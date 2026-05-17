@@ -17,6 +17,7 @@ Usage::
 """
 
 import factory
+from django.utils import timezone
 
 from src.data import models
 
@@ -67,3 +68,22 @@ class RecipeCardFactory(factory.django.DjangoModelFactory):
     filepath = factory.Sequence(lambda n: f"/recipe_cards/card_{n:04d}.jpg")
     template = "long_label"
     recipe = factory.SubFactory(FujifilmRecipeFactory)
+
+
+class RecipeGroupFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = models.RecipeGroup
+
+    group_type = models.RecipeGroup.GROUP_TYPE_VERSION_LINE
+    name = ""
+
+
+class RecipeGroupMemberFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = models.RecipeGroupMember
+
+    group = factory.SubFactory(RecipeGroupFactory)
+    recipe = factory.SubFactory(FujifilmRecipeFactory)
+    group_type = models.RecipeGroup.GROUP_TYPE_VERSION_LINE
+    position = 1
+    added_at = factory.LazyFunction(timezone.now)

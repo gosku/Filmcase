@@ -99,10 +99,10 @@ Opening a recipe shows all its settings at a glance. From this page you can:
 
 - **Set the recipe name** — limited to 25 ASCII characters, matching the camera's own slot
   naming rules. See [recipe_naming.md](recipe_naming.md) for more detail.
-- **Edit the recipe** — if the recipe has no images associated with it, an _Edit recipe_
-  button appears. Clicking it opens a form pre-populated with the current settings so you can
-  adjust any parameter. Recipes that already have images cannot be edited, because those
-  images represent historical shooting data tied to the recipe's exact settings.
+- **Edit the recipe** — an _Edit recipe_ button opens a form pre-populated with the current
+  settings. If the recipe has no images associated with it, all parameters can be changed. If
+  it already has images, only the name can be edited — camera settings are locked to preserve
+  the integrity of the historical shooting data tied to those images.
 - **Browse the recipe's images** — jump to the gallery filtered to photos shot with this
   recipe.
 - **Send the recipe to your camera** — write the recipe to one of your camera's custom slots
@@ -110,6 +110,12 @@ Opening a recipe shows all its settings at a glance. From this page you can:
   where to write.
 - **Create a recipe card** — generate a shareable QR code card for the recipe, which other
   Fujifilm shooters can import into their own library.
+- **Create a new version** — if the recipe already has images associated with it (and
+  therefore cannot be edited in place), a _Create new version_ button lets you fork it into a
+  tweaked copy. The new recipe is pre-populated with the current settings so you only need to
+  change what differs. Both recipes are linked in a version line, letting the app trace the
+  chronological evolution of a recipe over time. This is useful for seeing how a recipe has
+  been refined across different shoots.
 
 ![Recipe detail view](images/recipe_detail_view.jpg)
 

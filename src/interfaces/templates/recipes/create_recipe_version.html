@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Edit Recipe</title>
+  <title>Create New Version</title>
   <link rel="stylesheet" href="/static/css/brand.css">
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -256,18 +256,6 @@
       line-height: 1.6;
     }
 
-    /* ── Notice banner ─────────────────────────────────────────── */
-
-    .form-notice-banner {
-      background: #eff6ff;
-      border: 1px solid #93c5fd;
-      border-radius: 8px;
-      padding: 1rem 1.25rem;
-      margin-bottom: 2rem;
-      font-size: 0.875rem;
-      color: #1d4ed8;
-    }
-
     /* ── Constraint states ──────────────────────────────────────── */
 
     .field-row--hidden,
@@ -290,16 +278,10 @@
 {% include "_top_nav.html" with active_section="recipes" %}
 
 <div class="page-content">
-  <h1 class="page-title">Edit Recipe</h1>
+  <h1 class="page-title">Create New Version</h1>
 
   <form method="post">
     {% csrf_token %}
-
-    {% if not is_settings_editable %}
-    <div class="form-notice-banner">
-      Camera settings are locked — this recipe has photos. You can still edit the name, or <a href="{% url 'create-recipe-version' recipe_id=recipe.id %}" style="color:inherit;">create a new version</a>.
-    </div>
-    {% endif %}
 
     {% if form.errors %}
     <div class="form-error-banner">
@@ -322,32 +304,30 @@
         <div class="field-input">{{ form.name }}</div>
       </div>
 
-      <div class="field-row{% if not is_settings_editable %} field-row--disabled{% endif %}">
+      <div class="field-row">
         <label class="field-label" for="{{ form.film_simulation.id_for_label }}">Film Simulation</label>
         <div class="field-input">{{ form.film_simulation }}</div>
       </div>
 
-      <div class="field-row field-row--hidden{% if not is_settings_editable %} field-row--disabled{% endif %}" id="field-row-mono-warm-cool">
+      <div class="field-row field-row--hidden" id="field-row-mono-warm-cool">
         <label class="field-label">Warm / Cool</label>
         <div class="field-input">
           <div class="slider-wrap">
             <input type="range" name="monochromatic_color_warm_cool" id="id_mono_warm_cool"
                    min="-9" max="9" step="1" value="{{ form.monochromatic_color_warm_cool.value|default:0 }}"
-                   oninput="document.getElementById('mono-wc-val').textContent = formatSign(this.value)"
-                   {% if not is_settings_editable %}disabled{% endif %}>
+                   oninput="document.getElementById('mono-wc-val').textContent = formatSign(this.value)">
             <span class="slider-value" id="mono-wc-val">{{ form.monochromatic_color_warm_cool.value|default:0 }}</span>
           </div>
         </div>
       </div>
 
-      <div class="field-row field-row--hidden{% if not is_settings_editable %} field-row--disabled{% endif %}" id="field-row-mono-magenta-green">
+      <div class="field-row field-row--hidden" id="field-row-mono-magenta-green">
         <label class="field-label">Magenta / Green</label>
         <div class="field-input">
           <div class="slider-wrap">
             <input type="range" name="monochromatic_color_magenta_green" id="id_mono_mag_green"
                    min="-9" max="9" step="1" value="{{ form.monochromatic_color_magenta_green.value|default:0 }}"
-                   oninput="document.getElementById('mono-mg-val').textContent = formatSign(this.value)"
-                   {% if not is_settings_editable %}disabled{% endif %}>
+                   oninput="document.getElementById('mono-mg-val').textContent = formatSign(this.value)">
             <span class="slider-value" id="mono-mg-val">{{ form.monochromatic_color_magenta_green.value|default:0 }}</span>
           </div>
         </div>
@@ -358,12 +338,12 @@
     <div class="field-group">
       <p class="field-group-title">Dynamic Range</p>
 
-      <div class="field-row{% if not is_settings_editable %} field-row--disabled{% endif %}" id="field-row-dynamic-range">
+      <div class="field-row" id="field-row-dynamic-range">
         <label class="field-label" for="{{ form.dynamic_range.id_for_label }}">Dynamic Range</label>
         <div class="field-input">{{ form.dynamic_range }}</div>
       </div>
 
-      <div class="field-row{% if not is_settings_editable %} field-row--disabled{% endif %}">
+      <div class="field-row">
         <label class="field-label" for="{{ form.d_range_priority.id_for_label }}">D-Range Priority</label>
         <div class="field-input">{{ form.d_range_priority }}</div>
       </div>
@@ -377,12 +357,12 @@
     <div class="field-group">
       <p class="field-group-title">Grain</p>
 
-      <div class="field-row{% if not is_settings_editable %} field-row--disabled{% endif %}">
+      <div class="field-row">
         <label class="field-label" for="{{ form.grain_roughness.id_for_label }}">Grain Roughness</label>
         <div class="field-input">{{ form.grain_roughness }}</div>
       </div>
 
-      <div class="field-row{% if not is_settings_editable %} field-row--disabled{% endif %}" id="field-row-grain-size">
+      <div class="field-row" id="field-row-grain-size">
         <label class="field-label" for="{{ form.grain_size.id_for_label }}">Grain Size</label>
         <div class="field-input">{{ form.grain_size }}</div>
       </div>
@@ -392,12 +372,12 @@
     <div class="field-group" id="field-group-color-chrome">
       <p class="field-group-title">Color Chrome</p>
 
-      <div class="field-row{% if not is_settings_editable %} field-row--disabled{% endif %}">
+      <div class="field-row">
         <label class="field-label" for="{{ form.color_chrome_effect.id_for_label }}">Color Chrome Effect</label>
         <div class="field-input">{{ form.color_chrome_effect }}</div>
       </div>
 
-      <div class="field-row{% if not is_settings_editable %} field-row--disabled{% endif %}">
+      <div class="field-row">
         <label class="field-label" for="{{ form.color_chrome_fx_blue.id_for_label }}">Color Chrome FX Blue</label>
         <div class="field-input">{{ form.color_chrome_fx_blue }}</div>
       </div>
@@ -411,35 +391,33 @@
 
       <div class="wb-layout">
         <div class="wb-controls">
-          <div class="field-row{% if not is_settings_editable %} field-row--disabled{% endif %}">
+          <div class="field-row">
             <label class="field-label" for="{{ form.white_balance.id_for_label }}">White Balance</label>
             <div class="field-input">{{ form.white_balance }}</div>
           </div>
 
-          <div class="field-row field-row--hidden{% if not is_settings_editable %} field-row--disabled{% endif %}" id="field-row-kelvin">
+          <div class="field-row field-row--hidden" id="field-row-kelvin">
             <label class="field-label" for="{{ form.kelvin_temperature.id_for_label }}">Temperature (K)</label>
             <div class="field-input">{{ form.kelvin_temperature }}</div>
           </div>
 
-          <div class="field-row{% if not is_settings_editable %} field-row--disabled{% endif %}">
+          <div class="field-row">
             <label class="field-label" for="id_white_balance_red">Red</label>
             <div class="field-input">
               <div class="slider-wrap">
                 <input type="range" id="id_white_balance_red" name="white_balance_red"
-                       min="-9" max="9" step="1" value="{{ form.white_balance_red.value|default:0 }}"
-                       {% if not is_settings_editable %}disabled{% endif %}>
+                       min="-9" max="9" step="1" value="{{ form.white_balance_red.value|default:0 }}">
                 <span class="slider-value" id="wb-red-display">{{ form.white_balance_red.value|default:0 }}</span>
               </div>
             </div>
           </div>
 
-          <div class="field-row{% if not is_settings_editable %} field-row--disabled{% endif %}">
+          <div class="field-row">
             <label class="field-label" for="id_white_balance_blue">Blue</label>
             <div class="field-input">
               <div class="slider-wrap">
                 <input type="range" id="id_white_balance_blue" name="white_balance_blue"
-                       min="-9" max="9" step="1" value="{{ form.white_balance_blue.value|default:0 }}"
-                       {% if not is_settings_editable %}disabled{% endif %}>
+                       min="-9" max="9" step="1" value="{{ form.white_balance_blue.value|default:0 }}">
                 <span class="slider-value" id="wb-blue-display">{{ form.white_balance_blue.value|default:0 }}</span>
               </div>
             </div>
@@ -463,27 +441,25 @@
     <div class="field-group">
       <p class="field-group-title">Tone</p>
 
-      <div class="field-row{% if not is_settings_editable %} field-row--disabled{% endif %}">
+      <div class="field-row">
         <label class="field-label">Highlight</label>
         <div class="field-input">
           <div class="slider-wrap">
             <input type="range" name="highlight" id="id_highlight" min="-2" max="4" step="0.5"
                    value="{{ form.highlight.value|default:0 }}"
-                   oninput="document.getElementById('highlight-val').textContent = formatSign(this.value)"
-                   {% if not is_settings_editable %}disabled{% endif %}>
+                   oninput="document.getElementById('highlight-val').textContent = formatSign(this.value)">
             <span class="slider-value" id="highlight-val">{{ form.highlight.value|default:0 }}</span>
           </div>
         </div>
       </div>
 
-      <div class="field-row{% if not is_settings_editable %} field-row--disabled{% endif %}">
+      <div class="field-row">
         <label class="field-label">Shadow</label>
         <div class="field-input">
           <div class="slider-wrap">
             <input type="range" name="shadow" id="id_shadow" min="-2" max="4" step="0.5"
                    value="{{ form.shadow.value|default:0 }}"
-                   oninput="document.getElementById('shadow-val').textContent = formatSign(this.value)"
-                   {% if not is_settings_editable %}disabled{% endif %}>
+                   oninput="document.getElementById('shadow-val').textContent = formatSign(this.value)">
             <span class="slider-value" id="shadow-val">{{ form.shadow.value|default:0 }}</span>
           </div>
         </div>
@@ -494,53 +470,49 @@
     <div class="field-group">
       <p class="field-group-title">Color &amp; Detail</p>
 
-      <div class="field-row{% if not is_settings_editable %} field-row--disabled{% endif %}" id="field-row-color">
+      <div class="field-row" id="field-row-color">
         <label class="field-label">Color</label>
         <div class="field-input">
           <div class="slider-wrap">
             <input type="range" name="color" id="id_color" min="-4" max="4" step="1"
                    value="{{ form.color.value|default:0 }}"
-                   oninput="document.getElementById('color-val').textContent = formatSign(this.value)"
-                   {% if not is_settings_editable %}disabled{% endif %}>
+                   oninput="document.getElementById('color-val').textContent = formatSign(this.value)">
             <span class="slider-value" id="color-val">{{ form.color.value|default:0 }}</span>
           </div>
         </div>
       </div>
 
-      <div class="field-row{% if not is_settings_editable %} field-row--disabled{% endif %}">
+      <div class="field-row">
         <label class="field-label">Sharpness</label>
         <div class="field-input">
           <div class="slider-wrap">
             <input type="range" name="sharpness" id="id_sharpness" min="-4" max="4" step="1"
                    value="{{ form.sharpness.value|default:0 }}"
-                   oninput="document.getElementById('sharpness-val').textContent = formatSign(this.value)"
-                   {% if not is_settings_editable %}disabled{% endif %}>
+                   oninput="document.getElementById('sharpness-val').textContent = formatSign(this.value)">
             <span class="slider-value" id="sharpness-val">{{ form.sharpness.value|default:0 }}</span>
           </div>
         </div>
       </div>
 
-      <div class="field-row{% if not is_settings_editable %} field-row--disabled{% endif %}">
+      <div class="field-row">
         <label class="field-label">High ISO NR</label>
         <div class="field-input">
           <div class="slider-wrap">
             <input type="range" name="high_iso_nr" id="id_high_iso_nr" min="-4" max="4" step="1"
                    value="{{ form.high_iso_nr.value|default:0 }}"
-                   oninput="document.getElementById('nr-val').textContent = formatSign(this.value)"
-                   {% if not is_settings_editable %}disabled{% endif %}>
+                   oninput="document.getElementById('nr-val').textContent = formatSign(this.value)">
             <span class="slider-value" id="nr-val">{{ form.high_iso_nr.value|default:0 }}</span>
           </div>
         </div>
       </div>
 
-      <div class="field-row{% if not is_settings_editable %} field-row--disabled{% endif %}">
+      <div class="field-row">
         <label class="field-label">Clarity</label>
         <div class="field-input">
           <div class="slider-wrap">
             <input type="range" name="clarity" id="id_clarity" min="-5" max="5" step="1"
                    value="{{ form.clarity.value|default:0 }}"
-                   oninput="document.getElementById('clarity-val').textContent = formatSign(this.value)"
-                   {% if not is_settings_editable %}disabled{% endif %}>
+                   oninput="document.getElementById('clarity-val').textContent = formatSign(this.value)">
             <span class="slider-value" id="clarity-val">{{ form.clarity.value|default:0 }}</span>
           </div>
         </div>
@@ -550,7 +522,7 @@
     </div><!-- /.form-columns: Tone + Color & Detail -->
 
     <div class="submit-row">
-      <button type="submit" class="submit-btn">Save Changes</button>
+      <button type="submit" class="submit-btn">Create New Version</button>
     </div>
   </form>
 </div>
@@ -562,9 +534,6 @@
   }
 
   (function () {
-    var initR = {{ form.white_balance_red.value|default:0 }};
-    var initB = {{ form.white_balance_blue.value|default:0 }};
-
     const wrap = document.getElementById('wb-grid-wrap');
     const grid = document.getElementById('wb-grid');
     const legendEl = document.getElementById('wb-grid-legend');
@@ -575,6 +544,8 @@
     const blueDisplay = document.getElementById('wb-blue-display');
 
     function cellColor(r, b) {
+      // Only red and blue channels move; green stays fixed.
+      // This produces cyan (R-), yellow (B-), green (R- B-), magenta (R+ B+), etc.
       var neutral = 160;
       var scale = 10;
       var red   = Math.round(Math.max(0, Math.min(255, neutral + r * scale)));
@@ -604,7 +575,6 @@
     }
 
     function selectCell(r, b) {
-      if (redSlider.disabled) return;
       redSlider.value = r;
       blueSlider.value = b;
       redDisplay.textContent = formatSign(r);
@@ -625,6 +595,8 @@
       selectCell(parseInt(redSlider.value), parseInt(blueSlider.value));
     });
 
+    var initR = {{ form.white_balance_red.value|default:0 }};
+    var initB = {{ form.white_balance_blue.value|default:0 }};
     buildGrid();
     selectCell(initR, initB);
 
@@ -636,7 +608,6 @@
     });
 
     wrap.addEventListener('click', function (e) {
-      if (redSlider.disabled) return;
       focused = true;
       wrap.classList.add('wb-grid-wrap--focused');
       e.stopPropagation();
@@ -659,7 +630,6 @@
   })();
 
   (function () {
-    var isSettingsEditable = {{ is_settings_editable|yesno:"true,false" }};
     var MONO_SIMS = new Set({{ monochromatic_film_sims_json|safe }});
 
     var filmSimSelect        = document.getElementById('id_film_simulation');
@@ -687,7 +657,6 @@
     }
 
     function applyDRangeConstraints() {
-      if (!isSettingsEditable) return;
       var priorityActive = dRangePrioritySelect.value !== 'Off';
       dynamicRangeSelect.disabled = priorityActive;
       document.getElementById('field-row-dynamic-range').classList.toggle('field-row--disabled', priorityActive);
@@ -703,18 +672,6 @@
     applyDRangeConstraints();
     applyWBConstraints();
   })();
-
-  {% if not is_settings_editable %}
-  (function () {
-    ['id_film_simulation', 'id_dynamic_range', 'id_d_range_priority',
-     'id_grain_roughness', 'id_grain_size',
-     'id_color_chrome_effect', 'id_color_chrome_fx_blue',
-     'id_white_balance', 'id_kelvin_temperature'].forEach(function (id) {
-      var el = document.getElementById(id);
-      if (el) el.disabled = true;
-    });
-  })();
-  {% endif %}
 </script>
 
 </body>

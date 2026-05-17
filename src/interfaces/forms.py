@@ -50,6 +50,7 @@ class CreateRecipe(forms.Form):
         validators=[validators.MinValueValidator(-9), validators.MaxValueValidator(9)],
     )
     highlight = forms.DecimalField(
+        required=False,
         initial=0,
         validators=[
             validators.MinValueValidator(Decimal("-2")),
@@ -57,6 +58,7 @@ class CreateRecipe(forms.Form):
         ],
     )
     shadow = forms.DecimalField(
+        required=False,
         initial=0,
         validators=[
             validators.MinValueValidator(Decimal("-2")),
@@ -64,6 +66,7 @@ class CreateRecipe(forms.Form):
         ],
     )
     color = forms.IntegerField(
+        required=False,
         initial=0,
         validators=[validators.MinValueValidator(-4), validators.MaxValueValidator(4)],
     )

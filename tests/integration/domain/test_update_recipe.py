@@ -89,11 +89,11 @@ class TestUpdateRecipeSettingsConflict:
 
 @pytest.mark.django_db
 class TestUpdateRecipeGuards:
-    def test_raises_recipe_cannot_be_edited_when_recipe_has_images(self) -> None:
+    def test_raises_recipe_cannot_be_edited_when_settings_change_and_recipe_has_images(self) -> None:
         recipe = FujifilmRecipeFactory(name="My Recipe")
         ImageFactory(fujifilm_recipe=recipe)
         with pytest.raises(operations.RecipeCannotBeEditedError) as exc_info:
-            operations.update_recipe(recipe=recipe, data=_make_data())
+            operations.update_recipe(recipe=recipe, data=_make_data(film_simulation="Velvia"))
         assert exc_info.value.recipe_id == recipe.pk
         assert exc_info.value.image_count == 1
         assert exc_info.value.name == "My Recipe"
@@ -103,16 +103,28 @@ class TestUpdateRecipeGuards:
         ImageFactory(fujifilm_recipe=recipe)
         ImageFactory(fujifilm_recipe=recipe)
         with pytest.raises(operations.RecipeCannotBeEditedError) as exc_info:
-            operations.update_recipe(recipe=recipe, data=_make_data())
+            operations.update_recipe(recipe=recipe, data=_make_data(film_simulation="Velvia"))
         assert exc_info.value.image_count == 2
 
-    def test_fields_not_updated_when_recipe_has_images(self) -> None:
+    def test_settings_not_updated_when_recipe_has_images(self) -> None:
         recipe = FujifilmRecipeFactory(film_simulation="Provia")
         ImageFactory(fujifilm_recipe=recipe)
         with pytest.raises(operations.RecipeCannotBeEditedError):
             operations.update_recipe(recipe=recipe, data=_make_data(film_simulation="Velvia"))
         recipe.refresh_from_db()
         assert recipe.film_simulation == "Provia"
+
+    def test_updates_name_when_recipe_has_images_and_settings_unchanged(self) -> None:
+        from src.domain.recipes import queries as recipe_queries
+        recipe = FujifilmRecipeFactory(name="Old Name")
+        ImageFactory(fujifilm_recipe=recipe)
+        # Build data that exactly matches the current recipe's settings so settings_changing=False
+        current = recipe_queries.recipe_from_db(recipe=recipe)
+        import attrs
+        data = attrs.evolve(current, name="New Name")
+        operations.update_recipe(recipe=recipe, data=data)
+        recipe.refresh_from_db()
+        assert recipe.name == "New Name"
 
 
 @pytest.mark.django_db
@@ -124,10 +136,21 @@ class TestUpdateRecipeEventPublishing:
         assert len(updated_events) == 1
         assert updated_events[0]["recipe_id"] == recipe.pk
 
-    def test_no_event_when_recipe_has_images(self, captured_logs: list[dict]) -> None:
+    def test_no_event_when_settings_change_and_recipe_has_images(self, captured_logs: list[dict]) -> None:
         recipe = FujifilmRecipeFactory()
         ImageFactory(fujifilm_recipe=recipe)
         with pytest.raises(operations.RecipeCannotBeEditedError):
-            operations.update_recipe(recipe=recipe, data=_make_data())
+            operations.update_recipe(recipe=recipe, data=_make_data(film_simulation="Velvia"))
         updated_events = [e for e in captured_logs if e.get("event_type") == events.RECIPE_UPDATED]
         assert len(updated_events) == 0
+
+    def test_publishes_event_when_only_name_changes_with_images(self, captured_logs: list[dict]) -> None:
+        from src.domain.recipes import queries as recipe_queries
+        import attrs
+        recipe = FujifilmRecipeFactory(name="Old Name")
+        ImageFactory(fujifilm_recipe=recipe)
+        current = recipe_queries.recipe_from_db(recipe=recipe)
+        data = attrs.evolve(current, name="New Name")
+        operations.update_recipe(recipe=recipe, data=data)
+        updated_events = [e for e in captured_logs if e.get("event_type") == events.RECIPE_UPDATED]
+        assert len(updated_events) == 1

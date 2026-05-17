@@ -37,7 +37,12 @@ class TestGetOrCreateRecipeFromMetadataEventPublishing:
         recipe.pk = 99
         recipe.film_simulation = "Classic Negative"
 
-        with patch("src.data.models.FujifilmRecipe.get_or_create", return_value=(recipe, True)):
+        with (
+            patch("django.db.transaction.Atomic.__enter__", return_value=None),
+            patch("django.db.transaction.Atomic.__exit__", return_value=False),
+            patch("src.data.models.FujifilmRecipe.get_or_create", return_value=(recipe, True)),
+            patch("src.domain.recipes.operations.add_recipe_to_version_line"),
+        ):
             _, created = get_or_create_recipe_from_metadata(metadata=METADATA)
 
         assert created is True
@@ -49,7 +54,11 @@ class TestGetOrCreateRecipeFromMetadataEventPublishing:
     def test_does_not_publish_event_when_recipe_already_exists(self, captured_logs):
         recipe = MagicMock()
 
-        with patch("src.data.models.FujifilmRecipe.get_or_create", return_value=(recipe, False)):
+        with (
+            patch("django.db.transaction.Atomic.__enter__", return_value=None),
+            patch("django.db.transaction.Atomic.__exit__", return_value=False),
+            patch("src.data.models.FujifilmRecipe.get_or_create", return_value=(recipe, False)),
+        ):
             _, created = get_or_create_recipe_from_metadata(metadata=METADATA)
 
         assert created is False

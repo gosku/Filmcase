@@ -73,19 +73,30 @@ class TestUpdateRecipeManuallySettingsConflict:
 
 @pytest.mark.django_db
 class TestUpdateRecipeManuallyGuards:
-    def test_raises_cannot_be_edited_when_recipe_has_images(self) -> None:
+    def test_raises_cannot_be_edited_when_settings_change_and_recipe_has_images(self) -> None:
         recipe = FujifilmRecipeFactory(name="Has Images")
         ImageFactory(fujifilm_recipe=recipe)
         with pytest.raises(uc.RecipeCannotBeEditedError) as exc_info:
-            uc.update_recipe_manually(recipe=recipe, data=_make_data())
+            uc.update_recipe_manually(recipe=recipe, data=_make_data(film_simulation="Velvia"))
         assert exc_info.value.recipe_id == recipe.pk
         assert exc_info.value.image_count == 1
         assert exc_info.value.name == "Has Images"
 
-    def test_recipe_not_changed_when_it_has_images(self) -> None:
+    def test_recipe_not_changed_when_settings_change_and_has_images(self) -> None:
         recipe = FujifilmRecipeFactory(film_simulation="Provia")
         ImageFactory(fujifilm_recipe=recipe)
         with pytest.raises(uc.RecipeCannotBeEditedError):
             uc.update_recipe_manually(recipe=recipe, data=_make_data(film_simulation="Velvia"))
         recipe.refresh_from_db()
         assert recipe.film_simulation == "Provia"
+
+    def test_updates_name_when_only_name_changes_and_recipe_has_images(self) -> None:
+        from src.domain.recipes import queries as recipe_queries
+        import attrs
+        recipe = FujifilmRecipeFactory(name="Old Name")
+        ImageFactory(fujifilm_recipe=recipe)
+        current = recipe_queries.recipe_from_db(recipe=recipe)
+        data = attrs.evolve(current, name="New Name")
+        uc.update_recipe_manually(recipe=recipe, data=data)
+        recipe.refresh_from_db()
+        assert recipe.name == "New Name"

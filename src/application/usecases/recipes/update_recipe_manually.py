@@ -11,7 +11,7 @@ from src.domain.recipes import validation as recipe_validation
 @attrs.frozen
 class RecipeCannotBeEditedError(Exception):
     """
-    Raised when the recipe cannot be edited because it has associated Images.
+    Raised when the recipe's settings cannot be changed because it has associated Images.
     """
 
     recipe_id: int
@@ -46,7 +46,7 @@ def update_recipe_manually(
     """
     Update an existing recipe with the given data.
 
-    :raises RecipeCannotBeEditedError: If the recipe has associated Images.
+    :raises RecipeCannotBeEditedError: If settings fields changed but the recipe has associated Images.
     :raises RecipeAlreadyExistsError: If the new settings match an existing recipe.
     :raises InvalidRecipeDataError: If the data fails normalization or validation.
     """
