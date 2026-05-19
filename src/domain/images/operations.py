@@ -83,8 +83,7 @@ def process_image(*, image_path: str) -> models.Image:
     Read EXIF data from *image_path* and persist it to the database.
 
     If a record for the same filepath already exists it is updated in-place.
-    A FujifilmExif record is looked up or created for the image's EXIF field
-    combination and linked via the recipe FK.
+    A new FujifilmExif record is created for the image's EXIF fields and linked via FK.
 
     Raises:
         NoFilmSimulationError: If the image has no film simulation EXIF data.
@@ -102,7 +101,7 @@ def process_image(*, image_path: str) -> models.Image:
     exif_fields.pop("date_taken")
     recipe_fields = {field: exif_fields.pop(field) for field in models.RECIPE_FIELDS}
 
-    fujifilm_exif = models.FujifilmExif.get_or_create(**recipe_fields)
+    fujifilm_exif = models.FujifilmExif.create(**recipe_fields)
 
     fujifilm_recipe, _ = recipe_operations.get_or_create_recipe_from_metadata(metadata=metadata)
 
