@@ -750,11 +750,12 @@
         <a class="action-btn action-btn--secondary" href="{% url 'create-recipe-version' recipe_id=recipe.id %}">Create new version</a>
       </div>
 
-      <div class="detail-distribution">
-        <h2 class="detail-section-title">Distribution</h2>
-        <div class="detail-distribution-placeholder">
-          Image distribution over time — coming soon
-        </div>
+      <div class="detail-distribution" id="detail-distribution-{{ recipe.id }}">
+        <div class="detail-distribution-placeholder"
+             hx-get="{% url 'recipe-distribution' recipe_id=recipe.id %}"
+             hx-trigger="load"
+             hx-target="closest .detail-distribution"
+             hx-swap="innerHTML">Loading…</div>
       </div>
     </div>
 

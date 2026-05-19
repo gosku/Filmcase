@@ -17,6 +17,7 @@ from src.interfaces import forms as interface_forms
 from src.application.usecases.camera import get_camera_slots as get_camera_slots_uc
 from src.application.usecases.camera import push_recipe as push_recipe_uc
 from src.application.usecases.recipes import build_graph as build_graph_uc
+from src.application.usecases.recipes import get_recipe_distribution as get_recipe_distribution_uc
 from src.application.usecases.recipes import create_recipe_card as create_recipe_card_uc
 from src.application.usecases.recipes import create_recipe_manually as create_recipe_manually_uc
 from src.application.usecases.recipes import create_recipe_version as create_recipe_version_uc
@@ -332,6 +333,45 @@ def recipe_detail_view(request: http.HttpRequest, recipe_id: int) -> http.HttpRe
     if request.headers.get("HX-Request"):
         return shortcuts.render(request, "recipes/partials/recipe_detail.html", ctx)
     return shortcuts.render(request, "recipes/recipe_detail.html", ctx)
+
+
+class RecipeDistribution(generic.View):
+    def get(self, request: http.HttpRequest, recipe_id: int) -> http.HttpResponse:
+        try:
+            ctx = get_recipe_distribution_uc.get_recipe_distribution(
+                recipe_id=recipe_id,
+                duration=request.GET.get("scale"),
+            )
+        except get_recipe_distribution_uc.RecipeNotFoundError:
+            raise http.Http404
+        except (
+            get_recipe_distribution_uc.InvalidDurationError,
+            get_recipe_distribution_uc.RecipeNotInVersionLineError,
+        ):
+            return http.HttpResponseBadRequest()
+        distribution_data = {
+            "versions": [
+                {
+                    "recipe_id": v.recipe_id,
+                    "label": v.label,
+                    "color": v.color,
+                    "is_current": v.is_current,
+                    "image_count": v.image_count,
+                }
+                for v in ctx.versions
+            ],
+            "buckets": [
+                {
+                    "label": b.label,
+                    "counts": {str(rid): count for rid, count in b.counts.items()},
+                }
+                for b in ctx.buckets
+            ],
+        }
+        return shortcuts.render(request, "recipes/partials/recipe_distribution.html", {
+            "ctx": ctx,
+            "distribution_json": json.dumps(distribution_data),
+        })
 
 
 _RECIPES_GRAPH_DEFAULT_FILM_SIM = "Provia"
