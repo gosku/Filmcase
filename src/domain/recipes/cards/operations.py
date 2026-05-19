@@ -97,9 +97,13 @@ def _compose_card(
     recipe: models.FujifilmRecipe,
     template: card_templates.CardTemplate,
     background_image: models.Image | None,
+    info_side: card_templates.InfoSide,
 ) -> tuple[PILImage.Image, str, bool]:
     """
     Build the card PIL image. Returns (canvas, json_str, use_gradient).
+
+    *info_side* chooses which half holds the info text + logo; the QR code
+    goes on the opposite bottom corner.
     """
     target_w, target_h = template.output_size
     if background_image is None:
@@ -111,16 +115,17 @@ def _compose_card(
             canvas = canvas.filter(ImageFilter.GaussianBlur(radius=_BLUR_RADIUS))
 
     panel_w = target_w // 2
+    panel_x = 0 if info_side == "left" else target_w - panel_w
     overlay = PILImage.new("RGBA", (panel_w, target_h), (0, 0, 0, _PANEL_ALPHA))
     canvas_rgba = canvas.convert("RGBA")
-    canvas_rgba.paste(overlay, (0, 0), overlay)
+    canvas_rgba.paste(overlay, (panel_x, 0), overlay)
     canvas = canvas_rgba.convert("RGB")
 
     draw = ImageDraw.Draw(canvas)
     label_font = _load_font(_FONT_SIZE)
     value_font = _load_font(_FONT_SIZE)
     lines = card_queries.get_recipe_cover_lines(recipe=recipe, template=template)
-    x = _TEXT_PADDING
+    x = panel_x + _TEXT_PADDING
     y = _TEXT_PADDING
     if recipe.name:
         title_font = _load_font(_TITLE_FONT_SIZE)
@@ -137,7 +142,8 @@ def _compose_card(
     json_str = card_queries.get_recipe_as_json(recipe=recipe)
     qr_img = qrcode.make(json_str)
     qr_img = qr_img.resize((_QR_SIZE, _QR_SIZE), PILImage.Resampling.LANCZOS)
-    qr_pos = (target_w - _QR_SIZE - _QR_MARGIN, target_h - _QR_SIZE - _QR_MARGIN)
+    qr_x = _QR_MARGIN if info_side == "right" else target_w - _QR_SIZE - _QR_MARGIN
+    qr_pos = (qr_x, target_h - _QR_SIZE - _QR_MARGIN)
     canvas.paste(qr_img, qr_pos)
 
     if _LOGO_PATH.exists():
@@ -148,7 +154,7 @@ def _compose_card(
                 logo_rgba = logo_rgba.crop(bbox)
             content_h = int(_LOGO_WIDTH * logo_rgba.height / logo_rgba.width)
             logo = logo_rgba.resize((_LOGO_WIDTH, content_h), PILImage.Resampling.LANCZOS)
-        logo_x = _TEXT_PADDING
+        logo_x = panel_x + _TEXT_PADDING
         logo_y = target_h - content_h - _TEXT_PADDING
         white_bg = PILImage.new("RGBA", (_LOGO_WIDTH + _LOGO_PADDING * 2, content_h + _LOGO_PADDING * 2), (255, 255, 255, 255))
         canvas_rgba = canvas.convert("RGBA")
@@ -177,6 +183,7 @@ def preview_recipe_card_image(
     template: card_templates.CardTemplate,
     background_image: models.Image | None,
     output_path: Path,
+    info_side: card_templates.InfoSide = card_templates.DEFAULT_INFO_SIDE,
 ) -> Path:
     """
     Compose a recipe card image and save it to output_path. Return output_path.
@@ -186,7 +193,10 @@ def preview_recipe_card_image(
     overwrite the previous file rather than accumulating.
     """
     canvas, json_str, use_gradient = _compose_card(
-        recipe=recipe, template=template, background_image=background_image,
+        recipe=recipe,
+        template=template,
+        background_image=background_image,
+        info_side=info_side,
     )
     _save_card(canvas=canvas, filepath=output_path, json_str=json_str, use_gradient=use_gradient)
     return output_path
@@ -198,6 +208,7 @@ def create_recipe_card_image(
     template: card_templates.CardTemplate,
     background_image: models.Image | None,
     output_dir: Path,
+    info_side: card_templates.InfoSide = card_templates.DEFAULT_INFO_SIDE,
 ) -> Path:
     """
     Compose a recipe card image and save it to output_dir. Return the file path.
@@ -208,7 +219,10 @@ def create_recipe_card_image(
     the recipe JSON into the EXIF UserComment so the card can be re-imported.
     """
     canvas, json_str, use_gradient = _compose_card(
-        recipe=recipe, template=template, background_image=background_image,
+        recipe=recipe,
+        template=template,
+        background_image=background_image,
+        info_side=info_side,
     )
     filepath = output_dir / f"recipe_{recipe.pk}_{uuid.uuid4().hex[:8]}.jpg"
     _save_card(canvas=canvas, filepath=filepath, json_str=json_str, use_gradient=use_gradient)
@@ -221,6 +235,7 @@ def create_recipe_card(
     template: card_templates.CardTemplate,
     background_image: models.Image | None,
     output_dir: Path,
+    info_side: card_templates.InfoSide = card_templates.DEFAULT_INFO_SIDE,
 ) -> models.RecipeCard:
     """
     Create a recipe card image, persist a RecipeCard record, and publish an event.
@@ -233,6 +248,7 @@ def create_recipe_card(
         template=template,
         background_image=background_image,
         output_dir=output_dir,
+        info_side=info_side,
     )
     card = models.RecipeCard.create(
         filepath=str(filepath),

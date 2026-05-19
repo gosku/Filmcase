@@ -167,3 +167,74 @@ class TestComposeCardLogoFallback:
         assert output_path.exists()
 
 
+class TestComposeCardInfoSide:
+    def _generate_card(
+        self, tmp_path: Path, info_side: card_templates.InfoSide
+    ) -> Path:
+        recipe = MagicMock()
+        recipe.name = "My Recipe"
+        recipe.pk = 1
+        output_path = tmp_path / f"card_{info_side}.jpg"
+        with (
+            patch.object(card_operations, "_LOGO_PATH", tmp_path / "no_logo.png"),
+            patch.object(card_operations.card_queries, "get_recipe_cover_lines", return_value=()),
+            patch.object(card_operations.card_queries, "get_recipe_as_json", return_value='{"v":1}'),
+        ):
+            card_operations.preview_recipe_card_image(
+                recipe=recipe,
+                template=card_templates.LONG_LABEL,
+                background_image=None,
+                output_path=output_path,
+                info_side=info_side,
+            )
+        return output_path
+
+    def _max_brightness(self, filepath: Path, x0: int) -> int:
+        p = card_operations._TEXT_PADDING
+        with PILImage.open(filepath) as img:
+            region = img.crop((x0, p, x0 + 300, p + card_operations._TITLE_LINE_HEIGHT))
+        return region.getextrema()[0][1]  # max R value in the region
+
+    def test_left_side_renders_title_in_left_half(self, tmp_path: Path) -> None:
+        filepath = self._generate_card(tmp_path, "left")
+
+        left_x = card_operations._TEXT_PADDING
+        right_x = 1080 // 2 + card_operations._TEXT_PADDING
+        assert self._max_brightness(filepath, left_x) > 200
+        assert self._max_brightness(filepath, right_x) < 100
+
+    def test_right_side_renders_title_in_right_half(self, tmp_path: Path) -> None:
+        filepath = self._generate_card(tmp_path, "right")
+
+        left_x = card_operations._TEXT_PADDING
+        right_x = 1080 // 2 + card_operations._TEXT_PADDING
+        assert self._max_brightness(filepath, right_x) > 200
+        assert self._max_brightness(filepath, left_x) < 100
+
+    def test_default_info_side_matches_explicit_left(self, tmp_path: Path) -> None:
+        recipe = MagicMock()
+        recipe.name = "My Recipe"
+        recipe.pk = 1
+        paths = {}
+        for label, kwargs in (
+            ("default", {}),
+            ("left", {"info_side": "left"}),
+        ):
+            output_path = tmp_path / f"card_{label}.jpg"
+            with (
+                patch.object(card_operations, "_LOGO_PATH", tmp_path / "no_logo.png"),
+                patch.object(card_operations.card_queries, "get_recipe_cover_lines", return_value=()),
+                patch.object(card_operations.card_queries, "get_recipe_as_json", return_value='{"v":1}'),
+            ):
+                card_operations.preview_recipe_card_image(
+                    recipe=recipe,
+                    template=card_templates.LONG_LABEL,
+                    background_image=None,
+                    output_path=output_path,
+                    **kwargs,
+                )
+            paths[label] = output_path.read_bytes()
+
+        assert paths["default"] == paths["left"]
+
+

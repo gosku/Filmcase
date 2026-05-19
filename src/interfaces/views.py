@@ -730,6 +730,10 @@ def _resolve_card_template(
     return card_templates.TEMPLATES.get(key, card_templates.LONG_LABEL)
 
 
+def _resolve_info_side(value: str) -> card_templates.InfoSide:
+    return "right" if value == "right" else "left"
+
+
 @_attrs.frozen
 class _RecipeCardModalContext:
     pk: int
@@ -783,11 +787,13 @@ class RecipeCardPreview(generic.View):
             label_style=request.GET.get("label_style", "long"),
             bg_effect=request.GET.get("bg_effect", "blur"),
         )
+        info_side = _resolve_info_side(request.GET.get("info_side", "left"))
         try:
             preview_path = preview_recipe_card_uc.preview_recipe_card(
                 recipe_id=recipe_id,
                 image_id=image_id,
                 template=template,
+                info_side=info_side,
             )
         except Exception:
             structlog.get_logger().exception("Unexpected error generating recipe card preview")
@@ -805,6 +811,7 @@ class RecipeCardPreview(generic.View):
                 "image_id": image_id,
                 "label_style": request.GET.get("label_style", "long"),
                 "bg_effect": request.GET.get("bg_effect", "blur"),
+                "info_side": info_side,
             },
         )
 
@@ -816,11 +823,13 @@ def recipe_card_preview_file_view(request: http.HttpRequest, recipe_id: int) -> 
         label_style=request.GET.get("label_style", "long"),
         bg_effect=request.GET.get("bg_effect", "blur"),
     )
+    info_side = _resolve_info_side(request.GET.get("info_side", "left"))
     try:
         preview_path = preview_recipe_card_uc.preview_recipe_card(
             recipe_id=recipe_id,
             image_id=image_id,
             template=template,
+            info_side=info_side,
         )
     except Exception:
         structlog.get_logger().exception("Unexpected error generating recipe card preview file")
@@ -844,11 +853,13 @@ class CreateRecipeCard(generic.View):
             label_style=request.POST.get("label_style", "long"),
             bg_effect=request.POST.get("bg_effect", "blur"),
         )
+        info_side = _resolve_info_side(request.POST.get("info_side", "left"))
         try:
             card = create_recipe_card_uc.create_recipe_card(
                 recipe_id=recipe_id,
                 image_id=image_id,
                 template=template,
+                info_side=info_side,
             )
         except Exception:
             structlog.get_logger().exception("Unexpected error creating recipe card")

@@ -7,9 +7,13 @@
   }
 
   .card-result-image {
-    width: 100%;
+    width: auto;
+    height: auto;
+    max-width: 100%;
+    max-height: 65vh;
     border-radius: 10px;
     display: block;
+    margin: 0 auto;
   }
 
   .card-result-created {
@@ -58,6 +62,6 @@
   {% endif %}
 {% elif preview_path %}
   <img class="card-result-image"
-       src="{% url 'recipe-card-preview-file' recipe_id=recipe_id %}?image_id={{ image_id|default:'' }}&label_style={{ label_style }}&bg_effect={{ bg_effect }}"
+       src="{% url 'recipe-card-preview-file' recipe_id=recipe_id %}?image_id={{ image_id|default:'' }}&label_style={{ label_style }}&bg_effect={{ bg_effect }}&info_side={{ info_side }}"
        alt="Recipe card preview">
 {% endif %}

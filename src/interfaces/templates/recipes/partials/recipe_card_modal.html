@@ -3,7 +3,7 @@
     background: #fff;
     border-radius: 16px;
     padding: 2rem;
-    width: 960px;
+    width: 1340px;
     max-width: 95vw;
     max-height: 90vh;
     overflow-y: auto;
@@ -56,7 +56,7 @@
 
   .card-modal-body {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr);
     gap: 2rem;
     align-items: start;
   }
@@ -148,9 +148,33 @@
     margin-bottom: 1.5rem;
   }
 
+  .card-option-row {
+    display: flex;
+    align-items: stretch;
+    gap: 1.5rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .card-option-group {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .card-option-group .card-section-label {
+    margin-bottom: 0.75rem;
+  }
+
+  .card-option-group .card-template-options {
+    flex: 1;
+    margin-bottom: 0;
+  }
+
   .card-template-option {
     position: relative;
     flex: 1;
+    display: flex;
   }
 
   .card-template-option input[type="radio"] {
@@ -161,7 +185,11 @@
   }
 
   .card-template-option label {
-    display: block;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    min-height: 5.25rem;
     padding: 0.75rem 1rem;
     border-radius: 8px;
     border: 2px solid #e0e0e0;
@@ -246,40 +274,69 @@
         </div>
       {% endif %}
 
-      <p class="card-section-label">Label style</p>
-      <div class="card-template-options">
-        <div class="card-template-option">
-          <input type="radio" name="label_style" id="card-lbl-long" value="long" checked>
-          <label for="card-lbl-long">
-            <p class="card-template-name">Full labels</p>
-            <p class="card-template-desc">White Balance, Highlights…</p>
-          </label>
+      <div class="card-option-row">
+        <div class="card-option-group">
+          <p class="card-section-label">Label style</p>
+          <div class="card-template-options">
+            <div class="card-template-option">
+              <input type="radio" name="label_style" id="card-lbl-long" value="long" checked>
+              <label for="card-lbl-long">
+                <p class="card-template-name">Full labels</p>
+                <p class="card-template-desc">White Balance, Highlights…</p>
+              </label>
+            </div>
+            <div class="card-template-option">
+              <input type="radio" name="label_style" id="card-lbl-short" value="short">
+              <label for="card-lbl-short">
+                <p class="card-template-name">Short labels</p>
+                <p class="card-template-desc">WB, HL, SH…</p>
+              </label>
+            </div>
+          </div>
         </div>
-        <div class="card-template-option">
-          <input type="radio" name="label_style" id="card-lbl-short" value="short">
-          <label for="card-lbl-short">
-            <p class="card-template-name">Short labels</p>
-            <p class="card-template-desc">WB, HL, SH…</p>
-          </label>
+
+        <div class="card-option-group">
+          <p class="card-section-label">Background effect</p>
+          <div class="card-template-options">
+            <div class="card-template-option">
+              <input type="radio" name="bg_effect" id="card-bg-blur" value="blur" checked>
+              <label for="card-bg-blur">
+                <p class="card-template-name">Blur</p>
+                <p class="card-template-desc">Softens the background photo</p>
+              </label>
+            </div>
+            <div class="card-template-option">
+              <input type="radio" name="bg_effect" id="card-bg-sharp" value="sharp">
+              <label for="card-bg-sharp">
+                <p class="card-template-name">Sharp</p>
+                <p class="card-template-desc">Original photo, no blur</p>
+              </label>
+            </div>
+          </div>
         </div>
       </div>
 
-      <p class="card-section-label">Background effect</p>
-      <div class="card-template-options">
-        <div class="card-template-option">
-          <input type="radio" name="bg_effect" id="card-bg-blur" value="blur" checked>
-          <label for="card-bg-blur">
-            <p class="card-template-name">Blur</p>
-            <p class="card-template-desc">Softens the background photo</p>
-          </label>
+      <div class="card-option-row">
+        <div class="card-option-group">
+          <p class="card-section-label">Card layout</p>
+          <div class="card-template-options">
+            <div class="card-template-option">
+              <input type="radio" name="info_side" id="card-side-left" value="left" checked>
+              <label for="card-side-left">
+                <p class="card-template-name">Info left</p>
+                <p class="card-template-desc">QR code on the right</p>
+              </label>
+            </div>
+            <div class="card-template-option">
+              <input type="radio" name="info_side" id="card-side-right" value="right">
+              <label for="card-side-right">
+                <p class="card-template-name">Info right</p>
+                <p class="card-template-desc">QR code on the left</p>
+              </label>
+            </div>
+          </div>
         </div>
-        <div class="card-template-option">
-          <input type="radio" name="bg_effect" id="card-bg-sharp" value="sharp">
-          <label for="card-bg-sharp">
-            <p class="card-template-name">Sharp</p>
-            <p class="card-template-desc">Original photo, no blur</p>
-          </label>
-        </div>
+        <div class="card-option-group" aria-hidden="true"></div>
       </div>
 
       <button type="button"

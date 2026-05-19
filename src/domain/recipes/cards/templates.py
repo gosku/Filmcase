@@ -3,6 +3,11 @@ from typing import Literal
 import attrs
 
 
+InfoSide = Literal["left", "right"]
+DEFAULT_INFO_SIDE: InfoSide = "left"
+INFO_SIDES: tuple[InfoSide, ...] = ("left", "right")
+
+
 @attrs.frozen
 class CardTemplate:
     label_style: Literal["long", "short"]

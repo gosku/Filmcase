@@ -225,3 +225,41 @@ class TestRecipeCardLogo:
             r, g, b = img.getpixel((x, y))
         # The gradient background at this position is near-black (~30, 20, 70).
         assert r > 200 and g > 200 and b > 200
+
+
+@pytest.mark.django_db
+class TestRecipeCardInfoSide:
+    def _max_title_brightness(self, img: PILImage.Image, panel_x: int) -> int:
+        # The title sits in the top padding strip of the info panel. This region
+        # is well above the QR code, so it isolates the info-panel placement.
+        p = card_operations._TEXT_PADDING
+        region = img.crop(
+            (panel_x + p, p, panel_x + p + 300, p + card_operations._TITLE_LINE_HEIGHT)
+        )
+        return region.getextrema()[0][1]  # max R value
+
+    def test_left_keeps_info_panel_in_left_half(self, tmp_path: Path) -> None:
+        recipe = FujifilmRecipeFactory(name="My Recipe")
+        filepath = card_operations.create_recipe_card_image(
+            recipe=recipe,
+            template=card_templates.LONG_LABEL,
+            background_image=None,
+            output_dir=tmp_path,
+            info_side="left",
+        )
+        with PILImage.open(filepath) as img:
+            assert self._max_title_brightness(img, panel_x=0) > 200
+            assert self._max_title_brightness(img, panel_x=img.width // 2) < 100
+
+    def test_right_moves_info_panel_to_right_half(self, tmp_path: Path) -> None:
+        recipe = FujifilmRecipeFactory(name="My Recipe")
+        filepath = card_operations.create_recipe_card_image(
+            recipe=recipe,
+            template=card_templates.LONG_LABEL,
+            background_image=None,
+            output_dir=tmp_path,
+            info_side="right",
+        )
+        with PILImage.open(filepath) as img:
+            assert self._max_title_brightness(img, panel_x=img.width // 2) > 200
+            assert self._max_title_brightness(img, panel_x=0) < 100

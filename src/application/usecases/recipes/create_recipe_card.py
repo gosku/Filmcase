@@ -12,6 +12,7 @@ def create_recipe_card(
     recipe_id: int,
     image_id: int | None,
     template: card_templates.CardTemplate,
+    info_side: card_templates.InfoSide = card_templates.DEFAULT_INFO_SIDE,
 ) -> models.RecipeCard:
     """
     Create a recipe card for the given recipe and persist it.
@@ -30,4 +31,5 @@ def create_recipe_card(
         template=template,
         background_image=background_image,
         output_dir=output_dir,
+        info_side=info_side,
     )
