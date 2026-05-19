@@ -1,0 +1,39 @@
+{% if error %}
+<div class="remove-result remove-result--error" data-all-succeeded="false">
+  <p class="remove-result__message">{{ error }}</p>
+</div>
+
+{% else %}
+<div class="remove-result" data-all-succeeded="{{ all_succeeded|yesno:'true,false' }}">
+  {% if created_count %}
+  <p class="remove-result__message remove-result__message--success">
+    {{ created_count }} recipe card{{ created_count|pluralize }} created.
+  </p>
+  {% endif %}
+
+  {% if failures %}
+  <p class="remove-result__message remove-result__message--warning">
+    {{ failures|length }} recipe{{ failures|length|pluralize }} could not be turned into a card:
+  </p>
+  <ul class="remove-result__failures">
+    {% for failure in failures %}
+    <li>
+      {% if failure.is_not_found %}
+      Recipe #{{ failure.recipe_id }} — not found.
+      {% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+
+  {% if not created_count and not failures %}
+  <p class="remove-result__message">No recipe cards were created.</p>
+  {% endif %}
+
+  {% if zip_download_url %}
+  <a class="remove-result__download-btn" href="{{ zip_download_url }}" download>
+    Download all cards (.zip)
+  </a>
+  {% endif %}
+</div>
+{% endif %}

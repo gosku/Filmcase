@@ -662,6 +662,19 @@
       font-size: 0.8rem;
       color: #666;
     }
+
+    .remove-result__download-btn {
+      display: inline-block;
+      margin-top: 1rem;
+      padding: 0.55rem 1.1rem;
+      background: var(--color-accent);
+      color: #fff;
+      border-radius: 6px;
+      font-size: 0.875rem;
+      font-weight: 600;
+      text-decoration: none;
+    }
+    .remove-result__download-btn:hover { background: var(--color-accent-dark); }
   </style>
 </head>
 <body>
@@ -706,6 +719,9 @@
           <div class="ms-actions-dropdown" id="ms-actions-dropdown" hidden>
             <button class="ms-actions-option" id="ms-delete-recipes-btn" type="button">
               Delete recipes
+            </button>
+            <button class="ms-actions-option" id="ms-create-cards-btn" type="button">
+              Create recipe cards
             </button>
           </div>
         </div>
@@ -799,6 +815,31 @@
             <div class="delete-confirm__actions">
               <button type="button" class="delete-confirm__no-btn" id="delete-recipes-no-btn">No</button>
               <button type="submit" class="delete-confirm__yes-btn">Yes, delete</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- Create recipe cards modal -->
+    <div class="import-overlay" id="create-cards-overlay" hidden>
+      <div class="import-modal" role="dialog" aria-modal="true" aria-labelledby="create-cards-modal-title">
+        <button class="import-modal__close" id="close-create-cards-btn" aria-label="Close">&#x2715;</button>
+        <div id="create-cards-modal-body">
+          <h2 id="create-cards-modal-title">Create Recipe Cards</h2>
+          <p class="import-modal__desc">
+            Create a recipe card for these <strong id="create-cards-count">0</strong> recipes
+            and download them as a zip.
+          </p>
+          <form id="create-cards-form"
+                hx-post="{% url 'recipes-create-cards-batch' %}"
+                hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+                hx-target="#create-cards-modal-body"
+                hx-swap="innerHTML">
+            <div id="create-cards-pks-container"></div>
+            <div class="delete-confirm__actions">
+              <button type="button" class="delete-confirm__no-btn" id="create-cards-no-btn">Cancel</button>
+              <button type="submit" class="delete-confirm__yes-btn">Create cards</button>
             </div>
           </form>
         </div>
@@ -982,6 +1023,64 @@
       if (e.detail.target.id !== 'delete-recipes-modal-body') return;
       var resultEl = e.detail.target.querySelector('[data-all-succeeded]');
       _allSucceeded = !!(resultEl && resultEl.dataset.allSucceeded === 'true');
+    });
+  }());
+
+  (function () {
+    var overlay      = document.getElementById('create-cards-overlay');
+    var closeBtn     = document.getElementById('close-create-cards-btn');
+    var _hadResult   = false;
+
+    // Snapshot the confirm HTML once so we can restore it when re-opening.
+    var _confirmHTML = document.getElementById('create-cards-modal-body').innerHTML;
+
+    function handleClose() {
+      overlay.hidden = true;
+      // Unlike delete, never reload: the result holds the only download link.
+      // Just clear the stale selection once a batch has been run.
+      if (_hadResult) {
+        _hadResult = false;
+        recipeMultiSelect.clearSelection();
+      }
+    }
+
+    function openModal() {
+      _hadResult = false;
+
+      // Restore the confirm form (a previous run may have replaced it with results).
+      var body = document.getElementById('create-cards-modal-body');
+      body.innerHTML = _confirmHTML;
+      htmx.process(body);
+
+      var pks = recipeMultiSelect.getSelectedPks();
+      document.getElementById('create-cards-count').textContent = pks.length;
+      var container = document.getElementById('create-cards-pks-container');
+      pks.forEach(function (pk) {
+        var input = document.createElement('input');
+        input.type  = 'hidden';
+        input.name  = 'recipe_ids';
+        input.value = pk;
+        container.appendChild(input);
+      });
+
+      overlay.hidden = false;
+      document.getElementById('ms-actions-dropdown').hidden = true;
+    }
+
+    document.getElementById('ms-create-cards-btn').addEventListener('click', openModal);
+    closeBtn.addEventListener('click', handleClose);
+
+    // Delegate "Cancel" button and backdrop clicks (Cancel is inside the modal
+    // body and gets replaced by HTMX after submission).
+    overlay.addEventListener('click', function (e) {
+      if (e.target === overlay || e.target.closest('#create-cards-no-btn')) {
+        handleClose();
+      }
+    });
+
+    document.body.addEventListener('htmx:afterSwap', function (e) {
+      if (e.detail.target.id !== 'create-cards-modal-body') return;
+      _hadResult = !!e.detail.target.querySelector('[data-all-succeeded]');
     });
   }());
 </script>
