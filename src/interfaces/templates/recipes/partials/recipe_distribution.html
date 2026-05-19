@@ -1,0 +1,453 @@
+{% load i18n %}
+<style>
+  .dist-header {
+    display: flex;
+    align-items: center;
+    margin-bottom: 4px;
+  }
+
+  .dist-title {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    font-size: 0.9rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #6b7280;
+  }
+
+  .dist-title-bar {
+    width: 3px;
+    height: 0.95rem;
+    background: var(--color-accent, #E63946);
+    border-radius: 1px;
+    flex-shrink: 0;
+  }
+
+  .dist-subrow {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 12px;
+  }
+
+  .dist-scale-toggle {
+    display: inline-flex;
+    border: 1px solid #EAEAE6;
+    border-radius: 6px;
+    padding: 2px;
+    gap: 0;
+    background: #fff;
+  }
+
+  .dist-scale-btn {
+    padding: 3px 8px;
+    font-size: 10.5px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    border: none;
+    cursor: pointer;
+    border-radius: 4px;
+    background: transparent;
+    color: #8E929B;
+    line-height: 1;
+  }
+
+  .dist-scale-btn.is-active {
+    background: #F4F4F2;
+    color: #1F2128;
+  }
+
+  .dist-subtitle {
+    font-size: 11.5px;
+    color: #8E929B;
+  }
+
+  .dist-chart-wrap {
+    position: relative;
+    margin-bottom: 12px;
+  }
+
+  .dist-stat-list {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .dist-stat-row {
+    display: grid;
+    grid-template-columns: 14px 36px 1fr 64px 36px;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 6px;
+    border-radius: 6px;
+    cursor: default;
+    border-bottom: 1px solid #F2F2EE;
+    transition: background 120ms ease, opacity 120ms ease;
+  }
+
+  .dist-stat-row:last-child {
+    border-bottom: none;
+  }
+
+  .dist-stat-checkbox {
+    width: 11px;
+    height: 11px;
+    border-radius: 3px;
+    padding: 0;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+
+  .dist-stat-label {
+    font-size: 11.5px;
+    font-weight: 700;
+    color: #1F2128;
+    white-space: nowrap;
+  }
+
+  .dist-stat-name-cell {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+  }
+
+  .dist-stat-name {
+    font-size: 11.5px;
+    color: #1F2128;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .dist-stat-now {
+    font-size: 8.5px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    color: #E63946;
+    background: #FBE9EB;
+    padding: 1.5px 4px;
+    border-radius: 3px;
+    flex-shrink: 0;
+  }
+
+  .dist-stat-bar-wrap {
+    position: relative;
+    height: 4px;
+    background: #F2F2EE;
+    border-radius: 999px;
+    overflow: hidden;
+  }
+
+  .dist-stat-bar-fill {
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    border-radius: 999px;
+  }
+
+  .dist-stat-count {
+    font-size: 11.5px;
+    font-weight: 600;
+    text-align: right;
+    color: #1F2128;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+
+  .dist-stat-pct {
+    font-size: 9px;
+    color: #8E929B;
+    font-weight: 500;
+    margin-left: 2px;
+  }
+
+  .dist-tooltip {
+    position: absolute;
+    pointer-events: none;
+    z-index: 10;
+    background: #1F2128;
+    border-radius: 6px;
+    padding: 6px 9px;
+    font-size: 11px;
+    line-height: 1.5;
+    white-space: nowrap;
+    transform: translate(-50%, -100%);
+    margin-top: -4px;
+  }
+
+  .dist-tooltip-muted {
+    color: #8E929B;
+    font-size: 10px;
+  }
+</style>
+
+<div class="dist-header">
+  <div class="dist-title">
+    <span class="dist-title-bar"></span>
+    Distribution &amp; Versions
+  </div>
+</div>
+
+<div class="dist-subrow">
+  <div class="dist-subtitle">
+    {% if ctx.total_images == 0 %}
+      No images recorded yet
+    {% else %}
+      {{ ctx.total_time_periods }}&nbsp;{{ ctx.scale.value }}{% if ctx.total_time_periods != 1 %}s{% endif %}
+      &middot; {{ ctx.total_images }} image{% if ctx.total_images != 1 %}s{% endif %}
+      across {{ ctx.versions|length }} version{% if ctx.versions|length != 1 %}s{% endif %}
+    {% endif %}
+  </div>
+  <div class="dist-scale-toggle">
+    <button class="dist-scale-btn {% if ctx.scale.value == 'week' %}is-active{% endif %}"
+            hx-get="{% url 'recipe-distribution' recipe_id=ctx.recipe_id %}?scale=week"
+            hx-target="closest .detail-distribution"
+            hx-swap="innerHTML">W</button>
+    <button class="dist-scale-btn {% if ctx.scale.value == 'month' %}is-active{% endif %}"
+            hx-get="{% url 'recipe-distribution' recipe_id=ctx.recipe_id %}?scale=month"
+            hx-target="closest .detail-distribution"
+            hx-swap="innerHTML">M</button>
+    <button class="dist-scale-btn {% if ctx.scale.value == 'year' %}is-active{% endif %}"
+            hx-get="{% url 'recipe-distribution' recipe_id=ctx.recipe_id %}?scale=year"
+            hx-target="closest .detail-distribution"
+            hx-swap="innerHTML">Y</button>
+  </div>
+</div>
+
+<div class="dist-chart-wrap">
+  <canvas class="dist-chart"
+          data-w="340" data-h="130"
+          style="display:block; width:100%; aspect-ratio:340/130;"
+          data-distribution="{{ distribution_json }}"
+          aria-label="Image distribution chart"></canvas>
+  <div id="dist-tooltip-{{ ctx.recipe_id }}" class="dist-tooltip" hidden></div>
+</div>
+
+<div class="dist-stat-list" id="dist-stat-list-{{ ctx.recipe_id }}">
+  {% for v in ctx.versions %}
+    {% with pct=v.image_count|stringformat:"d" %}
+    <div class="dist-stat-row"
+         data-version-id="{{ v.recipe_id }}"
+         data-color="{{ v.color }}">
+      <button class="dist-stat-checkbox"
+              style="border: 1.5px solid {{ v.color }}; background: {{ v.color }};"
+              aria-label="Toggle {{ v.label }} visibility"
+              aria-pressed="true"
+              data-checkbox="{{ v.recipe_id }}"></button>
+      <div class="dist-stat-label">{{ v.label }}</div>
+      <div class="dist-stat-name-cell">
+        <span class="dist-stat-name" title="{{ v.name }}">{% if v.name %}{{ v.name }}{% else %}—{% endif %}</span>
+        {% if v.is_current %}<span class="dist-stat-now">NOW</span>{% endif %}
+      </div>
+      <div class="dist-stat-bar-wrap">
+        <div class="dist-stat-bar-fill"
+             style="width: {% if ctx.total_images > 0 %}{% widthratio v.image_count ctx.total_images 100 %}{% else %}0{% endif %}%;
+                    background: {{ v.color }};"></div>
+      </div>
+      <div class="dist-stat-count">
+        {{ v.image_count }}<span class="dist-stat-pct">
+          &middot;&nbsp;{% if ctx.total_images > 0 %}{% widthratio v.image_count ctx.total_images 100 %}{% else %}0{% endif %}%
+        </span>
+      </div>
+    </div>
+    {% endwith %}
+  {% endfor %}
+</div>
+
+<script>
+(function () {
+  const recipeId = "{{ ctx.recipe_id }}";
+  requestAnimationFrame(function () {
+  // The canvas has no id on purpose: htmx's settle phase reconciles
+  // attributesToSettle (incl. width/height) on any element whose id exists in
+  // both the old and new swapped content. Reconciling a canvas's width/height
+  // resets its bitmap, wiping the freshly drawn chart on every scale toggle.
+  // No id => htmx never settles it; we scope the lookup to the stable
+  // container instead.
+  const canvas = document.querySelector("#detail-distribution-" + recipeId + " canvas.dist-chart");
+  if (!canvas) return;
+
+  canvas.width = parseInt(canvas.dataset.w, 10);
+  canvas.height = parseInt(canvas.dataset.h, 10);
+
+  const raw = canvas.getAttribute("data-distribution");
+  let data;
+  try { data = JSON.parse(raw); } catch (e) { return; }
+
+  const versions = data.versions;
+  const buckets  = data.buckets;
+  const ctx2d = canvas.getContext("2d");
+
+  // enabled state: recipe_id → boolean
+  const enabled = {};
+  versions.forEach(v => { enabled[v.recipe_id] = true; });
+
+  const PAD = { l: 8, r: 8, t: 8, b: 22 };
+  const W = canvas.width;
+  const H = canvas.height;
+  const innerW = W - PAD.l - PAD.r;
+  const innerH = H - PAD.t - PAD.b;
+
+  function draw() {
+    ctx2d.clearRect(0, 0, W, H);
+    if (!buckets.length || !versions.length) return;
+
+    const visible = versions.filter(v => enabled[v.recipe_id]);
+    if (!visible.length) return;
+
+    const grouped = buckets.length <= 8;
+    const groupW = innerW / buckets.length;
+
+    // compute max value
+    let max = 1;
+    buckets.forEach(b => {
+      visible.forEach(v => {
+        const c = b.counts[v.recipe_id] || 0;
+        if (c > max) max = c;
+      });
+    });
+    if (!grouped) {
+      // for stacked, max is sum per bucket
+      max = 1;
+      buckets.forEach(b => {
+        const total = visible.reduce((s, v) => s + (b.counts[v.recipe_id] || 0), 0);
+        if (total > max) max = total;
+      });
+    }
+
+    buckets.forEach((b, i) => {
+      if (grouped) {
+        const subW = Math.max(1, (groupW - 4) / visible.length);
+        visible.forEach((v, vi) => {
+          const val = b.counts[v.recipe_id] || 0;
+          const barH = (val / max) * innerH;
+          const x = PAD.l + i * groupW + 2 + vi * subW;
+          const y = H - PAD.b - barH;
+          ctx2d.fillStyle = v.color;
+          ctx2d.globalAlpha = 1;
+          ctx2d.beginPath();
+          ctx2d.roundRect(x, y, Math.max(0, subW - 1.5), barH, 1);
+          ctx2d.fill();
+        });
+      } else {
+        let stackY = H - PAD.b;
+        visible.forEach(v => {
+          const val = b.counts[v.recipe_id] || 0;
+          if (val <= 0) return;
+          const barH = (val / max) * innerH * 0.6;
+          stackY -= barH;
+          ctx2d.fillStyle = v.color;
+          ctx2d.globalAlpha = 1;
+          ctx2d.beginPath();
+          ctx2d.roundRect(PAD.l + i * groupW + 1, stackY, Math.max(0, groupW - 2), barH, 0.6);
+          ctx2d.fill();
+        });
+      }
+    });
+
+    ctx2d.globalAlpha = 1;
+
+    // baseline
+    ctx2d.strokeStyle = "#EAEAE6";
+    ctx2d.lineWidth = 1;
+    ctx2d.beginPath();
+    ctx2d.moveTo(PAD.l, H - PAD.b);
+    ctx2d.lineTo(W - PAD.r, H - PAD.b);
+    ctx2d.stroke();
+
+    // x-axis labels
+    ctx2d.fillStyle = "#8E929B";
+    ctx2d.font = "10px system-ui, sans-serif";
+    ctx2d.textAlign = "center";
+    if (grouped) {
+      buckets.forEach((b, i) => {
+        ctx2d.fillText(b.label, PAD.l + i * groupW + groupW / 2, H - 6);
+      });
+    } else {
+      const seen = new Set();
+      buckets.forEach((b, i) => {
+        const m = b.label.match(/(\d{2,4})$/);
+        if (!m) return;
+        const yr = m[1];
+        if (seen.has(yr)) return;
+        seen.add(yr);
+        ctx2d.fillText(yr.length === 2 ? "20" + yr : yr, PAD.l + i * groupW + groupW / 2, H - 6);
+      });
+    }
+  }
+
+  draw();
+
+  // tooltip
+  const tooltip = document.getElementById("dist-tooltip-" + recipeId);
+
+  function showTooltip(x, y, lines) {
+    if (!tooltip) return;
+    tooltip.innerHTML = lines.map(l =>
+      l.muted
+        ? `<div class="dist-tooltip-muted">${l.text}</div>`
+        : `<div style="color:${l.color || '#fff'}">${l.text}</div>`
+    ).join("");
+    tooltip.style.left = x + "px";
+    tooltip.style.top  = y + "px";
+    tooltip.hidden = false;
+  }
+
+  function hideTooltip() {
+    if (tooltip) tooltip.hidden = true;
+  }
+
+  canvas.addEventListener("mousemove", function (e) {
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = W / rect.width;
+    const mx = (e.clientX - rect.left) * scaleX;
+    const my = (e.clientY - rect.top) * (H / rect.height);
+
+    const groupW = innerW / Math.max(1, buckets.length);
+    const grouped = buckets.length <= 8;
+    const visible = versions.filter(v => enabled[v.recipe_id]);
+    const idx = Math.floor((mx - PAD.l) / groupW);
+    if (idx < 0 || idx >= buckets.length) { hideTooltip(); return; }
+
+    const b = buckets[idx];
+    const lines = [{ text: b.label, muted: true }];
+    visible.forEach(v => {
+      const c = b.counts[v.recipe_id] || 0;
+      if (c > 0) lines.push({ text: v.label + " · " + c + " img", color: v.color });
+    });
+    if (lines.length === 1) { hideTooltip(); return; }
+
+    const tipX = (PAD.l + idx * groupW + groupW / 2) * (rect.width / W);
+    const tipY = my * (rect.height / H) - 4;
+    showTooltip(tipX, tipY, lines);
+  });
+
+  canvas.addEventListener("mouseleave", hideTooltip);
+
+  // checkbox visibility toggle
+  const listEl = document.getElementById("dist-stat-list-" + recipeId);
+  if (listEl) {
+    listEl.addEventListener("click", function (e) {
+      const btn = e.target.closest("[data-checkbox]");
+      if (!btn) return;
+      e.stopPropagation();
+      const rid = parseInt(btn.getAttribute("data-checkbox"), 10);
+      enabled[rid] = !enabled[rid];
+      const isOn = enabled[rid];
+      const color = btn.closest("[data-color]").getAttribute("data-color");
+      btn.style.background = isOn ? color : "transparent";
+      btn.setAttribute("aria-pressed", isOn ? "true" : "false");
+      const row = btn.closest(".dist-stat-row");
+      row.style.opacity = isOn ? "1" : "0.42";
+      draw();
+    });
+  }
+  }); // end requestAnimationFrame
+})();
+</script>

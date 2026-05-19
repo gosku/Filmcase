@@ -116,6 +116,8 @@ Opening a recipe shows all its settings at a glance. From this page you can:
   change what differs. Both recipes are linked in a version line, letting the app trace the
   chronological evolution of a recipe over time. This is useful for seeing how a recipe has
   been refined across different shoots.
+- **Distribution & Versions** — A panel in the recipe detail visualises how your shooting with this recipe is distributed
+  over time, broken down by version. A bar chart plots image counts per time bucket, with a **W / M / Y** toggle to switch the bucket size between week, month, and year.
 
 ![Recipe detail view](images/recipe_detail_view.jpg)
 

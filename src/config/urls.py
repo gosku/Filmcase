@@ -23,6 +23,7 @@ urlpatterns = [
     path("recipes/partial/results/", views.recipes_explorer_results_view, name="recipes-explorer-partial-results"),
     path("recipes/graph/", views.recipes_graph_view, name="recipes-graph"),
     path("recipes/graph/<int:recipe_id>/", views.recipe_graph_view, name="recipe-graph"),
+    path("recipes/<int:recipe_id>/distribution/", views.RecipeDistribution.as_view(), name="recipe-distribution"),
     path("recipes/<int:recipe_id>/", views.recipe_detail_view, name="recipe-detail"),
     path("recipes/<int:recipe_id>/images/", views.recipe_images_view, name="recipe-images"),
     path("recipes/<int:recipe_id>/images/<int:image_id>/", views.recipe_compare_image_view, name="recipe-compare-image"),
