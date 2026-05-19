@@ -1,5 +1,7 @@
 import json
 import mimetypes
+import re
+import tempfile
 from urllib.parse import urlencode
 import attrs as _attrs
 import structlog
@@ -10,6 +12,7 @@ from django.conf import settings
 from django.core import paginator as django_paginator
 from django import http
 from django import shortcuts
+from django import urls
 from django.views import generic
 from django.views.decorators import http as http_decorators
 
@@ -19,6 +22,7 @@ from src.application.usecases.camera import push_recipe as push_recipe_uc
 from src.application.usecases.recipes import build_graph as build_graph_uc
 from src.application.usecases.recipes import get_recipe_distribution as get_recipe_distribution_uc
 from src.application.usecases.recipes import create_recipe_card as create_recipe_card_uc
+from src.application.usecases.recipes import create_recipe_cards_batch as create_recipe_cards_batch_uc
 from src.application.usecases.recipes import create_recipe_manually as create_recipe_manually_uc
 from src.application.usecases.recipes import create_recipe_version as create_recipe_version_uc
 from src.application.usecases.recipes import import_recipes_from_uploaded_files as import_recipes_uc
@@ -555,6 +559,65 @@ class RemoveRecipes(generic.View):
                 "all_succeeded": not result.failures,
             },
         )
+
+
+_BATCH_ZIP_NAME_RE = re.compile(r"^recipe_cards_[0-9a-f]{8}\.zip$")
+_BATCH_RESULT_TEMPLATE = "recipes/partials/create_recipe_cards_batch_result.html"
+
+
+class CreateRecipeCardsBatch(generic.View):
+    def post(self, request: http.HttpRequest) -> http.HttpResponse:
+        recipe_ids_raw = request.POST.getlist("recipe_ids")
+        try:
+            recipe_ids = [int(pk) for pk in recipe_ids_raw]
+        except (ValueError, TypeError):
+            return http.HttpResponseBadRequest("recipe_ids must be integers")
+        try:
+            result = create_recipe_cards_batch_uc.create_recipe_cards_batch(
+                recipe_ids=recipe_ids,
+            )
+        except Exception:
+            structlog.get_logger().exception(
+                "Unexpected error in CreateRecipeCardsBatch.post"
+            )
+            return shortcuts.render(
+                request,
+                _BATCH_RESULT_TEMPLATE,
+                {"error": "An unexpected error occurred. Please try again."},
+            )
+        zip_download_url = None
+        if result.zip_path is not None:
+            zip_download_url = urls.reverse(
+                "recipes-card-zip-download", args=[result.zip_path.name]
+            )
+        return shortcuts.render(
+            request,
+            _BATCH_RESULT_TEMPLATE,
+            {
+                "created_count": result.created_count,
+                "failures": result.failures,
+                "all_succeeded": result.created_count > 0 and not result.failures,
+                "zip_download_url": zip_download_url,
+            },
+        )
+
+
+def recipe_cards_zip_download_view(
+    request: http.HttpRequest, filename: str
+) -> http.FileResponse:
+    # The filename pattern is strict (no path separators) so it cannot be used
+    # to escape the temp directory.
+    if not _BATCH_ZIP_NAME_RE.fullmatch(filename):
+        raise http.Http404
+    zip_path = Path(tempfile.gettempdir()) / filename
+    if not zip_path.is_file():
+        raise http.Http404
+    return http.FileResponse(
+        zip_path.open("rb"),
+        as_attachment=True,
+        filename=filename,
+        content_type="application/zip",
+    )
 
 
 @http_decorators.require_POST

@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import tempfile
 import uuid
+import zipfile
+from collections.abc import Iterable
 from pathlib import Path
 
 import attrs
@@ -244,6 +247,51 @@ def create_recipe_card(
         template=template.template_name,
     )
     return card
+
+
+@attrs.frozen
+class RecipeCardFileMissingError(Exception):
+    """
+    Raised when a RecipeCard's JPEG file is missing from the filesystem.
+
+    A RecipeCard record always implies its file exists, so a missing file
+    indicates a corrupted state rather than an expected, handleable condition.
+    """
+
+    card_id: int
+    filepath: str
+
+
+def create_recipe_cards_zip(*, cards: Iterable[models.RecipeCard]) -> Path:
+    """
+    Bundle the JPEG files of *cards* into a zip archive in the temp directory.
+
+    The archive is written to a uniquely named path under the system temp
+    directory and is *not* cleaned up automatically: it must outlive this call
+    so a download link can be served afterwards. Returns the archive path.
+
+    :raises RecipeCardFileMissingError: If a card's file is not on disk.
+    """
+    # Validate every file exists before writing anything so we never leave a
+    # partial archive on disk.
+    cards = tuple(cards)
+    for card in cards:
+        if not Path(card.filepath).exists():
+            raise RecipeCardFileMissingError(card_id=card.pk, filepath=card.filepath)
+
+    zip_path = Path(tempfile.gettempdir()) / f"recipe_cards_{uuid.uuid4().hex[:8]}.zip"
+    with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as archive:
+        for card in cards:
+            source = Path(card.filepath)
+            archive.write(source, arcname=source.name)
+    card_count = len(cards)
+
+    events.publish_event(
+        event_type=events.RECIPE_CARDS_ZIP_CREATED,
+        card_count=card_count,
+        zip_path=str(zip_path),
+    )
+    return zip_path
 
 
 @attrs.frozen
