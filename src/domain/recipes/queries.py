@@ -667,6 +667,59 @@ def get_recipe_gallery_data(
 
 
 @attrs.frozen
+class RecipeNotInVersionLineError(Exception):
+    recipe_id: int
+
+
+@attrs.frozen
+class VersionLineRecipe:
+    recipe_id: int
+    position: int
+    label: str
+    name: str
+    is_current: bool
+
+
+@attrs.frozen
+class VersionLineResult:
+    recipes: tuple[VersionLineRecipe, ...]
+
+
+def get_recipes_in_version_line(*, recipe_id: int) -> VersionLineResult:
+    """
+    Return all recipes belonging to the same VERSION_LINE group as recipe_id.
+
+    :raises RecipeNotInVersionLineError: If recipe_id has no VERSION_LINE group member.
+    """
+    try:
+        member = models.RecipeGroupMember.objects.get(
+            recipe_id=recipe_id,
+            group_type=models.RecipeGroup.GROUP_TYPE_VERSION_LINE,
+        )
+    except models.RecipeGroupMember.DoesNotExist:
+        raise RecipeNotInVersionLineError(recipe_id=recipe_id)
+
+    members = (
+        models.RecipeGroupMember.objects
+        .filter(group_id=member.group_id)
+        .select_related("recipe")
+        .order_by("position")
+    )
+    version_recipes: list[VersionLineRecipe] = []
+    for m in members:
+        assert m.position is not None, "VERSION_LINE members always have a position"
+        version_recipes.append(VersionLineRecipe(
+            recipe_id=m.recipe_id,
+            position=m.position,
+            label=f"v{m.position}",
+            name=m.recipe.name,
+            is_current=(m.recipe_id == recipe_id),
+        ))
+    recipes = tuple(version_recipes)
+    return VersionLineResult(recipes=recipes)
+
+
+@attrs.frozen
 class RecipeListPage:
     page_obj: object  # Django Page; object_list contains FujifilmRecipe instances
 
