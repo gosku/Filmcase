@@ -1,4 +1,5 @@
 import attrs
+import enum
 import os
 import re
 from collections.abc import Mapping, Sequence
@@ -7,6 +8,8 @@ from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
 from django.core import exceptions as django_exceptions
+from django.db.models import Count
+from django.db.models.functions import TruncWeek, TruncMonth, TruncYear
 
 from src.data import models
 from src.domain.images import dataclasses as image_dataclasses
@@ -433,4 +436,72 @@ def get_images_for_recipe(*, recipe_id: int) -> list[int]:
         .filter(fujifilm_recipe_id=recipe_id)
         .order_by("-rating", "-taken_at", "id")
         .values_list("id", flat=True)
+    )
+
+
+class Duration(str, enum.Enum):
+    WEEK = "week"
+    MONTH = "month"
+    YEAR = "year"
+
+
+@attrs.frozen
+class BucketCount:
+    bucket: str
+    bucket_dt: datetime
+    count: int
+
+
+@attrs.frozen
+class RecipeImageDistribution:
+    recipe_id: int
+    buckets: tuple[BucketCount, ...]
+
+
+_TRUNC_FN = {
+    Duration.WEEK: TruncWeek,
+    Duration.MONTH: TruncMonth,
+    Duration.YEAR: TruncYear,
+}
+
+
+def _format_bucket_label(bucket: datetime, duration: Duration) -> str:
+    if duration == Duration.WEEK:
+        return bucket.strftime("W%V %b %y")
+    if duration == Duration.YEAR:
+        return bucket.strftime("%Y")
+    return bucket.strftime("%b %y")
+
+
+def get_number_images_aggregated_by(
+    *,
+    duration: Duration,
+    recipe_ids: Sequence[int],
+) -> tuple[RecipeImageDistribution, ...]:
+    """
+    Return per-recipe image counts bucketed by the given duration.
+    """
+    if not recipe_ids:
+        return ()
+
+    trunc_fn = _TRUNC_FN[duration]
+    rows = (
+        models.Image.objects
+        .filter(fujifilm_recipe_id__in=recipe_ids, taken_at__isnull=False)
+        .annotate(bucket=trunc_fn("taken_at"))
+        .values("bucket", "fujifilm_recipe_id")
+        .annotate(count=Count("id"))
+        .order_by("bucket")
+    )
+
+    grouped: dict[int, list[BucketCount]] = {rid: [] for rid in recipe_ids}
+    for row in rows:
+        rid = row["fujifilm_recipe_id"]
+        bucket_dt: datetime = row["bucket"]
+        label = _format_bucket_label(bucket_dt, duration)
+        grouped[rid].append(BucketCount(bucket=label, bucket_dt=bucket_dt, count=row["count"]))
+
+    return tuple(
+        RecipeImageDistribution(recipe_id=rid, buckets=tuple(grouped[rid]))
+        for rid in recipe_ids
     )
