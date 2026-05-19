@@ -23,6 +23,22 @@ class TestCreateRecipeCard:
         assert isinstance(card, models.RecipeCard)
         assert card.pk is not None
 
+    def test_returns_recipe_card_record_with_info_side_right(
+        self, tmp_path: Path, settings: object
+    ) -> None:
+        settings.RECIPE_CARDS_DIR = str(tmp_path)  # type: ignore[attr-defined]
+        recipe = FujifilmRecipeFactory()
+
+        card = uc.create_recipe_card(
+            recipe_id=recipe.pk,
+            image_id=None,
+            template=card_templates.LONG_LABEL,
+            info_side="right",
+        )
+
+        assert isinstance(card, models.RecipeCard)
+        assert Path(card.filepath).exists()
+
     def test_raises_if_recipe_does_not_exist(self, tmp_path: Path, settings: object) -> None:
         settings.RECIPE_CARDS_DIR = str(tmp_path)  # type: ignore[attr-defined]
 

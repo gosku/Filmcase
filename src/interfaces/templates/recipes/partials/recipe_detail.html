@@ -814,6 +814,12 @@
   document.addEventListener('keydown', function (e) {
     if (e.key !== 'Escape') return;
     var overlay = document.getElementById('card-overlay');
-    if (overlay && !overlay.hidden) closeCardOverlay();
+    if (overlay && !overlay.hidden) {
+      // Consume the event so the page-level Escape handler does not also
+      // close the underlying recipe detail overlay in the same keypress.
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      closeCardOverlay();
+    }
   });
 </script>

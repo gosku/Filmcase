@@ -56,6 +56,26 @@ class TestPreviewRecipeCard:
 
         assert path1 == path2
 
+    def test_different_info_side_produces_different_paths(self) -> None:
+        recipe = FujifilmRecipeFactory()
+
+        path_left = uc.preview_recipe_card(
+            recipe_id=recipe.pk,
+            image_id=None,
+            template=card_templates.LONG_LABEL,
+            info_side="left",
+        )
+        path_right = uc.preview_recipe_card(
+            recipe_id=recipe.pk,
+            image_id=None,
+            template=card_templates.LONG_LABEL,
+            info_side="right",
+        )
+
+        assert path_left != path_right
+        assert path_left.exists()
+        assert path_right.exists()
+
     def test_different_templates_produce_different_paths(self) -> None:
         recipe = FujifilmRecipeFactory()
 
