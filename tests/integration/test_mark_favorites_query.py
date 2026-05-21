@@ -2,7 +2,12 @@ from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
 import pytest
-from src.domain.images.queries import AmbiguousImageMatch, ImageNotFound, find_image_for_path
+from src.domain.images.queries import (
+    AmbiguousImageMatch,
+    ImageNotFound,
+    compute_content_hash,
+    find_image_for_path,
+)
 from src.domain.images.operations import process_image
 from tests.factories import FujifilmExifFactory, ImageFactory
 
@@ -67,6 +72,19 @@ class TestFindImageForPath:
         result = find_image_for_path(image_path=FIXTURE_IMAGE)
 
         assert result.pk == image_a.pk
+
+    def test_by_content_hash_matches_an_image_stored_at_a_different_path(self):
+        # _by_content_hash runs first: it matches on the file's bytes even
+        # though the record's filepath does not point at the fixture.
+        image = ImageFactory(
+            filename="XS107114.JPG",
+            filepath="/elsewhere/XS107114.JPG",
+            content_hash=compute_content_hash(image_path=FIXTURE_IMAGE),
+        )
+
+        result = find_image_for_path(image_path=FIXTURE_IMAGE)
+
+        assert result.pk == image.pk
 
     def test_disambiguates_burst_shots_by_image_count(self):
         # _by_filepath: no match — fixture path not in DB.

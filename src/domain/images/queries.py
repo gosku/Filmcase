@@ -1,5 +1,6 @@
 import attrs
 import enum
+import hashlib
 import os
 import re
 from collections.abc import Mapping, Sequence
@@ -265,6 +266,21 @@ def exif_to_recipe(*, exif: image_dataclasses.ImageExifData) -> image_dataclasse
     )
 
 
+def compute_content_hash(*, image_path: str) -> str:
+    """
+    Return the SHA-256 hex digest of the file's bytes.
+    """
+    digest = hashlib.sha256()
+    with open(image_path, "rb") as image_file:
+        for chunk in iter(lambda: image_file.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _by_content_hash(*, exif: image_dataclasses.ImageExifData, filename: str, date_taken: datetime | None, image_path: str) -> models.Image:
+    return models.Image.objects.get(content_hash=compute_content_hash(image_path=image_path))
+
+
 def _by_filepath(*, exif: image_dataclasses.ImageExifData, filename: str, date_taken: datetime | None, image_path: str) -> models.Image:
     return models.Image.objects.get(filepath=image_path)
 
@@ -294,6 +310,7 @@ def _by_date_only(*, exif: image_dataclasses.ImageExifData, filename: str, date_
 
 
 _LOOKUP_STRATEGIES = [
+    _by_content_hash,
     _by_filepath,
     _by_filename_and_date,
     _by_date_and_image_count,
@@ -331,6 +348,82 @@ def find_image_for_path(*, image_path: str) -> models.Image:
     if any_ambiguous:
         raise AmbiguousImageMatch(image_path)
     raise ImageNotFound(image_path)
+
+
+def find_existing_image_for_import(
+    *,
+    content_hash: str,
+    filepath: str,
+    exif: image_dataclasses.ImageExifData,
+    taken_at: datetime | None,
+    filename: str,
+) -> models.Image | None:
+    """
+    Return the Image an import of *filepath* should resolve to, or None if new.
+
+    Strategies are tried in order:
+      1. content-hash match — the same file bytes are already stored;
+      2. exact filepath match — a re-import, or a legacy row not yet hashed;
+      3. EXIF bridge — an un-hashed legacy row whose file has moved, matched on
+         (internal serial number, image count, taken_at, filename).
+
+    The bridge only considers rows that have no content hash yet, so it stops
+    matching once the catalog is fully hashed. ``filename`` is part of the
+    bridge key so an original and its edited ``~N`` copy are never merged.
+    """
+    if content_hash:
+        hashed_match = (
+            models.Image.objects
+            .filter(content_hash=content_hash)
+            .order_by("id")
+            .first()
+        )
+        if hashed_match is not None:
+            return hashed_match
+
+    try:
+        return models.Image.objects.get(filepath=filepath)
+    except models.Image.DoesNotExist:
+        pass
+
+    if exif.internal_serial_number and exif.image_count and taken_at is not None:
+        return (
+            models.Image.objects
+            .filter(
+                content_hash="",
+                fujifilm_exif__internal_serial_number=exif.internal_serial_number,
+                fujifilm_exif__image_count=exif.image_count,
+                taken_at=taken_at,
+                filename=filename,
+            )
+            .order_by("id")
+            .first()
+        )
+    return None
+
+
+def get_unhashed_image_ids() -> list[int]:
+    """
+    Return the ids of all images that have no content hash yet, oldest first.
+    """
+    return list(
+        models.Image.objects
+        .filter(content_hash="")
+        .order_by("id")
+        .values_list("id", flat=True)
+    )
+
+
+def find_image_by_content_hash(*, content_hash: str) -> models.Image | None:
+    """
+    Return the oldest image holding *content_hash*, or None if none does.
+    """
+    return (
+        models.Image.objects
+        .filter(content_hash=content_hash)
+        .order_by("id")
+        .first()
+    )
 
 
 def collect_image_paths(*, folder: str) -> list[str]:

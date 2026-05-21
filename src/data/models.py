@@ -346,6 +346,7 @@ class Image(models.Model):
     objects = models.Manager.from_queryset(ImageQuerySet)()
     filename = models.CharField(max_length=255)
     filepath = models.CharField(max_length=1024)
+    content_hash = models.CharField(max_length=64, blank=True, default="")
 
     # Camera info
     camera_make = models.CharField(max_length=100, blank=True, default="")
@@ -396,15 +397,42 @@ class Image(models.Model):
     class Meta:
         constraints = [
             models.UniqueConstraint(fields=["filepath"], name="unique_image_filepath"),
+            models.UniqueConstraint(
+                fields=["content_hash"],
+                condition=~models.Q(content_hash=""),
+                name="unique_image_content_hash",
+            ),
         ]
 
     # Factories
 
     @classmethod
-    def update_or_create(cls, *, filepath: str, **defaults: object) -> tuple["Image", bool]:
-        return cls.objects.update_or_create(filepath=filepath, defaults=defaults)
+    def create(
+        cls,
+        *,
+        filepath: str,
+        filename: str,
+        taken_at: datetime | None,
+        content_hash: str,
+        fujifilm_exif: FujifilmExif | None,
+        fujifilm_recipe: FujifilmRecipe | None,
+        **image_fields: object,
+    ) -> "Image":
+        return cls.objects.create(
+            filepath=filepath,
+            filename=filename,
+            taken_at=taken_at,
+            content_hash=content_hash,
+            fujifilm_exif=fujifilm_exif,
+            fujifilm_recipe=fujifilm_recipe,
+            **image_fields,
+        )
 
     # Mutators
+
+    def set_content_hash(self, *, content_hash: str) -> None:
+        self.content_hash = content_hash
+        self.save(update_fields=["content_hash"])
 
     def set_as_favorite(self) -> None:
         self.is_favorite = True
