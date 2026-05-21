@@ -530,7 +530,7 @@ class RecipeGroupMember(models.Model):
     )
     recipe = models.ForeignKey(
         FujifilmRecipe,
-        on_delete=models.PROTECT,
+        on_delete=models.CASCADE,
         related_name="group_memberships",
     )
     group_type = models.CharField(max_length=50)
