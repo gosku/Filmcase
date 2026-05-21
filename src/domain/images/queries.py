@@ -402,6 +402,30 @@ def find_existing_image_for_import(
     return None
 
 
+def get_unhashed_image_ids() -> list[int]:
+    """
+    Return the ids of all images that have no content hash yet, oldest first.
+    """
+    return list(
+        models.Image.objects
+        .filter(content_hash="")
+        .order_by("id")
+        .values_list("id", flat=True)
+    )
+
+
+def find_image_by_content_hash(*, content_hash: str) -> models.Image | None:
+    """
+    Return the oldest image holding *content_hash*, or None if none does.
+    """
+    return (
+        models.Image.objects
+        .filter(content_hash=content_hash)
+        .order_by("id")
+        .first()
+    )
+
+
 def collect_image_paths(*, folder: str) -> list[str]:
     """
     Return absolute paths of all JPG files inside *folder* (recursively).

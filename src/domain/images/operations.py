@@ -150,3 +150,30 @@ def process_image(*, image_path: str) -> models.Image:
         taken_at=date_taken.isoformat() if date_taken else "",
     )
     return image
+
+
+@transaction.atomic()
+def merge_image_into(*, loser: models.Image, keeper: models.Image) -> None:
+    """
+    Merge *loser* into *keeper* and delete *loser*.
+
+    The keeper gains album membership if either copy had it and keeps the
+    higher rating. Recipe-card and cover-image references are repointed to the
+    keeper before *loser* is deleted (both FKs are SET_NULL, so deleting first
+    would discard them). The loser's FujifilmExif row is deleted if the merge
+    leaves it orphaned. The FujifilmRecipe is never touched — a recipe may
+    exist without any image.
+    """
+    if loser.in_album and not keeper.in_album:
+        keeper.set_as_in_album()
+    if loser.rating > keeper.rating:
+        keeper.set_rating(loser.rating)
+
+    models.RecipeCard.objects.filter(image=loser).update(image=keeper)
+    models.FujifilmRecipe.objects.filter(cover_image=loser).update(cover_image=keeper)
+
+    exif_id = loser.fujifilm_exif_id
+    loser.delete()
+
+    if exif_id is not None and not models.Image.objects.filter(fujifilm_exif_id=exif_id).exists():
+        models.FujifilmExif.objects.filter(pk=exif_id).delete()
