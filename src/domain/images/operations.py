@@ -2,6 +2,7 @@ import attrs
 import os
 
 from django import conf
+from django.db import transaction
 
 from src.data import models
 from src.domain.images import events, queries
@@ -78,11 +79,17 @@ def toggle_image_favorite(*, image_id: int) -> bool:
     return image.is_favorite
 
 
+@transaction.atomic()
 def process_image(*, image_path: str) -> models.Image:
     """
     Read EXIF data from *image_path* and persist it to the database.
 
-    If a record for the same filepath already exists it is updated in-place.
+    Images are deduplicated by a SHA-256 hash of their file bytes: the same
+    photo stored under several paths resolves to a single record. A legacy
+    record imported before hashing existed is matched by its filepath (or, if
+    the file has moved, by its EXIF identity) and has its hash backfilled. An
+    already-hashed record is left untouched.
+
     A FujifilmExif record is looked up or created for the image's EXIF field
     combination and linked via the recipe FK.
 
@@ -106,20 +113,40 @@ def process_image(*, image_path: str) -> models.Image:
 
     fujifilm_recipe, _ = recipe_operations.get_or_create_recipe_from_metadata(metadata=metadata)
 
-    image, created = models.Image.update_or_create(
+    content_hash = queries.compute_content_hash(image_path=image_path)
+    existing = queries.find_existing_image_for_import(
+        content_hash=content_hash,
         filepath=image_path,
-        filename=filename,
+        exif=metadata,
         taken_at=date_taken,
-        fujifilm_exif=fujifilm_exif,
-        fujifilm_recipe=fujifilm_recipe,
-        **exif_fields,
+        filename=filename,
     )
+
+    if existing is None:
+        image = models.Image.create(
+            filepath=image_path,
+            filename=filename,
+            taken_at=date_taken,
+            content_hash=content_hash,
+            fujifilm_exif=fujifilm_exif,
+            fujifilm_recipe=fujifilm_recipe,
+            **exif_fields,
+        )
+        created = True
+    else:
+        image = existing
+        created = False
+        # A row found by its hash is already complete; never override it. An
+        # un-hashed legacy row only gets its content hash backfilled — the data
+        # we did not store before. Its filepath is left untouched.
+        if existing.content_hash == "":
+            existing.set_content_hash(content_hash=content_hash)
 
     events.publish_event(
         event_type=events.RECIPE_IMAGE_CREATED if created else events.RECIPE_IMAGE_UPDATED,
         image_id=image.pk,
         filename=filename,
         film_simulation=fujifilm_exif.film_simulation,
-        taken_at=image.taken_at.isoformat() if image.taken_at else "",
+        taken_at=date_taken.isoformat() if date_taken else "",
     )
     return image

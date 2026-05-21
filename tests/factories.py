@@ -56,6 +56,11 @@ class ImageFactory(factory.django.DjangoModelFactory):
     filename = factory.Sequence(lambda n: f"image_{n:04d}.jpg")
     filepath = factory.Sequence(lambda n: f"/shots/image_{n:04d}.jpg")
 
+    # content_hash has a partial unique constraint; a unique per-instance value
+    # keeps factory-built images distinct. Override with "" for a legacy
+    # (un-hashed) row.
+    content_hash = factory.Sequence(lambda n: f"{n:064x}")
+
     camera_make  = "FUJIFILM"
     camera_model = "X-S10"
     # All other fields are blank=True, default="" or have a model-level default.
