@@ -275,11 +275,18 @@ class FujifilmRecipe(models.Model):
         clarity: object,
         monochromatic_color_warm_cool: object,
         monochromatic_color_magenta_green: object,
+        sensor_signature: str = "",
         name: str = "",
+        description: str = "",
     ) -> "tuple[FujifilmRecipe, bool]":
-        # name is passed via defaults= so it only applies on the create path;
-        # matching an existing recipe keeps that recipe's current name.
-        # Uniqueness stays settings-only (see UniqueConstraint above).
+        # name and description are passed via defaults= so they only apply on
+        # the create path; matching an existing recipe keeps that recipe's
+        # current values for both fields. sensor_signature participates in
+        # the lookup because it's part of the recipe's UniqueConstraint --
+        # the caller is responsible for computing it (see
+        # src.domain.recipes.sensors.compute_sensor_signature) and for then
+        # attaching the M2M via set_recipe_sensors so the M2M and the
+        # denormalised signature stay in lock-step.
         return cls.objects.get_or_create(
             film_simulation=film_simulation,
             dynamic_range=dynamic_range,
@@ -299,7 +306,8 @@ class FujifilmRecipe(models.Model):
             clarity=clarity,
             monochromatic_color_warm_cool=monochromatic_color_warm_cool,
             monochromatic_color_magenta_green=monochromatic_color_magenta_green,
-            defaults={"name": name},
+            sensor_signature=sensor_signature,
+            defaults={"name": name, "description": description},
         )
 
     # Mutators
