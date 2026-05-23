@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import attrs
 
+from src.data import sensors as sensors_module
+
 RECIPE_NAME_MAX_LEN = 25
 
 
@@ -10,6 +12,18 @@ def _validate_name(instance: object, attribute: attrs.Attribute[str], value: str
         raise ValueError(
             f"Recipe name must be ≤{RECIPE_NAME_MAX_LEN} ASCII characters, got {value!r}"
         )
+
+
+def _validate_sensors(
+    instance: object,
+    attribute: attrs.Attribute[tuple[str, ...]],
+    value: tuple[str, ...],
+) -> None:
+    for name in value:
+        if name not in sensors_module.SENSOR_NAMES:
+            raise ValueError(
+                f"Unknown sensor name {name!r}; expected one of {sensors_module.SENSOR_NAMES}"
+            )
 
 
 @attrs.frozen
@@ -33,6 +47,8 @@ class FujifilmRecipeData:
     monochromatic_color_warm_cool: str | None = None
     monochromatic_color_magenta_green: str | None = None
     name: str = attrs.field(default="", validator=_validate_name)
+    sensors: tuple[str, ...] = attrs.field(default=(), validator=_validate_sensors)
+    description: str = ""
 
 
 @attrs.frozen
