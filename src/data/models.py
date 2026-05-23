@@ -1,3 +1,4 @@
+from collections.abc import Iterable
 from datetime import datetime
 from decimal import Decimal
 from typing import Any
@@ -310,6 +311,13 @@ class FujifilmRecipe(models.Model):
     def set_name(self, *, name: str) -> None:
         self.name = name
         self.save(update_fields=["name"])
+
+    def set_sensor_signature(self, *, sensor_signature: str) -> None:
+        self.sensor_signature = sensor_signature
+        self.save(update_fields=["sensor_signature"])
+
+    def set_sensors(self, *, sensors: Iterable["Sensor"]) -> None:
+        self.sensors.set(sensors)
 
     def update_settings(
         self,

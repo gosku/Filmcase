@@ -10,8 +10,11 @@ from src.data import models
 from src.domain.images import dataclasses as image_dataclasses
 from src.domain.images import events
 from src.domain.images import queries as image_queries
+from collections.abc import Iterable
+
 from src.domain.recipes import normalization as recipe_normalization
 from src.domain.recipes import queries as recipe_queries
+from src.domain.recipes import sensors as recipe_sensors
 from src.domain.recipes import validation as recipe_validation
 from src.domain.recipes.cards import operations as card_operations
 from src.domain.recipes.cards import queries as card_queries
@@ -297,6 +300,49 @@ def set_recipe_name(*, recipe: models.FujifilmRecipe, name: str) -> None:
         event_type=events.RECIPE_IMAGE_UPDATED,
         name=name,
         recipe_id=recipe.pk,
+    )
+
+
+@attrs.frozen
+class UnknownSensorError(Exception):
+    """
+    Raised when a sensor name doesn't match any seeded :class:`Sensor` row.
+    """
+
+    name: str
+
+
+def set_recipe_sensors(
+    *, recipe: models.FujifilmRecipe, sensor_names: Iterable[str]
+) -> None:
+    """
+    Replace *recipe*'s sensor set and refresh its denormalised signature.
+
+    Looks up each name in :class:`Sensor`, computes the canonical signature
+    from the (deduplicated) set of resolved sensors, and writes both the M2M
+    and the ``sensor_signature`` field through their single-purpose mutators.
+    The two writes are wrapped in a single ``transaction.atomic`` block here
+    in the operation so the recipe's UniqueConstraint never sees an
+    intermediate state where the signature and the M2M disagree.
+
+    :raises UnknownSensorError: If any name doesn't correspond to a seeded
+        sensor row. The lookup runs before the mutation, so a validation
+        failure never leaves the recipe partially mutated.
+    """
+    sensor_names = tuple(sensor_names)
+    sensor_queryset = models.Sensor.objects.filter(name__in=sensor_names)
+    resolved_names = set(sensor_queryset.values_list("name", flat=True))
+    for name in sensor_names:
+        if name not in resolved_names:
+            raise UnknownSensorError(name=name)
+    signature = recipe_sensors.compute_sensor_signature(sensor_names)
+    with transaction.atomic(savepoint=False):
+        recipe.set_sensor_signature(sensor_signature=signature)
+        recipe.set_sensors(sensors=sensor_queryset)
+    events.publish_event(
+        event_type=events.RECIPE_SENSORS_SET,
+        recipe_id=recipe.pk,
+        sensor_signature=signature,
     )
 
 
