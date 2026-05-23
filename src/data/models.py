@@ -312,6 +312,10 @@ class FujifilmRecipe(models.Model):
         self.name = name
         self.save(update_fields=["name"])
 
+    def set_description(self, *, description: str) -> None:
+        self.description = description
+        self.save(update_fields=["description"])
+
     def set_sensor_signature(self, *, sensor_signature: str) -> None:
         self.sensor_signature = sensor_signature
         self.save(update_fields=["sensor_signature"])
