@@ -170,6 +170,28 @@ class FujifilmExif(models.Model):
         return f"#{self.id} {label}"
 
 
+class Sensor(models.Model):
+    """
+    A Fujifilm sensor generation a recipe is compatible with.
+
+    Seeded once by migration from :data:`src.data.sensors.SENSOR_NAMES`. The
+    table is read-only at the application layer — adding or removing a sensor
+    requires a code change to ``SENSOR_NAMES`` and a corresponding migration.
+    """
+
+    name = models.CharField(max_length=50)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["name"], name="unique_sensor_name"),
+        ]
+
+    # Properties
+
+    def __str__(self) -> str:
+        return f"#{self.id} {self.name}"
+
+
 class FujifilmRecipe(models.Model):
     name = models.CharField(max_length=_RECIPE_NAME_MAX_LEN, blank=True, default="")
     film_simulation = models.CharField(max_length=100)
@@ -191,6 +213,18 @@ class FujifilmRecipe(models.Model):
     monochromatic_color_warm_cool = models.DecimalField(max_digits=4, decimal_places=1, null=True, blank=True)
     monochromatic_color_magenta_green = models.DecimalField(max_digits=4, decimal_places=1, null=True, blank=True)
 
+    sensors = models.ManyToManyField(Sensor, related_name="recipes", blank=True)
+    # Denormalised canonical join of the linked sensor names. Exists so the
+    # unique constraint below can include the sensor set (M2M columns cannot
+    # appear in a UniqueConstraint directly). Must stay in lock-step with the
+    # ``sensors`` M2M — a follow-up commit introduces the mutator that
+    # guarantees this. The empty string is the signature used by recipes with
+    # no sensors attached, which keeps the pre-existing settings-only dedup
+    # behaviour in place.
+    sensor_signature = models.CharField(max_length=255, blank=True, default="")
+
+    description = models.TextField(blank=True, default="")
+
     cover_image = models.ForeignKey(
         "Image",
         null=True,
@@ -209,6 +243,7 @@ class FujifilmRecipe(models.Model):
                     "white_balance_blue", "highlight", "shadow", "color",
                     "sharpness", "high_iso_nr", "clarity",
                     "monochromatic_color_warm_cool", "monochromatic_color_magenta_green",
+                    "sensor_signature",
                 ],
                 name="unique_fujifilm_recipe",
                 nulls_distinct=False,
