@@ -171,3 +171,78 @@ class TestGetOrCreateRecipeFromDataVersionLine:
         recipe, created = get_or_create_recipe_from_data(data=_make_data(), group_id=99999)
 
         assert created is False
+
+
+@pytest.mark.django_db
+class TestGetOrCreateRecipeFromDataWithSensors:
+    def test_attaches_sensors_to_new_recipe(self):
+        recipe, _ = get_or_create_recipe_from_data(
+            data=_make_data(sensors=("X-Trans IV", "GFX"), white_balance_red=8001)
+        )
+
+        assert sorted(s.name for s in recipe.sensors.all()) == ["GFX", "X-Trans IV"]
+        assert recipe.sensor_signature == "gfx,x-trans iv"
+
+    def test_same_settings_different_sensors_yield_distinct_recipes(self):
+        first, created_first = get_or_create_recipe_from_data(
+            data=_make_data(sensors=("X-Trans IV",), white_balance_red=8002)
+        )
+        second, created_second = get_or_create_recipe_from_data(
+            data=_make_data(sensors=("X-Trans V",), white_balance_red=8002)
+        )
+
+        assert created_first and created_second
+        assert first.pk != second.pk
+
+    def test_same_settings_same_sensors_dedup(self):
+        first, _ = get_or_create_recipe_from_data(
+            data=_make_data(sensors=("X-Trans IV", "GFX"), white_balance_red=8003)
+        )
+        # Order-independent: GFX, X-Trans IV is the same set as X-Trans IV, GFX.
+        second, created = get_or_create_recipe_from_data(
+            data=_make_data(sensors=("GFX", "X-Trans IV"), white_balance_red=8003)
+        )
+
+        assert not created
+        assert first.pk == second.pk
+        # The M2M was attached only once -- two sensors, not four.
+        assert first.sensors.count() == 2
+
+    def test_empty_sensors_leaves_recipe_without_m2m_and_with_blank_signature(self):
+        recipe, _ = get_or_create_recipe_from_data(
+            data=_make_data(white_balance_red=8004)
+        )
+
+        assert list(recipe.sensors.all()) == []
+        assert recipe.sensor_signature == ""
+
+
+@pytest.mark.django_db
+class TestGetOrCreateRecipeFromDataWithDescription:
+    def test_description_written_on_create(self):
+        recipe, _ = get_or_create_recipe_from_data(
+            data=_make_data(description="Recipe notes here.", white_balance_red=8005)
+        )
+
+        recipe.refresh_from_db()
+        assert recipe.description == "Recipe notes here."
+
+    def test_description_not_overwritten_on_dedup_path(self):
+        original, _ = get_or_create_recipe_from_data(
+            data=_make_data(description="Original notes", white_balance_red=8006)
+        )
+        same, created = get_or_create_recipe_from_data(
+            data=_make_data(description="New notes", white_balance_red=8006)
+        )
+
+        assert not created and same.pk == original.pk
+        original.refresh_from_db()
+        assert original.description == "Original notes"
+
+    def test_description_defaults_to_empty_string(self):
+        recipe, _ = get_or_create_recipe_from_data(
+            data=_make_data(white_balance_red=8007)
+        )
+
+        recipe.refresh_from_db()
+        assert recipe.description == ""

@@ -124,12 +124,14 @@ def get_or_create_recipe_from_data(
     Create or retrieve a FujifilmRecipe for the given recipe data.
 
     Returns ``(recipe, created)``. Uniqueness is determined by the recipe
-    settings only — ``data.name`` is applied via ``defaults`` on the create
-    path and is never considered during lookup or written back on the get path.
+    settings and the sensor set (via ``sensor_signature``); ``data.name`` and
+    ``data.description`` are applied via ``defaults`` on the create path and
+    are never considered during lookup or written back on the get path.
 
-    When *created* is True, adds the recipe to a version line via
-    ``add_recipe_to_version_line``. Pass *group_id* to append
-    the new recipe to an existing version line; omit it to start a new one.
+    When *created* is True, attaches *data.sensors* to the new recipe (via
+    ``set_recipe_sensors``) and adds it to a version line via
+    ``add_recipe_to_version_line``. Pass *group_id* to append the new recipe
+    to an existing version line; omit it to start a new one.
 
     This is the single seam for ``FujifilmRecipe.get_or_create`` — shared by
     every caller that has already produced a FujifilmRecipeData (from EXIF,
@@ -137,6 +139,7 @@ def get_or_create_recipe_from_data(
     """
     data = recipe_normalization.normalize_recipe_data(data)
     recipe_validation.validate_recipe_data(data)
+    signature = recipe_sensors.compute_sensor_signature(data.sensors)
     recipe, created = models.FujifilmRecipe.get_or_create(
         film_simulation=data.film_simulation,
         dynamic_range=data.dynamic_range or "",
@@ -156,9 +159,16 @@ def get_or_create_recipe_from_data(
         clarity=_parse_numeric(s=data.clarity),
         monochromatic_color_warm_cool=_parse_numeric(s=data.monochromatic_color_warm_cool),
         monochromatic_color_magenta_green=_parse_numeric(s=data.monochromatic_color_magenta_green),
+        sensor_signature=signature,
         name=data.name,
+        description=data.description,
     )
     if created:
+        if data.sensors:
+            # The factory already wrote sensor_signature on create; this
+            # attaches the M2M side via set_recipe_sensors, which also
+            # re-writes the signature (idempotent: same value).
+            set_recipe_sensors(recipe=recipe, sensor_names=data.sensors)
         add_recipe_to_version_line(recipe=recipe, group_id=group_id)
         events.publish_event(
             event_type=events.RECIPE_CREATED,
