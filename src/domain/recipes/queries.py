@@ -113,6 +113,9 @@ def recipe_from_db(*, recipe: models.FujifilmRecipe) -> image_dataclasses.Fujifi
     """
     Convert a FujifilmRecipe DB model instance to a FujifilmRecipeData domain object.
     """
+    sensors: tuple[str, ...] = tuple(
+        sorted(recipe.sensors.values_list("name", flat=True))
+    )
     return recipe_normalization.normalize_recipe_data(
         image_dataclasses.FujifilmRecipeData(
             name=recipe.name,
@@ -134,6 +137,8 @@ def recipe_from_db(*, recipe: models.FujifilmRecipe) -> image_dataclasses.Fujifi
             color=_decimal_str_or_none(recipe.color),
             monochromatic_color_warm_cool=_decimal_str_or_none(recipe.monochromatic_color_warm_cool),
             monochromatic_color_magenta_green=_decimal_str_or_none(recipe.monochromatic_color_magenta_green),
+            sensors=sensors,
+            description=recipe.description,
         )
     )
 

@@ -11,6 +11,13 @@ from tests.fakes import FakePTPDevice
 
 
 def _make_recipe(**overrides: object) -> models.FujifilmRecipe:
+    """
+    Create and save a FujifilmRecipe via the factory.
+
+    push_recipe_to_camera() reads the recipe's sensors M2M (via
+    recipe_from_db), which requires a saved instance, so these tests touch
+    the DB despite living under tests/unit.
+    """
     defaults = dict(
         name="Test Recipe",
         film_simulation="Provia",
@@ -31,7 +38,7 @@ def _make_recipe(**overrides: object) -> models.FujifilmRecipe:
         shadow=Decimal("0"),
     )
     defaults.update(overrides)
-    return FujifilmRecipeFactory.build(**defaults)
+    return FujifilmRecipeFactory(**defaults)
 
 
 def _push(recipe=None, slot_index=1):
@@ -46,6 +53,7 @@ def _push(recipe=None, slot_index=1):
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.django_db
 class TestPushRecipeVerification:
     def test_verification_passes_when_readback_matches(self):
         _push()  # no exception = all properties written and verified
@@ -90,6 +98,7 @@ class TestPushRecipeVerification:
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.django_db
 class TestWriteSuccessEvents:
     def test_succeeded_event_published_for_each_written_property(self, captured_logs):
         _push()
@@ -103,6 +112,7 @@ class TestWriteSuccessEvents:
             assert "0x" in evt["description"]
 
 
+@pytest.mark.django_db
 class TestWriteFailedCameraRejection:
     def test_failed_event_published_once_on_camera_rejection(self, settings, captured_logs):
         film_sim_code = constants.CUSTOM_SLOT_CODES["FilmSimulation"]
@@ -147,6 +157,7 @@ class TestWriteFailedCameraRejection:
         assert len(succeeded) > 0
 
 
+@pytest.mark.django_db
 class TestWriteFailedTransportError:
     def test_raises_camera_connection_error_on_transport_failure(self, settings):
         film_sim_code = constants.CUSTOM_SLOT_CODES["FilmSimulation"]
