@@ -23,6 +23,7 @@ class FieldLine:
 
 
 _LONG_LABELS: dict[str, str] = {
+    "sensors": "Sensors",
     "film_simulation": "Film Simulation",
     "dynamic_range": "Dynamic Range",
     "d_range_priority": "D-Range Priority",
@@ -44,6 +45,7 @@ _LONG_LABELS: dict[str, str] = {
 }
 
 _SHORT_LABELS: dict[str, str] = {
+    "sensors": "Sensors",
     "film_simulation": "Film Sim",
     "dynamic_range": "DR",
     "d_range_priority": "D-Range",
@@ -177,10 +179,18 @@ def get_recipe_cover_lines(
     """
     Return display lines for the recipe card formatted per template label style.
 
-    Inapplicable fields (same rules as get_recipe_as_json) and null values are omitted.
+    Inapplicable fields (same rules as get_recipe_as_json) and null values are
+    omitted. When the recipe has attached sensors, a "Sensors" line is
+    prepended to the body so card recipients can see compatibility at a
+    glance before reading the settings.
     """
     labels = _LONG_LABELS if template.label_style == "long" else _SHORT_LABELS
     lines: list[FieldLine] = []
+    sensor_names = sorted(recipe.sensors.values_list("name", flat=True))
+    if sensor_names:
+        lines.append(
+            FieldLine(label=labels["sensors"], value=", ".join(sensor_names))
+        )
     for field in _DISPLAY_FIELDS:
         if not _is_applicable(recipe, field):
             continue

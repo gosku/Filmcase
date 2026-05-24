@@ -229,3 +229,37 @@ class TestGetRecipeAsJsonDescription:
         payload = json.loads(queries.get_recipe_as_json(recipe=recipe))
 
         assert "description" not in payload
+
+
+@pytest.mark.django_db
+class TestGetRecipeCoverLinesSensors:
+    def test_omits_sensors_line_when_recipe_has_none(self) -> None:
+        recipe = _recipe()
+
+        lines = queries.get_recipe_cover_lines(recipe=recipe, template=templates.LONG_LABEL)
+
+        assert "Sensors" not in [line.label for line in lines]
+
+    def test_prepends_sensors_line_when_recipe_has_sensors(self) -> None:
+        recipe = _recipe()
+        recipe.set_sensors(
+            sensors=models.Sensor.objects.filter(name__in=["X-Trans IV", "GFX"])
+        )
+
+        lines = queries.get_recipe_cover_lines(recipe=recipe, template=templates.LONG_LABEL)
+
+        # The sensors line is first so receivers see compatibility before
+        # reading any settings.
+        assert lines[0].label == "Sensors"
+        assert lines[0].value == "GFX, X-Trans IV"
+
+    def test_uses_short_label_style(self) -> None:
+        recipe = _recipe()
+        recipe.set_sensors(sensors=models.Sensor.objects.filter(name="X-Trans V"))
+
+        lines = queries.get_recipe_cover_lines(recipe=recipe, template=templates.SHORT_LABEL)
+
+        # Long/short happen to be identical here ("Sensors"); the test
+        # documents the contract for future divergence.
+        assert lines[0].label == "Sensors"
+        assert lines[0].value == "X-Trans V"
