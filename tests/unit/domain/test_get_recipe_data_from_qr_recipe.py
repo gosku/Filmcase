@@ -157,3 +157,34 @@ class TestGetRecipeDataFromQRRecipe:
 
         assert result.monochromatic_color_warm_cool is None
         assert result.monochromatic_color_magenta_green is None
+
+
+class TestGetRecipeDataFromQRRecipeSensors:
+    """Sensor field round-trip through the v=2 schema."""
+
+    def test_v1_payload_without_sensors_yields_empty_tuple(self) -> None:
+        # The legacy v=1 schema didn't have a sensors field. Decoding it must
+        # produce sensors=() (not None) so the FujifilmRecipeData validator
+        # is satisfied.
+        qr = _valid_qr(v=1)
+
+        result = card_queries.get_recipe_data_from_qr_recipe(qr_recipe=qr)
+
+        assert result.sensors == ()
+
+    def test_v2_payload_with_sensors_round_trips(self) -> None:
+        qr = _valid_qr(v=2, sensors=("X-Trans IV", "GFX"))
+
+        result = card_queries.get_recipe_data_from_qr_recipe(qr_recipe=qr)
+
+        assert result.sensors == ("X-Trans IV", "GFX")
+
+    def test_v2_payload_without_sensors_yields_empty_tuple(self) -> None:
+        # sensors is optional even in v=2 (a nameless recipe with no sensors
+        # produces a payload without the key); the converter normalises the
+        # absent value to an empty tuple downstream.
+        qr = _valid_qr(v=2)
+
+        result = card_queries.get_recipe_data_from_qr_recipe(qr_recipe=qr)
+
+        assert result.sensors == ()

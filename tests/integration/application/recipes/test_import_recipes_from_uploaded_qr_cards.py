@@ -94,7 +94,10 @@ class TestImportRecipesFromUploadedQRCards:
         assert result.failed == ("bad.png",)
 
     def test_publishes_invalid_payload_event_with_reason(self, tmp_path: Path, captured_logs) -> None:
-        bad = _qr_file(tmp_path, json.dumps({"v": 2}), filename="old_schema.png")
+        # v=99 is outside the accepted set ({1, 2}) so the decoder reports
+        # unsupported_version. The exact version is incidental -- we're
+        # asserting the failure path publishes the reason verbatim.
+        bad = _qr_file(tmp_path, json.dumps({"v": 99}), filename="unknown_schema.png")
 
         import_recipes_from_uploaded_qr_cards(files=[bad])
 
@@ -102,7 +105,7 @@ class TestImportRecipesFromUploadedQRCards:
             e for e in captured_logs if e.get("event_type") == events.RECIPE_IMPORT_QR_CARD_FAILED
         ]
         assert len(failure_events) == 1
-        assert failure_events[0]["filename"] == "old_schema.png"
+        assert failure_events[0]["filename"] == "unknown_schema.png"
         assert failure_events[0]["failure_reason"] == "unsupported_version"
 
     def test_continues_after_failure_and_processes_remaining_files(self) -> None:
