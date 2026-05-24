@@ -21,6 +21,21 @@ def _recipe(filename: str):
 
 
 # ---------------------------------------------------------------------------
+# sensors — derived from EXIF Camera Model Name via CAMERA_TO_SENSOR
+# ---------------------------------------------------------------------------
+
+
+class TestSensorFromCameraModelName:
+    def test_x_s10_fixture_resolves_to_x_trans_iv(self):
+        # All bundled fixtures were shot on an X-S10. Verify the wiring on
+        # the canonical case; the mapping integrity itself is covered in
+        # tests/unit/domain/test_exif_to_recipe_sensors.py.
+        recipe = _recipe("film_simulation_provia.jpg")
+
+        assert recipe.sensors == ("X-Trans IV",)
+
+
+# ---------------------------------------------------------------------------
 # film_simulation — sourced from EXIF Film Mode field
 # ---------------------------------------------------------------------------
 

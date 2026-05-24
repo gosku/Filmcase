@@ -215,3 +215,92 @@ CAMERA_CUSTOM_SLOT_COUNTS: dict[str, int] = {
     "X10": 0, "X20": 0, "X30": 0,
     "XF1": 0, "XF10": 0, "XQ1": 0, "XQ2": 0,
 }
+
+
+# ---------------------------------------------------------------------------
+# Camera model → sensor generation
+#
+# Maps the EXIF "Camera Model Name" string (e.g. "X-T4", "X-S10") to one of
+# the canonical sensor names in src.data.sensors.SENSOR_NAMES. Used by
+# src.domain.images.queries.exif_to_recipe to populate
+# FujifilmRecipeData.sensors so an imported Fuji JPEG carries its sensor
+# generation through to the recipe.
+#
+# Sources: publicly documented Fujifilm sensor generations. The "Full
+# Spectrum" enum value is not mapped here because it describes a hardware
+# modification (IR-converted body), not a stock camera model.
+# ---------------------------------------------------------------------------
+
+CAMERA_TO_SENSOR: dict[str, str] = {
+    # X-Trans I (16MP APS-C, first generation)
+    "X-Pro1":    "X-Trans I",
+    "X-E1":      "X-Trans I",
+    "X-M1":      "X-Trans I",
+
+    # X-Trans II (16MP APS-C / 2/3")
+    "X-T1":      "X-Trans II",
+    "X-T10":     "X-Trans II",
+    "X-E2":      "X-Trans II",
+    "X-E2S":     "X-Trans II",
+    "X100S":     "X-Trans II",
+    "X100T":     "X-Trans II",
+    "X70":       "X-Trans II",
+    "X20":       "X-Trans II",
+    "X30":       "X-Trans II",
+    "XQ1":       "X-Trans II",
+    "XQ2":       "X-Trans II",
+
+    # X-Trans III (24MP APS-C)
+    "X-Pro2":    "X-Trans III",
+    "X-T2":      "X-Trans III",
+    "X-T20":     "X-Trans III",
+    "X-H1":      "X-Trans III",
+    "X-E3":      "X-Trans III",
+    "X100F":     "X-Trans III",
+
+    # X-Trans IV (26MP APS-C)
+    "X-T3":      "X-Trans IV",
+    "X-T30":     "X-Trans IV",
+    "X-T30 II":  "X-Trans IV",
+    "X-T4":      "X-Trans IV",
+    "X-Pro3":    "X-Trans IV",
+    "X100V":     "X-Trans IV",
+    "X-E4":      "X-Trans IV",
+    "X-S10":     "X-Trans IV",
+
+    # X-Trans V (26MP / 40MP APS-C)
+    "X-T5":      "X-Trans V",
+    "X-T50":     "X-Trans V",
+    "X-T30 III": "X-Trans V",
+    "X-H2":      "X-Trans V",
+    "X-H2S":     "X-Trans V",
+    "X-S20":     "X-Trans V",
+    "X-E5":      "X-Trans V",
+    "X100VI":    "X-Trans V",
+
+    # GFX (medium format Bayer)
+    "GFX 50S":   "GFX",
+    "GFX 50R":   "GFX",
+    "GFX50S II": "GFX",
+    "GFX100":    "GFX",
+    "GFX100S":   "GFX",
+    "GFX100 II": "GFX",
+    "GFX100SII": "GFX",
+
+    # Bayer (APS-C entry-level cameras)
+    "X-T100":    "Bayer",
+    "X-T200":    "Bayer",
+    "X-A1":      "Bayer",
+    "X-A2":      "Bayer",
+    "X-A3":      "Bayer",
+    "X-A5":      "Bayer",
+    "X-A7":      "Bayer",
+    "X-A10":     "Bayer",
+    "XF10":      "Bayer",
+
+    # EXR-CMOS (2/3" bridge cameras)
+    "X100":      "EXR-CMOS",
+    "X10":       "EXR-CMOS",
+    "XF1":       "EXR-CMOS",
+    "X-S1":      "EXR-CMOS",
+}
