@@ -15,6 +15,7 @@ from django.db.models.functions import TruncMonth
 from src.data import models
 from src.domain.images import filter_queries
 from src.domain.recipes import normalization as recipe_normalization
+from src.domain.recipes import sensors as recipe_sensors
 from src.domain.recipes.constants import FILM_SIM_LOGO, MONOCHROMATIC_FILM_SIMULATIONS
 from src.domain.images import dataclasses as image_dataclasses
 
@@ -418,6 +419,11 @@ class RecipeData:
     monochromatic_color_magenta_green: object = None  # Decimal | None
     cover_image_id: int | None = None              # most popular image for card background
     film_sim_logo_filename: str | None = None      # from FILM_SIM_LOGO mapping
+    # Populated only by ``get_recipe_detail`` (one DB hit for the M2M plus a
+    # pure lookup for bodies). Other producers default these to empty tuples
+    # so list-view callers don't pay the extra query per recipe.
+    sensors: tuple[str, ...] = ()
+    bodies: tuple[str, ...] = ()
 
 
 def _to_recipe_data(recipe: models.FujifilmRecipe) -> RecipeData:
@@ -487,7 +493,11 @@ def get_recipe_detail(*, recipe_id: int) -> RecipeDetailContext:
             fallback_cover_image_id=Subquery(cover_subquery),
         ).get(pk=recipe_id)
     )
-    recipe_data = _to_recipe_data(recipe)
+    sensors = tuple(sorted(recipe.sensors.values_list("name", flat=True)))
+    bodies = recipe_sensors.cameras_for_sensors(sensors)
+    recipe_data = attrs.evolve(
+        _to_recipe_data(recipe), sensors=sensors, bodies=bodies
+    )
     return RecipeDetailContext(
         recipe=recipe_data,
         is_monochromatic=recipe_data.film_simulation in MONOCHROMATIC_FILM_SIMULATIONS,

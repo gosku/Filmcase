@@ -1,6 +1,7 @@
 import pytest
 from bs4 import BeautifulSoup
 
+from src.data import models
 from tests.factories import FujifilmRecipeFactory, ImageFactory
 
 
@@ -210,3 +211,101 @@ class TestRecipeDetailCreateVersionButton:
         recipe = FujifilmRecipeFactory()
         link = self._create_version_link(client, recipe)
         assert link["href"] == f"/recipes/{recipe.pk}/create-version/"
+
+
+def _camera_section(soup: BeautifulSoup):
+    """Return the section element holding the Camera header (or None)."""
+    header = soup.find(
+        "div",
+        class_="settings-section-header",
+        string=lambda s: s is not None and s.strip() == "Camera",
+    )
+    if header is None:
+        return None
+    return header.find_parent("div", class_="settings-section")
+
+
+def _badges_in_row(section, label: str) -> list[str]:
+    """
+    Return the list of camera-badge label strings under the camera-row whose
+    label is *label*. ``[]`` means an empty (—) row was rendered.
+    """
+    row = next(
+        (
+            r for r in section.find_all("div", class_="camera-row")
+            if label in r.find("span", class_="camera-row-label").get_text(strip=True)
+        ),
+        None,
+    )
+    assert row is not None, f"camera row with label {label!r} not found"
+    badges_container = row.find("div", class_="camera-row-badges")
+    if badges_container is None:
+        return []
+    return [b.get_text(strip=True) for b in badges_container.find_all("span", class_="camera-badge")]
+
+
+@pytest.mark.django_db
+class TestRecipeDetailViewCameraSection:
+    """The Camera section renders the recipe's sensors and the bodies derived
+    from them."""
+
+    def test_camera_section_is_present(self, client):
+        recipe = FujifilmRecipeFactory()
+
+        response = client.get(f"/recipes/{recipe.pk}/")
+
+        soup = BeautifulSoup(response.content, "html.parser")
+        assert _camera_section(soup) is not None
+
+    def test_sensors_render_as_badges(self, client):
+        recipe = FujifilmRecipeFactory()
+        recipe.set_sensors(
+            sensors=models.Sensor.objects.filter(name__in=["X-Trans IV", "GFX"])
+        )
+
+        response = client.get(f"/recipes/{recipe.pk}/")
+        soup = BeautifulSoup(response.content, "html.parser")
+        section = _camera_section(soup)
+
+        assert _badges_in_row(section, "Sensors") == ["GFX", "X-Trans IV"]
+
+    def test_bodies_render_as_badges_derived_from_sensors(self, client):
+        recipe = FujifilmRecipeFactory()
+        recipe.set_sensors(sensors=models.Sensor.objects.filter(name="X-Trans IV"))
+
+        response = client.get(f"/recipes/{recipe.pk}/")
+        soup = BeautifulSoup(response.content, "html.parser")
+        section = _camera_section(soup)
+
+        bodies = _badges_in_row(section, "Bodies")
+        assert "X-T4" in bodies
+        assert "X-S10" in bodies
+        # No X-Trans V body should leak in.
+        assert "X-T5" not in bodies
+
+    def test_empty_sensors_show_dash_placeholder(self, client):
+        recipe = FujifilmRecipeFactory()  # no sensors attached
+
+        response = client.get(f"/recipes/{recipe.pk}/")
+        soup = BeautifulSoup(response.content, "html.parser")
+        section = _camera_section(soup)
+
+        # No badges -> empty-row placeholder rendered.
+        assert _badges_in_row(section, "Sensors") == []
+        assert _badges_in_row(section, "Bodies") == []
+        # The placeholder is the camera-row-empty span ("—").
+        assert section.find("span", class_="camera-row-empty") is not None
+
+    def test_badge_rows_are_clickable_for_accordion_expansion(self, client):
+        # The js-camera-row-badges class is the hook for the toggle script
+        # (the only CSS-collapsed/expanded transition). Verify both rows are
+        # marked when populated, so all sensors/bodies are toggleable.
+        recipe = FujifilmRecipeFactory()
+        recipe.set_sensors(sensors=models.Sensor.objects.filter(name="X-Trans IV"))
+
+        response = client.get(f"/recipes/{recipe.pk}/")
+        soup = BeautifulSoup(response.content, "html.parser")
+        section = _camera_section(soup)
+
+        toggleable = section.find_all("div", class_="js-camera-row-badges")
+        assert len(toggleable) == 2  # sensors row + bodies row
