@@ -352,7 +352,9 @@ class FujifilmRecipe(models.Model):
         clarity: Decimal | None,
         monochromatic_color_warm_cool: Decimal | None,
         monochromatic_color_magenta_green: Decimal | None,
+        sensor_signature: str,
         name: str,
+        description: str,
     ) -> None:
         self.film_simulation = film_simulation
         self.dynamic_range = dynamic_range
@@ -372,7 +374,9 @@ class FujifilmRecipe(models.Model):
         self.clarity = clarity
         self.monochromatic_color_warm_cool = monochromatic_color_warm_cool
         self.monochromatic_color_magenta_green = monochromatic_color_magenta_green
+        self.sensor_signature = sensor_signature
         self.name = name
+        self.description = description
         self.save(update_fields=[
             "film_simulation", "dynamic_range", "d_range_priority",
             "grain_roughness", "grain_size", "color_chrome_effect",
@@ -380,7 +384,7 @@ class FujifilmRecipe(models.Model):
             "white_balance_blue", "highlight", "shadow", "color",
             "sharpness", "high_iso_nr", "clarity",
             "monochromatic_color_warm_cool", "monochromatic_color_magenta_green",
-            "name",
+            "sensor_signature", "name", "description",
         ])
 
     # Properties
