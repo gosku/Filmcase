@@ -214,3 +214,44 @@ class TestCreateRecipeViewSubmission:
         assert response.status_code == 200
         errors = response.context["form"].non_field_errors()
         assert any("unexpected error" in e.lower() for e in errors)
+
+
+@pytest.mark.django_db
+class TestCreateRecipeViewWithSensorsAndDescription:
+    def test_post_with_sensors_attaches_them_to_the_recipe(self, client) -> None:
+        data = _valid_data(name="With Sensors")
+        # Django test client serialises lists as repeated keys, matching the
+        # browser's encoding of <input type="checkbox" name="sensors" ...>.
+        data["sensors"] = ["X-Trans IV", "GFX"]
+
+        client.post(_URL, data)
+
+        recipe = models.FujifilmRecipe.objects.get(name="With Sensors")
+        assert sorted(s.name for s in recipe.sensors.all()) == ["GFX", "X-Trans IV"]
+
+    def test_post_with_description_writes_it_to_the_recipe(self, client) -> None:
+        data = _valid_data(name="With Notes", description="Recipe notes here.")
+
+        client.post(_URL, data)
+
+        recipe = models.FujifilmRecipe.objects.get(name="With Notes")
+        assert recipe.description == "Recipe notes here."
+
+    def test_post_without_new_fields_creates_recipe_with_defaults(self, client) -> None:
+        # Submissions that omit the new fields (e.g. an older HTML page or a
+        # programmatic POST) still succeed; sensors stays empty, description
+        # stays "".
+        client.post(_URL, _valid_data(name="No New Fields"))
+
+        recipe = models.FujifilmRecipe.objects.get(name="No New Fields")
+        assert list(recipe.sensors.all()) == []
+        assert recipe.description == ""
+
+    def test_post_rejects_unknown_sensor_name(self, client) -> None:
+        data = _valid_data(name="Bad Sensor")
+        data["sensors"] = ["Imaginary Sensor"]
+
+        response = client.post(_URL, data)
+
+        assert response.status_code == 200  # form re-renders with errors
+        assert "sensors" in response.context["form"].errors

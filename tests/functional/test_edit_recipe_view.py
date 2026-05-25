@@ -260,3 +260,66 @@ class TestEditRecipeNoticeBanner:
         recipe = FujifilmRecipeFactory()
         ImageFactory(fujifilm_recipe=recipe)
         assert self._create_version_link(client, recipe) is not None
+
+
+def _field_row_is_disabled(soup: BeautifulSoup, label_text: str) -> bool | None:
+    """
+    Return ``True``/``False`` indicating whether the form's field-row whose
+    visible label is *label_text* carries the ``field-row--disabled`` CSS
+    class; ``None`` if no such row is present in the rendered form.
+    """
+    label = soup.find("label", string=lambda s: s is not None and s.strip() == label_text)
+    if label is None:
+        return None
+    row = label.find_parent("div", class_="field-row")
+    assert row is not None, f"label {label_text!r} is not inside a field-row"
+    return "field-row--disabled" in row.get("class", [])
+
+
+_SETTINGS_LABELS = ("Film Simulation", "Dynamic Range", "D-Range Priority", "Grain Roughness")
+_METADATA_LABELS = ("Name", "Compatible Sensors", "Description")
+
+
+@pytest.mark.django_db
+class TestEditRecipeFormFieldEditability:
+    """
+    Documents which form fields are interactive depending on whether the recipe
+    has attached images. Camera settings are identity-defining and locked when
+    the recipe already developed photos; name, description, and sensors are
+    catalogue metadata and stay editable regardless.
+    """
+
+    def test_no_field_is_disabled_when_recipe_has_no_images(self, client) -> None:
+        recipe = FujifilmRecipeFactory()
+
+        response = client.get(_url(recipe.pk))
+
+        soup = BeautifulSoup(response.content, "html.parser")
+        for label in _SETTINGS_LABELS + _METADATA_LABELS:
+            assert _field_row_is_disabled(soup, label) is False, (
+                f"Row {label!r} should not be disabled on a recipe without images"
+            )
+
+    def test_settings_rows_are_disabled_when_recipe_has_images(self, client) -> None:
+        recipe = FujifilmRecipeFactory()
+        ImageFactory(fujifilm_recipe=recipe)
+
+        response = client.get(_url(recipe.pk))
+
+        soup = BeautifulSoup(response.content, "html.parser")
+        for label in _SETTINGS_LABELS:
+            assert _field_row_is_disabled(soup, label) is True, (
+                f"Settings row {label!r} should be disabled when the recipe has images"
+            )
+
+    def test_metadata_rows_stay_editable_when_recipe_has_images(self, client) -> None:
+        recipe = FujifilmRecipeFactory()
+        ImageFactory(fujifilm_recipe=recipe)
+
+        response = client.get(_url(recipe.pk))
+
+        soup = BeautifulSoup(response.content, "html.parser")
+        for label in _METADATA_LABELS:
+            assert _field_row_is_disabled(soup, label) is False, (
+                f"Metadata row {label!r} must remain editable even when the recipe has images"
+            )

@@ -922,6 +922,10 @@ class EditRecipe(generic.FormView):  # type: ignore[type-arg]
             "clarity": r.clarity,
             "monochromatic_color_warm_cool": r.monochromatic_color_warm_cool,
             "monochromatic_color_magenta_green": r.monochromatic_color_magenta_green,
+            # MultipleChoiceField expects a list of strings; the form widget
+            # ticks the boxes matching the current sensor set.
+            "sensors": list(r.sensors.values_list("name", flat=True)),
+            "description": r.description,
         }
 
     def get_form_kwargs(self) -> dict[str, object]:
@@ -1002,6 +1006,8 @@ class EditRecipe(generic.FormView):  # type: ignore[type-arg]
             color=_to_str(cd.get("color")),
             monochromatic_color_warm_cool=_to_str(cd.get("monochromatic_color_warm_cool")),
             monochromatic_color_magenta_green=_to_str(cd.get("monochromatic_color_magenta_green")),
+            sensors=tuple(cd.get("sensors") or ()),
+            description=cd.get("description") or "",
         )
 
         try:
@@ -1066,6 +1072,10 @@ class CreateRecipeVersion(generic.FormView):  # type: ignore[type-arg]
             "clarity": r.clarity,
             "monochromatic_color_warm_cool": r.monochromatic_color_warm_cool,
             "monochromatic_color_magenta_green": r.monochromatic_color_magenta_green,
+            # MultipleChoiceField expects a list of strings; the form widget
+            # ticks the boxes matching the current sensor set.
+            "sensors": list(r.sensors.values_list("name", flat=True)),
+            "description": r.description,
         }
 
     def get_context_data(self, **kwargs: object) -> dict[str, object]:
@@ -1106,6 +1116,8 @@ class CreateRecipeVersion(generic.FormView):  # type: ignore[type-arg]
             color=_to_str(cd.get("color")),
             monochromatic_color_warm_cool=_to_str(cd.get("monochromatic_color_warm_cool")),
             monochromatic_color_magenta_green=_to_str(cd.get("monochromatic_color_magenta_green")),
+            sensors=tuple(cd.get("sensors") or ()),
+            description=cd.get("description") or "",
         )
 
         try:
@@ -1168,6 +1180,8 @@ class CreateRecipe(generic.FormView):  # type: ignore[type-arg]  # django_stubs_
             color=_to_str(cd.get("color")),
             monochromatic_color_warm_cool=_to_str(cd.get("monochromatic_color_warm_cool")),
             monochromatic_color_magenta_green=_to_str(cd.get("monochromatic_color_magenta_green")),
+            sensors=tuple(cd.get("sensors") or ()),
+            description=cd.get("description") or "",
         )
 
         try:
