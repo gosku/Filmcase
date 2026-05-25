@@ -1,3 +1,4 @@
+from collections.abc import Iterable
 from datetime import datetime
 from decimal import Decimal
 from typing import Any
@@ -170,6 +171,28 @@ class FujifilmExif(models.Model):
         return f"#{self.id} {label}"
 
 
+class Sensor(models.Model):
+    """
+    A Fujifilm sensor generation a recipe is compatible with.
+
+    Seeded once by migration from :data:`src.data.sensors.SENSOR_NAMES`. The
+    table is read-only at the application layer — adding or removing a sensor
+    requires a code change to ``SENSOR_NAMES`` and a corresponding migration.
+    """
+
+    name = models.CharField(max_length=50)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["name"], name="unique_sensor_name"),
+        ]
+
+    # Properties
+
+    def __str__(self) -> str:
+        return f"#{self.id} {self.name}"
+
+
 class FujifilmRecipe(models.Model):
     name = models.CharField(max_length=_RECIPE_NAME_MAX_LEN, blank=True, default="")
     film_simulation = models.CharField(max_length=100)
@@ -191,6 +214,18 @@ class FujifilmRecipe(models.Model):
     monochromatic_color_warm_cool = models.DecimalField(max_digits=4, decimal_places=1, null=True, blank=True)
     monochromatic_color_magenta_green = models.DecimalField(max_digits=4, decimal_places=1, null=True, blank=True)
 
+    sensors = models.ManyToManyField(Sensor, related_name="recipes", blank=True)
+    # Denormalised canonical join of the linked sensor names. Exists so the
+    # unique constraint below can include the sensor set (M2M columns cannot
+    # appear in a UniqueConstraint directly). Must stay in lock-step with the
+    # ``sensors`` M2M — a follow-up commit introduces the mutator that
+    # guarantees this. The empty string is the signature used by recipes with
+    # no sensors attached, which keeps the pre-existing settings-only dedup
+    # behaviour in place.
+    sensor_signature = models.CharField(max_length=255, blank=True, default="")
+
+    description = models.TextField(blank=True, default="")
+
     cover_image = models.ForeignKey(
         "Image",
         null=True,
@@ -209,6 +244,7 @@ class FujifilmRecipe(models.Model):
                     "white_balance_blue", "highlight", "shadow", "color",
                     "sharpness", "high_iso_nr", "clarity",
                     "monochromatic_color_warm_cool", "monochromatic_color_magenta_green",
+                    "sensor_signature",
                 ],
                 name="unique_fujifilm_recipe",
                 nulls_distinct=False,
@@ -239,11 +275,18 @@ class FujifilmRecipe(models.Model):
         clarity: object,
         monochromatic_color_warm_cool: object,
         monochromatic_color_magenta_green: object,
+        sensor_signature: str = "",
         name: str = "",
+        description: str = "",
     ) -> "tuple[FujifilmRecipe, bool]":
-        # name is passed via defaults= so it only applies on the create path;
-        # matching an existing recipe keeps that recipe's current name.
-        # Uniqueness stays settings-only (see UniqueConstraint above).
+        # name and description are passed via defaults= so they only apply on
+        # the create path; matching an existing recipe keeps that recipe's
+        # current values for both fields. sensor_signature participates in
+        # the lookup because it's part of the recipe's UniqueConstraint --
+        # the caller is responsible for computing it (see
+        # src.domain.recipes.sensors.compute_sensor_signature) and for then
+        # attaching the M2M via set_recipe_sensors so the M2M and the
+        # denormalised signature stay in lock-step.
         return cls.objects.get_or_create(
             film_simulation=film_simulation,
             dynamic_range=dynamic_range,
@@ -263,7 +306,8 @@ class FujifilmRecipe(models.Model):
             clarity=clarity,
             monochromatic_color_warm_cool=monochromatic_color_warm_cool,
             monochromatic_color_magenta_green=monochromatic_color_magenta_green,
-            defaults={"name": name},
+            sensor_signature=sensor_signature,
+            defaults={"name": name, "description": description},
         )
 
     # Mutators
@@ -275,6 +319,17 @@ class FujifilmRecipe(models.Model):
     def set_name(self, *, name: str) -> None:
         self.name = name
         self.save(update_fields=["name"])
+
+    def set_description(self, *, description: str) -> None:
+        self.description = description
+        self.save(update_fields=["description"])
+
+    def set_sensor_signature(self, *, sensor_signature: str) -> None:
+        self.sensor_signature = sensor_signature
+        self.save(update_fields=["sensor_signature"])
+
+    def set_sensors(self, *, sensors: Iterable["Sensor"]) -> None:
+        self.sensors.set(sensors)
 
     def update_settings(
         self,
@@ -297,7 +352,9 @@ class FujifilmRecipe(models.Model):
         clarity: Decimal | None,
         monochromatic_color_warm_cool: Decimal | None,
         monochromatic_color_magenta_green: Decimal | None,
+        sensor_signature: str,
         name: str,
+        description: str,
     ) -> None:
         self.film_simulation = film_simulation
         self.dynamic_range = dynamic_range
@@ -317,7 +374,9 @@ class FujifilmRecipe(models.Model):
         self.clarity = clarity
         self.monochromatic_color_warm_cool = monochromatic_color_warm_cool
         self.monochromatic_color_magenta_green = monochromatic_color_magenta_green
+        self.sensor_signature = sensor_signature
         self.name = name
+        self.description = description
         self.save(update_fields=[
             "film_simulation", "dynamic_range", "d_range_priority",
             "grain_roughness", "grain_size", "color_chrome_effect",
@@ -325,7 +384,7 @@ class FujifilmRecipe(models.Model):
             "white_balance_blue", "highlight", "shadow", "color",
             "sharpness", "high_iso_nr", "clarity",
             "monochromatic_color_warm_cool", "monochromatic_color_magenta_green",
-            "name",
+            "sensor_signature", "name", "description",
         ])
 
     # Properties

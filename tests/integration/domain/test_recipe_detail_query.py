@@ -138,6 +138,52 @@ class TestGetRecipeDetail:
 
 
 @pytest.mark.django_db
+class TestGetRecipeDetailCameraSection:
+    """``sensors`` and ``bodies`` populate the new Camera section."""
+
+    def test_recipe_without_sensors_returns_empty_camera_tuples(self):
+        recipe = FujifilmRecipeFactory()
+
+        result = get_recipe_detail(recipe_id=recipe.pk)
+
+        assert result.recipe.sensors == ()
+        assert result.recipe.bodies == ()
+
+    def test_sensors_are_returned_sorted_alphabetically(self):
+        recipe = FujifilmRecipeFactory()
+        recipe.set_sensors(
+            sensors=models.Sensor.objects.filter(
+                name__in=["X-Trans V", "X-Trans IV", "GFX"]
+            )
+        )
+
+        result = get_recipe_detail(recipe_id=recipe.pk)
+
+        assert result.recipe.sensors == ("GFX", "X-Trans IV", "X-Trans V")
+
+    def test_bodies_are_derived_from_attached_sensors(self):
+        recipe = FujifilmRecipeFactory()
+        recipe.set_sensors(sensors=models.Sensor.objects.filter(name="X-Trans IV"))
+
+        result = get_recipe_detail(recipe_id=recipe.pk)
+
+        # Spot-check: at least one X-Trans IV body, no X-Trans V bodies.
+        assert "X-T4" in result.recipe.bodies
+        assert "X-T5" not in result.recipe.bodies
+
+    def test_bodies_union_across_multiple_sensors(self):
+        recipe = FujifilmRecipeFactory()
+        recipe.set_sensors(
+            sensors=models.Sensor.objects.filter(name__in=["X-Trans IV", "GFX"])
+        )
+
+        result = get_recipe_detail(recipe_id=recipe.pk)
+
+        assert "X-T4" in result.recipe.bodies      # X-Trans IV body
+        assert "GFX100S" in result.recipe.bodies   # GFX body
+
+
+@pytest.mark.django_db
 class TestGetRecipeGalleryDataCoverImage:
     def _get_cover_id(self, recipe):
         result = get_recipe_gallery_data(

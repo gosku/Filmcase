@@ -313,6 +313,15 @@
     margin-bottom: 1.75rem;
   }
 
+  /* The two camera-rows are taller than their settings-row counterparts in
+     the opposite column (the badge container reserves vertical space for an
+     overflow peek), so this section absorbs the extra height by giving up
+     some bottom margin -- keeping the next sections (Dynamic Range, Color
+     Chrome) aligned horizontally with Grain and White Balance across columns. */
+  .settings-section--camera {
+    margin-bottom: 0.6rem;
+  }
+
   .settings-section-header {
     font-size: 0.75rem;
     font-weight: 700;
@@ -350,49 +359,144 @@
     text-align: right;
   }
 
+  /* Camera section: sensor and body badges with collapsible overflow */
+  .camera-row {
+    display: flex;
+    align-items: flex-start;
+    padding: 0.4rem 0 0.4rem 0.75rem;
+    border-bottom: 1px solid var(--color-border);
+    gap: 0.75rem;
+  }
+
+  /* No trailing border on the last camera-row -- the surrounding section
+     already provides separation from the next group. */
+  .settings-section .camera-row:last-child {
+    border-bottom: none;
+  }
+
+  .camera-row-label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.82rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #9ca3af;
+    flex-shrink: 0;
+    padding-top: 0px;
+  }
+
+  .camera-row-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    justify-content: flex-end;
+    flex: 1;
+    /* Tall enough to show the full first row of badges plus a generous peek
+       of the second row before the fade mask kicks in (see --overflowing
+       below). One badge is ~21px and the row gap is ~6px, so ~40px lets the
+       first row land cleanly and reveals the top of the second row when
+       there's overflow. */
+    max-height: 40px;
+    overflow: hidden;
+    cursor: pointer;
+    transition: max-height 0.18s ease;
+  }
+
+  /* Toggled by JS when the collapsed row clips its content. Fades the bottom
+     of the visible area so the top of the next line peeks through and hints
+     at hidden badges. Removed automatically when the row is expanded. */
+  .camera-row-badges--overflowing:not(.camera-row-badges--expanded) {
+    -webkit-mask-image: linear-gradient(to bottom, black 70%, transparent 100%);
+            mask-image: linear-gradient(to bottom, black 70%, transparent 100%);
+  }
+
+  .camera-row-badges--expanded {
+    max-height: none;
+  }
+
+  .camera-row-empty {
+    flex: 1;
+    text-align: right;
+    color: var(--color-text-muted);
+    font-size: 0.95rem;
+    padding-top: 0px;
+  }
+
+  .camera-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.18rem 0.65rem;
+    border-radius: 999px;
+    background: #eff3f6;
+    font-size: 0.78rem;
+    font-weight: 500;
+    color: var(--color-text-primary);
+    white-space: nowrap;
+  }
+
   /* WB color grid (read-only) */
   .wb-grid-readonly-outer {
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 1.25rem;
+    gap: 1rem;
+    padding: 0.75rem 0.75rem 0.25rem;
   }
 
   .wb-grid-readonly-legend {
-    font-size: 1rem;
-    font-weight: 700;
-    font-family: monospace;
-    letter-spacing: 0.06em;
     display: flex;
     flex-direction: column;
-    gap: 0.2rem;
+    gap: 0.35rem;
     white-space: nowrap;
   }
 
-  .wb-legend-r { color: var(--color-accent); }
-  .wb-legend-b { color: #2563eb; }
+  .wb-legend-line {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .wb-legend-label {
+    font-size: 0.82rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #9ca3af;
+  }
+
+  .wb-legend-value {
+    font-size: 0.9rem;
+    font-weight: 700;
+    font-family: monospace;
+    letter-spacing: 0.06em;
+  }
+
+  .wb-legend-value--red  { color: var(--color-accent); }
+  .wb-legend-value--blue { color: #2563eb; }
 
   .wb-grid-readonly-wrap {
     display: grid;
-    grid-template-columns: repeat(19, 10px);
-    grid-template-rows: repeat(19, 10px);
-    gap: 2px;
+    grid-template-columns: repeat(19, 8px);
+    grid-template-rows: repeat(19, 8px);
+    gap: 1px;
     line-height: 0;
   }
 
   .wb-dot {
-    width: 10px;
-    height: 10px;
+    width: 8px;
+    height: 8px;
     border-radius: 50%;
   }
 
   .wb-dot--selected {
-    outline: 2px solid #fff;
-    outline-offset: 2px;
-    box-shadow: 0 0 0 4px var(--color-accent);
+    outline: 1.5px solid #fff;
+    outline-offset: 1px;
+    box-shadow: 0 0 0 3px var(--color-accent);
     position: relative;
     z-index: 1;
-    transform: scale(1.35);
+    transform: scale(1.4);
   }
 
   .detail-image-count {
@@ -514,62 +618,81 @@
                 </span>
                 <span class="settings-row-value">{{ recipe.white_balance }}</span>
               </div>
-              <div class="settings-row">
-                <span class="settings-row-label">
-                  <svg class="field-icon" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round">
-                    <line x1="2" y1="7" x2="11" y2="7"/>
-                    <polyline points="8.5,4.5 11,7 8.5,9.5"/>
-                    <text x="1" y="12" font-size="5" fill="currentColor" stroke="none" font-weight="700" font-family="sans-serif">R</text>
-                  </svg>
-                  WB Red Shift
-                </span>
-                <span class="settings-row-value">{{ recipe.white_balance_red|signed }}</span>
-              </div>
-              <div class="settings-row">
-                <span class="settings-row-label">
-                  <svg class="field-icon" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round">
-                    <line x1="2" y1="7" x2="11" y2="7"/>
-                    <polyline points="8.5,4.5 11,7 8.5,9.5"/>
-                    <text x="1" y="12" font-size="5" fill="currentColor" stroke="none" font-weight="700" font-family="sans-serif">B</text>
-                  </svg>
-                  WB Blue Shift
-                </span>
-                <span class="settings-row-value">{{ recipe.white_balance_blue|signed }}</span>
-              </div>
-            </div>
-
-            {% if is_monochromatic %}
-            <div class="settings-section">
-              <div class="settings-section-header">BW Tone</div>
-              <div class="settings-row">
-                <span class="settings-row-label">
-                  <svg class="field-icon" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round">
-                    <line x1="1" y1="7" x2="13" y2="7"/>
-                    <polyline points="4,4.5 1,7 4,9.5"/>
-                    <polyline points="10,4.5 13,7 10,9.5"/>
-                  </svg>
-                  BW Warm / Cool
-                </span>
-                <span class="settings-row-value">{{ recipe.monochromatic_color_warm_cool|signed }}</span>
-              </div>
-              <div class="settings-row">
-                <span class="settings-row-label">
-                  <svg class="field-icon" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round">
-                    <line x1="7" y1="1" x2="7" y2="13"/>
-                    <polyline points="4.5,4 7,1 9.5,4"/>
-                    <polyline points="4.5,10 7,13 9.5,10"/>
-                  </svg>
-                  BW Magenta / Green
-                </span>
-                <span class="settings-row-value">{{ recipe.monochromatic_color_magenta_green|signed }}</span>
+              {# WB Red/Blue shifts are read off the grid below; no need for separate text rows. #}
+              <div class="wb-grid-readonly-outer">
+                <div class="wb-grid-readonly-wrap"
+                     data-r="{{ recipe.white_balance_red }}"
+                     data-b="{{ recipe.white_balance_blue }}"></div>
+                <div class="wb-grid-readonly-legend">
+                  <span class="wb-legend-line">
+                    <svg class="field-icon" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round">
+                      <line x1="2" y1="7" x2="11" y2="7"/>
+                      <polyline points="8.5,4.5 11,7 8.5,9.5"/>
+                      <text x="1" y="12" font-size="5" fill="currentColor" stroke="none" font-weight="700" font-family="sans-serif">R</text>
+                    </svg>
+                    <span class="wb-legend-label">Red</span>
+                    <span class="wb-legend-value wb-legend-value--red">{{ recipe.white_balance_red|signed }}</span>
+                  </span>
+                  <span class="wb-legend-line">
+                    <svg class="field-icon" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round">
+                      <line x1="2" y1="7" x2="11" y2="7"/>
+                      <polyline points="8.5,4.5 11,7 8.5,9.5"/>
+                      <text x="1" y="12" font-size="5" fill="currentColor" stroke="none" font-weight="700" font-family="sans-serif">B</text>
+                    </svg>
+                    <span class="wb-legend-label">Blue</span>
+                    <span class="wb-legend-value wb-legend-value--blue">{{ recipe.white_balance_blue|signed }}</span>
+                  </span>
+                </div>
               </div>
             </div>
-            {% endif %}
 
           </div>{# /left column #}
 
-          {# RIGHT COLUMN: DYNAMIC RANGE · COLOR CHROME (or BW) · WB GRID #}
+          {# RIGHT COLUMN: CAMERA · DYNAMIC RANGE · COLOR CHROME (· BW TONE when mono) #}
           <div>
+
+            <div class="settings-section settings-section--camera">
+              <div class="settings-section-header">Camera</div>
+              <div class="camera-row">
+                <span class="camera-row-label">
+                  <svg class="field-icon" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.2">
+                    <rect x="1" y="3" width="12" height="9" rx="1"/>
+                    <circle cx="7" cy="7.5" r="2.5"/>
+                    <circle cx="7" cy="7.5" r="1" fill="currentColor" stroke="none"/>
+                    <rect x="9.5" y="4.5" width="2" height="1.2" rx="0.2" fill="currentColor" stroke="none"/>
+                  </svg>
+                  Sensors
+                </span>
+                {% if recipe.sensors %}
+                <div class="camera-row-badges js-camera-row-badges">
+                  {% for sensor in recipe.sensors %}
+                  <span class="camera-badge">{{ sensor }}</span>
+                  {% endfor %}
+                </div>
+                {% else %}
+                <span class="camera-row-empty">—</span>
+                {% endif %}
+              </div>
+              <div class="camera-row">
+                <span class="camera-row-label">
+                  <svg class="field-icon" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="1.5" y="4" width="11" height="8" rx="0.8"/>
+                    <path d="M5 4 L5.8 2.5 L8.2 2.5 L9 4"/>
+                    <circle cx="7" cy="8" r="2.2"/>
+                  </svg>
+                  Bodies
+                </span>
+                {% if recipe.bodies %}
+                <div class="camera-row-badges js-camera-row-badges">
+                  {% for body in recipe.bodies %}
+                  <span class="camera-badge">{{ body }}</span>
+                  {% endfor %}
+                </div>
+                {% else %}
+                <span class="camera-row-empty">—</span>
+                {% endif %}
+              </div>
+            </div>
 
             <div class="settings-section">
               <div class="settings-section-header">Dynamic Range</div>
@@ -624,17 +747,33 @@
               </div>
             </div>
 
+            {% if is_monochromatic %}
             <div class="settings-section">
-              <div class="wb-grid-readonly-outer">
-                <div class="wb-grid-readonly-wrap"
-                     data-r="{{ recipe.white_balance_red }}"
-                     data-b="{{ recipe.white_balance_blue }}"></div>
-                <div class="wb-grid-readonly-legend">
-                  <span class="wb-legend-r">R {{ recipe.white_balance_red|signed }}</span>
-                  <span class="wb-legend-b">B {{ recipe.white_balance_blue|signed }}</span>
-                </div>
+              <div class="settings-section-header">BW Tone</div>
+              <div class="settings-row">
+                <span class="settings-row-label">
+                  <svg class="field-icon" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round">
+                    <line x1="1" y1="7" x2="13" y2="7"/>
+                    <polyline points="4,4.5 1,7 4,9.5"/>
+                    <polyline points="10,4.5 13,7 10,9.5"/>
+                  </svg>
+                  BW Warm / Cool
+                </span>
+                <span class="settings-row-value">{{ recipe.monochromatic_color_warm_cool|signed }}</span>
+              </div>
+              <div class="settings-row">
+                <span class="settings-row-label">
+                  <svg class="field-icon" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round">
+                    <line x1="7" y1="1" x2="7" y2="13"/>
+                    <polyline points="4.5,4 7,1 9.5,4"/>
+                    <polyline points="4.5,10 7,13 9.5,10"/>
+                  </svg>
+                  BW Magenta / Green
+                </span>
+                <span class="settings-row-value">{{ recipe.monochromatic_color_magenta_green|signed }}</span>
               </div>
             </div>
+            {% endif %}
 
           </div>{# /right column #}
 
@@ -702,8 +841,8 @@
             <div class="settings-row">
               <span class="settings-row-label">
                 <svg class="field-icon" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">
-                  <polyline points="1,2.5 13,2.5 8.5,7.5 8.5,12 5.5,10.5 5.5,7.5 Z" fill="currentColor" opacity="0.2"/>
-                  <polyline points="1,2.5 13,2.5 8.5,7.5 8.5,12 5.5,10.5 5.5,7.5 Z"/>
+                  <polygon points="1,2.5 13,2.5 8.5,7.5 8.5,12 5.5,10.5 5.5,7.5" fill="currentColor" opacity="0.2"/>
+                  <polygon points="1,2.5 13,2.5 8.5,7.5 8.5,12 5.5,10.5 5.5,7.5"/>
                 </svg>
                 High ISO NR
               </span>
@@ -779,6 +918,24 @@
 </style>
 
 <script>
+  // Camera-row accordion: clicking a sensors/bodies badge row toggles between
+  // single-line (overflow clipped) and full multi-line wrap. If all badges
+  // already fit, the toggle is a visual no-op.
+  //
+  // On load we also detect overflow (scrollHeight > clientHeight) and tag the
+  // row with --overflowing so the CSS mask gradient kicks in only when there
+  // is actually something hidden -- single-line rows render without a fade.
+  (function () {
+    document.querySelectorAll('.js-camera-row-badges').forEach(function (row) {
+      if (row.scrollHeight > row.clientHeight + 1) {
+        row.classList.add('camera-row-badges--overflowing');
+      }
+      row.addEventListener('click', function () {
+        row.classList.toggle('camera-row-badges--expanded');
+      });
+    });
+  })();
+
   (function () {
     var wrap = document.querySelector('.wb-grid-readonly-wrap');
     if (!wrap) return;

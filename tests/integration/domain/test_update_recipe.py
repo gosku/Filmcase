@@ -154,3 +154,132 @@ class TestUpdateRecipeEventPublishing:
         operations.update_recipe(recipe=recipe, data=data)
         updated_events = [e for e in captured_logs if e.get("event_type") == events.RECIPE_UPDATED]
         assert len(updated_events) == 1
+
+
+@pytest.mark.django_db
+class TestUpdateRecipeSensors:
+    def test_attaches_new_sensor_set(self) -> None:
+        recipe = FujifilmRecipeFactory(white_balance_red=7001)
+
+        operations.update_recipe(
+            recipe=recipe, data=_make_data(white_balance_red=7001, sensors=("X-Trans IV", "GFX"))
+        )
+
+        recipe.refresh_from_db()
+        assert sorted(s.name for s in recipe.sensors.all()) == ["GFX", "X-Trans IV"]
+        assert recipe.sensor_signature == "gfx,x-trans iv"
+
+    def test_replaces_existing_sensor_set(self) -> None:
+        recipe = FujifilmRecipeFactory(white_balance_red=7002)
+        operations.update_recipe(
+            recipe=recipe, data=_make_data(white_balance_red=7002, sensors=("X-Trans IV",))
+        )
+
+        operations.update_recipe(
+            recipe=recipe, data=_make_data(white_balance_red=7002, sensors=("X-Trans V",))
+        )
+
+        recipe.refresh_from_db()
+        assert [s.name for s in recipe.sensors.all()] == ["X-Trans V"]
+        assert recipe.sensor_signature == "x-trans v"
+
+    def test_sensor_change_allowed_when_images_are_attached(self) -> None:
+        # Sensors are catalogue metadata, not identity: a user may add or
+        # remove compatible sensors on a recipe that's already been used to
+        # develop photos. Build the update payload from the current recipe
+        # so only the sensors field differs and the settings-change guard
+        # doesn't fire.
+        from src.domain.recipes import queries as recipe_queries
+        import attrs
+
+        recipe = FujifilmRecipeFactory(white_balance_red=7003)
+        ImageFactory(fujifilm_recipe=recipe)
+        current = recipe_queries.recipe_from_db(recipe=recipe)
+        data = attrs.evolve(current, sensors=("X-Trans IV",))
+
+        operations.update_recipe(recipe=recipe, data=data)
+
+        recipe.refresh_from_db()
+        assert [s.name for s in recipe.sensors.all()] == ["X-Trans IV"]
+        assert recipe.sensor_signature == "x-trans iv"
+
+    def test_sensor_change_to_a_set_that_matches_existing_recipe_raises_conflict(self) -> None:
+        # An existing recipe with same settings + sensors=(X-Trans IV,) means
+        # changing this one's sensors to that set would collide on the
+        # UniqueConstraint -- this surfaces as RecipeSettingsConflictError.
+        operations.get_or_create_recipe_from_data(
+            data=_make_data(white_balance_red=7004, sensors=("X-Trans IV",))
+        )
+        other = FujifilmRecipeFactory(white_balance_red=7004)
+
+        with pytest.raises(operations.RecipeSettingsConflictError):
+            operations.update_recipe(
+                recipe=other, data=_make_data(white_balance_red=7004, sensors=("X-Trans IV",))
+            )
+
+    def test_no_op_when_sensors_unchanged(self) -> None:
+        recipe = FujifilmRecipeFactory(white_balance_red=7005)
+        operations.update_recipe(
+            recipe=recipe, data=_make_data(white_balance_red=7005, sensors=("X-Trans IV",))
+        )
+
+        # Re-running with the same sensors must not raise even when images
+        # are attached.
+        ImageFactory(fujifilm_recipe=recipe)
+        operations.update_recipe(
+            recipe=recipe, data=_make_data(white_balance_red=7005, sensors=("X-Trans IV",))
+        )
+
+        recipe.refresh_from_db()
+        assert [s.name for s in recipe.sensors.all()] == ["X-Trans IV"]
+
+
+@pytest.mark.django_db
+class TestUpdateRecipeDescription:
+    def test_writes_description(self) -> None:
+        recipe = FujifilmRecipeFactory(white_balance_red=7101)
+
+        operations.update_recipe(
+            recipe=recipe,
+            data=_make_data(white_balance_red=7101, description="Recipe notes."),
+        )
+
+        recipe.refresh_from_db()
+        assert recipe.description == "Recipe notes."
+
+    def test_description_change_is_metadata_so_always_editable(self) -> None:
+        # description-only change must succeed even when images are attached.
+        # Build data from current to keep all settings identical -- only the
+        # description field differs.
+        from src.domain.recipes import queries as recipe_queries
+        import attrs
+
+        recipe = FujifilmRecipeFactory(white_balance_red=7102)
+        ImageFactory(fujifilm_recipe=recipe)
+        current = recipe_queries.recipe_from_db(recipe=recipe)
+        data = attrs.evolve(current, description="Added later")
+
+        operations.update_recipe(recipe=recipe, data=data)
+
+        recipe.refresh_from_db()
+        assert recipe.description == "Added later"
+
+    def test_does_not_overwrite_description_when_data_description_is_empty(self) -> None:
+        from src.domain.recipes import queries as recipe_queries
+        import attrs
+
+        recipe = FujifilmRecipeFactory(white_balance_red=7103)
+        # First write a description.
+        operations.update_recipe(
+            recipe=recipe,
+            data=_make_data(white_balance_red=7103, description="Keep me"),
+        )
+        # Then issue an update with an empty description -- should be a no-op
+        # for the description field.
+        current = recipe_queries.recipe_from_db(recipe=recipe)
+        data = attrs.evolve(current, description="")
+
+        operations.update_recipe(recipe=recipe, data=data)
+
+        recipe.refresh_from_db()
+        assert recipe.description == "Keep me"

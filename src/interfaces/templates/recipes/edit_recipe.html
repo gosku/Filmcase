@@ -327,6 +327,16 @@
         <div class="field-input">{{ form.film_simulation }}</div>
       </div>
 
+      <div class="field-row">
+        <label class="field-label" for="{{ form.sensors.id_for_label }}">Compatible Sensors</label>
+        <div class="field-input">{{ form.sensors }}</div>
+      </div>
+
+      <div class="field-row">
+        <label class="field-label" for="{{ form.description.id_for_label }}">Description</label>
+        <div class="field-input">{{ form.description }}</div>
+      </div>
+
       <div class="field-row field-row--hidden{% if not is_settings_editable %} field-row--disabled{% endif %}" id="field-row-mono-warm-cool">
         <label class="field-label">Warm / Cool</label>
         <div class="field-input">

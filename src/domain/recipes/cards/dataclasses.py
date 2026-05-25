@@ -1,6 +1,19 @@
 from __future__ import annotations
 
+from collections.abc import Iterable
+
 import attrs
+
+
+def _sensors_to_tuple(value: Iterable[str] | None) -> tuple[str, ...] | None:
+    """
+    Normalise the decoded ``sensors`` payload to an immutable tuple.
+
+    JSON arrays decode to ``list``; this converter coerces to ``tuple`` so the
+    dataclass stays fully immutable. ``None`` (absent in v=1 payloads) is
+    passed through.
+    """
+    return None if value is None else tuple(value)
 
 
 @attrs.frozen
@@ -38,3 +51,9 @@ class QRFujifilmRecipe:
     clarity: int | float | None = None
     monochromatic_color_warm_cool: int | float | None = None
     monochromatic_color_magenta_green: int | float | None = None
+    # Introduced in payload schema v=2; see _sensors_to_tuple for the
+    # list-to-tuple normalisation rationale.
+    sensors: tuple[str, ...] | None = attrs.field(
+        default=None,
+        converter=_sensors_to_tuple,
+    )

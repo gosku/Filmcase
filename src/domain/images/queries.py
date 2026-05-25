@@ -13,6 +13,7 @@ from django.db.models import Count
 from django.db.models.functions import TruncWeek, TruncMonth, TruncYear
 
 from src.data import models
+from src.data.camera import constants as camera_constants
 from src.domain.images import dataclasses as image_dataclasses
 from src.domain.images import filter_queries
 from src.domain.images import recipe_values
@@ -242,6 +243,11 @@ def exif_to_recipe(*, exif: image_dataclasses.ImageExifData) -> image_dataclasse
     drp_active = d_range_priority.value != "Off"
     wb_red, wb_blue = recipe_values.white_balance_fine_tune_from_exif(white_balance_fine_tune=exif.white_balance_fine_tune)
     grain_roughness = exif.grain_effect_roughness
+    # Resolve sensor from the EXIF "Camera Model Name" field. Unknown models
+    # (third-party converters, very new releases, manually edited EXIF) leave
+    # sensors empty rather than failing the import.
+    sensor_name = camera_constants.CAMERA_TO_SENSOR.get(exif.camera_model, "")
+    sensors: tuple[str, ...] = (sensor_name,) if sensor_name else ()
     return recipe_normalization.normalize_recipe_data(
         image_dataclasses.FujifilmRecipeData(
             film_simulation=film_simulation,
@@ -262,6 +268,7 @@ def exif_to_recipe(*, exif: image_dataclasses.ImageExifData) -> image_dataclasse
             color=None if is_mono else recipe_values.color_from_exif(color=exif.color),
             monochromatic_color_warm_cool=recipe_values.monochromatic_color_from_exif(value=exif.bw_adjustment) if is_mono else None,
             monochromatic_color_magenta_green=recipe_values.monochromatic_color_from_exif(value=exif.bw_magenta_green) if is_mono else None,
+            sensors=sensors,
         )
     )
 

@@ -117,14 +117,48 @@ class TestGetQRRecipeFromImage:
             card_queries.get_qr_recipe_from_image(image_path=path)
         assert exc_info.value.reason == "unsupported_version"
 
-    def test_raises_unsupported_version_when_v_is_not_one(self, tmp_path: Path) -> None:
+    def test_raises_unsupported_version_when_v_is_unknown(self, tmp_path: Path) -> None:
+        # v=1 and v=2 are accepted; anything else (e.g. a future v=3 schema
+        # this decoder doesn't yet understand) is rejected.
         payload = _valid_payload()
-        payload["v"] = 2
+        payload["v"] = 99
         path = _write_qr(tmp_path, json.dumps(payload))
 
         with pytest.raises(card_queries.InvalidQRRecipePayloadError) as exc_info:
             card_queries.get_qr_recipe_from_image(image_path=path)
         assert exc_info.value.reason == "unsupported_version"
+
+    def test_decodes_v2_payload_with_sensors(self, tmp_path: Path) -> None:
+        payload = _valid_payload()
+        payload["v"] = 2
+        payload["sensors"] = ["GFX", "X-Trans IV"]
+        path = _write_qr(tmp_path, json.dumps(payload))
+
+        result = card_queries.get_qr_recipe_from_image(image_path=path)
+
+        assert result.v == 2
+        # The dataclass converter normalises the list to a tuple.
+        assert result.sensors == ("GFX", "X-Trans IV")
+
+    def test_raises_type_mismatch_when_sensors_is_not_a_list(self, tmp_path: Path) -> None:
+        payload = _valid_payload()
+        payload["v"] = 2
+        payload["sensors"] = "X-Trans IV"  # should be a list of strings
+        path = _write_qr(tmp_path, json.dumps(payload))
+
+        with pytest.raises(card_queries.InvalidQRRecipePayloadError) as exc_info:
+            card_queries.get_qr_recipe_from_image(image_path=path)
+        assert exc_info.value.reason == "type_mismatch"
+
+    def test_raises_type_mismatch_when_sensors_contains_non_string(self, tmp_path: Path) -> None:
+        payload = _valid_payload()
+        payload["v"] = 2
+        payload["sensors"] = ["X-Trans IV", 42]
+        path = _write_qr(tmp_path, json.dumps(payload))
+
+        with pytest.raises(card_queries.InvalidQRRecipePayloadError) as exc_info:
+            card_queries.get_qr_recipe_from_image(image_path=path)
+        assert exc_info.value.reason == "type_mismatch"
 
     def test_raises_unknown_fields_when_payload_has_unexpected_key(self, tmp_path: Path) -> None:
         payload = _valid_payload()

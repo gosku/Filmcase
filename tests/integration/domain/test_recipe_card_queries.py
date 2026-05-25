@@ -7,7 +7,13 @@ from src.domain.recipes.cards import queries, templates
 
 
 def _recipe(**kwargs: object) -> models.FujifilmRecipe:
-    """Return an unsaved FujifilmRecipe with sensible defaults, overridable via kwargs."""
+    """
+    Return a saved FujifilmRecipe with sensible defaults, overridable via kwargs.
+
+    The recipe is persisted because get_recipe_as_json() and
+    get_recipe_cover_lines() both query the ``sensors`` M2M relation, which
+    Django refuses to evaluate on unsaved instances.
+    """
     defaults: dict[str, object] = {
         "film_simulation": "Provia",
         "dynamic_range": "DR100",
@@ -21,13 +27,17 @@ def _recipe(**kwargs: object) -> models.FujifilmRecipe:
         "white_balance_blue": 0,
     }
     defaults.update(kwargs)
-    return models.FujifilmRecipe(**defaults)
+    return models.FujifilmRecipe.objects.create(**defaults)
 
 
+@pytest.mark.django_db
 class TestGetRecipeAsJson:
-    def test_includes_version_key(self) -> None:
+    def test_includes_current_version_key(self) -> None:
+        # The producer emits the current schema version. Decoders accept the
+        # current version plus any documented legacy versions
+        # (see _ACCEPTED_QR_SCHEMA_VERSIONS in cards/queries.py).
         payload = json.loads(queries.get_recipe_as_json(recipe=_recipe()))
-        assert payload["v"] == 1
+        assert payload["v"] == queries._CURRENT_QR_SCHEMA_VERSION
 
     def test_includes_film_simulation(self) -> None:
         payload = json.loads(queries.get_recipe_as_json(recipe=_recipe(film_simulation="Classic Chrome")))
@@ -38,11 +48,13 @@ class TestGetRecipeAsJson:
         assert " " not in result
 
     def test_omits_color_only_fields_for_monochromatic_simulation(self) -> None:
-        recipe = _recipe(film_simulation="Acros STD", color=None, color_chrome_effect=None, color_chrome_fx_blue=None)
+        # ``color`` is the only field flagged as colour-only in
+        # _COLOR_ONLY_FIELDS; CCE and CC FX Blue apply to both monochrome and
+        # colour simulations (mono recipes set them too) and are kept in the
+        # payload.
+        recipe = _recipe(film_simulation="Acros STD", color=None)
         payload = json.loads(queries.get_recipe_as_json(recipe=recipe))
         assert "color" not in payload
-        assert "color_chrome_effect" not in payload
-        assert "color_chrome_fx_blue" not in payload
 
     def test_includes_color_fields_for_colour_simulation(self) -> None:
         recipe = _recipe(film_simulation="Provia", color_chrome_effect="Strong", color_chrome_fx_blue="Weak")
@@ -109,6 +121,7 @@ class TestGetRecipeAsJson:
         assert "name" not in payload
 
 
+@pytest.mark.django_db
 class TestGetRecipeCoverLines:
     def test_returns_field_lines(self) -> None:
         recipe = _recipe()
@@ -135,11 +148,12 @@ class TestGetRecipeCoverLines:
         assert film_line.value == "Velvia"
 
     def test_omits_inapplicable_fields(self) -> None:
-        recipe = _recipe(film_simulation="Acros STD", color=None, color_chrome_effect=None)
+        # ``color`` is the only field flagged as colour-only via
+        # _COLOR_ONLY_FIELDS; for a mono sim it is omitted from the card.
+        recipe = _recipe(film_simulation="Acros STD", color=None)
         lines = queries.get_recipe_cover_lines(recipe=recipe, template=templates.LONG_LABEL)
         labels = [line.label for line in lines]
         assert "Color" not in labels
-        assert "Color Chrome" not in labels
 
     def test_omits_grain_size_when_grain_roughness_is_off(self) -> None:
         recipe = _recipe(grain_roughness="Off", grain_size="Small")
@@ -179,3 +193,73 @@ class TestGetRecipeCoverLines:
         wb_idx = present_fields.index("White Balance")
         hl_idx = present_fields.index("Highlight")
         assert film_idx < wb_idx < hl_idx
+
+
+@pytest.mark.django_db
+class TestGetRecipeAsJsonSensors:
+    """Encoder behaviour around the ``sensors`` key (introduced in v=2)."""
+
+    def test_omits_sensors_when_recipe_has_no_attached_sensors(self) -> None:
+        recipe = _recipe()
+
+        payload = json.loads(queries.get_recipe_as_json(recipe=recipe))
+
+        assert "sensors" not in payload
+
+    def test_includes_sensors_sorted_when_recipe_has_them(self) -> None:
+        recipe = _recipe()
+        recipe.set_sensors(
+            sensors=models.Sensor.objects.filter(name__in=["X-Trans IV", "GFX"])
+        )
+
+        payload = json.loads(queries.get_recipe_as_json(recipe=recipe))
+
+        # Lexicographic sort: "GFX" < "X-Trans IV".
+        assert payload["sensors"] == ["GFX", "X-Trans IV"]
+
+
+@pytest.mark.django_db
+class TestGetRecipeAsJsonDescription:
+    def test_description_never_appears_in_payload(self) -> None:
+        # By design: description is private notes, not sharing-relevant
+        # settings, so it's excluded from the QR payload regardless of
+        # whether the recipe has a description set.
+        recipe = _recipe(description="Some recipe notes")
+
+        payload = json.loads(queries.get_recipe_as_json(recipe=recipe))
+
+        assert "description" not in payload
+
+
+@pytest.mark.django_db
+class TestGetRecipeCoverLinesSensors:
+    def test_omits_sensors_line_when_recipe_has_none(self) -> None:
+        recipe = _recipe()
+
+        lines = queries.get_recipe_cover_lines(recipe=recipe, template=templates.LONG_LABEL)
+
+        assert "Sensors" not in [line.label for line in lines]
+
+    def test_prepends_sensors_line_when_recipe_has_sensors(self) -> None:
+        recipe = _recipe()
+        recipe.set_sensors(
+            sensors=models.Sensor.objects.filter(name__in=["X-Trans IV", "GFX"])
+        )
+
+        lines = queries.get_recipe_cover_lines(recipe=recipe, template=templates.LONG_LABEL)
+
+        # The sensors line is first so receivers see compatibility before
+        # reading any settings.
+        assert lines[0].label == "Sensors"
+        assert lines[0].value == "GFX, X-Trans IV"
+
+    def test_uses_short_label_style(self) -> None:
+        recipe = _recipe()
+        recipe.set_sensors(sensors=models.Sensor.objects.filter(name="X-Trans V"))
+
+        lines = queries.get_recipe_cover_lines(recipe=recipe, template=templates.SHORT_LABEL)
+
+        # Long/short happen to be identical here ("Sensors"); the test
+        # documents the contract for future divergence.
+        assert lines[0].label == "Sensors"
+        assert lines[0].value == "X-Trans V"

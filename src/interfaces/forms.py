@@ -3,6 +3,7 @@ from decimal import Decimal
 from django import forms
 from django.core import validators
 
+from src.data import sensors as sensors_module
 from src.data.camera import constants as camera_constants
 from src.domain.recipes import constants as recipe_constants
 
@@ -19,6 +20,7 @@ _CCE_CHOICES = _choices(["Off", "Weak", "Strong"])
 _CFX_CHOICES = _choices(["Off", "Weak", "Strong"])
 _GRAIN_ROUGHNESS_CHOICES = _choices(["Off", "Weak", "Strong"])
 _GRAIN_SIZE_CHOICES = _choices(["Off", "Small", "Large"])
+_SENSOR_CHOICES = _choices(list(sensors_module.SENSOR_NAMES))
 
 _HALF = Decimal("0.5")
 
@@ -97,6 +99,15 @@ class CreateRecipe(forms.Form):
             validators.MinValueValidator(Decimal("-9")),
             validators.MaxValueValidator(Decimal("9")),
         ],
+    )
+    sensors = forms.MultipleChoiceField(
+        choices=_SENSOR_CHOICES,
+        required=False,
+        widget=forms.CheckboxSelectMultiple,
+    )
+    description = forms.CharField(
+        required=False,
+        widget=forms.Textarea(attrs={"rows": 3}),
     )
 
     def clean_highlight(self) -> Decimal | None:

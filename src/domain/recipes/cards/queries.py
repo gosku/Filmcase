@@ -23,6 +23,7 @@ class FieldLine:
 
 
 _LONG_LABELS: dict[str, str] = {
+    "sensors": "Sensors",
     "film_simulation": "Film Simulation",
     "dynamic_range": "Dynamic Range",
     "d_range_priority": "D-Range Priority",
@@ -44,6 +45,7 @@ _LONG_LABELS: dict[str, str] = {
 }
 
 _SHORT_LABELS: dict[str, str] = {
+    "sensors": "Sensors",
     "film_simulation": "Film Sim",
     "dynamic_range": "DR",
     "d_range_priority": "D-Range",
@@ -143,12 +145,19 @@ def get_recipe_as_json(*, recipe: models.FujifilmRecipe) -> str:
 
     Uses short snake_case keys. Fields that are None and semantically inapplicable
     for the current film simulation are omitted. Values of 0 or other defaults are
-    always included. The recipe name is included only when non-empty, so nameless
-    recipes produce byte-identical payloads to before this key existed.
+    always included. Optional keys (``name``, ``sensors``) are included only when
+    non-empty, so a recipe without a name or sensors produces a payload identical
+    in shape to a v=1 payload before those keys existed -- save the bumped ``v``.
+
+    ``description`` is intentionally excluded from the QR payload: it is private
+    notes, not sharing-relevant settings, and keeps the QR small and reliable.
     """
-    payload: dict[str, object] = {"v": 1}
+    payload: dict[str, object] = {"v": _CURRENT_QR_SCHEMA_VERSION}
     if recipe.name:
         payload["name"] = recipe.name
+    sensor_names = sorted(recipe.sensors.values_list("name", flat=True))
+    if sensor_names:
+        payload["sensors"] = sensor_names
     for field in _DISPLAY_FIELDS:
         if not _is_applicable(recipe, field):
             continue
@@ -170,10 +179,18 @@ def get_recipe_cover_lines(
     """
     Return display lines for the recipe card formatted per template label style.
 
-    Inapplicable fields (same rules as get_recipe_as_json) and null values are omitted.
+    Inapplicable fields (same rules as get_recipe_as_json) and null values are
+    omitted. When the recipe has attached sensors, a "Sensors" line is
+    prepended to the body so card recipients can see compatibility at a
+    glance before reading the settings.
     """
     labels = _LONG_LABELS if template.label_style == "long" else _SHORT_LABELS
     lines: list[FieldLine] = []
+    sensor_names = sorted(recipe.sensors.values_list("name", flat=True))
+    if sensor_names:
+        lines.append(
+            FieldLine(label=labels["sensors"], value=", ".join(sensor_names))
+        )
     for field in _DISPLAY_FIELDS:
         if not _is_applicable(recipe, field):
             continue
@@ -201,7 +218,8 @@ class InvalidQRRecipePayloadError(Exception):
 
     ``reason`` is one of:
       - ``"invalid_json"`` — decoded string is not valid JSON.
-      - ``"unsupported_version"`` — ``v`` field is missing or != 1.
+      - ``"unsupported_version"`` — ``v`` field is missing or not in the
+        accepted set (currently {1, 2}).
       - ``"unknown_fields"`` — payload contains keys outside the known schema.
       - ``"type_mismatch"`` — a field's value has the wrong type, or a
         required field is missing.
@@ -211,7 +229,14 @@ class InvalidQRRecipePayloadError(Exception):
     reason: str = ""
 
 
-_SUPPORTED_QR_SCHEMA_VERSION = 1
+# The version we emit when producing a new QR payload. v=2 added the optional
+# ``sensors`` key; existing v=1 payloads continue to decode because they have
+# the same shape minus that field.
+_CURRENT_QR_SCHEMA_VERSION = 2
+
+# All payload versions we accept on decode. New payloads must equal one of
+# these; unknown versions are rejected with ``"unsupported_version"``.
+_ACCEPTED_QR_SCHEMA_VERSIONS: frozenset[int] = frozenset({1, 2})
 
 _QR_STR_FIELDS: frozenset[str] = frozenset({
     "film_simulation",
@@ -238,8 +263,16 @@ _QR_DECIMAL_FIELDS: frozenset[str] = frozenset({
     "monochromatic_color_warm_cool",
     "monochromatic_color_magenta_green",
 })
+# Lists of strings. ``sensors`` is the only one today (introduced in v=2).
+_QR_STR_LIST_FIELDS: frozenset[str] = frozenset({
+    "sensors",
+})
 _QR_KNOWN_KEYS: frozenset[str] = (
-    frozenset({"v"}) | _QR_STR_FIELDS | _QR_INT_FIELDS | _QR_DECIMAL_FIELDS
+    frozenset({"v"})
+    | _QR_STR_FIELDS
+    | _QR_INT_FIELDS
+    | _QR_DECIMAL_FIELDS
+    | _QR_STR_LIST_FIELDS
 )
 
 
@@ -260,6 +293,11 @@ def _check_payload_types(payload: dict[str, object], *, image_path: str) -> None
             raise InvalidQRRecipePayloadError(image_path=image_path, reason="type_mismatch")
         if key in _QR_DECIMAL_FIELDS and (
             isinstance(value, bool) or not isinstance(value, (int, float))
+        ):
+            raise InvalidQRRecipePayloadError(image_path=image_path, reason="type_mismatch")
+        if key in _QR_STR_LIST_FIELDS and (
+            not isinstance(value, list)
+            or not all(isinstance(item, str) for item in value)
         ):
             raise InvalidQRRecipePayloadError(image_path=image_path, reason="type_mismatch")
 
@@ -315,7 +353,11 @@ def get_qr_recipe_from_image(*, image_path: str) -> card_dataclasses.QRFujifilmR
         raise InvalidQRRecipePayloadError(image_path=image_path, reason="invalid_json")
 
     version = payload.get("v")
-    if not isinstance(version, int) or isinstance(version, bool) or version != _SUPPORTED_QR_SCHEMA_VERSION:
+    if (
+        not isinstance(version, int)
+        or isinstance(version, bool)
+        or version not in _ACCEPTED_QR_SCHEMA_VERSIONS
+    ):
         raise InvalidQRRecipePayloadError(image_path=image_path, reason="unsupported_version")
 
     unknown = set(payload.keys()) - _QR_KNOWN_KEYS
@@ -377,5 +419,9 @@ def get_recipe_data_from_qr_recipe(
             color=_signed_decimal_or_none(qr_recipe.color) or "0",
             monochromatic_color_warm_cool=_signed_decimal_or_none(qr_recipe.monochromatic_color_warm_cool) or "0",
             monochromatic_color_magenta_green=_signed_decimal_or_none(qr_recipe.monochromatic_color_magenta_green) or "0",
+            # v=1 payloads omit ``sensors``; the dataclass leaves it None there.
+            # v=2 payloads may include it; either way we settle on an empty
+            # tuple when absent so the FujifilmRecipeData validator is happy.
+            sensors=qr_recipe.sensors if qr_recipe.sensors is not None else (),
         )
     )

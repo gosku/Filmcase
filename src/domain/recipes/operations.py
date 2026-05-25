@@ -10,8 +10,11 @@ from src.data import models
 from src.domain.images import dataclasses as image_dataclasses
 from src.domain.images import events
 from src.domain.images import queries as image_queries
+from collections.abc import Iterable
+
 from src.domain.recipes import normalization as recipe_normalization
 from src.domain.recipes import queries as recipe_queries
+from src.domain.recipes import sensors as recipe_sensors
 from src.domain.recipes import validation as recipe_validation
 from src.domain.recipes.cards import operations as card_operations
 from src.domain.recipes.cards import queries as card_queries
@@ -121,12 +124,14 @@ def get_or_create_recipe_from_data(
     Create or retrieve a FujifilmRecipe for the given recipe data.
 
     Returns ``(recipe, created)``. Uniqueness is determined by the recipe
-    settings only — ``data.name`` is applied via ``defaults`` on the create
-    path and is never considered during lookup or written back on the get path.
+    settings and the sensor set (via ``sensor_signature``); ``data.name`` and
+    ``data.description`` are applied via ``defaults`` on the create path and
+    are never considered during lookup or written back on the get path.
 
-    When *created* is True, adds the recipe to a version line via
-    ``add_recipe_to_version_line``. Pass *group_id* to append
-    the new recipe to an existing version line; omit it to start a new one.
+    When *created* is True, attaches *data.sensors* to the new recipe (via
+    ``set_recipe_sensors``) and adds it to a version line via
+    ``add_recipe_to_version_line``. Pass *group_id* to append the new recipe
+    to an existing version line; omit it to start a new one.
 
     This is the single seam for ``FujifilmRecipe.get_or_create`` — shared by
     every caller that has already produced a FujifilmRecipeData (from EXIF,
@@ -134,6 +139,7 @@ def get_or_create_recipe_from_data(
     """
     data = recipe_normalization.normalize_recipe_data(data)
     recipe_validation.validate_recipe_data(data)
+    signature = recipe_sensors.compute_sensor_signature(data.sensors)
     recipe, created = models.FujifilmRecipe.get_or_create(
         film_simulation=data.film_simulation,
         dynamic_range=data.dynamic_range or "",
@@ -153,9 +159,16 @@ def get_or_create_recipe_from_data(
         clarity=_parse_numeric(s=data.clarity),
         monochromatic_color_warm_cool=_parse_numeric(s=data.monochromatic_color_warm_cool),
         monochromatic_color_magenta_green=_parse_numeric(s=data.monochromatic_color_magenta_green),
+        sensor_signature=signature,
         name=data.name,
+        description=data.description,
     )
     if created:
+        if data.sensors:
+            # The factory already wrote sensor_signature on create; this
+            # attaches the M2M side via set_recipe_sensors, which also
+            # re-writes the signature (idempotent: same value).
+            set_recipe_sensors(recipe=recipe, sensor_names=data.sensors)
         add_recipe_to_version_line(recipe=recipe, group_id=group_id)
         events.publish_event(
             event_type=events.RECIPE_CREATED,
@@ -301,6 +314,49 @@ def set_recipe_name(*, recipe: models.FujifilmRecipe, name: str) -> None:
 
 
 @attrs.frozen
+class UnknownSensorError(Exception):
+    """
+    Raised when a sensor name doesn't match any seeded :class:`Sensor` row.
+    """
+
+    name: str
+
+
+def set_recipe_sensors(
+    *, recipe: models.FujifilmRecipe, sensor_names: Iterable[str]
+) -> None:
+    """
+    Replace *recipe*'s sensor set and refresh its denormalised signature.
+
+    Looks up each name in :class:`Sensor`, computes the canonical signature
+    from the (deduplicated) set of resolved sensors, and writes both the M2M
+    and the ``sensor_signature`` field through their single-purpose mutators.
+    The two writes are wrapped in a single ``transaction.atomic`` block here
+    in the operation so the recipe's UniqueConstraint never sees an
+    intermediate state where the signature and the M2M disagree.
+
+    :raises UnknownSensorError: If any name doesn't correspond to a seeded
+        sensor row. The lookup runs before the mutation, so a validation
+        failure never leaves the recipe partially mutated.
+    """
+    sensor_names = tuple(sensor_names)
+    sensor_queryset = models.Sensor.objects.filter(name__in=sensor_names)
+    resolved_names = set(sensor_queryset.values_list("name", flat=True))
+    for name in sensor_names:
+        if name not in resolved_names:
+            raise UnknownSensorError(name=name)
+    signature = recipe_sensors.compute_sensor_signature(sensor_names)
+    with transaction.atomic(savepoint=False):
+        recipe.set_sensor_signature(sensor_signature=signature)
+        recipe.set_sensors(sensors=sensor_queryset)
+    events.publish_event(
+        event_type=events.RECIPE_SENSORS_SET,
+        recipe_id=recipe.pk,
+        sensor_signature=signature,
+    )
+
+
+@attrs.frozen
 class RecipeHasImagesError(Exception):
     """
     Raised when a recipe cannot be deleted because it still has associated Images.
@@ -335,13 +391,26 @@ def update_recipe(*, recipe: models.FujifilmRecipe, data: image_dataclasses.Fuji
     """
     Update an existing FujifilmRecipe from the given data.
 
-    Normalises *data* before comparing. Settings fields (film simulation, tone
-    curves, etc.) are only written when they differ from the current values and
-    the recipe has no associated Images. Metadata fields (name) are always
-    writable regardless of image association.
+    Normalises *data* before comparing. Identity-defining fields (camera
+    settings) are only written when they differ from the current values and
+    the recipe has no associated Images. Metadata fields (name, description,
+    sensors) are always writable regardless of image association — a user can
+    annotate a recipe with additional compatible sensors after it's been used
+    to develop photos.
 
-    :raises RecipeCannotBeEditedError: If settings fields changed but the recipe has associated Images.
-    :raises RecipeSettingsConflictError: If the new settings would duplicate an existing recipe.
+    Sensors still participate in the recipe's UniqueConstraint via
+    ``sensor_signature``: changing them to a set that collides with another
+    recipe's (settings + signature) tuple raises ``RecipeSettingsConflictError``
+    via the integrity-error path below.
+
+    Empty *data.name* / *data.description* are treated as "no change" — the
+    recipe's existing values are preserved. Clearing those fields must use a
+    dedicated path (not exposed here).
+
+    :raises RecipeCannotBeEditedError: If camera-settings fields changed but
+        the recipe has associated Images.
+    :raises RecipeSettingsConflictError: If the new (settings, sensor) tuple
+        would duplicate an existing recipe.
     """
     data = recipe_normalization.normalize_recipe_data(data)
     current_data = recipe_queries.recipe_from_db(recipe=recipe)
@@ -350,6 +419,10 @@ def update_recipe(*, recipe: models.FujifilmRecipe, data: image_dataclasses.Fuji
         not _settings_values_equal(field, getattr(data, field), getattr(current_data, field))
         for field in recipe_queries.RECIPE_FIELDS
     )
+    sensors_changing = set(data.sensors) != set(current_data.sensors)
+
+    new_name = data.name if data.name else recipe.name
+    new_description = data.description if data.description else recipe.description
 
     if settings_changing:
         recipe_validation.validate_recipe_data(data)
@@ -360,36 +433,59 @@ def update_recipe(*, recipe: models.FujifilmRecipe, data: image_dataclasses.Fuji
                 image_count=image_count,
                 name=recipe.name,
             )
-        name = data.name if data.name else recipe.name
+
+    # Writes that touch the unique-constrained columns (settings or
+    # sensor_signature) are wrapped in a single atomic + IntegrityError
+    # handler so a colliding sensor set or settings tuple surfaces as
+    # RecipeSettingsConflictError rather than as a bare IntegrityError.
+    if settings_changing or sensors_changing:
+        signature = recipe_sensors.compute_sensor_signature(data.sensors)
         try:
             with transaction.atomic():
-                recipe.update_settings(
-                    film_simulation=data.film_simulation,
-                    dynamic_range=data.dynamic_range or "",
-                    d_range_priority=data.d_range_priority,
-                    grain_roughness=data.grain_roughness,
-                    grain_size=data.grain_size if data.grain_size is not None else "Off",
-                    color_chrome_effect=data.color_chrome_effect,
-                    color_chrome_fx_blue=data.color_chrome_fx_blue,
-                    white_balance=data.white_balance,
-                    white_balance_red=data.white_balance_red,
-                    white_balance_blue=data.white_balance_blue,
-                    highlight=_parse_numeric(s=data.highlight),
-                    shadow=_parse_numeric(s=data.shadow),
-                    color=_parse_numeric(s=data.color),
-                    sharpness=_parse_numeric(s=data.sharpness),
-                    high_iso_nr=_parse_numeric(s=data.high_iso_nr),
-                    clarity=_parse_numeric(s=data.clarity),
-                    monochromatic_color_warm_cool=_parse_numeric(s=data.monochromatic_color_warm_cool),
-                    monochromatic_color_magenta_green=_parse_numeric(s=data.monochromatic_color_magenta_green),
-                    name=name,
-                )
+                if settings_changing:
+                    recipe.update_settings(
+                        film_simulation=data.film_simulation,
+                        dynamic_range=data.dynamic_range or "",
+                        d_range_priority=data.d_range_priority,
+                        grain_roughness=data.grain_roughness,
+                        grain_size=data.grain_size if data.grain_size is not None else "Off",
+                        color_chrome_effect=data.color_chrome_effect,
+                        color_chrome_fx_blue=data.color_chrome_fx_blue,
+                        white_balance=data.white_balance,
+                        white_balance_red=data.white_balance_red,
+                        white_balance_blue=data.white_balance_blue,
+                        highlight=_parse_numeric(s=data.highlight),
+                        shadow=_parse_numeric(s=data.shadow),
+                        color=_parse_numeric(s=data.color),
+                        sharpness=_parse_numeric(s=data.sharpness),
+                        high_iso_nr=_parse_numeric(s=data.high_iso_nr),
+                        clarity=_parse_numeric(s=data.clarity),
+                        monochromatic_color_warm_cool=_parse_numeric(s=data.monochromatic_color_warm_cool),
+                        monochromatic_color_magenta_green=_parse_numeric(s=data.monochromatic_color_magenta_green),
+                        sensor_signature=signature,
+                        name=new_name,
+                        description=new_description,
+                    )
+                elif sensors_changing:
+                    # Sensors-only change: write the signature directly and
+                    # let the metadata-only handlers below cover name and
+                    # description.
+                    recipe.set_sensor_signature(sensor_signature=signature)
+                if sensors_changing:
+                    recipe.set_sensors(
+                        sensors=models.Sensor.objects.filter(name__in=data.sensors)
+                    )
         except IntegrityError:
             raise RecipeSettingsConflictError(recipe_id=recipe.pk)
-    else:
-        name = data.name if data.name else recipe.name
-        if name != recipe.name:
-            recipe.set_name(name=name)
+
+    if not settings_changing:
+        # Metadata-only writes: name and/or description. update_settings
+        # already wrote both above when settings changed, so we only handle
+        # them here on the no-settings-change path.
+        if new_name != recipe.name:
+            recipe.set_name(name=new_name)
+        if new_description != recipe.description:
+            recipe.set_description(description=new_description)
 
     events.publish_event(
         event_type=events.RECIPE_UPDATED,
