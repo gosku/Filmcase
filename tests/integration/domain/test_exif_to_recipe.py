@@ -70,6 +70,9 @@ class TestFilmSimulationFromFilmModeField:
     def test_reala_ace(self):
         assert _recipe("film_simulation_reala_ace.jpg").film_simulation == "Reala Ace"
 
+    def test_nostalgic_negative(self):
+        assert _recipe("film_simulation_nostalgic_negative.jpg").film_simulation == "Nostalgic Negative"
+
 
 # ---------------------------------------------------------------------------
 # film_simulation — sourced from EXIF Saturation (color) field
