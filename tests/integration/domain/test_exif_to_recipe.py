@@ -67,6 +67,9 @@ class TestFilmSimulationFromFilmModeField:
     def test_bleach_bypass(self):
         assert _recipe("film_simulation_bleach_bypass.jpg").film_simulation == "Eterna Bleach Bypass"
 
+    def test_reala_ace(self):
+        assert _recipe("film_simulation_reala_ace.jpg").film_simulation == "Reala Ace"
+
 
 # ---------------------------------------------------------------------------
 # film_simulation — sourced from EXIF Saturation (color) field

@@ -32,7 +32,7 @@ class FilmSimulation(str, Enum):
     ASTIA = "F1b/Studio Portrait Smooth Skin Tone (Astia)"
     BLEACH_BYPASS = "Bleach Bypass"
     PRO_NEG_HI = "Pro Neg. Hi"
-    REALA_ACE = "Reala Ace"
+    REALA_ACE = "Reala ACE"
     # Values below come from the EXIF `color` field (film_simulation is empty for these)
     ACROS = "Acros"
     ACROS_YELLOW = "Acros Yellow Filter"
