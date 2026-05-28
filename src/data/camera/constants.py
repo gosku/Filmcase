@@ -277,6 +277,7 @@ CAMERA_TO_SENSOR: dict[str, str] = {
     "X-S20":     "X-Trans V",
     "X-E5":      "X-Trans V",
     "X100VI":    "X-Trans V",
+    "X-M5":      "X-Trans V",
 
     # GFX (medium format Bayer)
     "GFX 50S":   "GFX",
