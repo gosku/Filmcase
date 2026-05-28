@@ -32,7 +32,8 @@ class FilmSimulation(str, Enum):
     ASTIA = "F1b/Studio Portrait Smooth Skin Tone (Astia)"
     BLEACH_BYPASS = "Bleach Bypass"
     PRO_NEG_HI = "Pro Neg. Hi"
-    REALA_ACE = "Reala Ace"
+    REALA_ACE = "Reala ACE"
+    NOSTALGIC_NEGATIVE = "Nostalgic Neg"
     # Values below come from the EXIF `color` field (film_simulation is empty for these)
     ACROS = "Acros"
     ACROS_YELLOW = "Acros Yellow Filter"
@@ -68,6 +69,7 @@ _FILM_SIMULATION_DISPLAY_NAMES: dict[FilmSimulation, str] = {
     FilmSimulation.BLEACH_BYPASS: "Eterna Bleach Bypass",
     FilmSimulation.PRO_NEG_HI: "Pro Neg. Hi",
     FilmSimulation.REALA_ACE: "Reala Ace",
+    FilmSimulation.NOSTALGIC_NEGATIVE: "Nostalgic Negative",
     FilmSimulation.ACROS: "Acros STD",
     FilmSimulation.ACROS_YELLOW: "Acros Yellow",
     FilmSimulation.ACROS_RED: "Acros Red",
@@ -92,6 +94,7 @@ _FILM_SIMULATION_FROM_EXIF: dict[str, FilmSimulation] = {
         FilmSimulation.BLEACH_BYPASS,
         FilmSimulation.PRO_NEG_HI,
         FilmSimulation.REALA_ACE,
+        FilmSimulation.NOSTALGIC_NEGATIVE,
     ]
 }
 
