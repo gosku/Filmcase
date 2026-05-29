@@ -95,6 +95,10 @@ update:
 	@echo ""
 	@echo "Done. Run 'make run' to start the server."
 
+## import PATH=…  — import images from a directory (e.g. make import PATH=~/Pictures/Fujifilm)
+import:
+	@$(PYTHON) manage.py process_images $(PATH)
+
 ## run         — start the Django development server
 run:
 	@git fetch origin main --quiet 2>/dev/null; \
