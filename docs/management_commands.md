@@ -3,21 +3,39 @@
 Management commands are run from the terminal and handle tasks that don't belong in the
 web interface (yet)— bulk imports, maintenance, and camera inspection.
 
+## Running commands
+
+The project uses a virtualenv located at `.venv/`. To run any management command, prefix
+it with `.venv/bin/python` instead of `python`:
+
+```bash
+.venv/bin/python manage.py <command> [args]
+```
+
+Alternatively, activate the virtualenv for your shell session first:
+
+```bash
+source .venv/bin/activate
+python manage.py <command> [args]
+```
+
 ---
 
 ## Importing images
 
 ```
 python manage.py process_images <folder>
-python manage.py process_images_sync <folder>
 ```
 
-Both commands scan a folder for JPEG images taken with a Fujifilm camera and import them
-into the application, extracting recipe and EXIF data from each file.
+Scans a folder for JPEG images taken with a Fujifilm camera and imports them into the
+application, extracting recipe and EXIF data from each file.
 
-`process_images` queues the work in the background (requires Celery to be running).
-`process_images_sync` processes everything immediately in the terminal, which is simpler for
-one-off imports when Celery is not set up.
+Behaviour depends on your install mode:
+
+- **Lite install** (`USE_ASYNC_TASKS=False`): images are processed one at a time in the
+  foreground. The terminal blocks until all images are done.
+- **Full install** (`USE_ASYNC_TASKS=True`): one Celery task is enqueued per image and
+  processed in parallel by the worker (start it first with `make worker`).
 
 ---
 

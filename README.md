@@ -54,13 +54,10 @@ cd filmcase
 **Set up the project:**
 
 ```bash
-make setup-lite   # creates venv, installs deps, generates SQLite config, runs migrations
-make run          # start the development server
-make update       # pull latest changes, install new deps, run migrations
+make setup-lite              # creates venv, installs deps, generates SQLite config, runs migrations
+make import PATH=/path/to/images   # import your image collection
+make run                     # start the development server
 ```
-
-Images are processed sequentially when you run `python manage.py process_images`. No
-background worker is needed.
 
 ---
 
@@ -203,7 +200,7 @@ Python 3.11+ is required.
 Before using the web interface, you need to process your images so their EXIF data and recipe information are stored in the database.
 
 ```bash
-python manage.py process_images /path/to/your/images
+make import PATH=/path/to/your/images
 ```
 
 The command behaves according to your install mode:
@@ -237,7 +234,7 @@ Visit `/images/` to see all processed images. Use the filter controls to narrow 
 
 ### Process new images
 
-Re-run `process_images` pointing at any directory containing new images. Already-processed images are updated in place with fresh EXIF data. Images without Fujifilm EXIF data are skipped.
+Re-run `make import PATH=…` pointing at any directory containing new images. Already-processed images are updated in place with fresh EXIF data. Images without Fujifilm EXIF data are skipped.
 
 ### Rate images
 
