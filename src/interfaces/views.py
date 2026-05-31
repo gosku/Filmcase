@@ -54,6 +54,9 @@ def _active_filters_from_request(request: http.HttpRequest) -> dict[str, list[st
     recipe_ids = request.GET.getlist("recipe_id")
     if recipe_ids:
         filters["recipe_id"] = recipe_ids
+    sensor_values = request.GET.getlist("sensors")
+    if sensor_values:
+        filters["sensors"] = sensor_values
     return filters
 
 
@@ -294,11 +297,15 @@ class SetRecipeCoverImage(generic.View):
 
 
 def _recipe_explorer_filters_from_request(request: http.HttpRequest) -> dict[str, list[str]]:
-    return {
+    filters = {
         field: request.GET.getlist(field)
         for field, _ in filter_queries.RECIPE_FILTER_FIELDS
         if request.GET.getlist(field)
     }
+    sensor_values = request.GET.getlist("sensors")
+    if sensor_values:
+        filters["sensors"] = sensor_values
+    return filters
 
 
 def recipes_explorer_view(request: http.HttpRequest) -> http.HttpResponse:

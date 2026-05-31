@@ -556,6 +556,48 @@ def get_recipe_sidebar_filter_options(
 
     *name_search* is applied to all facet counts so they reflect the current search.
     """
+    sensor_selected: Sequence[str] = active_filters.get("sensors", [])
+    sensor_base_qs = models.FujifilmRecipe.objects.all()
+    if name_search:
+        sensor_base_qs = sensor_base_qs.filter(Q(name__icontains=name_search))
+    for other_field, values in active_filters.items():
+        if other_field == "sensors" or not values:
+            continue
+        sensor_base_qs = sensor_base_qs.filter(**{f"{other_field}__in": values})
+
+    sensor_counts: dict[str, int] = {
+        row["sensors__name"]: row["count"]
+        for row in (
+            sensor_base_qs
+            .filter(sensors__isnull=False)
+            .values("sensors__name")
+            .annotate(count=Count("pk", distinct=True))
+        )
+    }
+    no_sensor_count = sensor_base_qs.filter(sensors__isnull=True).count()
+    if no_sensor_count:
+        sensor_counts[filter_queries.SENSOR_NONE_VALUE] = no_sensor_count
+
+    all_sensor_values: set[str] = set(sensor_counts) | set(sensor_selected)
+    sorted_sensor_values = sorted(
+        all_sensor_values,
+        key=lambda v: (0 if v in sensor_counts else 1, 1 if v == filter_queries.SENSOR_NONE_VALUE else 0, v),
+    )
+    _sensor_section: dict[str, object] = {
+        "label": "Sensor",
+        "options": [
+            {
+                "value": v,
+                "label": filter_queries.SENSOR_NONE_LABEL if v == filter_queries.SENSOR_NONE_VALUE else v,
+                "count": sensor_counts.get(v, 0),
+                "available": v in sensor_counts,
+                "selected": v in sensor_selected,
+            }
+            for v in sorted_sensor_values
+        ],
+        "selected": sensor_selected,
+    }
+
     result: dict[str, dict[str, object]] = {}
     for field, label in filter_queries.RECIPE_FILTER_FIELDS:
         model_field = models.FujifilmRecipe._meta.get_field(field)
@@ -567,7 +609,10 @@ def get_recipe_sidebar_filter_options(
         for other_field, values in active_filters.items():
             if other_field == field or not values:
                 continue
-            base_qs = base_qs.filter(**{f"{other_field}__in": values})
+            if other_field == "sensors":
+                base_qs = filter_queries.filter_recipes_by_sensors(base_qs, values)
+            else:
+                base_qs = base_qs.filter(**{f"{other_field}__in": values})
         if is_numeric:
             base_qs = base_qs.exclude(**{f"{field}__isnull": True})
         else:
@@ -606,6 +651,9 @@ def get_recipe_sidebar_filter_options(
             ],
             "selected": selected_values,
         }
+        if field == "film_simulation":
+            result["sensors"] = _sensor_section
+
     return result
 
 
@@ -660,9 +708,16 @@ def get_recipe_gallery_data(
         ),
         fallback_cover_image_id=Subquery(cover_subquery),
     )
+    sensor_values = active_filters.get("sensors", [])
     for field, values in active_filters.items():
-        if values:
-            qs = qs.filter(**{f"{field}__in": values})
+        if not values or field == "sensors":
+            continue
+        qs = qs.filter(**{f"{field}__in": values})
+    if sensor_values:
+        matching_pks = filter_queries.filter_recipes_by_sensors(
+            models.FujifilmRecipe.objects.all(), sensor_values
+        ).values("pk")
+        qs = qs.filter(pk__in=matching_pks)
     if name_search:
         qs = qs.filter(Q(name__icontains=name_search))
     qs = qs.order_by("-has_name", "-image_count", "pk")
