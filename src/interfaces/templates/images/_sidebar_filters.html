@@ -10,7 +10,7 @@
                      name="{{ field }}"
                      value="{{ option.value }}"
                      {% if option.selected %}checked{% endif %}>
-              <span class="filter-option-value">{{ option.value }}</span>
+              <span class="filter-option-value">{{ option.label|default:option.value }}</span>
               <span class="filter-option-count">({{ option.count }})</span>
             </label>
           {% endfor %}

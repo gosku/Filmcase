@@ -1,7 +1,9 @@
 import pytest
 
 from src.data import models
-from src.domain.recipes.queries import RecipeData, RecipeDetailContext, get_recipe_detail, get_recipe_gallery_data
+from src.domain.images.filter_queries import SENSOR_NONE_VALUE
+from src.domain.recipes.operations import set_recipe_sensors
+from src.domain.recipes.queries import RecipeData, RecipeDetailContext, get_recipe_detail, get_recipe_gallery_data, get_recipe_sidebar_filter_options
 from src.domain.recipes.constants import MONOCHROMATIC_FILM_SIMULATIONS
 from tests.factories import FujifilmRecipeFactory, ImageFactory
 
@@ -211,3 +213,102 @@ class TestGetRecipeGalleryDataCoverImage:
         recipe.set_cover_image(image_id=cover.pk)
 
         assert self._get_cover_id(recipe) == cover.pk
+
+
+@pytest.mark.django_db
+class TestGetRecipeSidebarFilterOptionsSensors:
+    def test_not_assigned_appears_for_sensorless_recipes(self):
+        FujifilmRecipeFactory()
+
+        result = get_recipe_sidebar_filter_options(active_filters={})
+
+        sensor_values = {o["value"] for o in result["sensors"]["options"]}
+        assert SENSOR_NONE_VALUE in sensor_values
+
+    def test_named_sensor_count_matches_recipes_with_that_sensor(self):
+        recipe_a = FujifilmRecipeFactory()
+        set_recipe_sensors(recipe=recipe_a, sensor_names=("X-Trans IV",))
+        recipe_b = FujifilmRecipeFactory()
+        set_recipe_sensors(recipe=recipe_b, sensor_names=("X-Trans IV",))
+        FujifilmRecipeFactory()  # no sensor
+
+        result = get_recipe_sidebar_filter_options(active_filters={})
+
+        sensor_opts = {o["value"]: o for o in result["sensors"]["options"]}
+        assert sensor_opts["X-Trans IV"]["count"] == 2
+        assert sensor_opts[SENSOR_NONE_VALUE]["count"] == 1
+
+    def test_active_sensor_filter_narrows_other_field_counts(self):
+        recipe_provia = FujifilmRecipeFactory(film_simulation="Provia")
+        recipe_velvia = FujifilmRecipeFactory(film_simulation="Velvia")
+        set_recipe_sensors(recipe=recipe_provia, sensor_names=("X-Trans IV",))
+
+        result = get_recipe_sidebar_filter_options(active_filters={"sensors": ["X-Trans IV"]})
+
+        film_available = {o["value"] for o in result["film_simulation"]["options"] if o["available"]}
+        assert "Provia" in film_available
+        assert "Velvia" not in film_available
+
+    def test_not_assigned_sorted_last_among_available_sensor_options(self):
+        recipe_a = FujifilmRecipeFactory()
+        set_recipe_sensors(recipe=recipe_a, sensor_names=("X-Trans IV",))
+        FujifilmRecipeFactory()  # no sensor
+
+        result = get_recipe_sidebar_filter_options(active_filters={})
+
+        values = [o["value"] for o in result["sensors"]["options"] if o["available"]]
+        assert values[-1] == SENSOR_NONE_VALUE
+
+
+@pytest.mark.django_db
+class TestGetRecipeGalleryDataSensorFilter:
+    def test_sensor_filter_none_returns_only_sensorless_recipes(self):
+        recipe_with_sensor = FujifilmRecipeFactory()
+        set_recipe_sensors(recipe=recipe_with_sensor, sensor_names=("X-Trans IV",))
+        recipe_without = FujifilmRecipeFactory()
+
+        result = get_recipe_gallery_data(
+            active_filters={"sensors": [SENSOR_NONE_VALUE]},
+            page_number=1,
+            page_size=50,
+        )
+
+        returned_ids = {r.id for r in result.page_obj.items}
+        assert recipe_without.pk in returned_ids
+        assert recipe_with_sensor.pk not in returned_ids
+
+    def test_sensor_filter_named_returns_only_matching_recipes(self):
+        recipe_xt4 = FujifilmRecipeFactory()
+        set_recipe_sensors(recipe=recipe_xt4, sensor_names=("X-Trans IV",))
+        recipe_gfx = FujifilmRecipeFactory()
+        set_recipe_sensors(recipe=recipe_gfx, sensor_names=("GFX",))
+        recipe_none = FujifilmRecipeFactory()
+
+        result = get_recipe_gallery_data(
+            active_filters={"sensors": ["X-Trans IV"]},
+            page_number=1,
+            page_size=50,
+        )
+
+        returned_ids = {r.id for r in result.page_obj.items}
+        assert recipe_xt4.pk in returned_ids
+        assert recipe_gfx.pk not in returned_ids
+        assert recipe_none.pk not in returned_ids
+
+    def test_sensor_filter_combined_named_and_none(self):
+        recipe_xt4 = FujifilmRecipeFactory()
+        set_recipe_sensors(recipe=recipe_xt4, sensor_names=("X-Trans IV",))
+        recipe_gfx = FujifilmRecipeFactory()
+        set_recipe_sensors(recipe=recipe_gfx, sensor_names=("GFX",))
+        recipe_none = FujifilmRecipeFactory()
+
+        result = get_recipe_gallery_data(
+            active_filters={"sensors": ["X-Trans IV", SENSOR_NONE_VALUE]},
+            page_number=1,
+            page_size=50,
+        )
+
+        returned_ids = {r.id for r in result.page_obj.items}
+        assert recipe_xt4.pk in returned_ids
+        assert recipe_none.pk in returned_ids
+        assert recipe_gfx.pk not in returned_ids

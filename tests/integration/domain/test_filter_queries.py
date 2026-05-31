@@ -1,6 +1,7 @@
 import pytest
 
-from src.domain.images.filter_queries import get_sidebar_filter_options
+from src.domain.images.filter_queries import SENSOR_NONE_VALUE, get_sidebar_filter_options
+from src.domain.recipes.operations import set_recipe_sensors
 from tests.factories import FujifilmRecipeFactory, ImageFactory
 
 
@@ -10,10 +11,12 @@ class TestGetSidebarFilterOptionsNoFilters:
         result = get_sidebar_filter_options({})
 
         expected_fields = [
-            "film_simulation", "dynamic_range", "d_range_priority",
+            "film_simulation", "sensors",
+            "dynamic_range", "d_range_priority",
             "grain_roughness", "grain_size", "color_chrome_effect",
             "color_chrome_fx_blue", "white_balance",
             "white_balance_red", "white_balance_blue",
+            "highlight", "shadow", "color", "sharpness", "high_iso_nr", "clarity",
         ]
         assert list(result.keys()) == expected_fields
 
@@ -157,6 +160,29 @@ class TestGetSidebarFilterOptionsUnavailableValues:
 
 
 @pytest.mark.django_db
+class TestGetSidebarFilterOptionsDecimalFields:
+    def test_null_decimal_recipes_excluded_from_options(self):
+        # Factory leaves decimal fields as None; they must not appear in options.
+        recipe = FujifilmRecipeFactory()
+        ImageFactory(fujifilm_recipe=recipe)
+
+        result = get_sidebar_filter_options({})
+
+        assert result["highlight"]["options"] == []
+
+    def test_decimal_field_values_sort_numerically(self):
+        recipe_a = FujifilmRecipeFactory(highlight="-2.0", white_balance_red=0)
+        recipe_b = FujifilmRecipeFactory(highlight="1.5", white_balance_red=1)
+        ImageFactory(fujifilm_recipe=recipe_a)
+        ImageFactory(fujifilm_recipe=recipe_b)
+
+        result = get_sidebar_filter_options({})
+
+        values = [o["value"] for o in result["highlight"]["options"]]
+        assert values.index("-2") < values.index("1.5")
+
+
+@pytest.mark.django_db
 class TestGetSidebarFilterOptionsIntegerFields:
     def test_integer_field_values_are_strings_in_options(self):
         recipe = FujifilmRecipeFactory(white_balance_red=3, white_balance_blue=-2)
@@ -177,3 +203,67 @@ class TestGetSidebarFilterOptionsIntegerFields:
         wb_opts = {o["value"]: o for o in result["white_balance_red"]["options"]}
         assert wb_opts["3"]["selected"] is True
         assert wb_opts["3"]["available"] is True
+
+
+@pytest.mark.django_db
+class TestGetSidebarFilterOptionsSensorField:
+    def test_sensor_section_is_empty_when_no_sensors_assigned(self):
+        recipe = FujifilmRecipeFactory()
+        ImageFactory(fujifilm_recipe=recipe)
+
+        result = get_sidebar_filter_options({})
+
+        # The sensor section always exists but has no named-sensor options;
+        # only the "Not assigned" sentinel appears (for the image whose recipe
+        # has no sensor).
+        sensor_values = {o["value"] for o in result["sensors"]["options"]}
+        assert SENSOR_NONE_VALUE in sensor_values
+        assert all(v == SENSOR_NONE_VALUE for v in sensor_values)
+
+    def test_not_assigned_option_shows_count_of_sensorless_images(self):
+        recipe = FujifilmRecipeFactory()
+        ImageFactory.create_batch(3, fujifilm_recipe=recipe)
+
+        result = get_sidebar_filter_options({})
+
+        none_opt = next(o for o in result["sensors"]["options"] if o["value"] == SENSOR_NONE_VALUE)
+        assert none_opt["count"] == 3
+        assert none_opt["label"] == "Not assigned"
+
+    def test_named_sensor_appears_with_correct_count(self):
+        recipe = FujifilmRecipeFactory()
+        set_recipe_sensors(recipe=recipe, sensor_names=("X-Trans IV",))
+        ImageFactory.create_batch(2, fujifilm_recipe=recipe)
+        other = FujifilmRecipeFactory()
+        ImageFactory(fujifilm_recipe=other)  # no sensor
+
+        result = get_sidebar_filter_options({})
+
+        sensor_opts = {o["value"]: o for o in result["sensors"]["options"]}
+        assert sensor_opts["X-Trans IV"]["count"] == 2
+        assert sensor_opts[SENSOR_NONE_VALUE]["count"] == 1
+
+    def test_active_sensor_filter_narrows_other_field_counts(self):
+        provia_recipe = FujifilmRecipeFactory(film_simulation="Provia")
+        velvia_recipe = FujifilmRecipeFactory(film_simulation="Velvia")
+        set_recipe_sensors(recipe=provia_recipe, sensor_names=("X-Trans IV",))
+        ImageFactory(fujifilm_recipe=provia_recipe)
+        ImageFactory(fujifilm_recipe=velvia_recipe)
+
+        result = get_sidebar_filter_options({"sensors": ["X-Trans IV"]})
+
+        film_available = {o["value"] for o in result["film_simulation"]["options"] if o["available"]}
+        assert "Provia" in film_available
+        assert "Velvia" not in film_available
+
+    def test_not_assigned_sorted_last_among_available_options(self):
+        recipe_a = FujifilmRecipeFactory()
+        set_recipe_sensors(recipe=recipe_a, sensor_names=("X-Trans IV",))
+        recipe_b = FujifilmRecipeFactory()  # no sensor
+        ImageFactory(fujifilm_recipe=recipe_a)
+        ImageFactory(fujifilm_recipe=recipe_b)
+
+        result = get_sidebar_filter_options({})
+
+        values = [o["value"] for o in result["sensors"]["options"] if o["available"]]
+        assert values[-1] == SENSOR_NONE_VALUE
