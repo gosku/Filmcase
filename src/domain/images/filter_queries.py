@@ -8,6 +8,16 @@ from src.data import models
 
 _NOTABLE_RECIPE_MIN_IMAGES = 50
 
+
+def decimal_filter_str(value: object) -> str:
+    """Convert a DB Decimal value to a filter string, dropping redundant .0 suffixes."""
+    try:
+        n = float(value)  # type: ignore[arg-type]
+        return str(int(n)) if n == int(n) else str(value)
+    except (TypeError, ValueError):
+        return str(value)
+
+
 RECIPE_FILTER_FIELDS = [
     ("film_simulation", "Film Simulation"),
     ("dynamic_range", "Dynamic Range"),
@@ -19,6 +29,12 @@ RECIPE_FILTER_FIELDS = [
     ("white_balance", "White Balance"),
     ("white_balance_red", "WB Red"),
     ("white_balance_blue", "WB Blue"),
+    ("highlight", "Highlight"),
+    ("shadow", "Shadow"),
+    ("color", "Color"),
+    ("sharpness", "Sharpness"),
+    ("high_iso_nr", "High ISO NR"),
+    ("clarity", "Clarity"),
 ]
 
 
@@ -50,7 +66,7 @@ def get_sidebar_filter_options(
 
     for field, label in RECIPE_FILTER_FIELDS:
         model_field = models.FujifilmRecipe._meta.get_field(field)
-        is_integer = isinstance(model_field, db_models.IntegerField)
+        is_numeric = isinstance(model_field, (db_models.IntegerField, db_models.DecimalField))
 
         # Base queryset: only images that have a recipe, filtered by all
         # OTHER active filters (faceted search — own field excluded).
@@ -68,7 +84,7 @@ def get_sidebar_filter_options(
             )
 
         # Exclude null / empty values from the option set.
-        if is_integer:
+        if is_numeric:
             base_qs = base_qs.exclude(**{f"fujifilm_recipe__{field}__isnull": True})
         else:
             base_qs = base_qs.exclude(**{f"fujifilm_recipe__{field}": ""})
@@ -76,7 +92,7 @@ def get_sidebar_filter_options(
         # Aggregate counts; normalise DB values to strings so they match
         # URL param strings throughout the rest of the logic.
         available_counts: dict[str, int] = {
-            str(row[f"fujifilm_recipe__{field}"]): row["count"]
+            decimal_filter_str(row[f"fujifilm_recipe__{field}"]): row["count"]
             for row in (
                 base_qs
                 .values(f"fujifilm_recipe__{field}")
@@ -90,11 +106,11 @@ def get_sidebar_filter_options(
         all_values: set[str] = set(available_counts.keys()) | set(selected_values)
 
         # Sort: available values first, then unavailable; within each group
-        # sort numerically for integer fields, alphabetically for text fields.
-        if is_integer:
-            def _sort_key(v: str) -> tuple[int, int]:
+        # sort numerically for numeric fields, alphabetically for text fields.
+        if is_numeric:
+            def _sort_key(v: str) -> tuple[int, float]:
                 try:
-                    return (0 if v in available_counts else 1, int(v))
+                    return (0 if v in available_counts else 1, float(v))
                 except (ValueError, TypeError):
                     return (0 if v in available_counts else 1, 0)
             sorted_values = sorted(all_values, key=_sort_key)

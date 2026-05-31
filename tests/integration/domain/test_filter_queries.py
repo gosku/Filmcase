@@ -14,6 +14,7 @@ class TestGetSidebarFilterOptionsNoFilters:
             "grain_roughness", "grain_size", "color_chrome_effect",
             "color_chrome_fx_blue", "white_balance",
             "white_balance_red", "white_balance_blue",
+            "highlight", "shadow", "color", "sharpness", "high_iso_nr", "clarity",
         ]
         assert list(result.keys()) == expected_fields
 
@@ -154,6 +155,29 @@ class TestGetSidebarFilterOptionsUnavailableValues:
         unavailable_indices = [i for i, o in enumerate(options) if not o["available"]]
         if available_indices and unavailable_indices:
             assert max(available_indices) < min(unavailable_indices)
+
+
+@pytest.mark.django_db
+class TestGetSidebarFilterOptionsDecimalFields:
+    def test_null_decimal_recipes_excluded_from_options(self):
+        # Factory leaves decimal fields as None; they must not appear in options.
+        recipe = FujifilmRecipeFactory()
+        ImageFactory(fujifilm_recipe=recipe)
+
+        result = get_sidebar_filter_options({})
+
+        assert result["highlight"]["options"] == []
+
+    def test_decimal_field_values_sort_numerically(self):
+        recipe_a = FujifilmRecipeFactory(highlight="-2.0", white_balance_red=0)
+        recipe_b = FujifilmRecipeFactory(highlight="1.5", white_balance_red=1)
+        ImageFactory(fujifilm_recipe=recipe_a)
+        ImageFactory(fujifilm_recipe=recipe_b)
+
+        result = get_sidebar_filter_options({})
+
+        values = [o["value"] for o in result["highlight"]["options"]]
+        assert values.index("-2") < values.index("1.5")
 
 
 @pytest.mark.django_db

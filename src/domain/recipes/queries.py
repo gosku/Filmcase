@@ -559,7 +559,7 @@ def get_recipe_sidebar_filter_options(
     result: dict[str, dict[str, object]] = {}
     for field, label in filter_queries.RECIPE_FILTER_FIELDS:
         model_field = models.FujifilmRecipe._meta.get_field(field)
-        is_integer = isinstance(model_field, db_models.IntegerField)
+        is_numeric = isinstance(model_field, (db_models.IntegerField, db_models.DecimalField))
 
         base_qs = models.FujifilmRecipe.objects.all()
         if name_search:
@@ -568,22 +568,22 @@ def get_recipe_sidebar_filter_options(
             if other_field == field or not values:
                 continue
             base_qs = base_qs.filter(**{f"{other_field}__in": values})
-        if is_integer:
+        if is_numeric:
             base_qs = base_qs.exclude(**{f"{field}__isnull": True})
         else:
             base_qs = base_qs.exclude(**{field: ""})
 
         available_counts: dict[str, int] = {
-            str(row[field]): row["count"]
+            filter_queries.decimal_filter_str(row[field]): row["count"]
             for row in base_qs.values(field).annotate(count=Count("pk"))
         }
         selected_values = active_filters.get(field, [])
         all_values: set[str] = set(available_counts) | set(selected_values)
 
-        if is_integer:
-            def _sort_key(v: str) -> tuple[int, int]:
+        if is_numeric:
+            def _sort_key(v: str) -> tuple[int, float]:
                 try:
-                    return (0 if v in available_counts else 1, int(v))
+                    return (0 if v in available_counts else 1, float(v))
                 except (ValueError, TypeError):
                     return (0 if v in available_counts else 1, 0)
             sorted_values = sorted(all_values, key=_sort_key)
