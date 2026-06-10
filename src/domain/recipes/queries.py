@@ -789,6 +789,76 @@ def get_recipes_in_version_line(*, recipe_id: int) -> VersionLineResult:
     return VersionLineResult(recipes=recipes)
 
 
+_MOVE_SEARCH_LIMIT = 30
+
+
+@attrs.frozen
+class RecipeMoveCandidate:
+    recipe_id: int
+    name: str
+    version_label: str
+    group_id: int
+    group_member_count: int
+
+
+def search_recipes_for_version_line_move(
+    *,
+    source_recipe_id: int,
+    name_search: str,
+) -> tuple[RecipeMoveCandidate, ...]:
+    """
+    Return up to 30 recipes from other VERSION_LINE groups whose name contains name_search.
+
+    Excludes all recipes in the same group as source_recipe_id.
+    Returns an empty tuple when name_search is blank.
+
+    :raises RecipeNotInVersionLineError: If source_recipe_id has no VERSION_LINE membership.
+    """
+    if not name_search.strip():
+        return ()
+
+    try:
+        source_member = models.RecipeGroupMember.objects.get(
+            recipe_id=source_recipe_id,
+            group_type=models.RecipeGroup.GROUP_TYPE_VERSION_LINE,
+        )
+    except models.RecipeGroupMember.DoesNotExist:
+        raise RecipeNotInVersionLineError(recipe_id=source_recipe_id)
+
+    source_group_id = source_member.group_id
+
+    member_count_sq = (
+        models.RecipeGroupMember.objects
+        .filter(group_id=OuterRef("group_id"))
+        .values("group_id")
+        .annotate(cnt=Count("pk"))
+        .values("cnt")
+    )
+
+    members = (
+        models.RecipeGroupMember.objects
+        .filter(
+            group_type=models.RecipeGroup.GROUP_TYPE_VERSION_LINE,
+            recipe__name__icontains=name_search,
+        )
+        .exclude(group_id=source_group_id)
+        .select_related("recipe")
+        .annotate(group_member_count=Subquery(member_count_sq))
+        .order_by("recipe__name")
+    )[:_MOVE_SEARCH_LIMIT]
+
+    return tuple(
+        RecipeMoveCandidate(
+            recipe_id=m.recipe_id,
+            name=m.recipe.name,
+            version_label=f"v{m.position}",
+            group_id=m.group_id,
+            group_member_count=m.group_member_count,
+        )
+        for m in members
+    )
+
+
 @attrs.frozen
 class RecipeListPage:
     page_obj: object  # Django Page; object_list contains FujifilmRecipe instances
