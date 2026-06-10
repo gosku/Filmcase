@@ -3,6 +3,8 @@ import pytest
 from src.domain.recipes.queries import (
     RecipeMoveCandidate,
     RecipeNotInVersionLineError,
+    VersionLineGroupNotFoundError,
+    get_simulated_version_line_members,
     search_recipes_for_version_line_move,
 )
 from tests.factories import FujifilmRecipeFactory, RecipeGroupFactory, RecipeGroupMemberFactory
@@ -188,3 +190,168 @@ class TestSearchRecipesForVersionLineMove:
 
         assert isinstance(result, tuple)
         assert all(isinstance(c, RecipeMoveCandidate) for c in result)
+
+
+@pytest.mark.django_db
+class TestGetSimulatedVersionLineMembers:
+
+    def test_returns_version_line_result_with_source_recipe_appended_by_default(self) -> None:
+        dest_group = RecipeGroupFactory()
+        dest_r1 = FujifilmRecipeFactory(name="Provia A")
+        dest_r2 = FujifilmRecipeFactory(name="Provia B")
+        RecipeGroupMemberFactory(group=dest_group, recipe=dest_r1, position=1)
+        RecipeGroupMemberFactory(group=dest_group, recipe=dest_r2, position=2)
+
+        source_group = RecipeGroupFactory()
+        source_recipe = FujifilmRecipeFactory(name="Provia C")
+        RecipeGroupMemberFactory(group=source_group, recipe=source_recipe, position=1)
+
+        result = get_simulated_version_line_members(
+            source_recipe_id=source_recipe.pk,
+            destination_group_id=dest_group.pk,
+        )
+
+        recipe_ids = [vr.recipe_id for vr in result.recipes]
+        assert recipe_ids == [dest_r1.pk, dest_r2.pk, source_recipe.pk]
+
+    def test_source_recipe_inserted_at_given_position(self) -> None:
+        dest_group = RecipeGroupFactory()
+        dest_r1 = FujifilmRecipeFactory(name="Provia A")
+        dest_r2 = FujifilmRecipeFactory(name="Provia B")
+        RecipeGroupMemberFactory(group=dest_group, recipe=dest_r1, position=1)
+        RecipeGroupMemberFactory(group=dest_group, recipe=dest_r2, position=2)
+
+        source_group = RecipeGroupFactory()
+        source_recipe = FujifilmRecipeFactory(name="Provia C")
+        RecipeGroupMemberFactory(group=source_group, recipe=source_recipe, position=1)
+
+        result = get_simulated_version_line_members(
+            source_recipe_id=source_recipe.pk,
+            destination_group_id=dest_group.pk,
+            position=2,
+        )
+
+        recipe_ids = [vr.recipe_id for vr in result.recipes]
+        assert recipe_ids == [dest_r1.pk, source_recipe.pk, dest_r2.pk]
+
+    def test_source_recipe_inserted_at_first_position(self) -> None:
+        dest_group = RecipeGroupFactory()
+        dest_r1 = FujifilmRecipeFactory(name="Velvia A")
+        RecipeGroupMemberFactory(group=dest_group, recipe=dest_r1, position=1)
+
+        source_group = RecipeGroupFactory()
+        source_recipe = FujifilmRecipeFactory(name="Velvia B")
+        RecipeGroupMemberFactory(group=source_group, recipe=source_recipe, position=1)
+
+        result = get_simulated_version_line_members(
+            source_recipe_id=source_recipe.pk,
+            destination_group_id=dest_group.pk,
+            position=1,
+        )
+
+        recipe_ids = [vr.recipe_id for vr in result.recipes]
+        assert recipe_ids == [source_recipe.pk, dest_r1.pk]
+
+    def test_positions_are_contiguous_after_insertion(self) -> None:
+        dest_group = RecipeGroupFactory()
+        dest_r1 = FujifilmRecipeFactory()
+        dest_r2 = FujifilmRecipeFactory()
+        RecipeGroupMemberFactory(group=dest_group, recipe=dest_r1, position=1)
+        RecipeGroupMemberFactory(group=dest_group, recipe=dest_r2, position=2)
+
+        source_group = RecipeGroupFactory()
+        source_recipe = FujifilmRecipeFactory()
+        RecipeGroupMemberFactory(group=source_group, recipe=source_recipe, position=1)
+
+        result = get_simulated_version_line_members(
+            source_recipe_id=source_recipe.pk,
+            destination_group_id=dest_group.pk,
+            position=2,
+        )
+
+        positions = [vr.position for vr in result.recipes]
+        assert positions == [1, 2, 3]
+
+    def test_source_recipe_is_marked_is_current(self) -> None:
+        dest_group = RecipeGroupFactory()
+        dest_r1 = FujifilmRecipeFactory()
+        RecipeGroupMemberFactory(group=dest_group, recipe=dest_r1, position=1)
+
+        source_group = RecipeGroupFactory()
+        source_recipe = FujifilmRecipeFactory()
+        RecipeGroupMemberFactory(group=source_group, recipe=source_recipe, position=1)
+
+        result = get_simulated_version_line_members(
+            source_recipe_id=source_recipe.pk,
+            destination_group_id=dest_group.pk,
+        )
+
+        current_ids = [vr.recipe_id for vr in result.recipes if vr.is_current]
+        assert current_ids == [source_recipe.pk]
+
+    def test_destination_members_are_not_is_current(self) -> None:
+        dest_group = RecipeGroupFactory()
+        dest_r1 = FujifilmRecipeFactory()
+        dest_r2 = FujifilmRecipeFactory()
+        RecipeGroupMemberFactory(group=dest_group, recipe=dest_r1, position=1)
+        RecipeGroupMemberFactory(group=dest_group, recipe=dest_r2, position=2)
+
+        source_group = RecipeGroupFactory()
+        source_recipe = FujifilmRecipeFactory()
+        RecipeGroupMemberFactory(group=source_group, recipe=source_recipe, position=1)
+
+        result = get_simulated_version_line_members(
+            source_recipe_id=source_recipe.pk,
+            destination_group_id=dest_group.pk,
+        )
+
+        non_current = [vr for vr in result.recipes if vr.recipe_id != source_recipe.pk]
+        assert all(not vr.is_current for vr in non_current)
+
+    def test_does_not_modify_database(self) -> None:
+        from src.data import models
+
+        dest_group = RecipeGroupFactory()
+        dest_r1 = FujifilmRecipeFactory()
+        RecipeGroupMemberFactory(group=dest_group, recipe=dest_r1, position=1)
+
+        source_group = RecipeGroupFactory()
+        source_recipe = FujifilmRecipeFactory()
+        RecipeGroupMemberFactory(group=source_group, recipe=source_recipe, position=1)
+
+        get_simulated_version_line_members(
+            source_recipe_id=source_recipe.pk,
+            destination_group_id=dest_group.pk,
+        )
+
+        assert models.RecipeGroupMember.objects.filter(
+            recipe_id=source_recipe.pk, group=source_group
+        ).exists()
+
+    def test_raises_when_destination_group_has_no_members(self) -> None:
+        source_group = RecipeGroupFactory()
+        source_recipe = FujifilmRecipeFactory()
+        RecipeGroupMemberFactory(group=source_group, recipe=source_recipe, position=1)
+
+        empty_group = RecipeGroupFactory()
+
+        with pytest.raises(VersionLineGroupNotFoundError) as exc_info:
+            get_simulated_version_line_members(
+                source_recipe_id=source_recipe.pk,
+                destination_group_id=empty_group.pk,
+            )
+
+        assert exc_info.value.group_id == empty_group.pk
+
+    def test_raises_when_destination_group_does_not_exist(self) -> None:
+        source_group = RecipeGroupFactory()
+        source_recipe = FujifilmRecipeFactory()
+        RecipeGroupMemberFactory(group=source_group, recipe=source_recipe, position=1)
+
+        with pytest.raises(VersionLineGroupNotFoundError) as exc_info:
+            get_simulated_version_line_members(
+                source_recipe_id=source_recipe.pk,
+                destination_group_id=99999,
+            )
+
+        assert exc_info.value.group_id == 99999
