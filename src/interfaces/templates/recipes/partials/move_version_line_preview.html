@@ -1,0 +1,275 @@
+<style>
+  /* These rules mirror recipe_distribution.html so the preview is self-contained
+     even if the left column hasn't finished loading yet. */
+  .dist-subrow {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 12px;
+  }
+
+  .dist-subtitle { font-size: 11.5px; color: #8E929B; }
+
+  .dist-chart-wrap { position: relative; margin-bottom: 12px; }
+
+  .dist-stat-list { display: flex; flex-direction: column; margin-bottom: 1rem; }
+
+  .dist-stat-row {
+    display: grid;
+    grid-template-columns: 14px 36px 1fr 64px 36px;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 6px;
+    border-radius: 6px;
+    border-bottom: 1px solid #F2F2EE;
+  }
+
+  .dist-stat-row:last-child { border-bottom: none; }
+
+  .dist-stat-label { font-size: 11.5px; font-weight: 700; color: #1F2128; white-space: nowrap; }
+
+  .dist-stat-name-cell { display: flex; align-items: center; gap: 8px; min-width: 0; }
+
+  .dist-stat-name {
+    font-size: 11.5px;
+    color: #1F2128;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .dist-stat-now {
+    font-size: 8.5px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    color: #E63946;
+    background: #FBE9EB;
+    padding: 1.5px 4px;
+    border-radius: 3px;
+    flex-shrink: 0;
+  }
+
+  .dist-stat-bar-wrap {
+    position: relative;
+    height: 4px;
+    background: #F2F2EE;
+    border-radius: 999px;
+    overflow: hidden;
+  }
+
+  .dist-stat-bar-fill {
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    border-radius: 999px;
+  }
+
+  .dist-stat-count {
+    font-size: 11.5px;
+    font-weight: 600;
+    text-align: right;
+    color: #1F2128;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+
+  .dist-stat-pct { font-size: 9px; color: #8E929B; font-weight: 500; margin-left: 2px; }
+
+  .move-vl-position-row {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-top: 0.75rem;
+  }
+
+  .move-vl-position-label {
+    font-size: 0.82rem;
+    color: #1F2128;
+    font-weight: 500;
+    white-space: nowrap;
+  }
+
+  .move-vl-position-select {
+    border: 1px solid #EAEAE6;
+    border-radius: 6px;
+    padding: 0.3rem 0.5rem;
+    font-size: 0.82rem;
+    outline: none;
+    background: #fff;
+    cursor: pointer;
+    transition: border-color 0.15s;
+  }
+
+  .move-vl-position-select:focus { border-color: #6366F1; }
+</style>
+
+<div class="detail-distribution" id="detail-distribution-preview-{{ ctx.recipe_id }}">
+  <div class="dist-subrow">
+    <div class="dist-subtitle">
+      {% if ctx.total_images == 0 %}
+        No images recorded yet
+      {% else %}
+        {{ ctx.total_time_periods }}&nbsp;{{ ctx.scale.value }}{% if ctx.total_time_periods != 1 %}s{% endif %}
+        &middot; {{ ctx.total_images }} image{% if ctx.total_images != 1 %}s{% endif %}
+        across {{ ctx.versions|length }} version{% if ctx.versions|length != 1 %}s{% endif %}
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="dist-chart-wrap">
+    <canvas class="dist-chart"
+            data-w="340" data-h="130"
+            style="display:block; width:100%; aspect-ratio:340/130;"
+            data-distribution="{{ distribution_json }}"
+            aria-label="Preview distribution chart"></canvas>
+  </div>
+
+  <div class="dist-stat-list">
+    {% for v in ctx.versions %}
+      <div class="dist-stat-row" data-color="{{ v.color }}">
+        <span style="width:11px; height:11px; border-radius:3px; background:{{ v.color }}; flex-shrink:0; display:inline-block;"></span>
+        <div class="dist-stat-label">{{ v.label }}</div>
+        <div class="dist-stat-name-cell">
+          <span class="dist-stat-name" title="{{ v.name }}">{% if v.name %}{{ v.name }}{% else %}—{% endif %}</span>
+          {% if v.is_current %}<span class="dist-stat-now">NOW</span>{% endif %}
+        </div>
+        <div class="dist-stat-bar-wrap">
+          <div class="dist-stat-bar-fill"
+               style="width: {% if ctx.total_images > 0 %}{% widthratio v.image_count ctx.total_images 100 %}{% else %}0{% endif %}%;
+                      background: {{ v.color }};"></div>
+        </div>
+        <div class="dist-stat-count">
+          {{ v.image_count }}<span class="dist-stat-pct">&middot;&nbsp;{% if ctx.total_images > 0 %}{% widthratio v.image_count ctx.total_images 100 %}{% else %}0{% endif %}%</span>
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+</div>
+
+<div class="move-vl-position-row">
+  <span class="move-vl-position-label">Position:</span>
+  <select class="move-vl-position-select"
+          name="position"
+          hx-get="{% url 'move-recipe-version-line-preview' recipe_id=recipe_id %}?destination_group_id={{ destination_group_id }}"
+          hx-trigger="change"
+          hx-target="#move-vl-preview"
+          hx-swap="innerHTML"
+          hx-include="this">
+    {% for i in position_range %}
+      <option value="{{ i }}" {% if i == position %}selected{% endif %}>{{ i }}</option>
+    {% endfor %}
+  </select>
+</div>
+
+<input type="hidden" name="destination_group_id" value="{{ destination_group_id }}">
+
+<script>
+(function () {
+  var _root = document.getElementById('detail-distribution-preview-{{ ctx.recipe_id }}');
+  requestAnimationFrame(function () {
+    var canvas = _root && _root.querySelector('canvas.dist-chart');
+    if (!canvas) return;
+    canvas.width = parseInt(canvas.dataset.w, 10);
+    canvas.height = parseInt(canvas.dataset.h, 10);
+    var raw = canvas.getAttribute('data-distribution');
+    var data;
+    try { data = JSON.parse(raw); } catch (e) { return; }
+    var versions = data.versions;
+    var buckets = data.buckets;
+    var ctx2d = canvas.getContext('2d');
+    var PAD = { l: 8, r: 8, t: 8, b: 22 };
+    var W = canvas.width, H = canvas.height;
+    var innerW = W - PAD.l - PAD.r, innerH = H - PAD.t - PAD.b;
+    if (!buckets.length || !versions.length) return;
+    var grouped = buckets.length <= 8;
+    var groupW = innerW / buckets.length;
+    var max = 1;
+    if (grouped) {
+      buckets.forEach(function (b) {
+        versions.forEach(function (v) { var c = b.counts[v.recipe_id] || 0; if (c > max) max = c; });
+      });
+    } else {
+      buckets.forEach(function (b) {
+        var total = versions.reduce(function (s, v) { return s + (b.counts[v.recipe_id] || 0); }, 0);
+        if (total > max) max = total;
+      });
+    }
+    buckets.forEach(function (b, i) {
+      if (grouped) {
+        var subW = Math.max(1, (groupW - 4) / versions.length);
+        versions.forEach(function (v, vi) {
+          var val = b.counts[v.recipe_id] || 0;
+          var barH = (val / max) * innerH;
+          var x = PAD.l + i * groupW + 2 + vi * subW;
+          var y = H - PAD.b - barH;
+          ctx2d.fillStyle = v.color;
+          ctx2d.globalAlpha = 1;
+          ctx2d.beginPath();
+          ctx2d.roundRect(x, y, Math.max(0, subW - 1.5), barH, 1);
+          ctx2d.fill();
+        });
+      } else {
+        var stackY = H - PAD.b;
+        versions.forEach(function (v) {
+          var val = b.counts[v.recipe_id] || 0;
+          if (val <= 0) return;
+          var barH = (val / max) * innerH * 0.6;
+          stackY -= barH;
+          ctx2d.fillStyle = v.color;
+          ctx2d.globalAlpha = 1;
+          ctx2d.beginPath();
+          ctx2d.roundRect(PAD.l + i * groupW + 1, stackY, Math.max(0, groupW - 2), barH, 0.6);
+          ctx2d.fill();
+        });
+      }
+    });
+    ctx2d.globalAlpha = 1;
+    ctx2d.strokeStyle = '#EAEAE6';
+    ctx2d.lineWidth = 1;
+    ctx2d.beginPath();
+    ctx2d.moveTo(PAD.l, H - PAD.b);
+    ctx2d.lineTo(W - PAD.r, H - PAD.b);
+    ctx2d.stroke();
+    ctx2d.fillStyle = '#8E929B';
+    ctx2d.font = '10px system-ui, sans-serif';
+    ctx2d.textAlign = 'center';
+    if (grouped) {
+      buckets.forEach(function (b, i) {
+        ctx2d.fillText(b.label, PAD.l + i * groupW + groupW / 2, H - 6);
+      });
+    } else {
+      var seen = {};
+      buckets.forEach(function (b, i) {
+        var m = b.label.match(/(\d{2,4})$/);
+        if (!m) return;
+        var yr = m[1];
+        if (seen[yr]) return;
+        seen[yr] = true;
+        ctx2d.fillText(yr.length === 2 ? '20' + yr : yr, PAD.l + i * groupW + groupW / 2, H - 6);
+      });
+    }
+
+    // Enable the submit button now that a destination is selected.
+    var submitBtn = document.getElementById('move-vl-submit');
+    if (submitBtn) submitBtn.disabled = false;
+
+    // Sync destination_group_id and position into the modal form as hidden fields.
+    var form = document.getElementById('move-vl-form');
+    if (form) {
+      ['destination_group_id', 'position'].forEach(function (name) {
+        var existing = form.querySelector('input[name="' + name + '"]');
+        if (existing) existing.remove();
+        var src = document.querySelector('#move-vl-preview [name="' + name + '"]');
+        if (src) {
+          var hidden = document.createElement('input');
+          hidden.type = 'hidden';
+          hidden.name = name;
+          hidden.value = src.value;
+          form.appendChild(hidden);
+        }
+      });
+    }
+  });
+})();
+</script>

@@ -39,4 +39,7 @@ urlpatterns = [
     path("recipes/<int:recipe_id>/card/preview/file/", views.recipe_card_preview_file_view, name="recipe-card-preview-file"),
     path("recipes/<int:recipe_id>/card/partial/create/", views.CreateRecipeCard.as_view(), name="create-recipe-card"),
     path("recipes/card/<int:card_id>/file/", views.recipe_card_file_view, name="recipe-card-file"),
+    path("recipes/<int:recipe_id>/move-version-line/", views.MoveRecipeToVersionLine.as_view(), name="move-recipe-version-line"),
+    path("recipes/<int:recipe_id>/move-version-line/search/", views.MoveRecipeToVersionLineSearch.as_view(), name="move-recipe-version-line-search"),
+    path("recipes/<int:recipe_id>/move-version-line/preview/", views.MoveRecipeToVersionLinePreview.as_view(), name="move-recipe-version-line-preview"),
 ]

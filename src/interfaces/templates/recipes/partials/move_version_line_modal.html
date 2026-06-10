@@ -1,0 +1,274 @@
+<style>
+  .move-vl-modal {
+    background: #fff;
+    border-radius: 16px;
+    padding: 2rem;
+    width: min(900px, 95vw);
+    max-height: 90vh;
+    overflow-y: auto;
+    position: relative;
+  }
+
+  .move-vl-header {
+    background: #1e1e1e;
+    border-radius: 14px 14px 0 0;
+    padding: 1.1rem 1.5rem;
+    margin: -2rem -2rem 1.5rem -2rem;
+    text-align: center;
+    position: relative;
+  }
+
+  .move-vl-close {
+    position: absolute;
+    top: 0.75rem;
+    right: 0.75rem;
+    width: 1.75rem;
+    height: 1.75rem;
+    border-radius: 50%;
+    border: none;
+    background: rgba(255,255,255,0.1);
+    color: rgba(255,255,255,0.65);
+    font-size: 0.85rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s;
+  }
+
+  .move-vl-close:hover { background: rgba(255,255,255,0.2); }
+
+  .move-vl-modal-title {
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: rgba(255,255,255,0.45);
+    margin-bottom: 0.3rem;
+  }
+
+  .move-vl-modal-recipe-name {
+    font-size: 1rem;
+    font-weight: 700;
+    color: #fff;
+  }
+
+  .move-vl-explanation {
+    font-size: 0.82rem;
+    color: #6b7280;
+    margin: 0 0 1.25rem;
+    line-height: 1.5;
+  }
+
+  .move-vl-search-section {
+    margin-bottom: 1.1rem;
+  }
+
+  .move-vl-section-label {
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #8E929B;
+    margin-bottom: 0.45rem;
+  }
+
+  .move-vl-search-input {
+    width: 100%;
+    box-sizing: border-box;
+    border: 1px solid #EAEAE6;
+    border-radius: 8px;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.85rem;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+
+  .move-vl-search-input:focus { border-color: #6366F1; }
+
+  .move-vl-search-results { margin-top: 0.4rem; }
+
+  /* Compact chip shown after a candidate is selected */
+  .move-vl-selected-row {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    padding: 0.45rem 0.75rem;
+    border: 1.5px solid #6366F1;
+    border-radius: 8px;
+    background: #EEF2FF;
+    margin-top: 0.4rem;
+  }
+
+  .move-vl-selected-badge {
+    font-size: 9.5px;
+    font-weight: 700;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: #6366F1;
+    background: #fff;
+    padding: 1.5px 5px;
+    border-radius: 3px;
+    flex-shrink: 0;
+  }
+
+  .move-vl-selected-name {
+    flex: 1;
+    font-size: 0.82rem;
+    font-weight: 500;
+    color: #1F2128;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .move-vl-change-btn {
+    font-size: 0.75rem;
+    color: #6366F1;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+    font-weight: 600;
+    flex-shrink: 0;
+  }
+
+  .move-vl-change-btn:hover { text-decoration: underline; }
+
+  /* Two-column body */
+  .move-vl-body {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.5rem;
+    margin-bottom: 1.25rem;
+    min-height: 0;
+  }
+
+  .move-vl-col-label {
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #8E929B;
+    margin-bottom: 0.5rem;
+  }
+
+  .move-vl-placeholder {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 90px;
+    background: #F8F8F6;
+    border-radius: 8px;
+    border: 1px dashed #EAEAE6;
+    padding: 1rem;
+    font-size: 0.8rem;
+    color: #A0A6B0;
+    text-align: center;
+    line-height: 1.45;
+  }
+
+  /* Fix: display:flex on the row overrides the UA-stylesheet's [hidden]{display:none} */
+  .move-vl-selected-row[hidden] { display: none; }
+
+  /* Suppress the section header and W/M/Y toggle in both comparison columns */
+  .move-vl-modal .dist-header,
+  .move-vl-modal .dist-scale-toggle { display: none; }
+
+  .move-vl-submit-row {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.5rem;
+  }
+
+  .move-vl-btn {
+    padding: 0.45rem 1rem;
+    font-size: 0.82rem;
+    font-weight: 600;
+    border-radius: 7px;
+    border: none;
+    cursor: pointer;
+    transition: opacity 0.15s;
+  }
+
+  .move-vl-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .move-vl-btn--primary { background: #1F2128; color: #fff; }
+  .move-vl-btn--secondary { background: #F4F4F2; color: #1F2128; }
+</style>
+
+<div class="move-vl-modal">
+  <div class="move-vl-header">
+    <button class="move-vl-close" onclick="document.getElementById('move-version-line-overlay').hidden = true" aria-label="Close">&times;</button>
+    <div class="move-vl-modal-title">Move to a different group</div>
+    <div class="move-vl-modal-recipe-name">{{ recipe.name|default:"—" }}</div>
+  </div>
+
+  <p class="move-vl-explanation">
+    Search for any recipe below. <strong>{{ recipe.name|default:"This recipe" }}</strong> will be moved into that recipe&rsquo;s version group at the chosen position.
+  </p>
+
+  <div class="move-vl-search-section">
+    <div class="move-vl-section-label">Find destination group</div>
+    <input class="move-vl-search-input"
+           id="move-vl-name-search"
+           type="text"
+           name="name_search"
+           placeholder="Search by recipe name…"
+           autocomplete="off"
+           hx-get="{% url 'move-recipe-version-line-search' recipe_id=recipe.id %}"
+           hx-trigger="input delay:300ms"
+           hx-target="#move-vl-search-results"
+           hx-swap="innerHTML">
+    <div id="move-vl-search-results" class="move-vl-search-results"></div>
+    <div id="move-vl-selected" class="move-vl-selected-row" hidden>
+      <span class="move-vl-selected-badge">Selected</span>
+      <span class="move-vl-selected-name"></span>
+      <button type="button" class="move-vl-change-btn" onclick="movevlClearSelection()">Change</button>
+    </div>
+  </div>
+
+  <div class="move-vl-body">
+    <div>
+      <div class="move-vl-col-label">Current group</div>
+      <div class="detail-distribution" id="move-vl-current-dist-{{ recipe.id }}">
+        <div class="detail-distribution-placeholder"
+             hx-get="{% url 'recipe-distribution' recipe_id=recipe.id %}"
+             hx-trigger="load"
+             hx-target="closest .detail-distribution"
+             hx-swap="innerHTML">Loading…</div>
+      </div>
+    </div>
+    <div>
+      <div class="move-vl-col-label">After move</div>
+      <div id="move-vl-preview">
+        <div class="move-vl-placeholder">Select a destination recipe to preview the result</div>
+      </div>
+    </div>
+  </div>
+
+  <form id="move-vl-form"
+        hx-post="{% url 'move-recipe-version-line' recipe_id=recipe.id %}"
+        hx-target="#move-version-line-overlay">
+    <div class="move-vl-submit-row">
+      <button type="button"
+              class="move-vl-btn move-vl-btn--secondary"
+              onclick="document.getElementById('move-version-line-overlay').hidden = true">Cancel</button>
+      <button type="submit"
+              id="move-vl-submit"
+              class="move-vl-btn move-vl-btn--primary"
+              disabled>Move recipe</button>
+    </div>
+  </form>
+</div>
+
+<script>
+function movevlClearSelection() {
+  document.getElementById('move-vl-selected').hidden = true;
+  var resultsEl = document.getElementById('move-vl-search-results');
+  resultsEl.hidden = false;
+  document.getElementById('move-vl-preview').innerHTML =
+    '<div class="move-vl-placeholder">Select a destination recipe to preview the result</div>';
+  var submit = document.getElementById('move-vl-submit');
+  if (submit) submit.disabled = true;
+}
+</script>

@@ -20,7 +20,9 @@ from src.interfaces import forms as interface_forms
 from src.application.usecases.camera import get_camera_slots as get_camera_slots_uc
 from src.application.usecases.camera import push_recipe as push_recipe_uc
 from src.application.usecases.recipes import build_graph as build_graph_uc
+from src.application.usecases.recipes import get_move_preview_distribution as get_move_preview_distribution_uc
 from src.application.usecases.recipes import get_recipe_distribution as get_recipe_distribution_uc
+from src.application.usecases.recipes import move_recipe_to_version_line as move_recipe_to_version_line_uc
 from src.application.usecases.recipes import create_recipe_card as create_recipe_card_uc
 from src.application.usecases.recipes import create_recipe_cards_batch as create_recipe_cards_batch_uc
 from src.application.usecases.recipes import create_recipe_manually as create_recipe_manually_uc
@@ -383,6 +385,121 @@ class RecipeDistribution(generic.View):
             "ctx": ctx,
             "distribution_json": json.dumps(distribution_data),
         })
+
+
+class MoveRecipeToVersionLine(generic.View):
+    def setup(self, request: http.HttpRequest, *args: object, **kwargs: object) -> None:
+        super().setup(request, *args, **kwargs)
+        self.recipe = shortcuts.get_object_or_404(
+            models.FujifilmRecipe, pk=kwargs["recipe_id"]
+        )
+
+    def get(self, request: http.HttpRequest, recipe_id: int) -> http.HttpResponse:
+        return shortcuts.render(request, "recipes/partials/move_version_line_modal.html", {
+            "recipe": self.recipe,
+        })
+
+    def post(self, request: http.HttpRequest, recipe_id: int) -> http.HttpResponse:
+        try:
+            destination_group_id = int(request.POST["destination_group_id"])
+            position_raw = request.POST.get("position")
+            position = int(position_raw) if position_raw else None
+        except (KeyError, ValueError):
+            return http.HttpResponseBadRequest()
+
+        try:
+            move_recipe_to_version_line_uc.move_recipe_to_version_line(
+                recipe_id=recipe_id,
+                destination_group_id=destination_group_id,
+                position=position,
+            )
+        except (
+            move_recipe_to_version_line_uc.RecipeNotInVersionLineError,
+            move_recipe_to_version_line_uc.VersionLineGroupNotFoundError,
+            move_recipe_to_version_line_uc.CannotMoveToSameGroupError,
+            move_recipe_to_version_line_uc.InvalidVersionLinePositionError,
+        ):
+            return http.HttpResponseBadRequest()
+
+        response = http.HttpResponse()
+        response["HX-Redirect"] = urls.reverse("recipe-detail", kwargs={"recipe_id": recipe_id})
+        return response
+
+
+class MoveRecipeToVersionLineSearch(generic.View):
+    def get(self, request: http.HttpRequest, recipe_id: int) -> http.HttpResponse:
+        name_search = request.GET.get("name_search", "")
+        try:
+            candidates = recipe_queries.search_recipes_for_version_line_move(
+                source_recipe_id=recipe_id,
+                name_search=name_search,
+            )
+        except recipe_queries.RecipeNotInVersionLineError:
+            return http.HttpResponseBadRequest()
+        return shortcuts.render(
+            request,
+            "recipes/partials/move_version_line_search_results.html",
+            {"candidates": candidates, "recipe_id": recipe_id},
+        )
+
+
+class MoveRecipeToVersionLinePreview(generic.View):
+    def get(self, request: http.HttpRequest, recipe_id: int) -> http.HttpResponse:
+        try:
+            destination_group_id = int(request.GET["destination_group_id"])
+        except (KeyError, ValueError):
+            return http.HttpResponseBadRequest()
+
+        position_raw = request.GET.get("position")
+        position = int(position_raw) if position_raw else None
+
+        try:
+            ctx = get_move_preview_distribution_uc.get_move_preview_distribution(
+                source_recipe_id=recipe_id,
+                destination_group_id=destination_group_id,
+                position=position,
+                duration=request.GET.get("scale"),
+            )
+        except (
+            get_move_preview_distribution_uc.VersionLineGroupNotFoundError,
+            get_move_preview_distribution_uc.InvalidDurationError,
+        ):
+            return http.HttpResponseBadRequest()
+
+        distribution_data = {
+            "versions": [
+                {
+                    "recipe_id": v.recipe_id,
+                    "label": v.label,
+                    "color": v.color,
+                    "is_current": v.is_current,
+                    "image_count": v.image_count,
+                }
+                for v in ctx.versions
+            ],
+            "buckets": [
+                {
+                    "label": b.label,
+                    "counts": {str(rid): count for rid, count in b.counts.items()},
+                }
+                for b in ctx.buckets
+            ],
+        }
+        group_member_count = len(ctx.versions)
+        resolved_position = position if position is not None else group_member_count
+        return shortcuts.render(
+            request,
+            "recipes/partials/move_version_line_preview.html",
+            {
+                "ctx": ctx,
+                "distribution_json": json.dumps(distribution_data),
+                "destination_group_id": destination_group_id,
+                "group_member_count": group_member_count,
+                "position": resolved_position,
+                "position_range": range(1, group_member_count + 1),
+                "recipe_id": recipe_id,
+            },
+        )
 
 
 _RECIPES_GRAPH_DEFAULT_FILM_SIM = "Provia"

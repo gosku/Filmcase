@@ -1,0 +1,91 @@
+<style>
+  .move-vl-candidate-list {
+    display: flex;
+    flex-direction: column;
+    border: 1px solid #EAEAE6;
+    border-radius: 8px;
+    overflow: hidden;
+  }
+
+  .move-vl-candidate-item {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.55rem 0.75rem;
+    border: none;
+    border-bottom: 1px solid #F2F2EE;
+    background: transparent;
+    cursor: pointer;
+    text-align: left;
+    transition: background 0.1s;
+    width: 100%;
+  }
+
+  .move-vl-candidate-item:last-child { border-bottom: none; }
+  .move-vl-candidate-item:hover { background: #F8F8F6; }
+
+  .move-vl-candidate-label {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: #6366F1;
+    background: #EEF2FF;
+    padding: 1.5px 5px;
+    border-radius: 3px;
+    flex-shrink: 0;
+  }
+
+  .move-vl-candidate-name {
+    font-size: 0.82rem;
+    font-weight: 500;
+    color: #1F2128;
+    flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .move-vl-candidate-count {
+    font-size: 10px;
+    color: #8E929B;
+    flex-shrink: 0;
+  }
+
+  .move-vl-no-results {
+    font-size: 0.82rem;
+    color: #8E929B;
+    padding: 0.5rem 0;
+    text-align: center;
+  }
+</style>
+
+{% if candidates %}
+  <div class="move-vl-candidate-list">
+    {% for c in candidates %}
+      <button class="move-vl-candidate-item"
+              type="button"
+              hx-get="{% url 'move-recipe-version-line-preview' recipe_id=recipe_id %}?destination_group_id={{ c.group_id }}"
+              hx-target="#move-vl-preview"
+              hx-swap="innerHTML"
+              onclick="movevlSelectCandidate(this, '{{ c.name|escapejs }}')">
+        <span class="move-vl-candidate-label">{{ c.version_label }}</span>
+        <span class="move-vl-candidate-name" title="{{ c.name }}">{{ c.name }}</span>
+        <span class="move-vl-candidate-count">{{ c.group_member_count }} ver.</span>
+      </button>
+    {% endfor %}
+  </div>
+{% elif request.GET.name_search %}
+  <p class="move-vl-no-results">No recipes found for &ldquo;{{ request.GET.name_search }}&rdquo;</p>
+{% endif %}
+
+<script>
+function movevlSelectCandidate(btn, name) {
+  var resultsEl = document.getElementById('move-vl-search-results');
+  var selectedEl = document.getElementById('move-vl-selected');
+  if (!resultsEl || !selectedEl) return;
+  resultsEl.hidden = true;
+  selectedEl.querySelector('.move-vl-selected-name').textContent = name;
+  selectedEl.hidden = false;
+}
+</script>

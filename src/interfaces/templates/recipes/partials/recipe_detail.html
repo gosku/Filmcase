@@ -888,6 +888,10 @@
                 hx-swap="innerHTML">Create recipe card</button>
         <a class="action-btn action-btn--secondary" href="{% url 'edit-recipe' recipe_id=recipe.id %}">Edit recipe</a>
         <a class="action-btn action-btn--secondary" href="{% url 'create-recipe-version' recipe_id=recipe.id %}">Create new version</a>
+        <button class="action-btn action-btn--secondary"
+                hx-get="{% url 'move-recipe-version-line' recipe_id=recipe.id %}"
+                hx-target="#move-version-line-overlay"
+                hx-swap="innerHTML">Change version group</button>
       </div>
 
       <div class="detail-distribution" id="detail-distribution-{{ recipe.id }}">
@@ -903,8 +907,20 @@
 </div>
 
 <div id="card-overlay" hidden></div>
+<div id="move-version-line-overlay" hidden></div>
 
 <style>
+  #move-version-line-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 310;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0,0,0,0.6);
+  }
+  #move-version-line-overlay[hidden] { display: none; }
+
   #card-overlay {
     position: fixed;
     inset: 0;
@@ -958,8 +974,15 @@
     document.getElementById('card-overlay').hidden = true;
   }
 
+  function closeMoveVersionLineOverlay() {
+    document.getElementById('move-version-line-overlay').hidden = true;
+  }
+
   document.body.addEventListener('htmx:afterSwap', function (e) {
     if (e.detail.target && e.detail.target.id === 'card-overlay') {
+      e.detail.target.hidden = false;
+    }
+    if (e.detail.target && e.detail.target.id === 'move-version-line-overlay') {
       e.detail.target.hidden = false;
     }
   });
@@ -968,8 +991,19 @@
     if (e.target === this) closeCardOverlay();
   });
 
+  document.getElementById('move-version-line-overlay').addEventListener('click', function (e) {
+    if (e.target === this) closeMoveVersionLineOverlay();
+  });
+
   document.addEventListener('keydown', function (e) {
     if (e.key !== 'Escape') return;
+    var moveOverlay = document.getElementById('move-version-line-overlay');
+    if (moveOverlay && !moveOverlay.hidden) {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      closeMoveVersionLineOverlay();
+      return;
+    }
     var overlay = document.getElementById('card-overlay');
     if (overlay && !overlay.hidden) {
       // Consume the event so the page-level Escape handler does not also
