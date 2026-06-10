@@ -110,6 +110,9 @@ Opening a recipe shows all its settings at a glance. From this page you can:
   where to write.
 - **Create a recipe card** — generate a shareable QR code card for the recipe, which other
   Fujifilm shooters can import into their own library.
+
+![Recipe card creation](images/recipe_card_creation.jpeg)
+
 - **Create a new version** — if the recipe already has images associated with it (and
   therefore cannot be edited in place), a _Create new version_ button lets you fork it into a
   tweaked copy. The new recipe is pre-populated with the current settings so you only need to
@@ -121,7 +124,23 @@ Opening a recipe shows all its settings at a glance. From this page you can:
 
 ![Recipe detail view](images/recipe_detail_view.jpg)
 
-![Recipe card creation](images/recipe_card_creation.jpeg)
+- **Change version group** — a _Change version group_ button moves the recipe out of its
+  current version line and into a different one. Clicking it opens a modal with two columns:
+  the left shows the current group's distribution chart and version list; the right shows a
+  live preview of what the destination group will look like after the recipe is inserted.
+
+  To pick a destination, type any part of a recipe name in the search box. Results show
+  recipes from other version lines along with their current member count. Clicking a result
+  loads the preview on the right. A **Position** dropdown lets you choose exactly where in
+  the destination group the recipe will be placed (1 through N+1, where N is the current
+  member count); the preview updates immediately when you change it. Once you are satisfied,
+  click **Move recipe** to apply the change.
+
+  If the recipe was the only member of its original group, that group is deleted
+  automatically after the move. The recipe itself is unaffected — its images and history are
+  preserved.
+
+![Change a recipe's group](images/change_version_group.jpg)
 
 ---
 
