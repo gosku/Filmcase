@@ -4,7 +4,7 @@ import attrs
 from decimal import Decimal
 
 from django.db import IntegrityError, transaction
-from django.db.models import aggregates
+from django.db.models import F, aggregates
 from django.utils import timezone
 from src.data import models
 from src.domain.images import dataclasses as image_dataclasses
@@ -57,6 +57,25 @@ class VersionLineGroupNotFoundError(Exception):
     """
 
     group_id: int
+
+
+@attrs.frozen
+class CannotMoveToSameGroupError(Exception):
+    """
+    Raised when the source and destination version line groups are the same.
+    """
+
+    group_id: int
+
+
+@attrs.frozen
+class InvalidVersionLinePositionError(Exception):
+    """
+    Raised when the requested position falls outside the valid range for the destination group.
+    """
+
+    position: int
+    max_position: int
 
 
 @transaction.atomic
@@ -112,6 +131,90 @@ def add_recipe_to_version_line(
         position=member.position,
     )
     return member
+
+
+@transaction.atomic
+def move_recipe_to_version_line(
+    *,
+    recipe_id: int,
+    destination_group_id: int,
+    position: int | None = None,
+) -> None:
+    """
+    Move a recipe from its current VERSION_LINE group to destination_group_id.
+
+    Shifts source positions down after removal, inserts into the destination at
+    *position* (default: last), and shifts destination positions up. Deletes
+    the source group if it becomes empty.
+
+    :raises RecipeNotInVersionLineError: If recipe_id has no VERSION_LINE membership.
+    :raises VersionLineGroupNotFoundError: If destination_group_id doesn't exist.
+    :raises CannotMoveToSameGroupError: If source and destination are the same group.
+    :raises InvalidVersionLinePositionError: If position is out of valid range.
+    """
+    try:
+        source_member = models.RecipeGroupMember.objects.get(
+            recipe_id=recipe_id,
+            group_type=models.RecipeGroup.GROUP_TYPE_VERSION_LINE,
+        )
+    except models.RecipeGroupMember.DoesNotExist:
+        raise recipe_queries.RecipeNotInVersionLineError(recipe_id=recipe_id)
+
+    source_group_id = source_member.group_id
+    source_position = source_member.position
+
+    if source_group_id == destination_group_id:
+        raise CannotMoveToSameGroupError(group_id=source_group_id)
+
+    try:
+        destination_group = models.RecipeGroup.objects.get(
+            pk=destination_group_id,
+            group_type=models.RecipeGroup.GROUP_TYPE_VERSION_LINE,
+        )
+    except models.RecipeGroup.DoesNotExist:
+        raise VersionLineGroupNotFoundError(group_id=destination_group_id)
+
+    destination_count = models.RecipeGroupMember.objects.filter(
+        group=destination_group
+    ).count()
+
+    target_position = destination_count + 1 if position is None else position
+    if target_position < 1 or target_position > destination_count + 1:
+        raise InvalidVersionLinePositionError(
+            position=target_position,
+            max_position=destination_count + 1,
+        )
+
+    now = timezone.now()
+
+    # Make room in destination before touching the source member.
+    # updated_at must be set explicitly because QuerySet.update() bypasses auto_now.
+    models.RecipeGroupMember.objects.filter(
+        group=destination_group,
+        position__gte=target_position,
+    ).update(position=F("position") + 1, updated_at=now)
+
+    # Move the membership row in place — avoids a delete + create cycle.
+    source_member.group = destination_group
+    source_member.position = target_position
+    source_member.save(update_fields=["group", "position"])
+
+    # Compact source positions now that the member is gone from that group.
+    models.RecipeGroupMember.objects.filter(
+        group_id=source_group_id,
+        position__gt=source_position,
+    ).update(position=F("position") - 1, updated_at=now)
+
+    if not models.RecipeGroupMember.objects.filter(group_id=source_group_id).exists():
+        models.RecipeGroup.objects.filter(pk=source_group_id).delete()
+
+    events.publish_event(
+        event_type=events.RECIPE_VERSION_LINE_UPDATED,
+        recipe_id=recipe_id,
+        source_group_id=source_group_id,
+        destination_group_id=destination_group_id,
+        position=target_position,
+    )
 
 
 @transaction.atomic

@@ -50,7 +50,7 @@ class TestGetRecipeDistributionExceptions:
         assert exc_info.value.recipe_id == 7
 
     def test_image_query_not_called_when_duration_is_invalid(self):
-        with patch("src.application.usecases.recipes.get_recipe_distribution.image_queries") as mock_iq:
+        with patch("src.application.usecases.recipes._distribution_context.image_queries") as mock_iq:
             with pytest.raises(InvalidDurationError):
                 get_recipe_distribution(recipe_id=1, duration="bad")
 

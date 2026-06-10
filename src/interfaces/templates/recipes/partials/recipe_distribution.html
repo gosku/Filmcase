@@ -124,6 +124,16 @@
     text-overflow: ellipsis;
   }
 
+  a.dist-stat-name {
+    text-decoration: none;
+    cursor: pointer;
+  }
+
+  a.dist-stat-name:hover {
+    color: var(--color-accent, #E63946);
+    text-decoration: underline;
+  }
+
   .dist-stat-now {
     font-size: 8.5px;
     font-weight: 700;
@@ -242,8 +252,17 @@
               data-checkbox="{{ v.recipe_id }}"></button>
       <div class="dist-stat-label">{{ v.label }}</div>
       <div class="dist-stat-name-cell">
-        <span class="dist-stat-name" title="{{ v.name }}">{% if v.name %}{{ v.name }}{% else %}—{% endif %}</span>
-        {% if v.is_current %}<span class="dist-stat-now">NOW</span>{% endif %}
+        {% if v.is_current %}
+          <span class="dist-stat-name" title="{{ v.name }}">{% if v.name %}{{ v.name }}{% else %}—{% endif %}</span>
+          <span class="dist-stat-now">NOW</span>
+        {% else %}
+          <a class="dist-stat-name"
+             title="{{ v.name }}"
+             href="{% url 'recipe-detail' v.recipe_id %}"
+             hx-get="{% url 'recipe-detail' v.recipe_id %}"
+             hx-target="#recipe-detail-overlay"
+             hx-push-url="{% url 'recipe-detail' v.recipe_id %}">{% if v.name %}{{ v.name }}{% else %}—{% endif %}</a>
+        {% endif %}
       </div>
       <div class="dist-stat-bar-wrap">
         <div class="dist-stat-bar-fill"
@@ -263,14 +282,18 @@
 <script>
 (function () {
   const recipeId = "{{ ctx.recipe_id }}";
+  // Capture the container now — document.currentScript is null inside requestAnimationFrame.
+  // Querying by class rather than ID lets this template render correctly in any container
+  // (detail page, move-group modal, etc.) without requiring a specific outer element ID.
+  const _root = (document.currentScript && document.currentScript.closest('.detail-distribution'))
+    || document.getElementById("detail-distribution-" + recipeId);
   requestAnimationFrame(function () {
   // The canvas has no id on purpose: htmx's settle phase reconciles
   // attributesToSettle (incl. width/height) on any element whose id exists in
   // both the old and new swapped content. Reconciling a canvas's width/height
   // resets its bitmap, wiping the freshly drawn chart on every scale toggle.
-  // No id => htmx never settles it; we scope the lookup to the stable
-  // container instead.
-  const canvas = document.querySelector("#detail-distribution-" + recipeId + " canvas.dist-chart");
+  // No id => htmx never settles it; we scope the lookup to the stable container instead.
+  const canvas = _root && _root.querySelector("canvas.dist-chart");
   if (!canvas) return;
 
   canvas.width = parseInt(canvas.dataset.w, 10);
@@ -385,7 +408,7 @@
   draw();
 
   // tooltip
-  const tooltip = document.getElementById("dist-tooltip-" + recipeId);
+  const tooltip = _root && _root.querySelector(".dist-tooltip");
 
   function showTooltip(x, y, lines) {
     if (!tooltip) return;
@@ -431,7 +454,7 @@
   canvas.addEventListener("mouseleave", hideTooltip);
 
   // checkbox visibility toggle
-  const listEl = document.getElementById("dist-stat-list-" + recipeId);
+  const listEl = _root && _root.querySelector(".dist-stat-list");
   if (listEl) {
     listEl.addEventListener("click", function (e) {
       const btn = e.target.closest("[data-checkbox]");
