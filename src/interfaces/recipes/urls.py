@@ -1,0 +1,34 @@
+from django.urls import path
+from django.views.decorators.http import require_POST
+
+from src.interfaces.recipes import views
+
+urlpatterns = [
+    path("recipes/", views.recipes_explorer_view, name="recipes-explorer"),
+    path("recipes/create/", views.CreateRecipe.as_view(), name="create-recipe"),
+    path("recipes/<int:recipe_id>/edit/", views.EditRecipe.as_view(), name="edit-recipe"),
+    path("recipes/<int:recipe_id>/create-version/", views.CreateRecipeVersion.as_view(), name="create-recipe-version"),
+    path("recipes/delete/", views.RemoveRecipes.as_view(), name="recipes-delete"),
+    path("recipes/cards/batch/", views.CreateRecipeCardsBatch.as_view(), name="recipes-create-cards-batch"),
+    path("recipes/cards/zip/<str:filename>/", views.recipe_cards_zip_download_view, name="recipes-card-zip-download"),
+    path("recipes/import/", require_POST(views.import_recipes_from_uploaded_files_view), name="recipes-import"),
+    path("recipes/import-qr-cards/", require_POST(views.import_recipes_from_uploaded_qr_cards_view), name="recipes-import-qr-cards"),
+    path("recipes/partial/results/", views.recipes_explorer_results_view, name="recipes-explorer-partial-results"),
+    path("recipes/graph/", views.recipes_graph_view, name="recipes-graph"),
+    path("recipes/graph/<int:recipe_id>/", views.recipe_graph_view, name="recipe-graph"),
+    path("recipes/<int:recipe_id>/distribution/", views.RecipeDistribution.as_view(), name="recipe-distribution"),
+    path("recipes/<int:recipe_id>/", views.recipe_detail_view, name="recipe-detail"),
+    path("recipes/<int:recipe_id>/images/", views.recipe_images_view, name="recipe-images"),
+    path("recipes/<int:recipe_id>/images/<int:image_id>/", views.recipe_compare_image_view, name="recipe-compare-image"),
+    path("recipes/path-deltas/", views.recipe_path_deltas_view, name="recipe-path-deltas"),
+    path("recipes/<int:recipe_id>/set-name/", views.SetRecipeName.as_view(), name="set-recipe-name"),
+    path("recipes/<int:recipe_id>/set-cover-image/<int:image_id>/", views.SetRecipeCoverImage.as_view(), name="set-recipe-cover-image"),
+    path("recipes/<int:recipe_id>/card/partial/modal/", views.recipe_card_modal_view, name="recipe-card-modal"),
+    path("recipes/<int:recipe_id>/card/partial/preview/", views.RecipeCardPreview.as_view(), name="recipe-card-preview"),
+    path("recipes/<int:recipe_id>/card/preview/file/", views.recipe_card_preview_file_view, name="recipe-card-preview-file"),
+    path("recipes/<int:recipe_id>/card/partial/create/", views.CreateRecipeCard.as_view(), name="create-recipe-card"),
+    path("recipes/card/<int:card_id>/file/", views.recipe_card_file_view, name="recipe-card-file"),
+    path("recipes/<int:recipe_id>/move-version-line/", views.MoveRecipeToVersionLine.as_view(), name="move-recipe-version-line"),
+    path("recipes/<int:recipe_id>/move-version-line/search/", views.MoveRecipeToVersionLineSearch.as_view(), name="move-recipe-version-line-search"),
+    path("recipes/<int:recipe_id>/move-version-line/preview/", views.MoveRecipeToVersionLinePreview.as_view(), name="move-recipe-version-line-preview"),
+]

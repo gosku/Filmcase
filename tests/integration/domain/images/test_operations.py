@@ -10,9 +10,9 @@ from src.domain.images import events
 from src.domain.images.dataclasses import ImageExifData
 from src.domain.images.operations import NoFilmSimulationError, process_image
 
-FIXTURES_DIR = Path(__file__).resolve().parent.parent.parent / "fixtures" / "images"
+FIXTURES_DIR = Path(__file__).resolve().parent.parent.parent.parent / "fixtures" / "images"
 FIXTURE_IMAGE = str(FIXTURES_DIR / "XS107114.JPG")
-RECIPE_FIXTURES_DIR = Path(__file__).resolve().parent.parent.parent / "fixtures" / "recipe"
+RECIPE_FIXTURES_DIR = Path(__file__).resolve().parent.parent.parent.parent / "fixtures" / "recipe"
 
 
 @pytest.mark.django_db

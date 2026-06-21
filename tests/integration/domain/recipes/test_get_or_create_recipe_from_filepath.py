@@ -9,7 +9,7 @@ from src.domain.images import events
 from src.domain.images.queries import NoFilmSimulationError
 from src.domain.recipes.operations import get_or_create_recipe_from_filepath
 
-FIXTURES_DIR = Path(__file__).resolve().parent.parent.parent / "fixtures" / "images"
+FIXTURES_DIR = Path(__file__).resolve().parent.parent.parent.parent / "fixtures" / "images"
 FIXTURE_IMAGE = str(FIXTURES_DIR / "XS107114.JPG")
 
 NON_FUJIFILM_EXIFTOOL_OUTPUT = "[IFD0]          Make                            : Canon\n"

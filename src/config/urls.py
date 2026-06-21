@@ -3,43 +3,11 @@ from django.urls import path
 from django.views.generic import RedirectView
 from django.views.static import serve as static_serve
 
-from src.interfaces import views
+from src.interfaces.camera.urls import urlpatterns as camera_urlpatterns
+from src.interfaces.images.urls import urlpatterns as image_urlpatterns
+from src.interfaces.recipes.urls import urlpatterns as recipe_urlpatterns
 
 urlpatterns = [
     path("static/<path:path>", static_serve, {"document_root": settings.STATIC_FILES_DIR}),
     path("", RedirectView.as_view(pattern_name="recipes-explorer"), name="root"),
-    path("images/", views.gallery_view, name="gallery"),
-    path("images/results/", views.gallery_results_view, name="gallery-results"),
-    path("images/file/<int:image_id>/", views.image_file_view, name="image-file"),
-    path("images/<int:image_id>/", views.image_detail_view, name="image-detail"),
-    path("images/<int:image_id>/set-rating/", views.set_image_rating_view, name="image-set-rating"),
-    path("recipes/", views.recipes_explorer_view, name="recipes-explorer"),
-    path("recipes/create/", views.CreateRecipe.as_view(), name="create-recipe"),
-    path("recipes/<int:recipe_id>/edit/", views.EditRecipe.as_view(), name="edit-recipe"),
-    path("recipes/<int:recipe_id>/create-version/", views.CreateRecipeVersion.as_view(), name="create-recipe-version"),
-    path("recipes/delete/", views.RemoveRecipes.as_view(), name="recipes-delete"),
-    path("recipes/cards/batch/", views.CreateRecipeCardsBatch.as_view(), name="recipes-create-cards-batch"),
-    path("recipes/cards/zip/<str:filename>/", views.recipe_cards_zip_download_view, name="recipes-card-zip-download"),
-    path("recipes/import/", views.import_recipes_from_uploaded_files_view, name="recipes-import"),
-    path("recipes/import-qr-cards/", views.import_recipes_from_uploaded_qr_cards_view, name="recipes-import-qr-cards"),
-    path("recipes/partial/results/", views.recipes_explorer_results_view, name="recipes-explorer-partial-results"),
-    path("recipes/graph/", views.recipes_graph_view, name="recipes-graph"),
-    path("recipes/graph/<int:recipe_id>/", views.recipe_graph_view, name="recipe-graph"),
-    path("recipes/<int:recipe_id>/distribution/", views.RecipeDistribution.as_view(), name="recipe-distribution"),
-    path("recipes/<int:recipe_id>/", views.recipe_detail_view, name="recipe-detail"),
-    path("recipes/<int:recipe_id>/images/", views.recipe_images_view, name="recipe-images"),
-    path("recipes/<int:recipe_id>/images/<int:image_id>/", views.recipe_compare_image_view, name="recipe-compare-image"),
-    path("recipes/path-deltas/", views.recipe_path_deltas_view, name="recipe-path-deltas"),
-    path("recipes/<int:recipe_id>/set-name/", views.SetRecipeName.as_view(), name="set-recipe-name"),
-    path("recipes/<int:recipe_id>/set-cover-image/<int:image_id>/", views.SetRecipeCoverImage.as_view(), name="set-recipe-cover-image"),
-    path("recipes/<int:recipe_id>/push/", views.SelectSlot.as_view(), name="select-push-slot"),
-    path("recipes/<int:recipe_id>/push/<str:slot>/", views.PushRecipeToCamera.as_view(), name="push-recipe-to-camera"),
-    path("recipes/<int:recipe_id>/card/partial/modal/", views.recipe_card_modal_view, name="recipe-card-modal"),
-    path("recipes/<int:recipe_id>/card/partial/preview/", views.RecipeCardPreview.as_view(), name="recipe-card-preview"),
-    path("recipes/<int:recipe_id>/card/preview/file/", views.recipe_card_preview_file_view, name="recipe-card-preview-file"),
-    path("recipes/<int:recipe_id>/card/partial/create/", views.CreateRecipeCard.as_view(), name="create-recipe-card"),
-    path("recipes/card/<int:card_id>/file/", views.recipe_card_file_view, name="recipe-card-file"),
-    path("recipes/<int:recipe_id>/move-version-line/", views.MoveRecipeToVersionLine.as_view(), name="move-recipe-version-line"),
-    path("recipes/<int:recipe_id>/move-version-line/search/", views.MoveRecipeToVersionLineSearch.as_view(), name="move-recipe-version-line-search"),
-    path("recipes/<int:recipe_id>/move-version-line/preview/", views.MoveRecipeToVersionLinePreview.as_view(), name="move-recipe-version-line-preview"),
-]
+] + image_urlpatterns + recipe_urlpatterns + camera_urlpatterns

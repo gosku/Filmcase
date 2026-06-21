@@ -7,7 +7,7 @@ from PIL import Image as PILImage
 from src.domain.images.thumbnails.operations import generate_thumbnail
 from src.domain.images.thumbnails.queries import thumbnail_cache_path
 
-FIXTURE_IMAGE = Path(__file__).resolve().parent.parent.parent / "fixtures" / "images" / "XS107114.JPG"
+FIXTURE_IMAGE = Path(__file__).resolve().parent.parent.parent.parent.parent / "fixtures" / "images" / "XS107114.JPG"
 
 
 class TestGenerateThumbnail:

@@ -107,7 +107,7 @@ class TestCreateRecipeCardsBatchViewFailure:
         settings.RECIPE_CARDS_DIR = str(tmp_path)
         recipe = FujifilmRecipeFactory()
         with patch(
-            "src.interfaces.views.create_recipe_cards_batch_uc.create_recipe_cards_batch",
+            "src.interfaces.recipes.views.create_recipe_cards_batch_uc.create_recipe_cards_batch",
             side_effect=RuntimeError("boom"),
         ):
             response = client.post(
