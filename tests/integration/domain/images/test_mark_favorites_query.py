@@ -11,7 +11,7 @@ from src.domain.images.queries import (
 from src.domain.images.operations import process_image
 from tests.factories import FujifilmExifFactory, ImageFactory
 
-FIXTURES_DIR = Path(__file__).resolve().parent.parent / "fixtures" / "images"
+FIXTURES_DIR = Path(__file__).resolve().parent.parent.parent.parent / "fixtures" / "images"
 FIXTURE_IMAGE = str(FIXTURES_DIR / "XS107114.JPG")
 
 # UTC equivalent of the fixture image's DateTimeOriginal (2025-12-31T12:23:57+11:00)

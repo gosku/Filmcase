@@ -9,11 +9,11 @@ from src.domain.images import events
 from src.domain.recipes import operations as recipe_operations
 from src.domain.recipes.cards import queries as card_queries
 
-FIXTURES_DIR = Path(__file__).resolve().parent.parent.parent / "fixtures" / "recipe_cards"
+FIXTURES_DIR = Path(__file__).resolve().parent.parent.parent.parent / "fixtures" / "recipe_cards"
 CLASSIC_CHROME_CARD = str(FIXTURES_DIR / "card_classic_chrome.jpg")
 ACROS_CARD = str(FIXTURES_DIR / "card_acros.jpg")
 NON_CARD_IMAGE = str(
-    Path(__file__).resolve().parent.parent.parent / "fixtures" / "images" / "XS107114.JPG"
+    Path(__file__).resolve().parent.parent.parent.parent / "fixtures" / "images" / "XS107114.JPG"
 )
 
 

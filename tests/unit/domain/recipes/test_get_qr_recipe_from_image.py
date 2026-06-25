@@ -7,8 +7,8 @@ import qrcode  # type: ignore[import-untyped]
 from src.domain.recipes.cards import dataclasses as card_dataclasses
 from src.domain.recipes.cards import queries as card_queries
 
-FIXTURES_DIR = Path(__file__).resolve().parent.parent.parent / "fixtures" / "recipe_cards"
-NON_CARD_IMAGE = Path(__file__).resolve().parent.parent.parent / "fixtures" / "images" / "XS107114.JPG"
+FIXTURES_DIR = Path(__file__).resolve().parent.parent.parent.parent / "fixtures" / "recipe_cards"
+NON_CARD_IMAGE = Path(__file__).resolve().parent.parent.parent.parent / "fixtures" / "images" / "XS107114.JPG"
 
 
 def _valid_payload() -> dict[str, object]:

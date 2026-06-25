@@ -12,7 +12,7 @@ import pytest
 
 from src.domain.images.queries import exif_to_recipe, read_image_exif
 
-FIXTURES = Path(__file__).resolve().parent.parent.parent / "fixtures" / "recipe"
+FIXTURES = Path(__file__).resolve().parent.parent.parent.parent / "fixtures" / "recipe"
 
 
 def _recipe(filename: str):

@@ -2,8 +2,8 @@ from typing import Any
 
 from django.core.management.base import BaseCommand, CommandParser
 
-from src.application.usecases.images import compare_recipes as compare_recipes_uc
-from src.application.usecases.images.compare_recipes import RECIPE_FIELDS
+from src.domain.recipes import queries as compare_recipes_uc
+from src.domain.recipes.queries import RECIPE_FIELDS
 
 
 class Command(BaseCommand):

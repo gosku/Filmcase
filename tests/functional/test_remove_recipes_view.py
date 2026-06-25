@@ -122,7 +122,7 @@ class TestRemoveRecipesViewFailure:
     def test_unexpected_exception_shows_error_message(self, client) -> None:
         recipe = FujifilmRecipeFactory()
         with patch(
-            "src.interfaces.views.remove_recipes_uc.remove_recipes",
+            "src.interfaces.recipes.views.remove_recipes_uc.remove_recipes",
             side_effect=RuntimeError("boom"),
         ):
             response = client.post("/recipes/delete/", {"recipe_ids": [recipe.pk]})

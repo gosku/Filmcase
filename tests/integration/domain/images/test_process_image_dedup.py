@@ -12,7 +12,7 @@ from src.domain.images.dataclasses import ImageExifData
 from src.domain.images.operations import process_image
 from tests.factories import FujifilmExifFactory, ImageFactory
 
-FIXTURES_DIR = Path(__file__).resolve().parent.parent.parent / "fixtures" / "images"
+FIXTURES_DIR = Path(__file__).resolve().parent.parent.parent.parent / "fixtures" / "images"
 FIXTURE_IMAGE = str(FIXTURES_DIR / "XS107114.JPG")
 OTHER_FIXTURE_IMAGE = str(FIXTURES_DIR / "XS107209.jpg")
 
