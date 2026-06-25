@@ -30,6 +30,10 @@ def _active_filters_from_request(request: http.HttpRequest) -> dict[str, list[st
 
 
 class Gallery(generic.View):
+    """
+    Display the image gallery with filtering and pagination.
+    """
+
     def get(self, request: http.HttpRequest) -> http.HttpResponse:
         active_filters = _active_filters_from_request(request)
         rating_first = request.GET.get("rating_first", "1") == "1"
@@ -58,6 +62,12 @@ class Gallery(generic.View):
 
 
 class ImageDetail(generic.View):
+    """
+    Display the detail view of a single image.
+
+    :raises Http404: if no image with the given ID exists.
+    """
+
     def get(self, request: http.HttpRequest, image_id: int) -> http.HttpResponse:
         max_rating = settings.IMAGE_MAX_RATING
         rating_range = range(1, max_rating + 1)
@@ -99,6 +109,10 @@ class ImageDetail(generic.View):
 
 
 class GalleryResults(generic.View):
+    """
+    Return a paginated page of gallery images for infinite scroll.
+    """
+
     def get(self, request: http.HttpRequest) -> http.HttpResponse:
         active_filters = _active_filters_from_request(request)
         rating_first = request.GET.get("rating_first", "1") == "1"
@@ -108,6 +122,12 @@ class GalleryResults(generic.View):
 
 
 class ImageFile(generic.View):
+    """
+    Serve the raw image file, optionally resized to a given width.
+
+    :raises Http404: if no image with the given ID exists, the file is missing on disk, or the width parameter is not a valid integer.
+    """
+
     image: models.Image
 
     def setup(self, request: http.HttpRequest, *args: object, **kwargs: object) -> None:
@@ -130,6 +150,12 @@ class ImageFile(generic.View):
 
 
 class SetImageRating(generic.View):
+    """
+    Set the star rating for an image and return the updated rating widget.
+
+    :raises Http404: if no image with the given ID exists, or if the rating value is missing or invalid.
+    """
+
     image: models.Image
 
     def setup(self, request: http.HttpRequest, *args: object, **kwargs: object) -> None:

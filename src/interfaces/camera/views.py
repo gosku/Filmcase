@@ -13,6 +13,12 @@ _SLOT_TO_INDEX = {"C1": 1, "C2": 2, "C3": 3, "C4": 4, "C5": 5, "C6": 6, "C7": 7}
 
 
 class SelectSlot(generic.View):
+    """
+    Display the available camera custom slots for pushing a recipe.
+
+    :raises Http404: if no recipe with the given ID exists, or the recipe has no name.
+    """
+
     recipe: models.FujifilmRecipe
 
     def setup(self, request: http.HttpRequest, *args: object, **kwargs: object) -> None:
@@ -47,6 +53,12 @@ class SelectSlot(generic.View):
 
 
 class PushRecipeToCamera(generic.View):
+    """
+    Push a recipe's settings into a selected camera custom slot.
+
+    :raises Http404: if no recipe with the given ID exists, or the slot identifier is not valid.
+    """
+
     recipe: models.FujifilmRecipe
     slot_index: int | None
 

@@ -51,6 +51,10 @@ def _recipe_explorer_filters_from_request(request: http.HttpRequest) -> dict[str
 
 
 class RecipesExplorer(generic.View):
+    """
+    Display the recipe explorer with filtering and search.
+    """
+
     def get(self, request: http.HttpRequest) -> http.HttpResponse:
         active_filters = _recipe_explorer_filters_from_request(request)
         name_search = request.GET.get("name_search", "").strip()
@@ -67,6 +71,10 @@ class RecipesExplorer(generic.View):
 
 
 class RecipesExplorerResults(generic.View):
+    """
+    Return a paginated page of recipes for infinite scroll.
+    """
+
     def get(self, request: http.HttpRequest) -> http.HttpResponse:
         active_filters = _recipe_explorer_filters_from_request(request)
         name_search = request.GET.get("name_search", "").strip()
@@ -80,6 +88,12 @@ class RecipesExplorerResults(generic.View):
 
 
 class RecipeDetail(generic.View):
+    """
+    Display the detail page for a single recipe.
+
+    :raises Http404: if no recipe with the given ID exists.
+    """
+
     def get(self, request: http.HttpRequest, recipe_id: int) -> http.HttpResponse:
         try:
             detail = recipe_queries.get_recipe_detail(recipe_id=recipe_id)
@@ -92,6 +106,12 @@ class RecipeDetail(generic.View):
 
 
 class RecipeDistribution(generic.View):
+    """
+    Return the usage distribution chart for a recipe across its version line.
+
+    :raises Http404: if no recipe with the given ID exists.
+    """
+
     def get(self, request: http.HttpRequest, recipe_id: int) -> http.HttpResponse:
         try:
             ctx = get_recipe_distribution_uc.get_recipe_distribution(
@@ -131,6 +151,12 @@ class RecipeDistribution(generic.View):
 
 
 class MoveRecipeToVersionLine(generic.View):
+    """
+    Display and handle the form for moving a recipe to a different version line group.
+
+    :raises Http404: if no recipe with the given ID exists.
+    """
+
     def setup(self, request: http.HttpRequest, *args: object, **kwargs: object) -> None:
         super().setup(request, *args, **kwargs)
         self.recipe = shortcuts.get_object_or_404(
@@ -170,6 +196,10 @@ class MoveRecipeToVersionLine(generic.View):
 
 
 class MoveRecipeToVersionLineSearch(generic.View):
+    """
+    Search for candidate version line groups to move a recipe into.
+    """
+
     def get(self, request: http.HttpRequest, recipe_id: int) -> http.HttpResponse:
         name_search = request.GET.get("name_search", "")
         try:
@@ -187,6 +217,10 @@ class MoveRecipeToVersionLineSearch(generic.View):
 
 
 class MoveRecipeToVersionLinePreview(generic.View):
+    """
+    Preview the distribution impact of moving a recipe to a different version line position.
+    """
+
     def get(self, request: http.HttpRequest, recipe_id: int) -> http.HttpResponse:
         try:
             destination_group_id = int(request.GET["destination_group_id"])
@@ -259,6 +293,10 @@ def _root_fields_json(root_id: int | None) -> list[dict[str, str]]:
 
 
 class RecipesGraph(generic.View):
+    """
+    Display the network graph of all recipes for a given film simulation.
+    """
+
     def get(self, request: http.HttpRequest) -> http.HttpResponse:
         film_simulation = request.GET.get("film_sim", _RECIPES_GRAPH_DEFAULT_FILM_SIM)
         result = build_graph_uc.build_recipe_network(film_simulation=film_simulation)
@@ -308,6 +346,12 @@ class RecipesGraph(generic.View):
 
 
 class RecipeGraph(generic.View):
+    """
+    Display the network graph centered on a specific recipe.
+
+    :raises Http404: if no recipe with the given ID exists.
+    """
+
     recipe: models.FujifilmRecipe
 
     def setup(self, request: http.HttpRequest, *args: object, **kwargs: object) -> None:
@@ -364,6 +408,12 @@ class RecipeGraph(generic.View):
 
 
 class RecipeImages(generic.View):
+    """
+    Return the list of images associated with a recipe.
+
+    :raises Http404: if no recipe with the given ID exists.
+    """
+
     def setup(self, request: http.HttpRequest, *args: object, **kwargs: object) -> None:
         super().setup(request, *args, **kwargs)
         shortcuts.get_object_or_404(models.FujifilmRecipe, pk=kwargs["recipe_id"])
@@ -383,6 +433,12 @@ class RecipeImages(generic.View):
 
 
 class RecipeCompareImage(generic.View):
+    """
+    Return image data for side-by-side recipe comparison.
+
+    :raises Http404: if no recipe or image with the given IDs exists.
+    """
+
     def setup(self, request: http.HttpRequest, *args: object, **kwargs: object) -> None:
         super().setup(request, *args, **kwargs)
         shortcuts.get_object_or_404(models.FujifilmRecipe, pk=kwargs["recipe_id"])
@@ -402,6 +458,12 @@ class RecipeCompareImage(generic.View):
 
 
 class SetRecipeName(generic.View):
+    """
+    Set the display name of a recipe.
+
+    :raises Http404: if no recipe with the given ID exists.
+    """
+
     recipe: models.FujifilmRecipe
 
     def setup(self, request: http.HttpRequest, *args: object, **kwargs: object) -> None:
@@ -431,6 +493,12 @@ class SetRecipeName(generic.View):
 
 
 class SetRecipeCoverImage(generic.View):
+    """
+    Set the cover image for a recipe.
+
+    :raises Http404: if the recipe or image does not exist, or the image is not associated with the recipe.
+    """
+
     def post(self, request: http.HttpRequest, recipe_id: int, image_id: int) -> http.HttpResponse:
         try:
             recipe_operations.set_cover_image_for_recipe(recipe_id=recipe_id, image_id=image_id)
@@ -448,6 +516,10 @@ class SetRecipeCoverImage(generic.View):
 
 
 class RemoveRecipes(generic.View):
+    """
+    Remove one or more recipes from the library.
+    """
+
     def post(self, request: http.HttpRequest) -> http.HttpResponse:
         recipe_ids_raw = request.POST.getlist("recipe_ids")
         try:
@@ -483,6 +555,10 @@ _BATCH_RESULT_TEMPLATE = "recipes/partials/create_recipe_cards_batch_result.html
 
 
 class CreateRecipeCardsBatch(generic.View):
+    """
+    Generate recipe cards for a batch of recipes.
+    """
+
     def post(self, request: http.HttpRequest) -> http.HttpResponse:
         recipe_ids_raw = request.POST.getlist("recipe_ids")
         try:
@@ -520,6 +596,12 @@ class CreateRecipeCardsBatch(generic.View):
 
 
 class RecipeCardZipDownload(generic.View):
+    """
+    Download a zip archive of generated recipe cards.
+
+    :raises Http404: if the filename does not match the expected pattern or the file no longer exists.
+    """
+
     def get(self, request: http.HttpRequest, filename: str) -> http.FileResponse:
         # The filename pattern is strict (no path separators) so it cannot be used
         # to escape the temp directory.
@@ -537,6 +619,10 @@ class RecipeCardZipDownload(generic.View):
 
 
 class ImportRecipesFromUploadedFiles(generic.View):
+    """
+    Import recipes from uploaded image files.
+    """
+
     def post(self, request: http.HttpRequest) -> http.HttpResponse:
         uploaded = request.FILES.getlist("images")
         if not uploaded:
@@ -569,6 +655,10 @@ class ImportRecipesFromUploadedFiles(generic.View):
 
 
 class ImportRecipesFromUploadedQrCards(generic.View):
+    """
+    Import recipes from uploaded QR card images.
+    """
+
     def post(self, request: http.HttpRequest) -> http.HttpResponse:
         uploaded = request.FILES.getlist("images")
         if not uploaded:
@@ -601,6 +691,10 @@ class ImportRecipesFromUploadedQrCards(generic.View):
 
 
 class RecipePathDeltas(generic.View):
+    """
+    Return the field differences along a recipe path in the network graph.
+    """
+
     def get(self, request: http.HttpRequest) -> http.HttpResponse:
         ids_param = request.GET.get("ids", "")
         try:
@@ -670,6 +764,12 @@ class _RecipeCardResultContext:
 
 
 class RecipeCardModal(generic.View):
+    """
+    Display the recipe card creation modal for a recipe.
+
+    :raises Http404: if no recipe with the given ID exists.
+    """
+
     recipe: models.FujifilmRecipe
 
     def setup(self, request: http.HttpRequest, *args: object, **kwargs: object) -> None:
@@ -691,6 +791,10 @@ class RecipeCardModal(generic.View):
 
 
 class RecipeCardPreview(generic.View):
+    """
+    Generate and display a preview of a recipe card.
+    """
+
     def get(self, request: http.HttpRequest, recipe_id: int) -> http.HttpResponse:
         image_id_raw = request.GET.get("image_id")
         image_id = int(image_id_raw) if image_id_raw else None
@@ -728,6 +832,12 @@ class RecipeCardPreview(generic.View):
 
 
 class RecipeCardPreviewFile(generic.View):
+    """
+    Serve the raw preview image file for a recipe card.
+
+    :raises Http404: if the preview image cannot be generated.
+    """
+
     def get(self, request: http.HttpRequest, recipe_id: int) -> http.FileResponse:
         image_id_raw = request.GET.get("image_id")
         image_id = int(image_id_raw) if image_id_raw else None
@@ -750,6 +860,12 @@ class RecipeCardPreviewFile(generic.View):
 
 
 class CreateRecipeCard(generic.View):
+    """
+    Create and persist a recipe card for a recipe.
+
+    :raises Http404: if no recipe with the given ID exists.
+    """
+
     recipe: models.FujifilmRecipe
 
     def setup(self, request: http.HttpRequest, *args: object, **kwargs: object) -> None:
@@ -788,6 +904,12 @@ class CreateRecipeCard(generic.View):
 
 
 class RecipeCardFile(generic.View):
+    """
+    Serve the raw image file of a saved recipe card.
+
+    :raises Http404: if no recipe card with the given ID exists.
+    """
+
     card: models.RecipeCard
 
     def setup(self, request: http.HttpRequest, *args: object, **kwargs: object) -> None:
@@ -808,6 +930,12 @@ def _parse_white_balance_for_form(white_balance: str) -> tuple[str, int | None]:
 
 
 class EditRecipe(generic.FormView):  # type: ignore[type-arg]
+    """
+    Display and handle the form for editing a recipe's settings.
+
+    :raises Http404: if no recipe with the given ID exists.
+    """
+
     template_name = "recipes/edit_recipe.html"
     form_class = interface_forms.CreateRecipe
     recipe: models.FujifilmRecipe
@@ -940,6 +1068,12 @@ class EditRecipe(generic.FormView):  # type: ignore[type-arg]
 
 
 class CreateRecipeVersion(generic.FormView):  # type: ignore[type-arg]
+    """
+    Display and handle the form for creating a new version of a recipe in its version line.
+
+    :raises Http404: if no recipe with the given ID exists.
+    """
+
     template_name = "recipes/create_recipe_version.html"
     form_class = interface_forms.CreateRecipe
     recipe: models.FujifilmRecipe
@@ -1049,6 +1183,10 @@ class CreateRecipeVersion(generic.FormView):  # type: ignore[type-arg]
 
 
 class CreateRecipe(generic.FormView):  # type: ignore[type-arg]
+    """
+    Display and handle the form for creating a new recipe manually.
+    """
+
     template_name = "recipes/create_recipe.html"
     form_class = interface_forms.CreateRecipe
 
