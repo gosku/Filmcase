@@ -1,5 +1,4 @@
 import structlog
-from typing import Any
 
 from django import http
 from django import shortcuts
@@ -14,11 +13,15 @@ _SLOT_TO_INDEX = {"C1": 1, "C2": 2, "C3": 3, "C4": 4, "C5": 5, "C6": 6, "C7": 7}
 
 
 class SelectSlot(generic.View):
-    def dispatch(self, request: http.HttpRequest, *args: object, **kwargs: Any) -> http.HttpResponseBase:
-        recipe = shortcuts.get_object_or_404(models.FujifilmRecipe, pk=kwargs["recipe_id"])
-        if not recipe.name:
+    recipe: models.FujifilmRecipe
+
+    def setup(self, request: http.HttpRequest, *args: object, **kwargs: object) -> None:
+        super().setup(request, *args, **kwargs)
+        self.recipe = shortcuts.get_object_or_404(models.FujifilmRecipe, pk=kwargs["recipe_id"])
+
+    def dispatch(self, request: http.HttpRequest, *args: object, **kwargs: object) -> http.HttpResponseBase:
+        if not self.recipe.name:
             raise http.Http404
-        self.recipe = recipe
         return super().dispatch(request, *args, **kwargs)
 
     def get(self, request: http.HttpRequest, recipe_id: int) -> http.HttpResponse:
@@ -44,15 +47,21 @@ class SelectSlot(generic.View):
 
 
 class PushRecipeToCamera(generic.View):
-    def dispatch(self, request: http.HttpRequest, *args: object, **kwargs: Any) -> http.HttpResponseBase:
+    recipe: models.FujifilmRecipe
+    slot_index: int | None
+
+    def setup(self, request: http.HttpRequest, *args: object, **kwargs: object) -> None:
+        super().setup(request, *args, **kwargs)
         self.recipe = shortcuts.get_object_or_404(models.FujifilmRecipe, pk=kwargs["recipe_id"])
-        slot_index = _SLOT_TO_INDEX.get(kwargs["slot"])
-        if slot_index is None:
+        self.slot_index = _SLOT_TO_INDEX.get(str(kwargs["slot"]))
+
+    def dispatch(self, request: http.HttpRequest, *args: object, **kwargs: object) -> http.HttpResponseBase:
+        if self.slot_index is None:
             raise http.Http404
-        self.slot_index = slot_index
         return super().dispatch(request, *args, **kwargs)
 
     def post(self, request: http.HttpRequest, recipe_id: int, slot: str) -> http.HttpResponse:
+        assert self.slot_index is not None
         is_htmx = request.headers.get("HX-Request")
         error_ctx = {"recipe_id": recipe_id, "slot": slot}
         try:

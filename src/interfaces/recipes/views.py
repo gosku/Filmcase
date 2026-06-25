@@ -5,7 +5,6 @@ from pathlib import Path
 from urllib.parse import urlencode
 import attrs as _attrs
 import structlog
-from typing import Any
 
 from django.conf import settings
 from django import http
@@ -51,42 +50,45 @@ def _recipe_explorer_filters_from_request(request: http.HttpRequest) -> dict[str
     return filters
 
 
-def recipes_explorer_view(request: http.HttpRequest) -> http.HttpResponse:
-    active_filters = _recipe_explorer_filters_from_request(request)
-    name_search = request.GET.get("name_search", "").strip()
-    gallery = recipe_queries.get_recipe_gallery_data(
-        active_filters=active_filters,
-        name_search=name_search,
-        page_number=request.GET.get("page", 1),
-        page_size=settings.RECIPE_EXPLORER_PAGE_SIZE,
-    )
-    ctx = {"page_obj": gallery.page_obj, "sidebar_options": gallery.sidebar_options, "name_search": name_search}
-    if request.headers.get("HX-Request"):
-        return shortcuts.render(request, "recipes/partials/htmx_filter_response.html", ctx)
-    return shortcuts.render(request, "recipes/recipes_explorer.html", ctx)
+class RecipesExplorer(generic.View):
+    def get(self, request: http.HttpRequest) -> http.HttpResponse:
+        active_filters = _recipe_explorer_filters_from_request(request)
+        name_search = request.GET.get("name_search", "").strip()
+        gallery = recipe_queries.get_recipe_gallery_data(
+            active_filters=active_filters,
+            name_search=name_search,
+            page_number=request.GET.get("page", 1),
+            page_size=settings.RECIPE_EXPLORER_PAGE_SIZE,
+        )
+        ctx = {"page_obj": gallery.page_obj, "sidebar_options": gallery.sidebar_options, "name_search": name_search}
+        if request.headers.get("HX-Request"):
+            return shortcuts.render(request, "recipes/partials/htmx_filter_response.html", ctx)
+        return shortcuts.render(request, "recipes/recipes_explorer.html", ctx)
 
 
-def recipes_explorer_results_view(request: http.HttpRequest) -> http.HttpResponse:
-    active_filters = _recipe_explorer_filters_from_request(request)
-    name_search = request.GET.get("name_search", "").strip()
-    gallery = recipe_queries.get_recipe_gallery_data(
-        active_filters=active_filters,
-        name_search=name_search,
-        page_number=request.GET.get("page", 1),
-        page_size=settings.RECIPE_EXPLORER_PAGE_SIZE,
-    )
-    return shortcuts.render(request, "recipes/partials/htmx_scroll_response.html", {"page_obj": gallery.page_obj})
+class RecipesExplorerResults(generic.View):
+    def get(self, request: http.HttpRequest) -> http.HttpResponse:
+        active_filters = _recipe_explorer_filters_from_request(request)
+        name_search = request.GET.get("name_search", "").strip()
+        gallery = recipe_queries.get_recipe_gallery_data(
+            active_filters=active_filters,
+            name_search=name_search,
+            page_number=request.GET.get("page", 1),
+            page_size=settings.RECIPE_EXPLORER_PAGE_SIZE,
+        )
+        return shortcuts.render(request, "recipes/partials/htmx_scroll_response.html", {"page_obj": gallery.page_obj})
 
 
-def recipe_detail_view(request: http.HttpRequest, recipe_id: int) -> http.HttpResponse:
-    try:
-        detail = recipe_queries.get_recipe_detail(recipe_id=recipe_id)
-    except models.FujifilmRecipe.DoesNotExist:
-        raise http.Http404
-    ctx = {"recipe": detail.recipe, "is_monochromatic": detail.is_monochromatic, "settings_editable": detail.settings_editable}
-    if request.headers.get("HX-Request"):
-        return shortcuts.render(request, "recipes/partials/recipe_detail.html", ctx)
-    return shortcuts.render(request, "recipes/recipe_detail.html", ctx)
+class RecipeDetail(generic.View):
+    def get(self, request: http.HttpRequest, recipe_id: int) -> http.HttpResponse:
+        try:
+            detail = recipe_queries.get_recipe_detail(recipe_id=recipe_id)
+        except models.FujifilmRecipe.DoesNotExist:
+            raise http.Http404
+        ctx = {"recipe": detail.recipe, "is_monochromatic": detail.is_monochromatic, "settings_editable": detail.settings_editable}
+        if request.headers.get("HX-Request"):
+            return shortcuts.render(request, "recipes/partials/recipe_detail.html", ctx)
+        return shortcuts.render(request, "recipes/recipe_detail.html", ctx)
 
 
 class RecipeDistribution(generic.View):
@@ -256,138 +258,155 @@ def _root_fields_json(root_id: int | None) -> list[dict[str, str]]:
     return [{"field": f.field, "value": f.value} for f in recipe_queries.get_recipe_all_fields(recipe=root)]
 
 
-def recipes_graph_view(request: http.HttpRequest) -> http.HttpResponse:
-    film_simulation = request.GET.get("film_sim", _RECIPES_GRAPH_DEFAULT_FILM_SIM)
-    result = build_graph_uc.build_recipe_network(film_simulation=film_simulation)
-    root_id = result.graph_data.root_id
-    cyto_elements = [
-        {
-            "data": {
-                "id": str(n.id),
-                "label": n.label,
-                "distance": n.distance,
-                "image_count": n.image_count,
-                "is_root": n.id == root_id,
+class RecipesGraph(generic.View):
+    def get(self, request: http.HttpRequest) -> http.HttpResponse:
+        film_simulation = request.GET.get("film_sim", _RECIPES_GRAPH_DEFAULT_FILM_SIM)
+        result = build_graph_uc.build_recipe_network(film_simulation=film_simulation)
+        root_id = result.graph_data.root_id
+        cyto_elements = [
+            {
+                "data": {
+                    "id": str(n.id),
+                    "label": n.label,
+                    "distance": n.distance,
+                    "image_count": n.image_count,
+                    "is_root": n.id == root_id,
+                }
             }
-        }
-        for n in result.graph_data.nodes
-    ] + [
-        {
-            "data": {
-                "source": str(e.source),
-                "target": str(e.target),
-                "distance": e.distance,
-                "distanceLabel": f"d={e.distance}" if e.distance > 1 else "",
+            for n in result.graph_data.nodes
+        ] + [
+            {
+                "data": {
+                    "source": str(e.source),
+                    "target": str(e.target),
+                    "distance": e.distance,
+                    "distanceLabel": f"d={e.distance}" if e.distance > 1 else "",
+                }
             }
-        }
-        for e in result.graph_data.edges
-    ]
-    root_fields = _root_fields_json(root_id)
-    root_label = ""
-    if root_id is not None:
-        root_node = next((n for n in result.graph_data.nodes if n.id == root_id), None)
-        root_label = root_node.label if root_node else ""
-    if request.headers.get("Accept") == "application/json":
-        return http.JsonResponse({
-            "elements": cyto_elements,
+            for e in result.graph_data.edges
+        ]
+        root_fields = _root_fields_json(root_id)
+        root_label = ""
+        if root_id is not None:
+            root_node = next((n for n in result.graph_data.nodes if n.id == root_id), None)
+            root_label = root_node.label if root_node else ""
+        if request.headers.get("Accept") == "application/json":
+            return http.JsonResponse({
+                "elements": cyto_elements,
+                "root_id": root_id,
+                "root_fields": root_fields,
+                "root_label": root_label,
+            })
+        return shortcuts.render(request, "recipes/recipes_graph.html", {
+            "graph_elements_json": json.dumps(cyto_elements),
             "root_id": root_id,
-            "root_fields": root_fields,
+            "film_simulations": result.film_simulations,
+            "active_film_simulation": result.active_film_simulation,
+            "root_fields_json": json.dumps(root_fields),
             "root_label": root_label,
         })
-    return shortcuts.render(request, "recipes/recipes_graph.html", {
-        "graph_elements_json": json.dumps(cyto_elements),
-        "root_id": root_id,
-        "film_simulations": result.film_simulations,
-        "active_film_simulation": result.active_film_simulation,
-        "root_fields_json": json.dumps(root_fields),
-        "root_label": root_label,
-    })
 
 
-def recipe_graph_view(request: http.HttpRequest, recipe_id: int) -> http.HttpResponse:
-    root = shortcuts.get_object_or_404(models.FujifilmRecipe, pk=recipe_id)
-    all_recipes = list(models.FujifilmRecipe.objects.all())
-    max_distance: int = settings.RECIPE_GRAPH_MAX_DISTANCE
-    image_counts = recipe_queries.get_image_counts(recipe_pks=[r.pk for r in all_recipes])
-    graph_data = recipe_graph.build_recipe_graph(
-        root=root,
-        all_recipes=all_recipes,
-        max_distance=max_distance,
-        image_counts=image_counts,
-    )
-    cyto_elements = [
-        {
-            "data": {
-                "id": str(n.id),
-                "label": n.label,
-                "distance": n.distance,
-                "image_count": n.image_count,
+class RecipeGraph(generic.View):
+    recipe: models.FujifilmRecipe
+
+    def setup(self, request: http.HttpRequest, *args: object, **kwargs: object) -> None:
+        super().setup(request, *args, **kwargs)
+        self.recipe = shortcuts.get_object_or_404(models.FujifilmRecipe, pk=kwargs["recipe_id"])
+
+    def get(self, request: http.HttpRequest, recipe_id: int) -> http.HttpResponse:
+        all_recipes = list(models.FujifilmRecipe.objects.all())
+        max_distance: int = settings.RECIPE_GRAPH_MAX_DISTANCE
+        image_counts = recipe_queries.get_image_counts(recipe_pks=[r.pk for r in all_recipes])
+        graph_data = recipe_graph.build_recipe_graph(
+            root=self.recipe,
+            all_recipes=all_recipes,
+            max_distance=max_distance,
+            image_counts=image_counts,
+        )
+        cyto_elements = [
+            {
+                "data": {
+                    "id": str(n.id),
+                    "label": n.label,
+                    "distance": n.distance,
+                    "image_count": n.image_count,
+                }
             }
-        }
-        for n in graph_data.nodes
-    ] + [
-        {
-            "data": {
-                "source": str(e.source),
-                "target": str(e.target),
-                "distance": e.distance,
-                "distanceLabel": f"d={e.distance}" if e.distance > 1 else "",
+            for n in graph_data.nodes
+        ] + [
+            {
+                "data": {
+                    "source": str(e.source),
+                    "target": str(e.target),
+                    "distance": e.distance,
+                    "distanceLabel": f"d={e.distance}" if e.distance > 1 else "",
+                }
             }
-        }
-        for e in graph_data.edges
-    ]
-    root_fields = [{"field": f.field, "value": f.value} for f in recipe_queries.get_recipe_all_fields(recipe=root)]
-    root_label = root.name or f"#{root.pk}"
-    if request.headers.get("Accept") == "application/json":
-        return http.JsonResponse({
+            for e in graph_data.edges
+        ]
+        root_fields = [{"field": f.field, "value": f.value} for f in recipe_queries.get_recipe_all_fields(recipe=self.recipe)]
+        root_label = self.recipe.name or f"#{self.recipe.pk}"
+        if request.headers.get("Accept") == "application/json":
+            return http.JsonResponse({
+                "root_id": graph_data.root_id,
+                "root_label": root_label,
+                "root_fields": root_fields,
+                "elements": cyto_elements,
+            })
+        return shortcuts.render(request, "recipes/recipe_graph.html", {
             "root_id": graph_data.root_id,
+            "graph_elements_json": json.dumps(cyto_elements),
+            "max_distance": max_distance,
+            "root_fields_json": json.dumps(root_fields),
             "root_label": root_label,
-            "root_fields": root_fields,
-            "elements": cyto_elements,
         })
-    return shortcuts.render(request, "recipes/recipe_graph.html", {
-        "root_id": graph_data.root_id,
-        "graph_elements_json": json.dumps(cyto_elements),
-        "max_distance": max_distance,
-        "root_fields_json": json.dumps(root_fields),
-        "root_label": root_label,
-    })
 
 
-def recipe_images_view(request: http.HttpRequest, recipe_id: int) -> http.HttpResponse:
-    shortcuts.get_object_or_404(models.FujifilmRecipe, pk=recipe_id)
-    image_ids = image_queries.get_images_for_recipe(recipe_id=recipe_id)
-    images = [
-        {
-            "id": image_id,
-            "thumbnail_url": request.build_absolute_uri(
-                f"/images/file/{image_id}/?width=600"
-            ),
-        }
-        for image_id in image_ids
-    ]
-    return http.JsonResponse({"images": images})
+class RecipeImages(generic.View):
+    def setup(self, request: http.HttpRequest, *args: object, **kwargs: object) -> None:
+        super().setup(request, *args, **kwargs)
+        shortcuts.get_object_or_404(models.FujifilmRecipe, pk=kwargs["recipe_id"])
+
+    def get(self, request: http.HttpRequest, recipe_id: int) -> http.HttpResponse:
+        image_ids = image_queries.get_images_for_recipe(recipe_id=recipe_id)
+        images = [
+            {
+                "id": image_id,
+                "thumbnail_url": request.build_absolute_uri(
+                    f"/images/file/{image_id}/?width=600"
+                ),
+            }
+            for image_id in image_ids
+        ]
+        return http.JsonResponse({"images": images})
 
 
-def recipe_compare_image_view(request: http.HttpRequest, recipe_id: int, image_id: int) -> http.HttpResponse:
-    shortcuts.get_object_or_404(models.FujifilmRecipe, pk=recipe_id)
-    try:
-        page = image_queries.get_recipe_image_page(recipe_id=recipe_id, image_id=image_id)
-    except models.Image.DoesNotExist:
-        raise http.Http404
-    return http.JsonResponse({
-        "id": page.image_id,
-        "thumbnail_url": request.build_absolute_uri(f"/images/file/{image_id}/?width=600"),
-        "full_url": request.build_absolute_uri(f"/images/file/{image_id}/"),
-        "prev_id": page.prev_id,
-        "next_id": page.next_id,
-    })
+class RecipeCompareImage(generic.View):
+    def setup(self, request: http.HttpRequest, *args: object, **kwargs: object) -> None:
+        super().setup(request, *args, **kwargs)
+        shortcuts.get_object_or_404(models.FujifilmRecipe, pk=kwargs["recipe_id"])
+
+    def get(self, request: http.HttpRequest, recipe_id: int, image_id: int) -> http.HttpResponse:
+        try:
+            page = image_queries.get_recipe_image_page(recipe_id=recipe_id, image_id=image_id)
+        except models.Image.DoesNotExist:
+            raise http.Http404
+        return http.JsonResponse({
+            "id": page.image_id,
+            "thumbnail_url": request.build_absolute_uri(f"/images/file/{image_id}/?width=600"),
+            "full_url": request.build_absolute_uri(f"/images/file/{image_id}/"),
+            "prev_id": page.prev_id,
+            "next_id": page.next_id,
+        })
 
 
 class SetRecipeName(generic.View):
-    def dispatch(self, request: http.HttpRequest, *args: object, **kwargs: Any) -> http.HttpResponseBase:
+    recipe: models.FujifilmRecipe
+
+    def setup(self, request: http.HttpRequest, *args: object, **kwargs: object) -> None:
+        super().setup(request, *args, **kwargs)
         self.recipe = shortcuts.get_object_or_404(models.FujifilmRecipe, pk=kwargs["recipe_id"])
-        return super().dispatch(request, *args, **kwargs)
 
     def post(self, request: http.HttpRequest, recipe_id: int) -> http.HttpResponse:
         name = request.POST.get("name", "").strip()
@@ -500,109 +519,112 @@ class CreateRecipeCardsBatch(generic.View):
         )
 
 
-def recipe_cards_zip_download_view(
-    request: http.HttpRequest, filename: str
-) -> http.FileResponse:
-    # The filename pattern is strict (no path separators) so it cannot be used
-    # to escape the temp directory.
-    if not _BATCH_ZIP_NAME_RE.fullmatch(filename):
-        raise http.Http404
-    zip_path = Path(tempfile.gettempdir()) / filename
-    if not zip_path.is_file():
-        raise http.Http404
-    return http.FileResponse(
-        zip_path.open("rb"),
-        as_attachment=True,
-        filename=filename,
-        content_type="application/zip",
-    )
+class RecipeCardZipDownload(generic.View):
+    def get(self, request: http.HttpRequest, filename: str) -> http.FileResponse:
+        # The filename pattern is strict (no path separators) so it cannot be used
+        # to escape the temp directory.
+        if not _BATCH_ZIP_NAME_RE.fullmatch(filename):
+            raise http.Http404
+        zip_path = Path(tempfile.gettempdir()) / filename
+        if not zip_path.is_file():
+            raise http.Http404
+        return http.FileResponse(
+            zip_path.open("rb"),
+            as_attachment=True,
+            filename=filename,
+            content_type="application/zip",
+        )
 
 
-def import_recipes_from_uploaded_files_view(request: http.HttpRequest) -> http.HttpResponse:
-    uploaded = request.FILES.getlist("images")
-    if not uploaded:
+class ImportRecipesFromUploadedFiles(generic.View):
+    def post(self, request: http.HttpRequest) -> http.HttpResponse:
+        uploaded = request.FILES.getlist("images")
+        if not uploaded:
+            return shortcuts.render(
+                request,
+                "recipes/partials/_import_result.html",
+                {"error": "No files were uploaded."},
+            )
+
+        files = [
+            recipe_dataclasses.UploadedFile(name=f.name or "", content=f.read())
+            for f in uploaded
+        ]
+
+        try:
+            result = import_recipes_uc.import_recipes_from_uploaded_files(files=files)
+        except Exception:
+            structlog.get_logger().exception("Unexpected error in ImportRecipesFromUploadedFiles.post")
+            return shortcuts.render(
+                request,
+                "recipes/partials/_import_result.html",
+                {"error": "An unexpected error occurred. Please try again."},
+            )
+
         return shortcuts.render(
             request,
             "recipes/partials/_import_result.html",
-            {"error": "No files were uploaded."},
+            {"imported": result.imported, "failed": result.failed},
         )
 
-    files = [
-        recipe_dataclasses.UploadedFile(name=f.name or "", content=f.read())
-        for f in uploaded
-    ]
 
-    try:
-        result = import_recipes_uc.import_recipes_from_uploaded_files(files=files)
-    except Exception:
-        structlog.get_logger().exception("Unexpected error in import_recipes_from_uploaded_files_view")
+class ImportRecipesFromUploadedQrCards(generic.View):
+    def post(self, request: http.HttpRequest) -> http.HttpResponse:
+        uploaded = request.FILES.getlist("images")
+        if not uploaded:
+            return shortcuts.render(
+                request,
+                "recipes/partials/_import_result.html",
+                {"error": "No files were uploaded."},
+            )
+
+        files = [
+            recipe_dataclasses.UploadedFile(name=f.name or "", content=f.read())
+            for f in uploaded
+        ]
+
+        try:
+            result = import_qr_cards_uc.import_recipes_from_uploaded_qr_cards(files=files)
+        except Exception:
+            structlog.get_logger().exception("Unexpected error in ImportRecipesFromUploadedQrCards.post")
+            return shortcuts.render(
+                request,
+                "recipes/partials/_import_result.html",
+                {"error": "An unexpected error occurred. Please try again."},
+            )
+
         return shortcuts.render(
             request,
             "recipes/partials/_import_result.html",
-            {"error": "An unexpected error occurred. Please try again."},
+            {"imported": result.imported, "failed": result.failed},
         )
 
-    return shortcuts.render(
-        request,
-        "recipes/partials/_import_result.html",
-        {"imported": result.imported, "failed": result.failed},
-    )
 
+class RecipePathDeltas(generic.View):
+    def get(self, request: http.HttpRequest) -> http.HttpResponse:
+        ids_param = request.GET.get("ids", "")
+        try:
+            path_ids = [int(x) for x in ids_param.split(",") if x.strip()]
+        except ValueError:
+            return http.HttpResponseBadRequest("ids must be comma-separated integers")
+        if not path_ids:
+            return http.HttpResponseBadRequest("ids parameter is required")
+        result = recipe_queries.get_path_deltas(path_ids=path_ids)
 
-def import_recipes_from_uploaded_qr_cards_view(request: http.HttpRequest) -> http.HttpResponse:
-    uploaded = request.FILES.getlist("images")
-    if not uploaded:
-        return shortcuts.render(
-            request,
-            "recipes/partials/_import_result.html",
-            {"error": "No files were uploaded."},
-        )
+        def _serialize_field(f: recipe_queries.FieldValue) -> dict[str, str | None]:
+            return {"field": f.field, "value": f.value, "before": f.before}
 
-    files = [
-        recipe_dataclasses.UploadedFile(name=f.name or "", content=f.read())
-        for f in uploaded
-    ]
-
-    try:
-        result = import_qr_cards_uc.import_recipes_from_uploaded_qr_cards(files=files)
-    except Exception:
-        structlog.get_logger().exception("Unexpected error in import_recipes_from_uploaded_qr_cards_view")
-        return shortcuts.render(
-            request,
-            "recipes/partials/_import_result.html",
-            {"error": "An unexpected error occurred. Please try again."},
-        )
-
-    return shortcuts.render(
-        request,
-        "recipes/partials/_import_result.html",
-        {"imported": result.imported, "failed": result.failed},
-    )
-
-
-def recipe_path_deltas_view(request: http.HttpRequest) -> http.HttpResponse:
-    ids_param = request.GET.get("ids", "")
-    try:
-        path_ids = [int(x) for x in ids_param.split(",") if x.strip()]
-    except ValueError:
-        return http.HttpResponseBadRequest("ids must be comma-separated integers")
-    if not path_ids:
-        return http.HttpResponseBadRequest("ids parameter is required")
-    result = recipe_queries.get_path_deltas(path_ids=path_ids)
-    def _serialize_field(f: recipe_queries.FieldValue) -> dict[str, str | None]:
-        return {"field": f.field, "value": f.value, "before": f.before}
-
-    return http.JsonResponse({
-        "root_diffs": [_serialize_field(f) for f in result.root_diffs],
-        "path_nodes": [
-            {
-                "id": n.recipe_id,
-                "label": n.label,
-                "fields": [_serialize_field(f) for f in n.changed_fields],
-            }
-            for n in result.path_nodes
-        ],
-    })
+        return http.JsonResponse({
+            "root_diffs": [_serialize_field(f) for f in result.root_diffs],
+            "path_nodes": [
+                {
+                    "id": n.recipe_id,
+                    "label": n.label,
+                    "fields": [_serialize_field(f) for f in n.changed_fields],
+                }
+                for n in result.path_nodes
+            ],
+        })
 
 
 def _resolve_card_template(
@@ -647,19 +669,25 @@ class _RecipeCardResultContext:
         return cls(pk=card.pk, recipe_id=card.recipe_id)
 
 
-def recipe_card_modal_view(request: http.HttpRequest, recipe_id: int) -> http.HttpResponse:
-    recipe = shortcuts.get_object_or_404(models.FujifilmRecipe, pk=recipe_id)
-    images = models.Image.objects.filter(
-        fujifilm_recipe=recipe,
-    ).order_by("-rating", "-taken_at")[:12]
-    return shortcuts.render(
-        request,
-        "recipes/partials/recipe_card_modal.html",
-        {
-            "recipe": _RecipeCardModalContext.from_model(recipe),
-            "images": [_ImageThumbnailContext.from_model(img) for img in images],
-        },
-    )
+class RecipeCardModal(generic.View):
+    recipe: models.FujifilmRecipe
+
+    def setup(self, request: http.HttpRequest, *args: object, **kwargs: object) -> None:
+        super().setup(request, *args, **kwargs)
+        self.recipe = shortcuts.get_object_or_404(models.FujifilmRecipe, pk=kwargs["recipe_id"])
+
+    def get(self, request: http.HttpRequest, recipe_id: int) -> http.HttpResponse:
+        images = models.Image.objects.filter(
+            fujifilm_recipe=self.recipe,
+        ).order_by("-rating", "-taken_at")[:12]
+        return shortcuts.render(
+            request,
+            "recipes/partials/recipe_card_modal.html",
+            {
+                "recipe": _RecipeCardModalContext.from_model(self.recipe),
+                "images": [_ImageThumbnailContext.from_model(img) for img in images],
+            },
+        )
 
 
 class RecipeCardPreview(generic.View):
@@ -699,25 +727,26 @@ class RecipeCardPreview(generic.View):
         )
 
 
-def recipe_card_preview_file_view(request: http.HttpRequest, recipe_id: int) -> http.FileResponse:
-    image_id_raw = request.GET.get("image_id")
-    image_id = int(image_id_raw) if image_id_raw else None
-    template = _resolve_card_template(
-        label_style=request.GET.get("label_style", "long"),
-        bg_effect=request.GET.get("bg_effect", "blur"),
-    )
-    info_side = _resolve_info_side(request.GET.get("info_side", "left"))
-    try:
-        preview_path = preview_recipe_card_uc.preview_recipe_card(
-            recipe_id=recipe_id,
-            image_id=image_id,
-            template=template,
-            info_side=info_side,
+class RecipeCardPreviewFile(generic.View):
+    def get(self, request: http.HttpRequest, recipe_id: int) -> http.FileResponse:
+        image_id_raw = request.GET.get("image_id")
+        image_id = int(image_id_raw) if image_id_raw else None
+        template = _resolve_card_template(
+            label_style=request.GET.get("label_style", "long"),
+            bg_effect=request.GET.get("bg_effect", "blur"),
         )
-    except Exception:
-        structlog.get_logger().exception("Unexpected error generating recipe card preview file")
-        raise http.Http404
-    return http.FileResponse(preview_path.open("rb"), content_type="image/jpeg")
+        info_side = _resolve_info_side(request.GET.get("info_side", "left"))
+        try:
+            preview_path = preview_recipe_card_uc.preview_recipe_card(
+                recipe_id=recipe_id,
+                image_id=image_id,
+                template=template,
+                info_side=info_side,
+            )
+        except Exception:
+            structlog.get_logger().exception("Unexpected error generating recipe card preview file")
+            raise http.Http404
+        return http.FileResponse(preview_path.open("rb"), content_type="image/jpeg")
 
 
 class CreateRecipeCard(generic.View):
@@ -758,9 +787,15 @@ class CreateRecipeCard(generic.View):
         )
 
 
-def recipe_card_file_view(request: http.HttpRequest, card_id: int) -> http.FileResponse:
-    card = shortcuts.get_object_or_404(models.RecipeCard, pk=card_id)
-    return http.FileResponse(Path(card.filepath).open("rb"), content_type="image/jpeg")
+class RecipeCardFile(generic.View):
+    card: models.RecipeCard
+
+    def setup(self, request: http.HttpRequest, *args: object, **kwargs: object) -> None:
+        super().setup(request, *args, **kwargs)
+        self.card = shortcuts.get_object_or_404(models.RecipeCard, pk=kwargs["card_id"])
+
+    def get(self, request: http.HttpRequest, card_id: int) -> http.FileResponse:
+        return http.FileResponse(Path(self.card.filepath).open("rb"), content_type="image/jpeg")
 
 
 def _parse_white_balance_for_form(white_balance: str) -> tuple[str, int | None]:
