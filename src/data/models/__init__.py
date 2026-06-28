@@ -1,4 +1,5 @@
 from ._images import FujifilmExif, Image, ImageQuerySet
+from ._library import LibraryFolder
 from ._recipes import (
     RECIPE_FIELDS,
     FujifilmRecipe,
@@ -14,6 +15,7 @@ __all__ = [
     "FujifilmRecipe",
     "Image",
     "ImageQuerySet",
+    "LibraryFolder",
     "RecipeCard",
     "RecipeGroup",
     "RecipeGroupMember",
