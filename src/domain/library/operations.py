@@ -1,7 +1,7 @@
 import attrs
 from pathlib import Path
 
-from django.db import IntegrityError
+from django.db import IntegrityError, transaction
 
 from src.data import models
 from src.domain.library import events
@@ -37,7 +37,8 @@ def add_library_folder(*, path: str) -> models.LibraryFolder:
         raise FolderNotFound(path=normalized)
 
     try:
-        folder = models.LibraryFolder.create(path=normalized)
+        with transaction.atomic():
+            folder = models.LibraryFolder.create(path=normalized)
     except IntegrityError:
         raise FolderAlreadyInLibrary(path=normalized)
 
@@ -85,7 +86,8 @@ def update_library_folder_path(*, folder_id: int, path: str) -> models.LibraryFo
         raise FolderNotFound(path=normalized)
 
     try:
-        folder.set_path(path=normalized)
+        with transaction.atomic():
+            folder.set_path(path=normalized)
     except IntegrityError:
         raise FolderAlreadyInLibrary(path=normalized)
 

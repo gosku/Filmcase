@@ -3,7 +3,7 @@ import attrs
 
 from src.domain.library import queries as domain_queries
 from src.domain.library.queries import FolderNotFound as DomainFolderNotFound
-from . import _dataclasses
+from . import dataclasses
 
 
 @attrs.frozen
@@ -15,7 +15,7 @@ class FolderNotFound(Exception):
     path: str
 
 
-def browse_filesystem(*, path: str) -> _dataclasses.FilesystemBrowseResult:
+def browse_filesystem(*, path: str) -> dataclasses.FilesystemBrowseResult:
     """
     Return the immediate subdirectories of *path* for the filesystem browser UI.
 
@@ -32,11 +32,11 @@ def browse_filesystem(*, path: str) -> _dataclasses.FilesystemBrowseResult:
 
     parent = str(os.path.dirname(resolved)) if resolved != os.path.dirname(resolved) else None
 
-    return _dataclasses.FilesystemBrowseResult(
+    return dataclasses.FilesystemBrowseResult(
         current_path=resolved,
         parent_path=parent,
         entries=tuple(
-            _dataclasses.FilesystemEntry(name=os.path.basename(d), path=d)
+            dataclasses.FilesystemEntry(name=os.path.basename(d), path=d)
             for d in subdirs
         ),
     )

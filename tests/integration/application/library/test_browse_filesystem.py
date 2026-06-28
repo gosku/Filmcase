@@ -2,7 +2,7 @@ import os
 import pytest
 
 from src.application.usecases.library.browse_filesystem import FolderNotFound, browse_filesystem
-from src.application.usecases.library._dataclasses import FilesystemBrowseResult, FilesystemEntry
+from src.application.usecases.library import dataclasses as library_dataclasses
 
 
 class TestBrowseFilesystem:
@@ -12,11 +12,11 @@ class TestBrowseFilesystem:
 
         result = browse_filesystem(path=str(tmp_path))
 
-        assert isinstance(result, FilesystemBrowseResult)
+        assert isinstance(result, library_dataclasses.FilesystemBrowseResult)
         assert result.current_path == str(tmp_path)
         assert result.entries == (
-            FilesystemEntry(name="alpha", path=str(tmp_path / "alpha")),
-            FilesystemEntry(name="beta", path=str(tmp_path / "beta")),
+            library_dataclasses.FilesystemEntry(name="alpha", path=str(tmp_path / "alpha")),
+            library_dataclasses.FilesystemEntry(name="beta", path=str(tmp_path / "beta")),
         )
 
     def test_parent_path_is_set_for_nested_directory(self, tmp_path):

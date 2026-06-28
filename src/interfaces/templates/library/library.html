@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Image Library</title>
+  <script src="https://unpkg.com/htmx.org@2.0.4" integrity="sha384-HGfztofotfshcF7+8n44JQL2oJmowVChPTg48S+jvZoztPfvwD79OC/LTtG6dMp+" crossorigin="anonymous"></script>
+  <link rel="stylesheet" href="/static/css/brand.css">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { display: flex; flex-direction: column; font-family: sans-serif; min-height: 100vh; background: var(--color-bg-page); }
+
+    .main-content { flex: 1; padding: 2rem; max-width: 900px; }
+
+    .page-header {
+      display: flex;
+      align-items: center;
+      margin-bottom: 1.5rem;
+      gap: 1rem;
+    }
+
+    .page-title {
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: var(--color-text-primary);
+      flex: 1;
+    }
+
+    .add-folder-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      padding: 0.4rem 0.85rem;
+      background: var(--color-accent);
+      color: #fff;
+      border: none;
+      border-radius: 5px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .add-folder-btn:hover { background: var(--color-accent-dark); }
+
+    .error-banner {
+      padding: 0.75rem 1rem;
+      margin-bottom: 1.25rem;
+      background: #fef2f2;
+      border: 1px solid #fecaca;
+      border-radius: 6px;
+      color: #b91c1c;
+      font-size: 0.875rem;
+    }
+
+    .empty-state {
+      color: #888;
+      font-size: 0.9rem;
+      font-style: italic;
+    }
+
+    .folder-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.875rem;
+    }
+
+    .folder-table th {
+      text-align: left;
+      padding: 0.5rem 0.75rem;
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: #666;
+      border-bottom: 1px solid var(--color-border);
+    }
+
+    .folder-table td {
+      padding: 0.6rem 0.75rem;
+      border-bottom: 1px solid var(--color-border);
+      vertical-align: middle;
+    }
+
+    .folder-path {
+      font-family: monospace;
+      font-size: 0.85rem;
+      color: var(--color-text-primary);
+      word-break: break-all;
+    }
+
+    .folder-meta {
+      color: #888;
+      font-size: 0.8rem;
+      white-space: nowrap;
+    }
+
+    .folder-actions {
+      display: flex;
+      gap: 0.5rem;
+      white-space: nowrap;
+    }
+
+    .btn-update {
+      padding: 0.3rem 0.65rem;
+      background: none;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      font-size: 0.8rem;
+      color: #555;
+      cursor: pointer;
+    }
+
+    .btn-update:hover { background: #f0f0f0; color: #222; }
+
+    .btn-remove {
+      padding: 0.3rem 0.65rem;
+      background: none;
+      border: 1px solid #fca5a5;
+      border-radius: 4px;
+      font-size: 0.8rem;
+      color: #dc2626;
+      cursor: pointer;
+    }
+
+    .btn-remove:hover { background: #fef2f2; }
+
+    /* Browser modal */
+    .browser-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.45);
+      z-index: 200;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .browser-overlay[hidden] { display: none; }
+
+    .browser-modal {
+      background: #fff;
+      border-radius: 10px;
+      width: 520px;
+      max-width: calc(100vw - 2rem);
+      max-height: calc(100vh - 4rem);
+      position: relative;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.18);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .browser-modal__close {
+      position: absolute;
+      top: 0.75rem;
+      right: 0.75rem;
+      background: none;
+      border: none;
+      font-size: 1.3rem;
+      color: #888;
+      cursor: pointer;
+      line-height: 1;
+      padding: 0.2rem 0.4rem;
+      z-index: 1;
+    }
+
+    .browser-modal__close:hover { color: #333; }
+
+    #browser-modal-content {
+      padding: 1.5rem;
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+      overflow: hidden;
+      min-height: 0;
+    }
+  </style>
+</head>
+<body>
+
+{% include "_top_nav.html" with active_section="library" %}
+
+<div class="main-content">
+  <div class="page-header">
+    <h1 class="page-title">Image Library</h1>
+    <button class="add-folder-btn" onclick="openBrowserModal(null, '')">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+      </svg>
+      Add Folder
+    </button>
+  </div>
+
+  {% if error %}
+    <div class="error-banner">{{ error }}</div>
+  {% endif %}
+
+  {% if folders %}
+    <table class="folder-table">
+      <thead>
+        <tr>
+          <th>Path</th>
+          <th>Last Synced</th>
+          <th>Last Checked</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for folder in folders %}
+          {% include "library/includes/folder_row.html" with folder=folder %}
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p class="empty-state">No folders in the library yet. Click "Add Folder" to get started.</p>
+  {% endif %}
+</div>
+
+<div class="browser-overlay" id="browser-modal" hidden>
+  <div class="browser-modal" role="dialog" aria-modal="true" aria-labelledby="browser-modal-title">
+    <button class="browser-modal__close" onclick="closeBrowserModal()" aria-label="Close">&#x2715;</button>
+    <div id="browser-modal-content"></div>
+  </div>
+</div>
+
+<script>
+  function openBrowserModal(folderId, initialPath) {
+    var url = '{% url "library-browse" %}';
+    var params = new URLSearchParams();
+    if (folderId !== null) params.set('folder_id', folderId);
+    if (initialPath) params.set('path', initialPath);
+    var qs = params.toString();
+    if (qs) url = url + '?' + qs;
+    htmx.ajax('GET', url, {target: '#browser-modal-content'});
+    document.getElementById('browser-modal').hidden = false;
+  }
+
+  function closeBrowserModal() {
+    document.getElementById('browser-modal').hidden = true;
+  }
+
+  document.getElementById('browser-modal').addEventListener('click', function (e) {
+    if (e.target === this) closeBrowserModal();
+  });
+
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') closeBrowserModal();
+  });
+</script>
+
+</body>
+</html>

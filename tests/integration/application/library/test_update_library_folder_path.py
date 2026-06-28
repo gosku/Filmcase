@@ -6,7 +6,7 @@ from src.application.usecases.library.update_library_folder_path import (
     LibraryFolderNotFound,
     update_library_folder_path,
 )
-from src.application.usecases.library._dataclasses import LibraryFolderData
+from src.application.usecases.library import dataclasses as library_dataclasses
 from tests.factories import LibraryFolderFactory
 
 
@@ -21,7 +21,7 @@ class TestUpdateLibraryFolderPath:
         folder = LibraryFolderFactory(path=str(old_dir))
         result = update_library_folder_path(folder_id=folder.pk, path=str(new_dir))
 
-        assert isinstance(result, LibraryFolderData)
+        assert isinstance(result, library_dataclasses.LibraryFolderData)
         assert result.path == str(new_dir)
         assert result.folder_id == folder.pk
 

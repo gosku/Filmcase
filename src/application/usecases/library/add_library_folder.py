@@ -3,7 +3,7 @@ import attrs
 from src.domain.library import operations as domain_operations
 from src.domain.library.operations import FolderAlreadyInLibrary as DomainFolderAlreadyInLibrary
 from src.domain.library.queries import FolderNotFound as DomainFolderNotFound
-from . import _dataclasses
+from . import dataclasses
 
 
 @attrs.frozen
@@ -24,7 +24,7 @@ class FolderAlreadyInLibrary(Exception):
     path: str
 
 
-def add_library_folder(*, path: str) -> _dataclasses.LibraryFolderData:
+def add_library_folder(*, path: str) -> dataclasses.LibraryFolderData:
     """
     Register *path* as a monitored library folder.
 
@@ -38,7 +38,7 @@ def add_library_folder(*, path: str) -> _dataclasses.LibraryFolderData:
     except DomainFolderAlreadyInLibrary as exc:
         raise FolderAlreadyInLibrary(path=exc.path)
 
-    return _dataclasses.LibraryFolderData(
+    return dataclasses.LibraryFolderData(
         folder_id=folder.pk,
         path=folder.path,
         created_at=folder.created_at,

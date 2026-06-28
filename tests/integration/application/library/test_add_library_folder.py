@@ -5,7 +5,7 @@ from src.application.usecases.library.add_library_folder import (
     FolderNotFound,
     add_library_folder,
 )
-from src.application.usecases.library._dataclasses import LibraryFolderData
+from src.application.usecases.library import dataclasses as library_dataclasses
 from src.data import models
 
 
@@ -13,7 +13,7 @@ from src.data import models
 class TestAddLibraryFolder:
     def test_returns_library_folder_data(self, tmp_path):
         result = add_library_folder(path=str(tmp_path))
-        assert isinstance(result, LibraryFolderData)
+        assert isinstance(result, library_dataclasses.LibraryFolderData)
         assert result.path == str(tmp_path)
         assert result.folder_id is not None
         assert result.last_processed_at is None
