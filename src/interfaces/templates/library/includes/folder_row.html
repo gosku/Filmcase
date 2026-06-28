@@ -2,14 +2,14 @@
   <td class="folder-path">{{ folder.path }}</td>
   <td class="folder-meta">
     {% if folder.last_processed_at %}
-      {{ folder.last_processed_at|date:"Y-m-d H:i" }}
+      <time class="local-time" data-utc="{{ folder.last_processed_at|date:"c" }}">{{ folder.last_processed_at|date:"Y-m-d H:i" }}</time>
     {% else %}
       <span style="color: #ccc;">Never</span>
     {% endif %}
   </td>
   <td class="folder-meta">
     {% if folder.last_checked_at %}
-      {{ folder.last_checked_at|date:"Y-m-d H:i" }}
+      <time class="local-time" data-utc="{{ folder.last_checked_at|date:"c" }}">{{ folder.last_checked_at|date:"Y-m-d H:i" }}</time>
     {% else %}
       <span style="color: #ccc;">Never</span>
     {% endif %}

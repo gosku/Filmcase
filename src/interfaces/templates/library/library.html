@@ -246,6 +246,15 @@
   document.addEventListener('keydown', function (e) {
     if (e.key === 'Escape') closeBrowserModal();
   });
+
+  document.querySelectorAll('time.local-time').forEach(function(el) {
+    var d = new Date(el.dataset.utc);
+    el.textContent = d.getFullYear() + '-'
+      + String(d.getMonth() + 1).padStart(2, '0') + '-'
+      + String(d.getDate()).padStart(2, '0') + ' '
+      + String(d.getHours()).padStart(2, '0') + ':'
+      + String(d.getMinutes()).padStart(2, '0');
+  });
 </script>
 
 </body>
