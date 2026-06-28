@@ -92,3 +92,11 @@ class RecipeGroupMemberFactory(factory.django.DjangoModelFactory):
     group_type = models.RecipeGroup.GROUP_TYPE_VERSION_LINE
     position = 1
     added_at = factory.LazyFunction(timezone.now)
+
+
+class LibraryFolderFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = models.LibraryFolder
+
+    # path has a unique constraint, so use a sequence to avoid collisions.
+    path = factory.Sequence(lambda n: f"/photos/library_{n:04d}")

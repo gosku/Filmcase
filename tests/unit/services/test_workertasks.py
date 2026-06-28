@@ -4,7 +4,7 @@ import pytest
 from celery import Task
 
 from src.services import events
-from src.services.workertasks import NotACeleryTaskError, TaskNotFoundError, enqueue_task
+from src.services.workertasks import NotACeleryTaskError, TaskNotFoundError, enqueue_task, is_celery_worker_available
 
 
 class TestEnqueueTask:
@@ -50,3 +50,24 @@ class TestEnqueueTask:
             task_name="src.interfaces.tasks.process_image_task",
             queue="celery",
         )
+
+
+class TestIsCeleryWorkerAvailable:
+    def _patch_inspect(self, ping_return_value):
+        mock_inspect = MagicMock()
+        mock_inspect.ping.return_value = ping_return_value
+        mock_control = MagicMock()
+        mock_control.inspect.return_value = mock_inspect
+        return patch("src.config.celery.app.control", mock_control)
+
+    def test_returns_true_when_worker_responds(self):
+        with self._patch_inspect({"celery@host": {"ok": "pong"}}):
+            assert is_celery_worker_available() is True
+
+    def test_returns_false_when_ping_returns_none(self):
+        with self._patch_inspect(None):
+            assert is_celery_worker_available() is False
+
+    def test_returns_false_when_ping_returns_empty_dict(self):
+        with self._patch_inspect({}):
+            assert is_celery_worker_available() is False

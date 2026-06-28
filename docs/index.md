@@ -2,11 +2,12 @@
 
 ## Functionality
 
-- [Web Interface](web_interface.md) — image gallery, image detail, recipe explorer, recipe detail, and recipe graphs
-- [Management Commands](management_commands.md) — importing images, bulk rating, thumbnails, camera inspection, recipe comparison
+- [Web Interface](web_interface.md) — library folder management, image gallery, image detail, recipe explorer, recipe detail, and recipe graphs
+- [Management Commands](management_commands.md) — syncing the library, importing images, bulk rating, thumbnails, camera inspection, recipe comparison
 
 ## Reference
 
+- [Library Sync](library_sync.md) — how make start scans library folders, deduplicates against the catalog, and uses timestamps to skip unchanged directories
 - [EXIF Mapping](exif_mapping.md) — how Fujifilm EXIF fields map to database model fields
 - [Recipe Naming](recipe_naming.md) — how recipes are named and the constraints inherited from the camera
 - [Image Matching](favorite_image_matching.md) — how images are matched to the catalogue when rating in bulk

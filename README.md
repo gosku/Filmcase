@@ -1,4 +1,4 @@
-<img src="src/interfaces/static/images/filmcase_primary_aligned_readme.png" alt="Filmcase" width="400">
+make<img src="src/interfaces/static/images/filmcase_primary_aligned_readme.png" alt="Filmcase" width="400">
 
 Filmcase is a Django application for managing Fujifilm camera recipes and browsing your image catalog. It reads EXIF data from your JPEG files, matches images to the Fujifilm recipe they were shot with, and lets you filter and group your catalog by recipe. You can push recipes directly to your camera over USB and explore relationships between recipes through an interactive graph.
 
@@ -56,7 +56,7 @@ cd filmcase
 ```bash
 make setup-lite              # creates venv, installs deps, generates SQLite config, runs migrations
 make import PATH=/path/to/images   # import your image collection
-make run                     # start the development server
+make start                   # sync library and start the development server
 ```
 
 ---
@@ -79,12 +79,15 @@ This script is idempotent — re-running it skips anything already in place.
 make setup-full   # creates venv, installs deps, generates PostgreSQL config, runs migrations
 ```
 
-**Start the server and worker:**
+**Start the worker and server** (in separate terminals):
 
 ```bash
-make run      # start the Django development server
 make worker   # start a Celery worker for parallel image processing
+make start    # sync library and start the Django development server
 ```
+
+The worker must be running before `make start`, because the sync checks for a reachable
+worker before enqueuing tasks and skips the sync if none is found.
 
 ---
 
@@ -216,13 +219,16 @@ The command behaves according to your install mode:
 
 ## How to run
 
-Start the Django development server:
-
 ```bash
-python manage.py runserver
+make start
 ```
 
-Then open [http://localhost:8000/images/](http://localhost:8000/images/) in your browser to browse your image gallery. You can filter and group images by recipe, film simulation, and other settings.
+This syncs your registered library folders (importing any new images found since the last
+run) and then starts the Django development server. Open
+[http://localhost:8000/](http://localhost:8000/) in your browser — you will land on the
+recipes explorer.
+
+If you only want to start the server without running a sync first, use `make run` instead.
 
 ---
 

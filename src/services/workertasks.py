@@ -50,3 +50,16 @@ def enqueue_task(*, task_name: str, kwargs: Mapping[str, object], queue: str) ->
         task_name=task_name,
         queue=queue,
     )
+
+
+def is_celery_worker_available(*, timeout: float = 2.0) -> bool:
+    """
+    Return True if at least one Celery worker responds within *timeout* seconds.
+
+    Uses a short-lived inspect ping to prevent blocking startup when the broker
+    is unreachable.
+    """
+    from src.config.celery import app as celery_app  # local import avoids circular dependency
+
+    result = celery_app.control.inspect(timeout=timeout).ping()
+    return bool(result)

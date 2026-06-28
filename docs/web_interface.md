@@ -1,5 +1,33 @@
 # Web Interface
 
+## Library
+
+The Library page lets you register the folders on your filesystem where your Fujifilm JPEGs
+live. Filmcase uses these registrations to keep your catalog up to date automatically each
+time you start the app.
+
+### Managing folders
+
+Each row in the library table shows a registered folder path together with the last time that
+folder was checked and the last time new images were found in it.
+
+- **Add a folder** — click _Add Folder_ and use the filesystem browser to navigate to the
+  directory you want to register. Subfolders are included automatically; you do not need to
+  register them separately.
+- **Update path** — if you move a folder on disk, click _Update Path_ on its row and pick the
+  new location. The folder's sync history is preserved.
+- **Remove** — click _Remove_ to unregister a folder. This removes it from the monitored list
+  but does not delete any images from the catalog or from disk.
+
+### Automatic sync on startup
+
+Every time you start the app with `make start`, Filmcase runs a sync pass across all
+registered library folders before the web server comes up. New images are imported
+automatically; images already in the catalog are skipped. See
+[Library Sync](library_sync.md) for a full explanation of how the sync works.
+
+---
+
 ## Images
 
 ### Gallery

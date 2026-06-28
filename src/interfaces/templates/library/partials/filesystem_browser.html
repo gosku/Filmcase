@@ -1,0 +1,140 @@
+<style>
+  .browser-header { margin-bottom: 1rem; }
+
+  .browser-title {
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #888;
+    margin-bottom: 0.35rem;
+  }
+
+  .browser-current-path {
+    font-family: monospace;
+    font-size: 0.85rem;
+    color: #222;
+    word-break: break-all;
+    padding: 0.4rem 0.6rem;
+    background: #f5f5f5;
+    border-radius: 4px;
+  }
+
+  .browser-back-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    margin-top: 0.75rem;
+    font-size: 0.85rem;
+    color: #555;
+    text-decoration: none;
+    cursor: pointer;
+    background: none;
+    border: none;
+    padding: 0;
+  }
+
+  .browser-back-link:hover { color: #111; }
+
+  .browser-entries {
+    margin: 0.75rem 0;
+    border: 1px solid #e5e5e5;
+    border-radius: 6px;
+    overflow-y: auto;
+    flex: 1;
+    min-height: 0;
+  }
+
+  .browser-entry {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    padding: 0.55rem 0.75rem;
+    background: none;
+    border: none;
+    border-bottom: 1px solid #f0f0f0;
+    text-align: left;
+    font-size: 0.875rem;
+    color: #333;
+    cursor: pointer;
+  }
+
+  .browser-entry:last-child { border-bottom: none; }
+  .browser-entry:hover { background: #f8f8f8; }
+
+  .browser-entry__icon {
+    margin-right: 0.5rem;
+    color: #888;
+    flex-shrink: 0;
+  }
+
+  .browser-empty {
+    padding: 1rem 0.75rem;
+    font-size: 0.875rem;
+    color: #aaa;
+    font-style: italic;
+  }
+
+  .browser-footer {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid #e5e5e5;
+  }
+
+  .btn-select {
+    padding: 0.5rem 1.1rem;
+    background: var(--color-accent);
+    color: #fff;
+    border: none;
+    border-radius: 5px;
+    font-size: 0.875rem;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .btn-select:hover { background: var(--color-accent-dark); }
+</style>
+
+<div class="browser-header">
+  <p class="browser-title">Select a folder</p>
+  <div class="browser-current-path">{{ result.current_path }}</div>
+  {% if result.parent_path %}
+    <button
+      class="browser-back-link"
+      hx-get="{% url 'library-browse' %}?path={{ result.parent_path|urlencode }}{% if folder_id %}&folder_id={{ folder_id }}{% endif %}"
+      hx-target="#browser-modal-content"
+    >
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <polyline points="15 18 9 12 15 6"/>
+      </svg>
+      Back
+    </button>
+  {% endif %}
+</div>
+
+<div class="browser-entries">
+  {% for entry in result.entries %}
+    <button
+      class="browser-entry"
+      hx-get="{% url 'library-browse' %}?path={{ entry.path|urlencode }}{% if folder_id %}&folder_id={{ folder_id }}{% endif %}"
+      hx-target="#browser-modal-content"
+    >
+      <svg class="browser-entry__icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+      </svg>
+      {{ entry.name }}
+    </button>
+  {% empty %}
+    <p class="browser-empty">No subdirectories in this folder.</p>
+  {% endfor %}
+</div>
+
+<div class="browser-footer">
+  <form method="post" action="{{ action_url }}">
+    {% csrf_token %}
+    <input type="hidden" name="path" value="{{ result.current_path }}">
+    <button type="submit" class="btn-select">Select this folder</button>
+  </form>
+</div>

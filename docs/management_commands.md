@@ -21,6 +21,32 @@ python manage.py <command> [args]
 
 ---
 
+## Syncing the library
+
+```
+python manage.py sync_library
+```
+
+Scans all folders registered in the Library, finds JPEG files not yet in the catalog, and
+imports them. This command is run automatically by `make start` before the web server starts,
+so in normal use you do not need to call it directly.
+
+The command skips directories whose modification time predates the folder's last check
+timestamp, so repeated runs are fast even over large collections. If a registered folder is
+no longer present on disk, a warning is printed and the remaining folders are still scanned.
+
+Behaviour depends on your install mode:
+
+- **Lite install** (`USE_ASYNC_TASKS=False`): new images are processed in the foreground
+  before the command exits.
+- **Full install** (`USE_ASYNC_TASKS=True`): one Celery task is enqueued per new image and
+  processed in parallel by the worker. The command exits as soon as all tasks are queued. If
+  no Celery worker is reachable, the sync is skipped with a warning.
+
+See [Library Sync](library_sync.md) for a detailed explanation of the sync algorithm.
+
+---
+
 ## Importing images
 
 ```
