@@ -52,7 +52,10 @@ def sync_library() -> SyncLibraryResult:
 
     for folder in folders:
         try:
-            found_paths = image_queries.get_image_paths_in_folder(folder_path=folder.path)
+            found_paths = image_queries.get_image_paths_in_folder(
+                folder_path=folder.path,
+                last_checked_at=folder.last_checked_at,
+            )
         except FileNotFoundError:
             missing_folders.append(folder.path)
             folder.set_last_checked_at(value=now)

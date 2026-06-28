@@ -183,6 +183,38 @@ class TestSyncLibraryNonFujifilmImages:
 
 
 @pytest.mark.django_db
+class TestSyncLibraryMtimeGating:
+    @override_settings(USE_ASYNC_TASKS=False)
+    def test_second_sync_enqueues_nothing_when_no_files_added(self, tmp_path):
+        shutil.copy(FUJIFILM_FIXTURE, tmp_path / FUJIFILM_FIXTURE.name)
+        LibraryFolderFactory(path=str(tmp_path))
+
+        first = sync_library()
+        assert first.new_files_found == 1
+
+        second = sync_library()
+        assert second.new_files_found == 0
+
+    @override_settings(USE_ASYNC_TASKS=False)
+    def test_second_sync_picks_up_new_file_added_after_first_sync(self, tmp_path):
+        import os, time
+        shutil.copy(FUJIFILM_FIXTURE, tmp_path / FUJIFILM_FIXTURE.name)
+        LibraryFolderFactory(path=str(tmp_path))
+
+        first = sync_library()
+        assert first.new_files_found == 1
+
+        # Add a second Fujifilm image after the first sync, backdating the
+        # first image's directory mtime to before last_checked_at is not needed
+        # because the new file will update the directory's mtime to now.
+        second_fixture = FIXTURES_DIR / "XS107209.jpg"
+        shutil.copy(second_fixture, tmp_path / second_fixture.name)
+
+        second = sync_library()
+        assert second.new_files_found == 1
+
+
+@pytest.mark.django_db
 class TestSyncLibraryCeleryWorkerUnavailable:
     def test_raises_when_async_is_enabled_and_no_worker_is_reachable(self):
         with patch("src.services.workertasks.is_celery_worker_available", return_value=False):
