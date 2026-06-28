@@ -26,7 +26,7 @@ def _make_data(**overrides: object) -> image_dataclasses.FujifilmRecipeData:
         color="0",
     )
     base.update(overrides)
-    return image_dataclasses.FujifilmRecipeData(**base)
+    return image_dataclasses.FujifilmRecipeData(**base)  # type: ignore[arg-type]  # test helper merges typed defaults with arbitrary overrides via dict
 
 
 @pytest.mark.django_db
@@ -45,14 +45,14 @@ class TestGetOrCreateRecipeFromData:
         assert created is False
         assert models.FujifilmRecipe.objects.count() == 1
 
-    def test_publishes_created_event_on_first_call(self, captured_logs) -> None:
+    def test_publishes_created_event_on_first_call(self, captured_logs: list[dict[str, object]]) -> None:
         recipe, _ = get_or_create_recipe_from_data(data=_make_data())
 
         created_events = [e for e in captured_logs if e.get("event_type") == events.RECIPE_CREATED]
         assert len(created_events) == 1
         assert created_events[0]["recipe_id"] == recipe.pk
 
-    def test_publishes_deduplicated_event_on_subsequent_call(self, captured_logs) -> None:
+    def test_publishes_deduplicated_event_on_subsequent_call(self, captured_logs: list[dict[str, object]]) -> None:
         recipe, _ = get_or_create_recipe_from_data(data=_make_data())
         captured_logs.clear()
         get_or_create_recipe_from_data(data=_make_data())
@@ -175,7 +175,7 @@ class TestGetOrCreateRecipeFromDataVersionLine:
 
 @pytest.mark.django_db
 class TestGetOrCreateRecipeFromDataWithSensors:
-    def test_attaches_sensors_to_new_recipe(self):
+    def test_attaches_sensors_to_new_recipe(self) -> None:
         recipe, _ = get_or_create_recipe_from_data(
             data=_make_data(sensors=("X-Trans IV", "GFX"), white_balance_red=8001)
         )
@@ -183,7 +183,7 @@ class TestGetOrCreateRecipeFromDataWithSensors:
         assert sorted(s.name for s in recipe.sensors.all()) == ["GFX", "X-Trans IV"]
         assert recipe.sensor_signature == "gfx,x-trans iv"
 
-    def test_same_settings_different_sensors_yield_distinct_recipes(self):
+    def test_same_settings_different_sensors_yield_distinct_recipes(self) -> None:
         first, created_first = get_or_create_recipe_from_data(
             data=_make_data(sensors=("X-Trans IV",), white_balance_red=8002)
         )
@@ -194,7 +194,7 @@ class TestGetOrCreateRecipeFromDataWithSensors:
         assert created_first and created_second
         assert first.pk != second.pk
 
-    def test_same_settings_same_sensors_dedup(self):
+    def test_same_settings_same_sensors_dedup(self) -> None:
         first, _ = get_or_create_recipe_from_data(
             data=_make_data(sensors=("X-Trans IV", "GFX"), white_balance_red=8003)
         )
@@ -208,7 +208,7 @@ class TestGetOrCreateRecipeFromDataWithSensors:
         # The M2M was attached only once -- two sensors, not four.
         assert first.sensors.count() == 2
 
-    def test_empty_sensors_leaves_recipe_without_m2m_and_with_blank_signature(self):
+    def test_empty_sensors_leaves_recipe_without_m2m_and_with_blank_signature(self) -> None:
         recipe, _ = get_or_create_recipe_from_data(
             data=_make_data(white_balance_red=8004)
         )
@@ -216,10 +216,56 @@ class TestGetOrCreateRecipeFromDataWithSensors:
         assert list(recipe.sensors.all()) == []
         assert recipe.sensor_signature == ""
 
+    def test_finds_legacy_recipe_with_empty_signature_when_sensor_provided(self) -> None:
+        legacy, _ = get_or_create_recipe_from_data(data=_make_data(white_balance_red=8010))
+        legacy.set_sensor_signature(sensor_signature="")
+
+        recipe, created = get_or_create_recipe_from_data(
+            data=_make_data(sensors=("X-Trans IV",), white_balance_red=8010)
+        )
+
+        assert created is False
+        assert recipe.pk == legacy.pk
+        recipe.refresh_from_db()
+        assert recipe.sensor_signature == "x-trans iv"
+
+    def test_legacy_recipe_gets_m2m_sensors_set(self) -> None:
+        legacy, _ = get_or_create_recipe_from_data(data=_make_data(white_balance_red=8011))
+        legacy.set_sensor_signature(sensor_signature="")
+
+        recipe, _ = get_or_create_recipe_from_data(
+            data=_make_data(sensors=("X-Trans IV",), white_balance_red=8011)
+        )
+
+        assert recipe.sensors.filter(name="X-Trans IV").exists()
+
+    def test_non_empty_to_non_empty_different_signatures_still_create_distinct_recipes(self) -> None:
+        get_or_create_recipe_from_data(
+            data=_make_data(sensors=("X-Trans IV",), white_balance_red=8012)
+        )
+        _, created = get_or_create_recipe_from_data(
+            data=_make_data(sensors=("X-Trans V",), white_balance_red=8012)
+        )
+
+        assert created is True
+        assert models.FujifilmRecipe.objects.filter(white_balance_red=8012).count() == 2
+
+    def test_legacy_path_publishes_deduplicated_not_created_event(self, captured_logs: list[dict[str, object]]) -> None:
+        legacy, _ = get_or_create_recipe_from_data(data=_make_data(white_balance_red=8013))
+        legacy.set_sensor_signature(sensor_signature="")
+        captured_logs.clear()
+
+        get_or_create_recipe_from_data(
+            data=_make_data(sensors=("X-Trans IV",), white_balance_red=8013)
+        )
+
+        assert not [e for e in captured_logs if e.get("event_type") == events.RECIPE_CREATED]
+        assert [e for e in captured_logs if e.get("event_type") == events.RECIPE_DEDUPLICATED]
+
 
 @pytest.mark.django_db
 class TestGetOrCreateRecipeFromDataWithDescription:
-    def test_description_written_on_create(self):
+    def test_description_written_on_create(self) -> None:
         recipe, _ = get_or_create_recipe_from_data(
             data=_make_data(description="Recipe notes here.", white_balance_red=8005)
         )
@@ -227,7 +273,7 @@ class TestGetOrCreateRecipeFromDataWithDescription:
         recipe.refresh_from_db()
         assert recipe.description == "Recipe notes here."
 
-    def test_description_not_overwritten_on_dedup_path(self):
+    def test_description_not_overwritten_on_dedup_path(self) -> None:
         original, _ = get_or_create_recipe_from_data(
             data=_make_data(description="Original notes", white_balance_red=8006)
         )
@@ -239,7 +285,7 @@ class TestGetOrCreateRecipeFromDataWithDescription:
         original.refresh_from_db()
         assert original.description == "Original notes"
 
-    def test_description_defaults_to_empty_string(self):
+    def test_description_defaults_to_empty_string(self) -> None:
         recipe, _ = get_or_create_recipe_from_data(
             data=_make_data(white_balance_red=8007)
         )

@@ -243,25 +243,79 @@ def get_or_create_recipe_from_data(
     data = recipe_normalization.normalize_recipe_data(data)
     recipe_validation.validate_recipe_data(data)
     signature = recipe_sensors.compute_sensor_signature(data.sensors)
+    film_simulation = data.film_simulation
+    dynamic_range = data.dynamic_range or ""
+    d_range_priority = data.d_range_priority
+    grain_roughness = data.grain_roughness
+    grain_size = data.grain_size if data.grain_size is not None else "Off"
+    color_chrome_effect = data.color_chrome_effect
+    color_chrome_fx_blue = data.color_chrome_fx_blue
+    white_balance = data.white_balance
+    white_balance_red = data.white_balance_red
+    white_balance_blue = data.white_balance_blue
+    highlight = _parse_numeric(s=data.highlight)
+    shadow = _parse_numeric(s=data.shadow)
+    color = _parse_numeric(s=data.color)
+    sharpness = _parse_numeric(s=data.sharpness)
+    high_iso_nr = _parse_numeric(s=data.high_iso_nr)
+    clarity = _parse_numeric(s=data.clarity)
+    monochromatic_color_warm_cool = _parse_numeric(s=data.monochromatic_color_warm_cool)
+    monochromatic_color_magenta_green = _parse_numeric(s=data.monochromatic_color_magenta_green)
+    if signature:
+        # If a recipe with the same settings exists but was created before sensor
+        # tracking was introduced (sensor_signature=''), upgrade it in place rather
+        # than creating a duplicate. Recipes with two distinct non-empty signatures
+        # (e.g. 'x-trans iv' vs 'x-trans v') remain intentionally separate.
+        try:
+            recipe = models.FujifilmRecipe.objects.get(
+                film_simulation=film_simulation,
+                dynamic_range=dynamic_range,
+                d_range_priority=d_range_priority,
+                grain_roughness=grain_roughness,
+                grain_size=grain_size,
+                color_chrome_effect=color_chrome_effect,
+                color_chrome_fx_blue=color_chrome_fx_blue,
+                white_balance=white_balance,
+                white_balance_red=white_balance_red,
+                white_balance_blue=white_balance_blue,
+                highlight=highlight,
+                shadow=shadow,
+                color=color,
+                sharpness=sharpness,
+                high_iso_nr=high_iso_nr,
+                clarity=clarity,
+                monochromatic_color_warm_cool=monochromatic_color_warm_cool,
+                monochromatic_color_magenta_green=monochromatic_color_magenta_green,
+                sensor_signature="",
+            )
+            set_recipe_sensors(recipe=recipe, sensor_names=data.sensors)
+            events.publish_event(
+                event_type=events.RECIPE_DEDUPLICATED,
+                recipe_id=recipe.pk,
+                film_simulation=recipe.film_simulation,
+            )
+            return recipe, False
+        except models.FujifilmRecipe.DoesNotExist:
+            pass
     recipe, created = models.FujifilmRecipe.get_or_create(
-        film_simulation=data.film_simulation,
-        dynamic_range=data.dynamic_range or "",
-        d_range_priority=data.d_range_priority,
-        grain_roughness=data.grain_roughness,
-        grain_size=data.grain_size if data.grain_size is not None else "Off",
-        color_chrome_effect=data.color_chrome_effect,
-        color_chrome_fx_blue=data.color_chrome_fx_blue,
-        white_balance=data.white_balance,
-        white_balance_red=data.white_balance_red,
-        white_balance_blue=data.white_balance_blue,
-        highlight=_parse_numeric(s=data.highlight),
-        shadow=_parse_numeric(s=data.shadow),
-        color=_parse_numeric(s=data.color),
-        sharpness=_parse_numeric(s=data.sharpness),
-        high_iso_nr=_parse_numeric(s=data.high_iso_nr),
-        clarity=_parse_numeric(s=data.clarity),
-        monochromatic_color_warm_cool=_parse_numeric(s=data.monochromatic_color_warm_cool),
-        monochromatic_color_magenta_green=_parse_numeric(s=data.monochromatic_color_magenta_green),
+        film_simulation=film_simulation,
+        dynamic_range=dynamic_range,
+        d_range_priority=d_range_priority,
+        grain_roughness=grain_roughness,
+        grain_size=grain_size,
+        color_chrome_effect=color_chrome_effect,
+        color_chrome_fx_blue=color_chrome_fx_blue,
+        white_balance=white_balance,
+        white_balance_red=white_balance_red,
+        white_balance_blue=white_balance_blue,
+        highlight=highlight,
+        shadow=shadow,
+        color=color,
+        sharpness=sharpness,
+        high_iso_nr=high_iso_nr,
+        clarity=clarity,
+        monochromatic_color_warm_cool=monochromatic_color_warm_cool,
+        monochromatic_color_magenta_green=monochromatic_color_magenta_green,
         sensor_signature=signature,
         name=data.name,
         description=data.description,
