@@ -6,7 +6,7 @@ CELERY  := $(VENV)/bin/celery
 
 ENV_FILE := src/config/env
 
-.PHONY: setup-lite setup-full env env-lite update run worker test help
+.PHONY: setup-lite setup-full env env-lite update start run worker test help
 
 ##
 ## Installation modes:
@@ -98,6 +98,11 @@ update:
 ## import PATH=…  — import images from a directory (e.g. make import PATH=~/Pictures/Fujifilm)
 import:
 	@$(PYTHON) manage.py process_images $(PATH)
+
+## start       — sync library then start the Django development server
+start:
+	@$(PYTHON) manage.py sync_library
+	@$(MAKE) run
 
 ## run         — start the Django development server
 run:
