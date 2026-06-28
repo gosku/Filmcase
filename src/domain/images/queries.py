@@ -459,6 +459,15 @@ def get_all_known_image_paths() -> frozenset[str]:
     return frozenset(models.Image.objects.values_list("filepath", flat=True))
 
 
+def get_image_paths_in_folder(*, folder_path: str) -> list[str]:
+    """
+    Return absolute paths of all JPG/JPEG files inside *folder_path* (recursively).
+
+    :raises FileNotFoundError: If *folder_path* does not exist or is not a directory.
+    """
+    return collect_image_paths(folder=folder_path)
+
+
 @attrs.frozen
 class ImageDetailContext:
     image: models.Image
