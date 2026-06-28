@@ -452,6 +452,13 @@ def collect_image_paths(*, folder: str) -> list[str]:
     return paths
 
 
+def get_all_known_image_paths() -> frozenset[str]:
+    """
+    Return the filepath of every Image in the catalog as an immutable set.
+    """
+    return frozenset(models.Image.objects.values_list("filepath", flat=True))
+
+
 @attrs.frozen
 class ImageDetailContext:
     image: models.Image
