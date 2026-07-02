@@ -34,4 +34,5 @@
 - [ADR 008 — Recipe Versioning via Generalised Grouping](ADRs/008-recipe-versioning.md) — version lines and recipe families via a shared grouping abstraction
 - [ADR 009 — Moving a Recipe Between Version Lines](ADRs/009-move-recipe-between-version-lines.md) — reassigning an existing recipe to a different VERSION_LINE group while keeping positions contiguous
 - [ADR 010 — Image Library: Folder Monitoring and Catalog Sync](ADRs/010-image-library.md) — persisting monitored folders and detecting and importing new images automatically at startup
+- [ADR 011 — Library Sync on Folder Add/Update](ADRs/011-library-sync-on-folder-change.md) — triggering a single-folder sync from the Library page with server-side, DB-backed progress in both install modes
 
