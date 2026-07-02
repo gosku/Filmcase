@@ -10,6 +10,7 @@
 - [Library Sync](library_sync.md) — how make start scans library folders, deduplicates against the catalog, and uses timestamps to skip unchanged directories
 - [EXIF Mapping](exif_mapping.md) — how Fujifilm EXIF fields map to database model fields
 - [Recipe Naming](recipe_naming.md) — how recipes are named and the constraints inherited from the camera
+- [Recipe Graphs](recipe_graphs.md) — the film simulation graph and version-line graph views, and how to read node distance
 - [Image Matching](favorite_image_matching.md) — how images are matched to the catalogue when rating in bulk
 - [PTP Encodings](ptp_encodings.md) — PTP/USB encoding reference for camera communication
 
@@ -31,4 +32,6 @@
 - [ADR 006 — QR Decode Library and Minimum QR Code Size](ADRs/006-qr-decode-library-and-size.md) — QR decode library choice and minimum QR code size
 - [ADR 007 — Normalize Recipe Data Before Storage](ADRs/007-normalize-recipe-data.md) — normalizing recipe data before storage
 - [ADR 008 — Recipe Versioning via Generalised Grouping](ADRs/008-recipe-versioning.md) — version lines and recipe families via a shared grouping abstraction
+- [ADR 009 — Moving a Recipe Between Version Lines](ADRs/009-move-recipe-between-version-lines.md) — reassigning an existing recipe to a different VERSION_LINE group while keeping positions contiguous
+- [ADR 010 — Image Library: Folder Monitoring and Catalog Sync](ADRs/010-image-library.md) — persisting monitored folders and detecting and importing new images automatically at startup
 
