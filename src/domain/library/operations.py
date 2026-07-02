@@ -2,6 +2,7 @@ import attrs
 from pathlib import Path
 
 from django.db import IntegrityError, transaction
+from django.utils import timezone
 
 from src.data import models
 from src.domain.library import events
@@ -158,3 +159,26 @@ def fail_sync_run(*, run: models.SyncRun, message: str) -> None:
         folder_id=run.folder_id,
         reason=message,
     )
+
+
+def interrupt_active_sync_runs() -> int:
+    """
+    Mark every active (scanning or processing) sync run as interrupted.
+
+    Called at startup to recover runs abandoned by a killed process, so no run
+    is left permanently active. Returns the number of runs interrupted.
+    """
+    now = timezone.now()
+    count = models.SyncRun.objects.filter(
+        state__in=models.SyncRun.ACTIVE_STATES,
+    ).update(
+        state=models.SyncRun.STATE_INTERRUPTED,
+        finished_at=now,
+        updated_at=now,
+    )
+    if count:
+        events.publish_event(
+            event_type=events.LIBRARY_SYNC_RUN_INTERRUPTED,
+            count=count,
+        )
+    return count

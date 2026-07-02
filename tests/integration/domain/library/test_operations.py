@@ -8,6 +8,7 @@ from src.domain.library.operations import (
     add_library_folder,
     complete_sync_run,
     fail_sync_run,
+    interrupt_active_sync_runs,
     remove_library_folder,
     start_sync_run,
     update_library_folder_path,
@@ -225,3 +226,42 @@ class TestFailSyncRun:
         assert matching[0]["run_id"] == run.pk
         assert matching[0]["folder_id"] == run.folder_id
         assert matching[0]["reason"] == "boom"
+
+
+@pytest.mark.django_db
+class TestInterruptActiveSyncRuns:
+    def test_marks_scanning_and_processing_runs_interrupted(self):
+        scanning = SyncRunFactory(state=models.SyncRun.STATE_SCANNING)
+        processing = SyncRunFactory(state=models.SyncRun.STATE_PROCESSING, total=2)
+
+        count = interrupt_active_sync_runs()
+
+        assert count == 2
+        for run in (scanning, processing):
+            run.refresh_from_db()
+            assert run.state == models.SyncRun.STATE_INTERRUPTED
+            assert run.finished_at is not None
+
+    def test_leaves_terminal_runs_untouched(self):
+        completed = SyncRunFactory(state=models.SyncRun.STATE_COMPLETED)
+
+        count = interrupt_active_sync_runs()
+
+        assert count == 0
+        completed.refresh_from_db()
+        assert completed.state == models.SyncRun.STATE_COMPLETED
+
+    def test_publishes_event_with_count_when_runs_interrupted(self, captured_logs):
+        SyncRunFactory(state=models.SyncRun.STATE_SCANNING)
+
+        interrupt_active_sync_runs()
+
+        matching = [e for e in captured_logs if e.get("event_type") == events.LIBRARY_SYNC_RUN_INTERRUPTED]
+        assert len(matching) == 1
+        assert matching[0]["count"] == 1
+
+    def test_publishes_nothing_when_no_active_runs(self, captured_logs):
+        interrupt_active_sync_runs()
+
+        matching = [e for e in captured_logs if e.get("event_type") == events.LIBRARY_SYNC_RUN_INTERRUPTED]
+        assert matching == []
