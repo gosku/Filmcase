@@ -41,5 +41,9 @@ class LibraryFolder(models.Model):
         self.last_checked_at = value
         self.save(update_fields=["last_checked_at", "updated_at"])
 
+    def clear_last_checked_at(self) -> None:
+        self.last_checked_at = None
+        self.save(update_fields=["last_checked_at", "updated_at"])
+
     def __str__(self) -> str:
         return f"#{self.id} {self.path}"
