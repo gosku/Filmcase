@@ -42,6 +42,16 @@ DATABASES = {
     }
 }
 
+if DB_ENGINE.endswith("sqlite3"):
+    # Lite mode runs SQLite with a background sync thread writing while the web
+    # request threads read. WAL lets readers proceed alongside the single writer;
+    # the busy timeout makes a colliding writer wait rather than raise "database
+    # is locked". journal_mode is persistent on the file (idempotent to re-set).
+    DATABASES["default"].setdefault("OPTIONS", {}).update({
+        "timeout": 5,  # SQLite busy_timeout, applied per connection
+        "init_command": "PRAGMA journal_mode=WAL;",
+    })
+
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 PTP_DEVICE: str = env.str("PTP_DEVICE", default="src.domain.camera.ptp_usb_device.PTPUSBDevice")  # dotted import path to the PTP device implementation; swap for a stub/mock in tests
