@@ -8,6 +8,7 @@ LIBRARY_FOLDER_ADDED = "library.folder.added"
 LIBRARY_FOLDER_REMOVED = "library.folder.removed"
 LIBRARY_FOLDER_PATH_UPDATED = "library.folder.path.updated"
 LIBRARY_SYNC_RUN_STARTED = "library.sync.run.started"
+LIBRARY_SYNC_RUN_COMPLETED = "library.sync.run.completed"
 
 
 def publish_event(*, event_type: str, **kwargs: object) -> None:

@@ -6,6 +6,7 @@ from src.domain.library.operations import (
     FolderAlreadyInLibrary,
     SyncAlreadyInProgress,
     add_library_folder,
+    complete_sync_run,
     remove_library_folder,
     start_sync_run,
     update_library_folder_path,
@@ -167,3 +168,35 @@ class TestStartSyncRun:
         run = start_sync_run(folder=folder)
 
         assert run.state == models.SyncRun.STATE_SCANNING
+
+
+@pytest.mark.django_db
+class TestCompleteSyncRun:
+    def test_transitions_processing_run_to_completed(self):
+        run = SyncRunFactory(state=models.SyncRun.STATE_PROCESSING, total=1)
+
+        result = complete_sync_run(run=run)
+
+        assert result is True
+        run.refresh_from_db()
+        assert run.state == models.SyncRun.STATE_COMPLETED
+        assert run.finished_at is not None
+
+    def test_publishes_sync_run_completed_event(self, captured_logs):
+        run = SyncRunFactory(state=models.SyncRun.STATE_PROCESSING, total=1)
+
+        complete_sync_run(run=run)
+
+        matching = [e for e in captured_logs if e.get("event_type") == events.LIBRARY_SYNC_RUN_COMPLETED]
+        assert len(matching) == 1
+        assert matching[0]["run_id"] == run.pk
+        assert matching[0]["folder_id"] == run.folder_id
+
+    def test_returns_false_and_publishes_nothing_when_already_completed(self, captured_logs):
+        run = SyncRunFactory(state=models.SyncRun.STATE_COMPLETED, total=1)
+
+        result = complete_sync_run(run=run)
+
+        assert result is False
+        matching = [e for e in captured_logs if e.get("event_type") == events.LIBRARY_SYNC_RUN_COMPLETED]
+        assert matching == []
