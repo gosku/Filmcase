@@ -71,3 +71,19 @@ def get_latest_sync_run(*, folder_id: int) -> models.SyncRun | None:
         .order_by("-started_at", "-id")
         .first()
     )
+
+
+def get_active_sync_run(*, folder_id: int) -> models.SyncRun | None:
+    """
+    Return the in-progress (scanning or processing) sync run for *folder_id*, or
+    None if no run is currently active. At most one active run can exist per
+    folder (enforced by a database constraint).
+    """
+    return (
+        models.SyncRun.objects.filter(
+            folder_id=folder_id,
+            state__in=models.SyncRun.ACTIVE_STATES,
+        )
+        .order_by("-started_at", "-id")
+        .first()
+    )

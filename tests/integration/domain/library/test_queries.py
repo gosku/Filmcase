@@ -5,6 +5,7 @@ from src.data import models
 from src.domain.library.queries import (
     FolderNotFound,
     LibraryFolderNotFound,
+    get_active_sync_run,
     get_all_library_folders,
     get_latest_sync_run,
     get_library_folder,
@@ -125,3 +126,37 @@ class TestGetLatestSyncRun:
         SyncRunFactory(folder=other)
 
         assert get_latest_sync_run(folder_id=folder.pk) is None
+
+
+@pytest.mark.django_db
+class TestGetActiveSyncRun:
+    def test_returns_none_when_no_run_active(self):
+        folder = LibraryFolderFactory()
+        SyncRunFactory(folder=folder, state=models.SyncRun.STATE_COMPLETED)
+
+        assert get_active_sync_run(folder_id=folder.pk) is None
+
+    def test_returns_scanning_run(self):
+        folder = LibraryFolderFactory()
+        run = SyncRunFactory(folder=folder, state=models.SyncRun.STATE_SCANNING)
+
+        result = get_active_sync_run(folder_id=folder.pk)
+
+        assert result is not None
+        assert result.pk == run.pk
+
+    def test_returns_processing_run(self):
+        folder = LibraryFolderFactory()
+        run = SyncRunFactory(folder=folder, state=models.SyncRun.STATE_PROCESSING, total=3)
+
+        result = get_active_sync_run(folder_id=folder.pk)
+
+        assert result is not None
+        assert result.pk == run.pk
+
+    def test_ignores_active_runs_for_other_folders(self):
+        folder = LibraryFolderFactory()
+        other = LibraryFolderFactory()
+        SyncRunFactory(folder=other, state=models.SyncRun.STATE_PROCESSING, total=1)
+
+        assert get_active_sync_run(folder_id=folder.pk) is None
