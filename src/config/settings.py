@@ -31,7 +31,7 @@ DB_PASSWORD: str = env.str("DB_PASSWORD", default="fujifilm_recipes")
 DB_HOST: str = env.str("DB_HOST", default="127.0.0.1")
 DB_PORT: str = env.str("DB_PORT", default="5432")
 
-DATABASES = {
+DATABASES: dict[str, dict[str, object]] = {
     "default": {
         "ENGINE": DB_ENGINE,
         "NAME": DB_NAME,
@@ -47,10 +47,10 @@ if DB_ENGINE.endswith("sqlite3"):
     # request threads read. WAL lets readers proceed alongside the single writer;
     # the busy timeout makes a colliding writer wait rather than raise "database
     # is locked". journal_mode is persistent on the file (idempotent to re-set).
-    DATABASES["default"].setdefault("OPTIONS", {}).update({
+    DATABASES["default"]["OPTIONS"] = {
         "timeout": 5,  # SQLite busy_timeout, applied per connection
         "init_command": "PRAGMA journal_mode=WAL;",
-    })
+    }
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
