@@ -5,10 +5,12 @@ from src.data import models
 from src.domain.library.queries import (
     FolderNotFound,
     LibraryFolderNotFound,
+    SyncRunNotFound,
     get_active_sync_run,
     get_all_library_folders,
     get_latest_sync_run,
     get_library_folder,
+    get_sync_run,
     list_subdirectories,
 )
 from tests.factories import LibraryFolderFactory, SyncRunFactory
@@ -126,6 +128,19 @@ class TestGetLatestSyncRun:
         SyncRunFactory(folder=other)
 
         assert get_latest_sync_run(folder_id=folder.pk) is None
+
+
+@pytest.mark.django_db
+class TestGetSyncRun:
+    def test_returns_run_by_id(self):
+        run = SyncRunFactory()
+        result = get_sync_run(run_id=run.pk)
+        assert result.pk == run.pk
+
+    def test_raises_sync_run_not_found_for_unknown_id(self):
+        with pytest.raises(SyncRunNotFound) as exc_info:
+            get_sync_run(run_id=99999)
+        assert exc_info.value.run_id == 99999
 
 
 @pytest.mark.django_db

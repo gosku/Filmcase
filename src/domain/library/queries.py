@@ -23,6 +23,15 @@ class FolderNotFound(Exception):
     path: str
 
 
+@attrs.frozen
+class SyncRunNotFound(Exception):
+    """
+    Raised when no SyncRun row matches the given run_id.
+    """
+
+    run_id: int
+
+
 def get_all_library_folders() -> list[models.LibraryFolder]:
     """
     Return all registered library folders ordered by path.
@@ -71,6 +80,19 @@ def get_latest_sync_run(*, folder_id: int) -> models.SyncRun | None:
         .order_by("-started_at", "-id")
         .first()
     )
+
+
+def get_sync_run(*, run_id: int) -> models.SyncRun:
+    """
+    Return the SyncRun with the given id.
+
+    :raises SyncRunNotFound: If no run with *run_id* exists (e.g. the folder was
+        removed while a task for this run was still queued).
+    """
+    try:
+        return models.SyncRun.objects.get(pk=run_id)
+    except models.SyncRun.DoesNotExist:
+        raise SyncRunNotFound(run_id=run_id)
 
 
 def get_active_sync_run(*, folder_id: int) -> models.SyncRun | None:
