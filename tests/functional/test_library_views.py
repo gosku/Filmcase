@@ -34,6 +34,15 @@ class TestLibraryFolderList:
         soup = BeautifulSoup(response.content, "html.parser")
         assert soup.find(class_="empty-state") is not None
 
+    def test_folder_row_lazy_loads_its_sync_status(self, client, tmp_path):
+        folder = LibraryFolderFactory(path=str(tmp_path))
+
+        response = client.get("/library/")
+
+        content = response.content.decode()
+        assert f"/library/{folder.pk}/sync-status/" in content
+        assert 'hx-trigger="load"' in content
+
     def test_shows_library_nav_link_as_active(self, client):
         response = client.get("/library/")
 
