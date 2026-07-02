@@ -100,3 +100,13 @@ class LibraryFolderFactory(factory.django.DjangoModelFactory):
 
     # path has a unique constraint, so use a sequence to avoid collisions.
     path = factory.Sequence(lambda n: f"/photos/library_{n:04d}")
+
+
+class SyncRunFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = models.SyncRun
+
+    folder = factory.SubFactory(LibraryFolderFactory)
+    state = models.SyncRun.STATE_SCANNING
+    # total defaults to None (scanning phase); counters default to 0. Override
+    # per-test, e.g. SyncRunFactory(state=models.SyncRun.STATE_PROCESSING, total=3).
