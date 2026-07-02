@@ -59,3 +59,15 @@ def list_subdirectories(*, path: str) -> tuple[str, ...]:
         if entry.is_dir() and not entry.name.startswith(".")
     )
     return tuple(entries)
+
+
+def get_latest_sync_run(*, folder_id: int) -> models.SyncRun | None:
+    """
+    Return the most recently started sync run for *folder_id*, or None if the
+    folder has never been synced.
+    """
+    return (
+        models.SyncRun.objects.filter(folder_id=folder_id)
+        .order_by("-started_at", "-id")
+        .first()
+    )

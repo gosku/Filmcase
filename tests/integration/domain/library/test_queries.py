@@ -1,13 +1,16 @@
 import pytest
+import time_machine
 
+from src.data import models
 from src.domain.library.queries import (
     FolderNotFound,
     LibraryFolderNotFound,
     get_all_library_folders,
+    get_latest_sync_run,
     get_library_folder,
     list_subdirectories,
 )
-from tests.factories import LibraryFolderFactory
+from tests.factories import LibraryFolderFactory, SyncRunFactory
 
 
 @pytest.mark.django_db
@@ -95,3 +98,30 @@ class TestListSubdirectories:
         with pytest.raises(FolderNotFound) as exc_info:
             list_subdirectories(path=str(file_path))
         assert exc_info.value.path == str(file_path)
+
+
+@pytest.mark.django_db
+class TestGetLatestSyncRun:
+    def test_returns_none_when_folder_never_synced(self):
+        folder = LibraryFolderFactory()
+        assert get_latest_sync_run(folder_id=folder.pk) is None
+
+    def test_returns_the_most_recently_started_run(self):
+        folder = LibraryFolderFactory()
+        # Only one run may be active per folder, so the earlier one is terminal.
+        with time_machine.travel("2026-07-01", tick=False):
+            SyncRunFactory(folder=folder, state=models.SyncRun.STATE_COMPLETED)
+        with time_machine.travel("2026-07-02", tick=False):
+            latest = SyncRunFactory(folder=folder)
+
+        result = get_latest_sync_run(folder_id=folder.pk)
+
+        assert result is not None
+        assert result.pk == latest.pk
+
+    def test_ignores_runs_for_other_folders(self):
+        folder = LibraryFolderFactory()
+        other = LibraryFolderFactory()
+        SyncRunFactory(folder=other)
+
+        assert get_latest_sync_run(folder_id=folder.pk) is None
