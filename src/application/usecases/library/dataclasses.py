@@ -13,6 +13,22 @@ class LibraryFolderData:
 
 
 @attrs.frozen
+class SyncRunData:
+    folder_id: int
+    total: int | None
+    processed: int
+    skipped: int
+    errors: int
+    percent: int
+    is_active: bool
+    is_scanning: bool
+    is_processing: bool
+    is_completed: bool
+    is_failed: bool
+    is_interrupted: bool
+
+
+@attrs.frozen
 class FilesystemEntry:
     name: str
     path: str

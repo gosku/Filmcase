@@ -25,6 +25,26 @@ def _list_all_folders() -> list[library_dataclasses.LibraryFolderData]:
     return [_folder_data(f) for f in domain_queries.get_all_library_folders()]
 
 
+def _sync_status(run: models.SyncRun) -> library_dataclasses.SyncRunData:
+    total = run.total
+    handled = run.processed + run.skipped + run.errors
+    percent = int(handled / total * 100) if total else 0
+    return library_dataclasses.SyncRunData(
+        folder_id=run.folder_id,
+        total=total,
+        processed=run.processed,
+        skipped=run.skipped,
+        errors=run.errors,
+        percent=percent,
+        is_active=run.state in models.SyncRun.ACTIVE_STATES,
+        is_scanning=run.state == models.SyncRun.STATE_SCANNING,
+        is_processing=run.state == models.SyncRun.STATE_PROCESSING,
+        is_completed=run.state == models.SyncRun.STATE_COMPLETED,
+        is_failed=run.state == models.SyncRun.STATE_FAILED,
+        is_interrupted=run.state == models.SyncRun.STATE_INTERRUPTED,
+    )
+
+
 class LibraryFolderList(generic.View):
     """Display the list of monitored library folders."""
 
@@ -109,6 +129,18 @@ class LibraryFolderPathUpdate(generic.View):
                 "error": "Path updated, but no image worker is running to sync it. Start one with 'make worker'.",
             })
         return shortcuts.redirect(urls.reverse("library-list"))
+
+
+class LibraryFolderSyncStatus(generic.View):
+    """Return an HTMX partial with the latest sync-run status for a folder."""
+
+    def get(self, request: http.HttpRequest, folder_id: int) -> http.HttpResponse:
+        run = domain_queries.get_latest_sync_run(folder_id=folder_id)
+        status = _sync_status(run) if run is not None else None
+        return shortcuts.render(request, "library/partials/sync_status.html", {
+            "status": status,
+            "folder_id": folder_id,
+        })
 
 
 class FilesystemBrowser(generic.View):
