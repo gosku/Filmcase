@@ -145,3 +145,16 @@ def complete_sync_run(*, run: models.SyncRun) -> bool:
             folder_id=run.folder_id,
         )
     return completed
+
+
+def fail_sync_run(*, run: models.SyncRun, message: str) -> None:
+    """
+    Mark *run* as failed, recording *message* as the failure reason.
+    """
+    run.mark_failed(message=message)
+    events.publish_event(
+        event_type=events.LIBRARY_SYNC_RUN_FAILED,
+        run_id=run.pk,
+        folder_id=run.folder_id,
+        reason=message,
+    )

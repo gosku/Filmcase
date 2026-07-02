@@ -7,6 +7,7 @@ from src.domain.library.operations import (
     SyncAlreadyInProgress,
     add_library_folder,
     complete_sync_run,
+    fail_sync_run,
     remove_library_folder,
     start_sync_run,
     update_library_folder_path,
@@ -200,3 +201,27 @@ class TestCompleteSyncRun:
         assert result is False
         matching = [e for e in captured_logs if e.get("event_type") == events.LIBRARY_SYNC_RUN_COMPLETED]
         assert matching == []
+
+
+@pytest.mark.django_db
+class TestFailSyncRun:
+    def test_marks_run_failed_with_message(self):
+        run = SyncRunFactory(state=models.SyncRun.STATE_SCANNING)
+
+        fail_sync_run(run=run, message="folder no longer exists")
+
+        run.refresh_from_db()
+        assert run.state == models.SyncRun.STATE_FAILED
+        assert run.error_message == "folder no longer exists"
+        assert run.finished_at is not None
+
+    def test_publishes_sync_run_failed_event(self, captured_logs):
+        run = SyncRunFactory(state=models.SyncRun.STATE_SCANNING)
+
+        fail_sync_run(run=run, message="boom")
+
+        matching = [e for e in captured_logs if e.get("event_type") == events.LIBRARY_SYNC_RUN_FAILED]
+        assert len(matching) == 1
+        assert matching[0]["run_id"] == run.pk
+        assert matching[0]["folder_id"] == run.folder_id
+        assert matching[0]["reason"] == "boom"
