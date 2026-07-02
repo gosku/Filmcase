@@ -4,12 +4,14 @@ from src.data import models
 from src.domain.library import events
 from src.domain.library.operations import (
     FolderAlreadyInLibrary,
+    SyncAlreadyInProgress,
     add_library_folder,
     remove_library_folder,
+    start_sync_run,
     update_library_folder_path,
 )
 from src.domain.library.queries import FolderNotFound, LibraryFolderNotFound
-from tests.factories import LibraryFolderFactory
+from tests.factories import LibraryFolderFactory, SyncRunFactory
 
 
 @pytest.mark.django_db
@@ -127,3 +129,41 @@ class TestUpdateLibraryFolderPath:
         with pytest.raises(FolderAlreadyInLibrary) as exc_info:
             update_library_folder_path(folder_id=folder_b.pk, path=str(dir_a))
         assert exc_info.value.path == str(dir_a)
+
+
+@pytest.mark.django_db
+class TestStartSyncRun:
+    def test_creates_scanning_run(self):
+        folder = LibraryFolderFactory()
+
+        run = start_sync_run(folder=folder)
+
+        assert models.SyncRun.objects.filter(pk=run.pk).exists()
+        assert run.state == models.SyncRun.STATE_SCANNING
+        assert run.folder_id == folder.pk
+
+    def test_publishes_sync_run_started_event(self, captured_logs):
+        folder = LibraryFolderFactory()
+
+        run = start_sync_run(folder=folder)
+
+        matching = [e for e in captured_logs if e.get("event_type") == events.LIBRARY_SYNC_RUN_STARTED]
+        assert len(matching) == 1
+        assert matching[0]["run_id"] == run.pk
+        assert matching[0]["folder_id"] == folder.pk
+
+    def test_raises_when_folder_already_has_active_run(self):
+        folder = LibraryFolderFactory()
+        SyncRunFactory(folder=folder, state=models.SyncRun.STATE_PROCESSING, total=1)
+
+        with pytest.raises(SyncAlreadyInProgress) as exc_info:
+            start_sync_run(folder=folder)
+        assert exc_info.value.folder_id == folder.pk
+
+    def test_allows_new_run_after_previous_completed(self):
+        folder = LibraryFolderFactory()
+        SyncRunFactory(folder=folder, state=models.SyncRun.STATE_COMPLETED)
+
+        run = start_sync_run(folder=folder)
+
+        assert run.state == models.SyncRun.STATE_SCANNING

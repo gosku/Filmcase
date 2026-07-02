@@ -17,6 +17,15 @@ class FolderAlreadyInLibrary(Exception):
     path: str
 
 
+@attrs.frozen
+class SyncAlreadyInProgress(Exception):
+    """
+    Raised when a sync run is started for a folder that already has an active run.
+    """
+
+    folder_id: int
+
+
 def _normalize_path(path: str) -> str:
     return str(Path(path).expanduser().resolve())
 
@@ -97,3 +106,24 @@ def update_library_folder_path(*, folder_id: int, path: str) -> models.LibraryFo
         path=folder.path,
     )
     return folder
+
+
+def start_sync_run(*, folder: models.LibraryFolder) -> models.SyncRun:
+    """
+    Create a new sync run for *folder* in the scanning state.
+
+    :raises SyncAlreadyInProgress: If *folder* already has an active (scanning or
+        processing) run.
+    """
+    try:
+        with transaction.atomic():
+            run = models.SyncRun.create(folder=folder)
+    except IntegrityError:
+        raise SyncAlreadyInProgress(folder_id=folder.pk)
+
+    events.publish_event(
+        event_type=events.LIBRARY_SYNC_RUN_STARTED,
+        run_id=run.pk,
+        folder_id=folder.pk,
+    )
+    return run
