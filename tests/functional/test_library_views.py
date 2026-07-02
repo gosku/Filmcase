@@ -1,8 +1,13 @@
+from unittest.mock import patch
+
 import pytest
 from bs4 import BeautifulSoup
 
+from src.application.usecases.library.trigger_folder_sync import CeleryWorkerUnavailable
 from src.data import models
 from tests.factories import LibraryFolderFactory
+
+TRIGGER = "src.interfaces.library.views.trigger_folder_sync_uc.trigger_folder_sync"
 
 
 @pytest.mark.django_db
@@ -44,10 +49,34 @@ class TestLibraryFolderAdd:
         new_dir = tmp_path / "photos"
         new_dir.mkdir()
 
-        response = client.post("/library/new/",{"path": str(new_dir)})
+        with patch(TRIGGER):
+            response = client.post("/library/new/",{"path": str(new_dir)})
 
         assert response.status_code == 302
         assert response["Location"] == "/library/"
+        assert models.LibraryFolder.objects.filter(path=str(new_dir)).exists()
+
+    def test_triggers_sync_for_the_new_folder(self, client, tmp_path):
+        new_dir = tmp_path / "photos"
+        new_dir.mkdir()
+
+        with patch(TRIGGER) as mock_trigger:
+            client.post("/library/new/",{"path": str(new_dir)})
+
+        folder = models.LibraryFolder.objects.get(path=str(new_dir))
+        mock_trigger.assert_called_once_with(folder_id=folder.pk)
+
+    def test_shows_error_when_worker_unavailable_on_add(self, client, tmp_path):
+        new_dir = tmp_path / "photos"
+        new_dir.mkdir()
+
+        with patch(TRIGGER, side_effect=CeleryWorkerUnavailable()):
+            response = client.post("/library/new/",{"path": str(new_dir)})
+
+        assert response.status_code == 200
+        soup = BeautifulSoup(response.content, "html.parser")
+        assert soup.find(class_="error-banner") is not None
+        # The folder is still registered even though the sync could not start.
         assert models.LibraryFolder.objects.filter(path=str(new_dir)).exists()
 
     def test_returns_error_for_nonexistent_path(self, client, tmp_path):
@@ -100,12 +129,25 @@ class TestLibraryFolderPathUpdate:
         new_dir.mkdir()
         folder = LibraryFolderFactory(path=str(old_dir))
 
-        response = client.post(f"/library/{folder.pk}/edit/",{"path": str(new_dir)})
+        with patch(TRIGGER):
+            response = client.post(f"/library/{folder.pk}/edit/",{"path": str(new_dir)})
 
         assert response.status_code == 302
         assert response["Location"] == "/library/"
         folder.refresh_from_db()
         assert folder.path == str(new_dir)
+
+    def test_triggers_sync_after_path_update(self, client, tmp_path):
+        old_dir = tmp_path / "old"
+        new_dir = tmp_path / "new"
+        old_dir.mkdir()
+        new_dir.mkdir()
+        folder = LibraryFolderFactory(path=str(old_dir))
+
+        with patch(TRIGGER) as mock_trigger:
+            client.post(f"/library/{folder.pk}/edit/",{"path": str(new_dir)})
+
+        mock_trigger.assert_called_once_with(folder_id=folder.pk)
 
     def test_returns_404_for_unknown_folder_id(self, client, tmp_path):
         new_dir = tmp_path / "new"

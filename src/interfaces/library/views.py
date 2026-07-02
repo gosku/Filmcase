@@ -5,6 +5,7 @@ from src.application.usecases.library import add_library_folder as add_library_f
 from src.application.usecases.library import browse_filesystem as browse_filesystem_uc
 from src.application.usecases.library import dataclasses as library_dataclasses
 from src.application.usecases.library import remove_library_folder as remove_library_folder_uc
+from src.application.usecases.library import trigger_folder_sync as trigger_folder_sync_uc
 from src.application.usecases.library import update_library_folder_path as update_library_folder_path_uc
 from src.data import models
 from src.domain.library import queries as domain_queries
@@ -39,7 +40,7 @@ class LibraryFolderAdd(generic.View):
         if not path:
             return http.HttpResponseBadRequest("path is required")
         try:
-            add_library_folder_uc.add_library_folder(path=path)
+            folder = add_library_folder_uc.add_library_folder(path=path)
         except add_library_folder_uc.FolderNotFound as exc:
             return shortcuts.render(request, "library/library.html", {
                 "folders": _list_all_folders(),
@@ -49,6 +50,14 @@ class LibraryFolderAdd(generic.View):
             return shortcuts.render(request, "library/library.html", {
                 "folders": _list_all_folders(),
                 "error": f"Folder is already in the library: {exc.path}",
+            })
+
+        try:
+            trigger_folder_sync_uc.trigger_folder_sync(folder_id=folder.folder_id)
+        except trigger_folder_sync_uc.CeleryWorkerUnavailable:
+            return shortcuts.render(request, "library/library.html", {
+                "folders": _list_all_folders(),
+                "error": "Folder added, but no image worker is running to sync it. Start one with 'make worker'.",
             })
         return shortcuts.redirect(urls.reverse("library-list"))
 
@@ -90,6 +99,14 @@ class LibraryFolderPathUpdate(generic.View):
             return shortcuts.render(request, "library/library.html", {
                 "folders": _list_all_folders(),
                 "error": f"Folder is already in the library: {exc.path}",
+            })
+
+        try:
+            trigger_folder_sync_uc.trigger_folder_sync(folder_id=folder_id)
+        except trigger_folder_sync_uc.CeleryWorkerUnavailable:
+            return shortcuts.render(request, "library/library.html", {
+                "folders": _list_all_folders(),
+                "error": "Path updated, but no image worker is running to sync it. Start one with 'make worker'.",
             })
         return shortcuts.redirect(urls.reverse("library-list"))
 
