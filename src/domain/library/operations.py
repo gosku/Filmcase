@@ -101,6 +101,11 @@ def update_library_folder_path(*, folder_id: int, path: str) -> models.LibraryFo
     except IntegrityError:
         raise FolderAlreadyInLibrary(path=normalized)
 
+    # The new path is a different tree, so the previous scan timestamp no longer
+    # applies. Clearing it forces a full rescan (mtime gating would otherwise skip
+    # directories older than the old last_checked_at).
+    folder.clear_last_checked_at()
+
     events.publish_event(
         event_type=events.LIBRARY_FOLDER_PATH_UPDATED,
         folder_id=folder.pk,
