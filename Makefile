@@ -6,6 +6,10 @@ CELERY  := $(VENV)/bin/celery
 
 ENV_FILE := src/config/env
 
+# Suppress GNU Make's "Entering/Leaving directory" notices for recursive makes
+# (e.g. `start` calling `run`); they name the same directory and only add noise.
+MAKEFLAGS += --no-print-directory
+
 .PHONY: setup-lite setup-full env env-lite update start run worker test help
 
 ##
