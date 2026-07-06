@@ -1,0 +1,27 @@
+{% if status %}
+  <div
+    class="sync-status"
+    {% if status.is_active %}
+    hx-get="{% url 'library-folder-sync-status' status.folder_id %}"
+    hx-trigger="every 2s"
+    hx-swap="outerHTML"
+    {% endif %}
+  >
+    {% if status.is_scanning %}
+      <span class="sync-status__label">Scanning…</span>
+    {% elif status.is_processing %}
+      <span class="sync-status__label">Processing {{ status.processed }}/{{ status.total }}</span>
+      <progress class="sync-status__bar" value="{{ status.percent }}" max="100"></progress>
+    {% elif status.is_completed %}
+      <span class="sync-status__label sync-status__label--done">Imported {{ status.processed }}{% if status.skipped %}, skipped {{ status.skipped }}{% endif %}{% if status.errors %}, {{ status.errors }} error{{ status.errors|pluralize }}{% endif %}</span>
+    {% elif status.is_failed %}
+      <span class="sync-status__label sync-status__label--error">Sync failed</span>
+    {% elif status.is_interrupted %}
+      <span class="sync-status__label sync-status__label--error">Sync interrupted</span>
+    {% endif %}
+  </div>
+{% else %}
+  <div class="sync-status sync-status--none">
+    <span class="sync-status__label" style="color: #ccc;">Not synced</span>
+  </div>
+{% endif %}

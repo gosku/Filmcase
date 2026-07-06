@@ -6,6 +6,10 @@ CELERY  := $(VENV)/bin/celery
 
 ENV_FILE := src/config/env
 
+# Suppress GNU Make's "Entering/Leaving directory" notices for recursive makes
+# (e.g. `start` calling `run`); they name the same directory and only add noise.
+MAKEFLAGS += --no-print-directory
+
 .PHONY: setup-lite setup-full env env-lite update start run worker test help
 
 ##
@@ -24,14 +28,14 @@ setup-lite: $(VENV)/.deps-installed env-lite
 	@echo "[setup] Running database migrations..."
 	@$(PYTHON) manage.py migrate
 	@echo ""
-	@echo "Done. Run 'make run' to start the server."
+	@echo "Done. Run 'make start' to sync your library and start the server."
 
 ## setup-full  — install full stack (PostgreSQL + Celery); run ./setup.sh first for OS deps
 setup-full: $(VENV)/.deps-installed env
 	@echo "[setup] Running database migrations..."
 	@$(PYTHON) manage.py migrate
 	@echo ""
-	@echo "Done. Run 'make run' to start the server and 'make worker' to start the Celery worker."
+	@echo "Done. Start the Celery worker with 'make worker', then run 'make start' to sync your library and start the server."
 
 ## env         — generate src/config/env from settings defaults (skips if already exists)
 env:
@@ -93,7 +97,7 @@ update:
 	@echo "[update] Running database migrations..."
 	@$(PYTHON) manage.py migrate
 	@echo ""
-	@echo "Done. Run 'make run' to start the server."
+	@echo "Done. Run 'make start' to sync your library and start the server."
 
 ## import PATH=…  — import images from a directory (e.g. make import PATH=~/Pictures/Fujifilm)
 import:

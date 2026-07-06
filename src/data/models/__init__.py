@@ -8,6 +8,7 @@ from ._recipes import (
     RecipeGroupMember,
     Sensor,
 )
+from ._sync_run import SyncRun
 
 __all__ = [
     "RECIPE_FIELDS",
@@ -20,4 +21,5 @@ __all__ = [
     "RecipeGroup",
     "RecipeGroupMember",
     "Sensor",
+    "SyncRun",
 ]

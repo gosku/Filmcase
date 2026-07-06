@@ -2,6 +2,7 @@ import attrs
 from pathlib import Path
 
 from django.db import IntegrityError, transaction
+from django.utils import timezone
 
 from src.data import models
 from src.domain.library import events
@@ -15,6 +16,15 @@ class FolderAlreadyInLibrary(Exception):
     """
 
     path: str
+
+
+@attrs.frozen
+class SyncAlreadyInProgress(Exception):
+    """
+    Raised when a sync run is started for a folder that already has an active run.
+    """
+
+    folder_id: int
 
 
 def _normalize_path(path: str) -> str:
@@ -91,9 +101,89 @@ def update_library_folder_path(*, folder_id: int, path: str) -> models.LibraryFo
     except IntegrityError:
         raise FolderAlreadyInLibrary(path=normalized)
 
+    # The new path is a different tree, so the previous scan timestamp no longer
+    # applies. Clearing it forces a full rescan (mtime gating would otherwise skip
+    # directories older than the old last_checked_at).
+    folder.clear_last_checked_at()
+
     events.publish_event(
         event_type=events.LIBRARY_FOLDER_PATH_UPDATED,
         folder_id=folder.pk,
         path=folder.path,
     )
     return folder
+
+
+def start_sync_run(*, folder: models.LibraryFolder) -> models.SyncRun:
+    """
+    Create a new sync run for *folder* in the scanning state.
+
+    :raises SyncAlreadyInProgress: If *folder* already has an active (scanning or
+        processing) run.
+    """
+    try:
+        with transaction.atomic():
+            run = models.SyncRun.create(folder=folder)
+    except IntegrityError:
+        raise SyncAlreadyInProgress(folder_id=folder.pk)
+
+    events.publish_event(
+        event_type=events.LIBRARY_SYNC_RUN_STARTED,
+        run_id=run.pk,
+        folder_id=folder.pk,
+    )
+    return run
+
+
+def complete_sync_run(*, run: models.SyncRun) -> bool:
+    """
+    Mark *run* as completed if it is still processing.
+
+    Uses a conditional update so that, under concurrent workers, exactly one
+    caller transitions the run and publishes the completion event. Returns True
+    if this call completed the run.
+    """
+    completed = run.mark_completed()
+    if completed:
+        events.publish_event(
+            event_type=events.LIBRARY_SYNC_RUN_COMPLETED,
+            run_id=run.pk,
+            folder_id=run.folder_id,
+        )
+    return completed
+
+
+def fail_sync_run(*, run: models.SyncRun, message: str) -> None:
+    """
+    Mark *run* as failed, recording *message* as the failure reason.
+    """
+    run.mark_failed(message=message)
+    events.publish_event(
+        event_type=events.LIBRARY_SYNC_RUN_FAILED,
+        run_id=run.pk,
+        folder_id=run.folder_id,
+        reason=message,
+    )
+
+
+def interrupt_active_sync_runs() -> int:
+    """
+    Mark every active (scanning or processing) sync run as interrupted.
+
+    Called at startup to recover runs abandoned by a killed process, so no run
+    is left permanently active. Returns the number of runs interrupted.
+    """
+    now = timezone.now()
+    count = models.SyncRun.objects.filter(
+        state__in=models.SyncRun.ACTIVE_STATES,
+    ).update(
+        state=models.SyncRun.STATE_INTERRUPTED,
+        finished_at=now,
+        updated_at=now,
+    )
+    if count:
+        events.publish_event(
+            event_type=events.LIBRARY_SYNC_RUN_INTERRUPTED,
+            count=count,
+        )
+    return count

@@ -1,15 +1,21 @@
 import pytest
+from django.utils import timezone
 
 from src.data import models
 from src.domain.library import events
 from src.domain.library.operations import (
     FolderAlreadyInLibrary,
+    SyncAlreadyInProgress,
     add_library_folder,
+    complete_sync_run,
+    fail_sync_run,
+    interrupt_active_sync_runs,
     remove_library_folder,
+    start_sync_run,
     update_library_folder_path,
 )
 from src.domain.library.queries import FolderNotFound, LibraryFolderNotFound
-from tests.factories import LibraryFolderFactory
+from tests.factories import LibraryFolderFactory, SyncRunFactory
 
 
 @pytest.mark.django_db
@@ -89,6 +95,18 @@ class TestUpdateLibraryFolderPath:
         folder.refresh_from_db()
         assert folder.path == str(new_dir)
 
+    def test_resets_last_checked_at_so_new_tree_is_fully_rescanned(self, tmp_path):
+        old_dir = tmp_path / "old"
+        new_dir = tmp_path / "new"
+        old_dir.mkdir()
+        new_dir.mkdir()
+
+        folder = LibraryFolderFactory(path=str(old_dir), last_checked_at=timezone.now())
+        update_library_folder_path(folder_id=folder.pk, path=str(new_dir))
+
+        folder.refresh_from_db()
+        assert folder.last_checked_at is None
+
     def test_publishes_folder_path_updated_event(self, tmp_path, captured_logs):
         old_dir = tmp_path / "old"
         new_dir = tmp_path / "new"
@@ -127,3 +145,136 @@ class TestUpdateLibraryFolderPath:
         with pytest.raises(FolderAlreadyInLibrary) as exc_info:
             update_library_folder_path(folder_id=folder_b.pk, path=str(dir_a))
         assert exc_info.value.path == str(dir_a)
+
+
+@pytest.mark.django_db
+class TestStartSyncRun:
+    def test_creates_scanning_run(self):
+        folder = LibraryFolderFactory()
+
+        run = start_sync_run(folder=folder)
+
+        assert models.SyncRun.objects.filter(pk=run.pk).exists()
+        assert run.state == models.SyncRun.STATE_SCANNING
+        assert run.folder_id == folder.pk
+
+    def test_publishes_sync_run_started_event(self, captured_logs):
+        folder = LibraryFolderFactory()
+
+        run = start_sync_run(folder=folder)
+
+        matching = [e for e in captured_logs if e.get("event_type") == events.LIBRARY_SYNC_RUN_STARTED]
+        assert len(matching) == 1
+        assert matching[0]["run_id"] == run.pk
+        assert matching[0]["folder_id"] == folder.pk
+
+    def test_raises_when_folder_already_has_active_run(self):
+        folder = LibraryFolderFactory()
+        SyncRunFactory(folder=folder, state=models.SyncRun.STATE_PROCESSING, total=1)
+
+        with pytest.raises(SyncAlreadyInProgress) as exc_info:
+            start_sync_run(folder=folder)
+        assert exc_info.value.folder_id == folder.pk
+
+    def test_allows_new_run_after_previous_completed(self):
+        folder = LibraryFolderFactory()
+        SyncRunFactory(folder=folder, state=models.SyncRun.STATE_COMPLETED)
+
+        run = start_sync_run(folder=folder)
+
+        assert run.state == models.SyncRun.STATE_SCANNING
+
+
+@pytest.mark.django_db
+class TestCompleteSyncRun:
+    def test_transitions_processing_run_to_completed(self):
+        run = SyncRunFactory(state=models.SyncRun.STATE_PROCESSING, total=1)
+
+        result = complete_sync_run(run=run)
+
+        assert result is True
+        run.refresh_from_db()
+        assert run.state == models.SyncRun.STATE_COMPLETED
+        assert run.finished_at is not None
+
+    def test_publishes_sync_run_completed_event(self, captured_logs):
+        run = SyncRunFactory(state=models.SyncRun.STATE_PROCESSING, total=1)
+
+        complete_sync_run(run=run)
+
+        matching = [e for e in captured_logs if e.get("event_type") == events.LIBRARY_SYNC_RUN_COMPLETED]
+        assert len(matching) == 1
+        assert matching[0]["run_id"] == run.pk
+        assert matching[0]["folder_id"] == run.folder_id
+
+    def test_returns_false_and_publishes_nothing_when_already_completed(self, captured_logs):
+        run = SyncRunFactory(state=models.SyncRun.STATE_COMPLETED, total=1)
+
+        result = complete_sync_run(run=run)
+
+        assert result is False
+        matching = [e for e in captured_logs if e.get("event_type") == events.LIBRARY_SYNC_RUN_COMPLETED]
+        assert matching == []
+
+
+@pytest.mark.django_db
+class TestFailSyncRun:
+    def test_marks_run_failed_with_message(self):
+        run = SyncRunFactory(state=models.SyncRun.STATE_SCANNING)
+
+        fail_sync_run(run=run, message="folder no longer exists")
+
+        run.refresh_from_db()
+        assert run.state == models.SyncRun.STATE_FAILED
+        assert run.error_message == "folder no longer exists"
+        assert run.finished_at is not None
+
+    def test_publishes_sync_run_failed_event(self, captured_logs):
+        run = SyncRunFactory(state=models.SyncRun.STATE_SCANNING)
+
+        fail_sync_run(run=run, message="boom")
+
+        matching = [e for e in captured_logs if e.get("event_type") == events.LIBRARY_SYNC_RUN_FAILED]
+        assert len(matching) == 1
+        assert matching[0]["run_id"] == run.pk
+        assert matching[0]["folder_id"] == run.folder_id
+        assert matching[0]["reason"] == "boom"
+
+
+@pytest.mark.django_db
+class TestInterruptActiveSyncRuns:
+    def test_marks_scanning_and_processing_runs_interrupted(self):
+        scanning = SyncRunFactory(state=models.SyncRun.STATE_SCANNING)
+        processing = SyncRunFactory(state=models.SyncRun.STATE_PROCESSING, total=2)
+
+        count = interrupt_active_sync_runs()
+
+        assert count == 2
+        for run in (scanning, processing):
+            run.refresh_from_db()
+            assert run.state == models.SyncRun.STATE_INTERRUPTED
+            assert run.finished_at is not None
+
+    def test_leaves_terminal_runs_untouched(self):
+        completed = SyncRunFactory(state=models.SyncRun.STATE_COMPLETED)
+
+        count = interrupt_active_sync_runs()
+
+        assert count == 0
+        completed.refresh_from_db()
+        assert completed.state == models.SyncRun.STATE_COMPLETED
+
+    def test_publishes_event_with_count_when_runs_interrupted(self, captured_logs):
+        SyncRunFactory(state=models.SyncRun.STATE_SCANNING)
+
+        interrupt_active_sync_runs()
+
+        matching = [e for e in captured_logs if e.get("event_type") == events.LIBRARY_SYNC_RUN_INTERRUPTED]
+        assert len(matching) == 1
+        assert matching[0]["count"] == 1
+
+    def test_publishes_nothing_when_no_active_runs(self, captured_logs):
+        interrupt_active_sync_runs()
+
+        matching = [e for e in captured_logs if e.get("event_type") == events.LIBRARY_SYNC_RUN_INTERRUPTED]
+        assert matching == []

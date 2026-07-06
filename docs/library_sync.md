@@ -43,6 +43,26 @@ missing path is reported in the command output and does not abort the sync.
   across the worker pool. If no Celery worker responds to a ping at the start of the sync,
   the entire sync is skipped with a warning.
 
+## Syncing from the Library page
+
+You no longer have to restart the app to pick up a newly registered folder. Adding a folder,
+or changing an existing folder's path, triggers a sync of that one folder straight away.
+Removing a folder does not trigger anything: it only stops the folder being monitored and
+never deletes images that were already imported.
+
+The triggered sync reuses the same per-folder scan described above and behaves according to
+your install mode:
+
+- **Lite install:** the sync runs in a background thread, so the page responds immediately
+  while images are imported behind the scenes. You can navigate away and come back; the work
+  keeps running on the server.
+- **Full install:** the new images are enqueued to the Celery worker and the page returns at
+  once. If no worker is reachable, the folder is still added but a message explains that it
+  could not be synced (start a worker with `make worker`, then re-add or re-save the folder).
+
+Changing a folder's path also clears its last-checked timestamp, so the whole new location is
+rescanned from scratch. Progress appears live in the folder's **Sync** column (see below).
+
 ## Timestamp-based directory gating
 
 For large collections, walking every subdirectory on every startup would be slow. To avoid
@@ -68,3 +88,9 @@ Each folder row in the Library page shows two timestamps:
   whether anything new was found.
 - **Last Synced** -- the most recent time the sync actually imported or enqueued new images
   from this folder. This stays blank until at least one new file is found.
+
+The **Sync** column shows the status of the most recent sync for each folder: `Scanning...`
+while the folder is being walked, a progress bar while images are imported, and a final
+summary such as `Imported 36, skipped 3` when it finishes. While a sync is active, the column
+refreshes on its own every couple of seconds, so you can watch it progress without reloading
+the page.

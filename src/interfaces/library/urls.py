@@ -8,4 +8,5 @@ urlpatterns = [
     path("library/browse/partial/", views.FilesystemBrowser.as_view(), name="library-browse"),
     path("library/<int:folder_id>/delete/", views.LibraryFolderRemove.as_view(), name="library-folder-delete"),
     path("library/<int:folder_id>/edit/", views.LibraryFolderPathUpdate.as_view(), name="library-folder-edit"),
+    path("library/<int:folder_id>/sync-status/", views.LibraryFolderSyncStatus.as_view(), name="library-folder-sync-status"),
 ]

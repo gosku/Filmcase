@@ -13,7 +13,7 @@ from src.application.usecases.library.sync_library import (
     sync_library,
 )
 from src.data import models
-from tests.factories import ImageFactory, LibraryFolderFactory
+from tests.factories import ImageFactory, LibraryFolderFactory, SyncRunFactory
 
 FIXTURES_DIR = Path(__file__).resolve().parent.parent.parent.parent / "fixtures" / "images"
 FUJIFILM_FIXTURE = FIXTURES_DIR / "XS107114.JPG"
@@ -227,3 +227,20 @@ class TestSyncLibraryCeleryWorkerUnavailable:
         with patch("src.services.workertasks.is_celery_worker_available") as mock_check:
             sync_library()
         mock_check.assert_not_called()
+
+
+@pytest.mark.django_db
+class TestSyncLibraryRecovery:
+    @override_settings(USE_ASYNC_TASKS=False)
+    def test_marks_dangling_active_runs_interrupted(self, tmp_path):
+        folder = LibraryFolderFactory(path=str(tmp_path))
+        dangling = SyncRunFactory(
+            folder=folder,
+            state=models.SyncRun.STATE_PROCESSING,
+            total=5,
+        )
+
+        sync_library()
+
+        dangling.refresh_from_db()
+        assert dangling.state == models.SyncRun.STATE_INTERRUPTED

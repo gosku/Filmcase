@@ -23,6 +23,15 @@ class FolderNotFound(Exception):
     path: str
 
 
+@attrs.frozen
+class SyncRunNotFound(Exception):
+    """
+    Raised when no SyncRun row matches the given run_id.
+    """
+
+    run_id: int
+
+
 def get_all_library_folders() -> list[models.LibraryFolder]:
     """
     Return all registered library folders ordered by path.
@@ -59,3 +68,44 @@ def list_subdirectories(*, path: str) -> tuple[str, ...]:
         if entry.is_dir() and not entry.name.startswith(".")
     )
     return tuple(entries)
+
+
+def get_latest_sync_run(*, folder_id: int) -> models.SyncRun | None:
+    """
+    Return the most recently started sync run for *folder_id*, or None if the
+    folder has never been synced.
+    """
+    return (
+        models.SyncRun.objects.filter(folder_id=folder_id)
+        .order_by("-started_at", "-id")
+        .first()
+    )
+
+
+def get_sync_run(*, run_id: int) -> models.SyncRun:
+    """
+    Return the SyncRun with the given id.
+
+    :raises SyncRunNotFound: If no run with *run_id* exists (e.g. the folder was
+        removed while a task for this run was still queued).
+    """
+    try:
+        return models.SyncRun.objects.get(pk=run_id)
+    except models.SyncRun.DoesNotExist:
+        raise SyncRunNotFound(run_id=run_id)
+
+
+def get_active_sync_run(*, folder_id: int) -> models.SyncRun | None:
+    """
+    Return the in-progress (scanning or processing) sync run for *folder_id*, or
+    None if no run is currently active. At most one active run can exist per
+    folder (enforced by a database constraint).
+    """
+    return (
+        models.SyncRun.objects.filter(
+            folder_id=folder_id,
+            state__in=models.SyncRun.ACTIVE_STATES,
+        )
+        .order_by("-started_at", "-id")
+        .first()
+    )

@@ -14,6 +14,13 @@
       <span style="color: #ccc;">Never</span>
     {% endif %}
   </td>
+  <td class="folder-sync">
+    <div
+      hx-get="{% url 'library-folder-sync-status' folder.folder_id %}"
+      hx-trigger="load"
+      hx-swap="outerHTML"
+    ></div>
+  </td>
   <td class="folder-actions">
     <button
       class="btn-update"

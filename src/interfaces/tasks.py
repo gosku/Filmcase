@@ -4,6 +4,7 @@ from typing import Any
 from celery import shared_task
 from django.conf import settings
 
+from src.application.usecases.library.process_synced_image import process_synced_image
 from src.domain.images import events, operations
 from src.domain.images.thumbnails import operations as thumbnail_operations
 
@@ -29,6 +30,16 @@ def process_image_task(self: Any, /, *, image_path: str, **kwargs: object) -> st
         image_id=recipe.pk,
     )
     return f"Processed {recipe.filename}"
+
+
+@shared_task(name="library.sync_process_image", bind=True, queue=settings.PROCESS_IMAGE_QUEUE)
+def sync_process_image_task(self: Any, /, *, image_path: str, sync_run_id: int, **kwargs: object) -> str:
+    """
+    Celery task that processes a single image for a library sync run and reports
+    progress against the run.
+    """
+    process_synced_image(image_path=image_path, sync_run_id=sync_run_id)
+    return f"Processed {image_path} for sync run {sync_run_id}"
 
 
 @shared_task(name="domain.generate_thumbnail", bind=True, queue=settings.PROCESS_IMAGE_QUEUE)

@@ -1,11 +1,9 @@
 import attrs
-from datetime import datetime, timezone
 
 from django.conf import settings
 
-from src.domain.images import operations as image_operations
-from src.domain.images import queries as image_queries
-from src.domain.images.queries import NoFilmSimulationError
+from src.application.usecases.library.sync_folder import sync_folder
+from src.domain.library import operations as library_operations
 from src.domain.library import queries as library_queries
 from src.services import workertasks
 
@@ -27,13 +25,16 @@ class SyncLibraryResult:
 
 def sync_library() -> SyncLibraryResult:
     """
-    Scan all registered library folders and import new images into the catalog.
+    Scan every registered library folder and import new images into the catalog.
 
-    Loads all known image paths in a single DB query, then walks each folder
-    and processes only paths not yet in the catalog. Paths that appear in
-    multiple overlapping folders are deduplicated across the entire sync run.
+    Recovers any runs abandoned by a previous process (marking them interrupted),
+    then syncs each folder in turn via the single-folder use case. In async mode,
+    checks for a reachable Celery worker before doing any work.
 
-    In async mode, checks for a reachable Celery worker before doing any work.
+    The result aggregates per-folder outcomes from each folder's sync run: in async
+    mode ``new_files_found`` counts images enqueued for processing, in sync mode it
+    counts images actually imported. Folders that no longer exist on disk are
+    reported in ``missing_folders``.
 
     :raises CeleryWorkerUnavailable: If USE_ASYNC_TASKS is True and no Celery
         worker responds within the ping timeout.
@@ -41,49 +42,25 @@ def sync_library() -> SyncLibraryResult:
     if settings.USE_ASYNC_TASKS and not workertasks.is_celery_worker_available():
         raise CeleryWorkerUnavailable()
 
-    known_paths = image_queries.get_all_known_image_paths()
-    folders = library_queries.get_all_library_folders()
+    library_operations.interrupt_active_sync_runs()
 
-    all_found_paths: set[str] = set()
+    folders = library_queries.get_all_library_folders()
     new_files_found = 0
     skipped_non_fujifilm = 0
     missing_folders: list[str] = []
-    now = datetime.now(tz=timezone.utc)
 
     for folder in folders:
-        try:
-            found_paths = image_queries.get_image_paths_in_folder(
-                folder_path=folder.path,
-                last_checked_at=folder.last_checked_at,
-            )
-        except FileNotFoundError:
-            missing_folders.append(folder.path)
-            folder.set_last_checked_at(value=now)
+        sync_folder(folder_id=folder.pk)
+        run = library_queries.get_latest_sync_run(folder_id=folder.pk)
+        if run is None:
             continue
-
-        new_in_folder = set(found_paths) - known_paths - all_found_paths
-        all_found_paths |= set(found_paths)
-
-        processed_in_folder = 0
-        for path in new_in_folder:
-            if settings.USE_ASYNC_TASKS:
-                workertasks.enqueue_task(
-                    task_name="src.interfaces.tasks.process_image_task",
-                    kwargs={"image_path": path},
-                    queue=settings.PROCESS_IMAGE_QUEUE,
-                )
-                processed_in_folder += 1
-            else:
-                try:
-                    image_operations.process_image(image_path=path)
-                    processed_in_folder += 1
-                except NoFilmSimulationError:
-                    skipped_non_fujifilm += 1
-
-        new_files_found += processed_in_folder
-        folder.set_last_checked_at(value=now)
-        if processed_in_folder > 0:
-            folder.set_last_processed_at(value=now)
+        if run.state == run.STATE_FAILED:
+            missing_folders.append(folder.path)
+        elif settings.USE_ASYNC_TASKS:
+            new_files_found += run.total or 0
+        else:
+            new_files_found += run.processed
+            skipped_non_fujifilm += run.skipped
 
     return SyncLibraryResult(
         folders_scanned=len(folders),

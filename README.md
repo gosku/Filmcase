@@ -55,9 +55,10 @@ cd filmcase
 
 ```bash
 make setup-lite              # creates venv, installs deps, generates SQLite config, runs migrations
-make import PATH=/path/to/images   # import your image collection
 make start                   # sync library and start the development server
 ```
+
+Then open the Library page and click **Add Folder** to import your photo collection.
 
 ---
 
@@ -198,22 +199,16 @@ Python 3.11+ is required.
 
 ---
 
-## Processing your image catalog
+## Adding your images
 
-Before using the web interface, you need to process your images so their EXIF data and recipe information are stored in the database.
+Register your photo folders in the **Library** and Filmcase imports them for you. Open
+[http://localhost:8000/library/](http://localhost:8000/library/), click **Add Folder**, and
+pick a directory. The images are imported straight away (in the background in lite mode, via
+the Celery worker in full mode), and the folder is re-scanned on every `make start`, so new
+photos are picked up automatically.
 
-```bash
-make import PATH=/path/to/your/images
-```
-
-The command behaves according to your install mode:
-
-- **Lite install** (`USE_ASYNC_TASKS=False`): images are processed one at a time in the foreground. The terminal blocks until all images are done.
-- **Full install** (`USE_ASYNC_TASKS=True`): one Celery task is enqueued per image and processed in parallel by the worker. Start the worker first:
-
-  ```bash
-  make worker   # or: celery -A src.config worker --loglevel=info --concurrency=8
-  ```
+In full install mode, start the Celery worker first (`make worker`) so the import has
+somewhere to run.
 
 ---
 
@@ -238,9 +233,9 @@ If you only want to start the server without running a sync first, use `make run
 
 Visit `/images/` to see all processed images. Use the filter controls to narrow results by recipe, film simulation, white balance, and more.
 
-### Process new images
+### Add new images
 
-Re-run `make import PATH=…` pointing at any directory containing new images. Already-processed images are updated in place with fresh EXIF data. Images without Fujifilm EXIF data are skipped.
+Drop new files into a registered library folder and they are imported on the next `make start`. Adding a folder, or updating its path on the Library page, triggers an immediate sync of that folder. Already-known images are left as-is, and images without Fujifilm EXIF data are skipped.
 
 ### Rate images
 

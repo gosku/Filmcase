@@ -10,7 +10,7 @@
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { display: flex; flex-direction: column; font-family: sans-serif; min-height: 100vh; background: var(--color-bg-page); }
 
-    .main-content { flex: 1; padding: 2rem; max-width: 900px; }
+    .main-content { flex: 1; padding: 2rem; max-width: 1200px; }
 
     .page-header {
       display: flex;
@@ -99,6 +99,16 @@
       gap: 0.5rem;
       white-space: nowrap;
     }
+
+    .folder-sync { white-space: nowrap; }
+
+    .sync-status {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .sync-status__bar { width: 120px; height: 0.6rem; }
 
     .btn-update {
       padding: 0.3rem 0.65rem;
@@ -202,6 +212,7 @@
           <th>Path</th>
           <th>Last Synced</th>
           <th>Last Checked</th>
+          <th>Sync</th>
           <th></th>
         </tr>
       </thead>

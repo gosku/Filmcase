@@ -1,13 +1,19 @@
 import pytest
+import time_machine
 
+from src.data import models
 from src.domain.library.queries import (
     FolderNotFound,
     LibraryFolderNotFound,
+    SyncRunNotFound,
+    get_active_sync_run,
     get_all_library_folders,
+    get_latest_sync_run,
     get_library_folder,
+    get_sync_run,
     list_subdirectories,
 )
-from tests.factories import LibraryFolderFactory
+from tests.factories import LibraryFolderFactory, SyncRunFactory
 
 
 @pytest.mark.django_db
@@ -95,3 +101,77 @@ class TestListSubdirectories:
         with pytest.raises(FolderNotFound) as exc_info:
             list_subdirectories(path=str(file_path))
         assert exc_info.value.path == str(file_path)
+
+
+@pytest.mark.django_db
+class TestGetLatestSyncRun:
+    def test_returns_none_when_folder_never_synced(self):
+        folder = LibraryFolderFactory()
+        assert get_latest_sync_run(folder_id=folder.pk) is None
+
+    def test_returns_the_most_recently_started_run(self):
+        folder = LibraryFolderFactory()
+        # Only one run may be active per folder, so the earlier one is terminal.
+        with time_machine.travel("2026-07-01", tick=False):
+            SyncRunFactory(folder=folder, state=models.SyncRun.STATE_COMPLETED)
+        with time_machine.travel("2026-07-02", tick=False):
+            latest = SyncRunFactory(folder=folder)
+
+        result = get_latest_sync_run(folder_id=folder.pk)
+
+        assert result is not None
+        assert result.pk == latest.pk
+
+    def test_ignores_runs_for_other_folders(self):
+        folder = LibraryFolderFactory()
+        other = LibraryFolderFactory()
+        SyncRunFactory(folder=other)
+
+        assert get_latest_sync_run(folder_id=folder.pk) is None
+
+
+@pytest.mark.django_db
+class TestGetSyncRun:
+    def test_returns_run_by_id(self):
+        run = SyncRunFactory()
+        result = get_sync_run(run_id=run.pk)
+        assert result.pk == run.pk
+
+    def test_raises_sync_run_not_found_for_unknown_id(self):
+        with pytest.raises(SyncRunNotFound) as exc_info:
+            get_sync_run(run_id=99999)
+        assert exc_info.value.run_id == 99999
+
+
+@pytest.mark.django_db
+class TestGetActiveSyncRun:
+    def test_returns_none_when_no_run_active(self):
+        folder = LibraryFolderFactory()
+        SyncRunFactory(folder=folder, state=models.SyncRun.STATE_COMPLETED)
+
+        assert get_active_sync_run(folder_id=folder.pk) is None
+
+    def test_returns_scanning_run(self):
+        folder = LibraryFolderFactory()
+        run = SyncRunFactory(folder=folder, state=models.SyncRun.STATE_SCANNING)
+
+        result = get_active_sync_run(folder_id=folder.pk)
+
+        assert result is not None
+        assert result.pk == run.pk
+
+    def test_returns_processing_run(self):
+        folder = LibraryFolderFactory()
+        run = SyncRunFactory(folder=folder, state=models.SyncRun.STATE_PROCESSING, total=3)
+
+        result = get_active_sync_run(folder_id=folder.pk)
+
+        assert result is not None
+        assert result.pk == run.pk
+
+    def test_ignores_active_runs_for_other_folders(self):
+        folder = LibraryFolderFactory()
+        other = LibraryFolderFactory()
+        SyncRunFactory(folder=other, state=models.SyncRun.STATE_PROCESSING, total=1)
+
+        assert get_active_sync_run(folder_id=folder.pk) is None

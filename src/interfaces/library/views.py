@@ -5,6 +5,7 @@ from src.application.usecases.library import add_library_folder as add_library_f
 from src.application.usecases.library import browse_filesystem as browse_filesystem_uc
 from src.application.usecases.library import dataclasses as library_dataclasses
 from src.application.usecases.library import remove_library_folder as remove_library_folder_uc
+from src.application.usecases.library import trigger_folder_sync as trigger_folder_sync_uc
 from src.application.usecases.library import update_library_folder_path as update_library_folder_path_uc
 from src.data import models
 from src.domain.library import queries as domain_queries
@@ -24,6 +25,26 @@ def _list_all_folders() -> list[library_dataclasses.LibraryFolderData]:
     return [_folder_data(f) for f in domain_queries.get_all_library_folders()]
 
 
+def _sync_status(run: models.SyncRun) -> library_dataclasses.SyncRunData:
+    total = run.total
+    handled = run.processed + run.skipped + run.errors
+    percent = int(handled / total * 100) if total else 0
+    return library_dataclasses.SyncRunData(
+        folder_id=run.folder_id,
+        total=total,
+        processed=run.processed,
+        skipped=run.skipped,
+        errors=run.errors,
+        percent=percent,
+        is_active=run.state in models.SyncRun.ACTIVE_STATES,
+        is_scanning=run.state == models.SyncRun.STATE_SCANNING,
+        is_processing=run.state == models.SyncRun.STATE_PROCESSING,
+        is_completed=run.state == models.SyncRun.STATE_COMPLETED,
+        is_failed=run.state == models.SyncRun.STATE_FAILED,
+        is_interrupted=run.state == models.SyncRun.STATE_INTERRUPTED,
+    )
+
+
 class LibraryFolderList(generic.View):
     """Display the list of monitored library folders."""
 
@@ -39,7 +60,7 @@ class LibraryFolderAdd(generic.View):
         if not path:
             return http.HttpResponseBadRequest("path is required")
         try:
-            add_library_folder_uc.add_library_folder(path=path)
+            folder = add_library_folder_uc.add_library_folder(path=path)
         except add_library_folder_uc.FolderNotFound as exc:
             return shortcuts.render(request, "library/library.html", {
                 "folders": _list_all_folders(),
@@ -49,6 +70,14 @@ class LibraryFolderAdd(generic.View):
             return shortcuts.render(request, "library/library.html", {
                 "folders": _list_all_folders(),
                 "error": f"Folder is already in the library: {exc.path}",
+            })
+
+        try:
+            trigger_folder_sync_uc.trigger_folder_sync(folder_id=folder.folder_id)
+        except trigger_folder_sync_uc.CeleryWorkerUnavailable:
+            return shortcuts.render(request, "library/library.html", {
+                "folders": _list_all_folders(),
+                "error": "Folder added, but no image worker is running to sync it. Start one with 'make worker'.",
             })
         return shortcuts.redirect(urls.reverse("library-list"))
 
@@ -91,7 +120,27 @@ class LibraryFolderPathUpdate(generic.View):
                 "folders": _list_all_folders(),
                 "error": f"Folder is already in the library: {exc.path}",
             })
+
+        try:
+            trigger_folder_sync_uc.trigger_folder_sync(folder_id=folder_id)
+        except trigger_folder_sync_uc.CeleryWorkerUnavailable:
+            return shortcuts.render(request, "library/library.html", {
+                "folders": _list_all_folders(),
+                "error": "Path updated, but no image worker is running to sync it. Start one with 'make worker'.",
+            })
         return shortcuts.redirect(urls.reverse("library-list"))
+
+
+class LibraryFolderSyncStatus(generic.View):
+    """Return an HTMX partial with the latest sync-run status for a folder."""
+
+    def get(self, request: http.HttpRequest, folder_id: int) -> http.HttpResponse:
+        run = domain_queries.get_latest_sync_run(folder_id=folder_id)
+        status = _sync_status(run) if run is not None else None
+        return shortcuts.render(request, "library/partials/sync_status.html", {
+            "status": status,
+            "folder_id": folder_id,
+        })
 
 
 class FilesystemBrowser(generic.View):
