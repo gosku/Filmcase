@@ -882,6 +882,7 @@
         {% if recipe.image_count %}
           <a class="action-btn action-btn--secondary" href="{% url 'gallery' %}?recipe_id={{ recipe.id }}">Browse {{ recipe.image_count }} image{{ recipe.image_count|pluralize }}</a>
         {% endif %}
+        <a class="action-btn action-btn--secondary" href="{% url 'recipe-graph' recipe_id=recipe.id %}">View in graph</a>
         <button class="action-btn action-btn--secondary"
                 hx-get="{% url 'recipe-card-modal' recipe_id=recipe.id %}"
                 hx-target="#card-overlay"
