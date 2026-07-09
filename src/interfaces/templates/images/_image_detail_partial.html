@@ -187,50 +187,6 @@
     word-break: break-word;
   }
 
-  .detail-name-row {
-    display: flex;
-    align-items: center;
-    gap: 0.6rem;
-  }
-
-  .send-to-camera-btn {
-    flex-shrink: 0;
-    padding: 0.2rem 0.55rem;
-    font-size: 0.7rem;
-    font-weight: 600;
-    color: var(--color-accent);
-    background: transparent;
-    border: 1px solid var(--color-accent);
-    border-radius: 4px;
-    cursor: pointer;
-    white-space: nowrap;
-    transition: background 0.15s, color 0.15s;
-  }
-
-  .send-to-camera-btn:hover {
-    background: var(--color-accent);
-    color: #fff;
-  }
-
-  .name-recipe-btn {
-    flex-shrink: 0;
-    padding: 0.2rem 0.55rem;
-    font-size: 0.7rem;
-    font-weight: 600;
-    color: #888;
-    background: transparent;
-    border: 1px solid #555;
-    border-radius: 4px;
-    cursor: pointer;
-    white-space: nowrap;
-    transition: border-color 0.15s, color 0.15s;
-  }
-
-  .name-recipe-btn:hover {
-    border-color: #aaa;
-    color: #ddd;
-  }
-
   .set-cover-btn {
     flex-shrink: 0;
     padding: 0.2rem 0.55rem;
@@ -287,58 +243,6 @@
     color: #fff;
   }
 
-  .recipe-name-input-row {
-    display: flex;
-    align-items: center;
-    gap: 0.4rem;
-  }
-
-  .recipe-name-input {
-    flex: 1;
-    padding: 0.2rem 0.4rem;
-    font-size: 0.85rem;
-    background: #2a2a2a;
-    border: 1px solid #555;
-    border-radius: 4px;
-    color: #ddd;
-    min-width: 0;
-  }
-
-  .recipe-name-input:focus {
-    outline: none;
-    border-color: var(--color-accent);
-  }
-
-  .recipe-name-ok-btn {
-    padding: 0.2rem 0.55rem;
-    font-size: 0.7rem;
-    font-weight: 600;
-    color: #fff;
-    background: var(--color-accent);
-    border: 1px solid var(--color-accent);
-    border-radius: 4px;
-    cursor: pointer;
-    white-space: nowrap;
-  }
-
-  .recipe-name-cancel-btn {
-    padding: 0.2rem 0.55rem;
-    font-size: 0.7rem;
-    font-weight: 600;
-    color: #888;
-    background: transparent;
-    border: 1px solid #555;
-    border-radius: 4px;
-    cursor: pointer;
-    white-space: nowrap;
-  }
-
-  .recipe-name-error {
-    display: block;
-    font-size: 0.75rem;
-    color: #e05c5c;
-    margin-bottom: 0.3rem;
-  }
 </style>
 
 <div class="detail-overlay">
@@ -442,20 +346,10 @@
         <section class="detail-recipe">
           <h2 class="detail-section-title">Fujifilm Recipe</h2>
 
-          {% if image.fujifilm_recipe.name %}
-            <div class="detail-row">
-              <span class="detail-label">Name</span>
-              <div class="detail-name-row">
-                <span class="detail-value">{{ image.fujifilm_recipe.name }}</span>
-                <button class="send-to-camera-btn"
-                        hx-get="{% url 'select-push-slot' recipe_id=image.fujifilm_recipe.id %}"
-                        hx-target="#slot-overlay"
-                        hx-swap="innerHTML">Send to camera</button>
-              </div>
-            </div>
-          {% else %}
-            {% include "recipes/_recipe_name_prompt.html" with recipe=image.fujifilm_recipe %}
-          {% endif %}
+          <div class="detail-row">
+            <span class="detail-label">Name</span>
+            <span class="detail-value">{{ image.fujifilm_recipe.name|default:"—" }}</span>
+          </div>
 
           {% if image.fujifilm_recipe.film_simulation %}
             <div class="detail-row">
