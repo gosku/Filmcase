@@ -39,6 +39,22 @@ class TestLibraryFolderSyncStatus:
         assert 'hx-trigger="every 2s"' in content
         assert "<progress" in content
 
+    def test_processing_label_counts_skipped_and_errors(self, client):
+        # Regression: the label must show total handled (processed+skipped+errors),
+        # not just processed — otherwise non-Fujifilm folders show "0/N" forever
+        # while the progress bar advances.
+        folder = LibraryFolderFactory()
+        run = SyncRunFactory(folder=folder, state=models.SyncRun.STATE_PROCESSING, total=10)
+        run.processed = 0
+        run.skipped = 3
+        run.errors = 1
+        run.save(update_fields=["processed", "skipped", "errors"])
+
+        response = client.get(f"/library/{folder.pk}/sync-status/")
+
+        content = response.content.decode()
+        assert "Processing 4/10" in content
+
     def test_shows_summary_and_stops_polling_when_completed(self, client):
         folder = LibraryFolderFactory()
         run = SyncRunFactory(folder=folder, state=models.SyncRun.STATE_COMPLETED, total=3)

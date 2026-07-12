@@ -19,6 +19,7 @@ class SyncRunData:
     processed: int
     skipped: int
     errors: int
+    handled: int
     percent: int
     is_active: bool
     is_scanning: bool

@@ -35,6 +35,7 @@ def _sync_status(run: models.SyncRun) -> library_dataclasses.SyncRunData:
         processed=run.processed,
         skipped=run.skipped,
         errors=run.errors,
+        handled=handled,
         percent=percent,
         is_active=run.state in models.SyncRun.ACTIVE_STATES,
         is_scanning=run.state == models.SyncRun.STATE_SCANNING,

@@ -10,7 +10,7 @@
     {% if status.is_scanning %}
       <span class="sync-status__label">Scanning…</span>
     {% elif status.is_processing %}
-      <span class="sync-status__label">Processing {{ status.processed }}/{{ status.total }}</span>
+      <span class="sync-status__label">Processing {{ status.handled }}/{{ status.total }}</span>
       <progress class="sync-status__bar" value="{{ status.percent }}" max="100"></progress>
     {% elif status.is_completed %}
       <span class="sync-status__label sync-status__label--done">Imported {{ status.processed }}{% if status.skipped %}, skipped {{ status.skipped }}{% endif %}{% if status.errors %}, {{ status.errors }} error{{ status.errors|pluralize }}{% endif %}</span>
