@@ -187,17 +187,52 @@
     word-break: break-word;
   }
 
-  .set-cover-btn {
-    flex-shrink: 0;
-    padding: 0.2rem 0.55rem;
-    font-size: 0.7rem;
+  /* Recipe actions sit on one line directly under the section title, over the
+     same two columns the settings below use. Each button is centred in its
+     column; the shared min-width keeps them equal regardless of label length.
+     (The cover control ships wrapped in its own div for HTMX swaps, which
+     justify-items centres just like the link.) */
+  .detail-recipe-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    justify-items: center;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+  }
+
+  .view-recipe-btn,
+  .set-cover-btn,
+  .cover-image-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+    /* Shared width keeps both buttons equal; capped at the column width so a
+       narrow panel makes them fill it rather than overflow. */
+    min-width: min(12.5rem, 100%);
+    padding: 0.4rem 0.7rem;
+    font-size: 0.75rem;
     font-weight: 600;
-    color: var(--color-accent);
-    background: transparent;
     border: 1px solid var(--color-accent);
-    border-radius: 4px;
-    cursor: pointer;
+    border-radius: 6px;
     white-space: nowrap;
+    text-align: center;
+    text-decoration: none;
+  }
+
+  .view-recipe-btn {
+    background: var(--color-accent);
+    color: #fff;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+
+  .view-recipe-btn:hover { background: var(--color-accent-dark); }
+
+  .set-cover-btn {
+    background: transparent;
+    color: var(--color-accent);
+    cursor: pointer;
     transition: background 0.15s, color 0.15s;
   }
 
@@ -207,40 +242,9 @@
   }
 
   .cover-image-badge {
-    display: inline-block;
-    padding: 0.2rem 0.55rem;
-    font-size: 0.7rem;
-    font-weight: 600;
-    color: var(--color-accent);
-    border: 1px solid var(--color-accent);
-    border-radius: 4px;
-    opacity: 0.7;
-  }
-
-  .detail-recipe-actions {
-    flex-direction: row;
-    align-items: center;
-    gap: 0.6rem;
-  }
-
-  .view-recipe-btn {
-    flex-shrink: 0;
-    padding: 0.2rem 0.55rem;
-    font-size: 0.7rem;
-    font-weight: 600;
-    color: var(--color-accent);
     background: transparent;
-    border: 1px solid var(--color-accent);
-    border-radius: 4px;
-    cursor: pointer;
-    white-space: nowrap;
-    text-decoration: none;
-    transition: background 0.15s, color 0.15s;
-  }
-
-  .view-recipe-btn:hover {
-    background: var(--color-accent);
-    color: #fff;
+    color: var(--color-accent);
+    opacity: 0.7;
   }
 
 </style>
@@ -345,6 +349,11 @@
       {% if image.fujifilm_recipe %}
         <section class="detail-recipe">
           <h2 class="detail-section-title">Fujifilm Recipe</h2>
+
+          <div class="detail-recipe-actions">
+            <a class="view-recipe-btn" href="{% url 'recipe-detail' recipe_id=image.fujifilm_recipe_id %}">View recipe</a>
+            {% include "images/_set_cover_image_btn.html" with recipe_id=image.fujifilm_recipe_id image_id=image.id %}
+          </div>
 
           <div class="detail-row">
             <span class="detail-label">Name</span>
@@ -474,11 +483,6 @@
               {% endif %}
             </div>
           {% endif %}
-
-          <div class="detail-row detail-recipe-actions">
-            <a class="view-recipe-btn" href="{% url 'recipe-detail' recipe_id=image.fujifilm_recipe_id %}">View recipe</a>
-            {% include "images/_set_cover_image_btn.html" with recipe_id=image.fujifilm_recipe_id image_id=image.id %}
-          </div>
         </section>
       {% endif %}
 
