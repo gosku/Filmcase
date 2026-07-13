@@ -1,4 +1,4 @@
-make<img src="src/interfaces/static/images/filmcase_primary_aligned_readme.png" alt="Filmcase" width="400">
+<img src="src/interfaces/static/images/filmcase_primary_aligned_readme.png" alt="Filmcase" width="400">
 
 Filmcase is a Django application for managing Fujifilm camera recipes and browsing your image catalog. It reads EXIF data from your JPEG files, matches images to the Fujifilm recipe they were shot with, and lets you filter and group your catalog by recipe. You can push recipes directly to your camera over USB and explore relationships between recipes through an interactive graph.
 

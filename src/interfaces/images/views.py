@@ -86,6 +86,7 @@ class ImageDetail(generic.View):
                 "image": detail.image,
                 "prev_id": detail.prev_id,
                 "next_id": detail.next_id,
+                "is_monochromatic": detail.is_monochromatic,
                 "max_rating": max_rating,
                 "rating_range": rating_range,
             })
@@ -103,6 +104,7 @@ class ImageDetail(generic.View):
             "image": detail.image,
             "prev_id": detail.prev_id,
             "next_id": detail.next_id,
+            "is_monochromatic": detail.is_monochromatic,
             "max_rating": max_rating,
             "rating_range": rating_range,
         })

@@ -284,7 +284,10 @@
     <div class="recipe-card" id="recipe-card">
       <div class="recipe-card__section" id="card-root-section">
         <div class="recipe-card__title">Recipe of Reference</div>
-        <div class="recipe-card__name" id="card-root-name"></div>
+        <div class="recipe-card__name-row">
+          <div class="recipe-card__name" id="card-root-name"></div>
+          <button class="recipe-card__btn" id="card-root-detail-btn">View recipe</button>
+        </div>
         <div class="recipe-card__fields recipe-card__fields--two-col" id="card-root-fields"></div>
       </div>
       <div id="card-selected-section" style="display:none">
@@ -593,6 +596,12 @@
   }
 
   populateRootCard(ROOT_LABEL, ROOT_FIELDS);
+
+  // Reads ROOT_ID at click time so it stays correct after the film-sim
+  // filter re-roots the graph.
+  document.getElementById("card-root-detail-btn").onclick = function () {
+    window.location.href = "/recipes/" + ROOT_ID + "/";
+  };
 
   // BFS path from rootId to targetId using graph edges
   function findPath(rootId, targetId) {
