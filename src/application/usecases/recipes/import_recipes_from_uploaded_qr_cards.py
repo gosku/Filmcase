@@ -35,7 +35,9 @@ def import_recipes_from_uploaded_qr_cards(
             with tempfile.NamedTemporaryFile(suffix=".jpg", dir="/tmp/", delete=False) as tmp:
                 tmp.write(file.content)
                 tmp_path = tmp.name
-            recipe, _ = operations.get_or_create_recipe_from_qr_card(filepath=tmp_path)
+            recipe, _ = operations.get_or_create_recipe_from_qr_card_and_backfill_name(
+                filepath=tmp_path
+            )
             imported.append(recipe)
         except QRCodeNotFoundError:
             failed.append(file.name)

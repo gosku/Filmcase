@@ -409,11 +409,15 @@ def get_or_create_recipe_from_filepath(
     return get_or_create_recipe_from_metadata(metadata=metadata)
 
 
-def get_or_create_recipe_from_qr_card(
+def get_or_create_recipe_from_qr_card_and_backfill_name(
     *, filepath: str,
-) -> tuple[models.FujifilmRecipe, bool]:
+) -> tuple[models.FujifilmRecipe, recipe_dataclasses.RecipeImportOutcome]:
     """
     Decode the QR on a recipe-card image and return the matching FujifilmRecipe.
+
+    The card names the recipe it matches when that recipe has no name of its
+    own — see ``get_or_create_recipe_and_backfill_name``, which also explains
+    what the returned outcome means.
 
     :raises QRCodeNotFoundError: If no QR code can be decoded from *filepath*.
     :raises InvalidQRRecipePayloadError: If the decoded content is not a valid
@@ -423,7 +427,7 @@ def get_or_create_recipe_from_qr_card(
     recipe_data = card_queries.get_recipe_data_from_qr_recipe(
         qr_recipe=qr_recipe, image_path=filepath,
     )
-    return get_or_create_recipe_from_data(data=recipe_data)
+    return get_or_create_recipe_and_backfill_name(data=recipe_data)
 
 
 @attrs.frozen

@@ -8,6 +8,7 @@ from src.data import models
 from src.domain.images import events
 from src.domain.recipes import operations as recipe_operations
 from src.domain.recipes.cards import queries as card_queries
+from src.domain.recipes.dataclasses import RecipeImportOutcome
 
 FIXTURES_DIR = Path(__file__).resolve().parent.parent.parent.parent / "fixtures" / "recipe_cards"
 CLASSIC_CHROME_CARD = str(FIXTURES_DIR / "card_classic_chrome.jpg")
@@ -25,9 +26,9 @@ def _write_qr(tmp_path: Path, payload_str: str) -> str:
 
 
 @pytest.mark.django_db
-class TestGetOrCreateRecipeFromQRCard:
+class TestGetOrCreateRecipeFromQRCardAndBackfillName:
     def test_creates_recipe_from_colour_card_fixture(self) -> None:
-        recipe, created = recipe_operations.get_or_create_recipe_from_qr_card(filepath=CLASSIC_CHROME_CARD)
+        recipe, outcome = recipe_operations.get_or_create_recipe_from_qr_card_and_backfill_name(filepath=CLASSIC_CHROME_CARD)
 
         assert isinstance(recipe, models.FujifilmRecipe)
         assert recipe.pk is not None
@@ -36,10 +37,10 @@ class TestGetOrCreateRecipeFromQRCard:
         assert recipe.white_balance_red == 2
         assert recipe.white_balance_blue == -1
         assert recipe.color_chrome_effect == "Strong"
-        assert created is True
+        assert outcome is RecipeImportOutcome.CREATED
 
     def test_creates_recipe_from_monochromatic_card_fixture(self) -> None:
-        recipe, _ = recipe_operations.get_or_create_recipe_from_qr_card(filepath=ACROS_CARD)
+        recipe, _ = recipe_operations.get_or_create_recipe_from_qr_card_and_backfill_name(filepath=ACROS_CARD)
 
         assert recipe.film_simulation == "Acros STD"
         assert recipe.grain_roughness == "Off"
@@ -50,7 +51,7 @@ class TestGetOrCreateRecipeFromQRCard:
         assert float(recipe.monochromatic_color_warm_cool) == -2.0
 
     def test_publishes_recipe_created_event_on_first_import(self, captured_logs) -> None:
-        recipe, _ = recipe_operations.get_or_create_recipe_from_qr_card(filepath=CLASSIC_CHROME_CARD)
+        recipe, _ = recipe_operations.get_or_create_recipe_from_qr_card_and_backfill_name(filepath=CLASSIC_CHROME_CARD)
 
         created_events = [e for e in captured_logs if e.get("event_type") == events.RECIPE_CREATED]
         assert len(created_events) == 1
@@ -58,13 +59,13 @@ class TestGetOrCreateRecipeFromQRCard:
         assert created_events[0]["film_simulation"] == "Classic Chrome"
 
     def test_returns_existing_recipe_on_reimport(self, captured_logs) -> None:
-        first, _ = recipe_operations.get_or_create_recipe_from_qr_card(filepath=CLASSIC_CHROME_CARD)
+        first, _ = recipe_operations.get_or_create_recipe_from_qr_card_and_backfill_name(filepath=CLASSIC_CHROME_CARD)
         captured_logs.clear()
 
-        second, created = recipe_operations.get_or_create_recipe_from_qr_card(filepath=CLASSIC_CHROME_CARD)
+        second, outcome = recipe_operations.get_or_create_recipe_from_qr_card_and_backfill_name(filepath=CLASSIC_CHROME_CARD)
 
         assert second.pk == first.pk
-        assert created is False
+        assert outcome is not RecipeImportOutcome.CREATED
         assert models.FujifilmRecipe.objects.count() == 1
         created_events = [e for e in captured_logs if e.get("event_type") == events.RECIPE_CREATED]
         assert created_events == []
@@ -82,7 +83,7 @@ class TestGetOrCreateRecipeFromQRCard:
         }
         card = _write_qr(tmp_path, json.dumps(payload))
 
-        recipe, _ = recipe_operations.get_or_create_recipe_from_qr_card(filepath=card)
+        recipe, _ = recipe_operations.get_or_create_recipe_from_qr_card_and_backfill_name(filepath=card)
 
         assert recipe.name == "Shared Recipe"
 
@@ -97,18 +98,43 @@ class TestGetOrCreateRecipeFromQRCard:
             "white_balance_red": 4,
             "white_balance_blue": 4,
         }
-        first, _ = recipe_operations.get_or_create_recipe_from_qr_card(
+        first, _ = recipe_operations.get_or_create_recipe_from_qr_card_and_backfill_name(
             filepath=_write_qr(tmp_path, json.dumps(base_payload)),
         )
 
-        second, created = recipe_operations.get_or_create_recipe_from_qr_card(
+        second, outcome = recipe_operations.get_or_create_recipe_from_qr_card_and_backfill_name(
             filepath=_write_qr(tmp_path, json.dumps({**base_payload, "name": "Different Name"})),
         )
 
         assert second.pk == first.pk
-        assert created is False
+        assert outcome is RecipeImportOutcome.UNCHANGED
         second.refresh_from_db()
         assert second.name == "First Name"
+
+    def test_names_a_matching_recipe_that_has_no_name(self, tmp_path: Path) -> None:
+        payload = {
+            "v": 1,
+            "film_simulation": "Provia",
+            "grain_roughness": "Off",
+            "d_range_priority": "Off",
+            "white_balance": "Auto",
+            "white_balance_red": 6,
+            "white_balance_blue": 6,
+        }
+        nameless_card = _write_qr(tmp_path, json.dumps(payload))
+        first, _ = recipe_operations.get_or_create_recipe_from_qr_card_and_backfill_name(
+            filepath=nameless_card,
+        )
+        assert first.name == ""
+
+        second, outcome = recipe_operations.get_or_create_recipe_from_qr_card_and_backfill_name(
+            filepath=_write_qr(tmp_path, json.dumps({**payload, "name": "Shared Name"})),
+        )
+
+        assert second.pk == first.pk
+        assert outcome is RecipeImportOutcome.NAME_BACKFILLED
+        first.refresh_from_db()
+        assert first.name == "Shared Name"
 
     def test_preserves_existing_name_when_payload_has_no_name(self, tmp_path: Path) -> None:
         payload = {
@@ -121,12 +147,12 @@ class TestGetOrCreateRecipeFromQRCard:
             "white_balance_red": 5,
             "white_balance_blue": 5,
         }
-        first, _ = recipe_operations.get_or_create_recipe_from_qr_card(
+        first, _ = recipe_operations.get_or_create_recipe_from_qr_card_and_backfill_name(
             filepath=_write_qr(tmp_path, json.dumps(payload)),
         )
 
         nameless_payload = {k: v for k, v in payload.items() if k != "name"}
-        second, _ = recipe_operations.get_or_create_recipe_from_qr_card(
+        second, _ = recipe_operations.get_or_create_recipe_from_qr_card_and_backfill_name(
             filepath=_write_qr(tmp_path, json.dumps(nameless_payload)),
         )
 
@@ -136,11 +162,11 @@ class TestGetOrCreateRecipeFromQRCard:
 
     def test_raises_qr_not_found_for_image_without_qr(self) -> None:
         with pytest.raises(card_queries.QRCodeNotFoundError):
-            recipe_operations.get_or_create_recipe_from_qr_card(filepath=NON_CARD_IMAGE)
+            recipe_operations.get_or_create_recipe_from_qr_card_and_backfill_name(filepath=NON_CARD_IMAGE)
 
     def test_raises_invalid_payload_for_bad_qr_content(self, tmp_path: Path) -> None:
         # A QR that decodes but doesn't carry a valid recipe payload.
         bad_qr = _write_qr(tmp_path, json.dumps({"v": 1, "wrong_key": "wrong"}))
 
         with pytest.raises(card_queries.InvalidQRRecipePayloadError):
-            recipe_operations.get_or_create_recipe_from_qr_card(filepath=bad_qr)
+            recipe_operations.get_or_create_recipe_from_qr_card_and_backfill_name(filepath=bad_qr)
