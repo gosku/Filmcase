@@ -25,8 +25,14 @@ def import_recipes_from_uploaded_qr_cards(
     invalid payload, are recorded as failures; processing continues with the
     remaining files. Each failure is also published as an event so the
     reason is visible in the dev terminal and the events log file.
+
+    A card whose settings match a recipe already in the library does not
+    create anything, so the successes are also split into the recipes the
+    import created and the ones it completed by naming them.
     """
     imported: list[models.FujifilmRecipe] = []
+    created: list[models.FujifilmRecipe] = []
+    updated: list[models.FujifilmRecipe] = []
     failed: list[str] = []
 
     for file in files:
@@ -35,10 +41,14 @@ def import_recipes_from_uploaded_qr_cards(
             with tempfile.NamedTemporaryFile(suffix=".jpg", dir="/tmp/", delete=False) as tmp:
                 tmp.write(file.content)
                 tmp_path = tmp.name
-            recipe, _ = operations.get_or_create_recipe_from_qr_card_and_backfill_name(
+            recipe, outcome = operations.get_or_create_recipe_from_qr_card_and_backfill_name(
                 filepath=tmp_path
             )
             imported.append(recipe)
+            if outcome is recipe_dataclasses.RecipeImportOutcome.CREATED:
+                created.append(recipe)
+            elif outcome is recipe_dataclasses.RecipeImportOutcome.NAME_BACKFILLED:
+                updated.append(recipe)
         except QRCodeNotFoundError:
             failed.append(file.name)
             events.publish_event(
@@ -60,4 +70,6 @@ def import_recipes_from_uploaded_qr_cards(
     return recipe_dataclasses.ImportRecipesResult(
         imported=tuple(imported),
         failed=tuple(failed),
+        created=tuple(created),
+        updated=tuple(updated),
     )

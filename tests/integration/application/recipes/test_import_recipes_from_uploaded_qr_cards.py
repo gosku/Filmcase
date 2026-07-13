@@ -161,3 +161,87 @@ class TestImportRecipesFromUploadedQRCards:
         result = import_recipes_from_uploaded_qr_cards(files=[])
 
         assert result == ImportRecipesResult(imported=(), failed=())
+
+
+def _payload(**overrides: object) -> dict[str, object]:
+    payload: dict[str, object] = {
+        "v": 1,
+        "film_simulation": "Provia",
+        "grain_roughness": "Off",
+        "d_range_priority": "Off",
+        "white_balance": "Auto",
+        "white_balance_red": 0,
+        "white_balance_blue": 0,
+    }
+    payload.update(overrides)
+    return payload
+
+
+@pytest.mark.django_db
+class TestImportRecipesFromUploadedQRCardsOutcomes:
+    """
+    Importing a card does not necessarily create a recipe: its settings may
+    already match one. The result says which happened, so a bulk import can
+    report what it did to the library.
+    """
+
+    def test_reports_a_new_recipe_as_created(self, tmp_path: Path) -> None:
+        card = _qr_file(tmp_path, json.dumps(_payload(name="Kodachrome")), filename="card.png")
+
+        result = import_recipes_from_uploaded_qr_cards(files=[card])
+
+        assert result.created == result.imported
+        assert result.updated == ()
+
+    def test_reports_a_card_that_names_an_existing_recipe_as_updated(self, tmp_path: Path) -> None:
+        nameless = _qr_file(tmp_path, json.dumps(_payload()), filename="nameless.png")
+        import_recipes_from_uploaded_qr_cards(files=[nameless])
+
+        named = _qr_file(tmp_path, json.dumps(_payload(name="Kodachrome")), filename="named.png")
+        result = import_recipes_from_uploaded_qr_cards(files=[named])
+
+        assert result.created == ()
+        assert len(result.updated) == 1
+        assert result.updated[0].name == "Kodachrome"
+        assert models.FujifilmRecipe.objects.count() == 1
+
+    def test_reports_a_card_matching_a_named_recipe_as_neither(self, tmp_path: Path) -> None:
+        card = _qr_file(tmp_path, json.dumps(_payload(name="Kodachrome")), filename="card.png")
+        import_recipes_from_uploaded_qr_cards(files=[card])
+
+        result = import_recipes_from_uploaded_qr_cards(files=[card])
+
+        assert len(result.imported) == 1
+        assert result.created == ()
+        assert result.updated == ()
+
+    def test_a_card_with_an_illegal_value_fails_alone(self, tmp_path: Path) -> None:
+        # A card exported by a library that knows a sensor this one doesn't.
+        # It must not take the rest of the batch down with it.
+        unknown_sensor = _qr_file(
+            tmp_path,
+            json.dumps(_payload(v=2, sensors=["X-Trans VI"])),
+            filename="future.png",
+        )
+        good = uploaded_file_from_fixture("card_classic_chrome.jpg")
+
+        result = import_recipes_from_uploaded_qr_cards(files=[unknown_sensor, good])
+
+        assert result.failed == ("future.png",)
+        assert len(result.imported) == 1
+        assert result.imported[0].film_simulation == "Classic Chrome"
+
+    def test_publishes_the_invalid_value_reason_for_a_card_that_fails_alone(
+        self, tmp_path: Path, captured_logs
+    ) -> None:
+        too_long = _qr_file(
+            tmp_path, json.dumps(_payload(name="x" * 26)), filename="long_name.png"
+        )
+
+        import_recipes_from_uploaded_qr_cards(files=[too_long])
+
+        failure_events = [
+            e for e in captured_logs if e.get("event_type") == events.RECIPE_IMPORT_QR_CARD_FAILED
+        ]
+        assert len(failure_events) == 1
+        assert failure_events[0]["failure_reason"] == "invalid_field_value"
