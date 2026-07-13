@@ -381,7 +381,9 @@ def get_or_create_recipe_from_qr_card(
         QRFujifilmRecipe payload.
     """
     qr_recipe = card_queries.get_qr_recipe_from_image(image_path=filepath)
-    recipe_data = card_queries.get_recipe_data_from_qr_recipe(qr_recipe=qr_recipe)
+    recipe_data = card_queries.get_recipe_data_from_qr_recipe(
+        qr_recipe=qr_recipe, image_path=filepath,
+    )
     return get_or_create_recipe_from_data(data=recipe_data)
 
 
