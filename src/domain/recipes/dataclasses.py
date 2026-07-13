@@ -1,8 +1,24 @@
 from __future__ import annotations
 
+import enum
+
 import attrs
 
 from src.data import models
+
+
+class RecipeImportOutcome(enum.Enum):
+    """
+    What an import did to the library for one incoming recipe.
+
+    A recipe arriving from a shared card is matched against the existing
+    library by its settings, so importing it does not necessarily create
+    anything.
+    """
+
+    CREATED = "created"
+    NAME_BACKFILLED = "name_backfilled"  # matched an existing recipe that had no name
+    UNCHANGED = "unchanged"  # matched an existing recipe; nothing to add
 
 
 @attrs.frozen
