@@ -25,12 +25,12 @@ class TestSetRecipeNameValidation:
 
 
 class TestSetRecipeNameEventPublishing:
-    def test_publishes_recipe_image_updated_event(self, captured_logs):
+    def test_publishes_recipe_name_updated_event(self, captured_logs):
         recipe = MagicMock()
         recipe.pk = 42
         set_recipe_name(recipe=recipe, name="My Recipe")
 
-        updated_events = [e for e in captured_logs if e.get("event_type") == events.RECIPE_IMAGE_UPDATED]
+        updated_events = [e for e in captured_logs if e.get("event_type") == events.RECIPE_NAME_UPDATED]
         assert len(updated_events) == 1
         assert updated_events[0]["name"] == "My Recipe"
         assert updated_events[0]["recipe_id"] == 42

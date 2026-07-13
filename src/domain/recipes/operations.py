@@ -12,6 +12,7 @@ from src.domain.images import events
 from src.domain.images import queries as image_queries
 from collections.abc import Iterable
 
+from src.domain.recipes import dataclasses as recipe_dataclasses
 from src.domain.recipes import normalization as recipe_normalization
 from src.domain.recipes import queries as recipe_queries
 from src.domain.recipes import sensors as recipe_sensors
@@ -239,6 +240,9 @@ def get_or_create_recipe_from_data(
     This is the single seam for ``FujifilmRecipe.get_or_create`` — shared by
     every caller that has already produced a FujifilmRecipeData (from EXIF,
     from a QR card, or any future source).
+
+    Callers importing a recipe shared from another library want a name that
+    survives the get path: they use ``get_or_create_recipe_and_backfill_name``.
     """
     data = recipe_normalization.normalize_recipe_data(data)
     recipe_validation.validate_recipe_data(data)
@@ -341,6 +345,41 @@ def get_or_create_recipe_from_data(
     return recipe, created
 
 
+def get_or_create_recipe_and_backfill_name(
+    *,
+    data: image_dataclasses.FujifilmRecipeData,
+    group_id: int | None = None,
+) -> tuple[models.FujifilmRecipe, recipe_dataclasses.RecipeImportOutcome]:
+    """
+    Get or create the recipe for *data*, naming it if it has no name.
+
+    For recipes shared from another library, where the settings already match
+    an existing recipe but the local copy may predate that recipe being named.
+
+    Backfill only: an existing recipe is written to under exactly one
+    condition, that its ``name`` is empty and *data* carries one. A name
+    chosen locally is never overwritten, and ``description`` is never touched
+    (a QR card does not carry one).
+
+        local ""      + incoming "Kodachrome" -> "Kodachrome"  (backfilled)
+        local "My CC" + incoming "Kodachrome" -> "My CC"       (kept)
+        local "My CC" + incoming ""           -> "My CC"       (kept)
+
+    Returns the recipe and what the import did to the library, so a caller
+    importing a batch can report how many recipes it created versus updated.
+    """
+    recipe, created = get_or_create_recipe_from_data(data=data, group_id=group_id)
+    if created:
+        return recipe, recipe_dataclasses.RecipeImportOutcome.CREATED
+    if data.name and not recipe.name:
+        # No RecipeNameValidationError handling: the name is empty (excluded
+        # by the guard) or it came through FujifilmRecipeData, whose validator
+        # enforces the same rules set_recipe_name checks.
+        set_recipe_name(recipe=recipe, name=data.name)
+        return recipe, recipe_dataclasses.RecipeImportOutcome.NAME_BACKFILLED
+    return recipe, recipe_dataclasses.RecipeImportOutcome.UNCHANGED
+
+
 def get_or_create_recipe_from_metadata(
     *, metadata: image_dataclasses.ImageExifData,
 ) -> tuple[models.FujifilmRecipe, bool]:
@@ -370,19 +409,25 @@ def get_or_create_recipe_from_filepath(
     return get_or_create_recipe_from_metadata(metadata=metadata)
 
 
-def get_or_create_recipe_from_qr_card(
+def get_or_create_recipe_from_qr_card_and_backfill_name(
     *, filepath: str,
-) -> tuple[models.FujifilmRecipe, bool]:
+) -> tuple[models.FujifilmRecipe, recipe_dataclasses.RecipeImportOutcome]:
     """
     Decode the QR on a recipe-card image and return the matching FujifilmRecipe.
+
+    The card names the recipe it matches when that recipe has no name of its
+    own — see ``get_or_create_recipe_and_backfill_name``, which also explains
+    what the returned outcome means.
 
     :raises QRCodeNotFoundError: If no QR code can be decoded from *filepath*.
     :raises InvalidQRRecipePayloadError: If the decoded content is not a valid
         QRFujifilmRecipe payload.
     """
     qr_recipe = card_queries.get_qr_recipe_from_image(image_path=filepath)
-    recipe_data = card_queries.get_recipe_data_from_qr_recipe(qr_recipe=qr_recipe)
-    return get_or_create_recipe_from_data(data=recipe_data)
+    recipe_data = card_queries.get_recipe_data_from_qr_recipe(
+        qr_recipe=qr_recipe, image_path=filepath,
+    )
+    return get_or_create_recipe_and_backfill_name(data=recipe_data)
 
 
 @attrs.frozen
@@ -464,7 +509,7 @@ def set_recipe_name(*, recipe: models.FujifilmRecipe, name: str) -> None:
         raise RecipeNameValidationError(name)
     recipe.set_name(name=name)
     events.publish_event(
-        event_type=events.RECIPE_IMAGE_UPDATED,
+        event_type=events.RECIPE_NAME_UPDATED,
         name=name,
         recipe_id=recipe.pk,
     )

@@ -11,6 +11,13 @@
   </p>
   {% endif %}
 
+  {% if created_count or updated_count %}
+  <p class="import-result__message">
+    {{ created_count }} recipe{{ created_count|pluralize }} created,
+    {{ updated_count }} existing recipe{{ updated_count|pluralize }} updated.
+  </p>
+  {% endif %}
+
   {% if failed %}
   <p class="import-result__message import-result__message--warning">
     {{ failed|length }} file{{ failed|length|pluralize }} could not be processed:

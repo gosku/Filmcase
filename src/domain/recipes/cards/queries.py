@@ -223,6 +223,9 @@ class InvalidQRRecipePayloadError(Exception):
       - ``"unknown_fields"`` — payload contains keys outside the known schema.
       - ``"type_mismatch"`` — a field's value has the wrong type, or a
         required field is missing.
+      - ``"invalid_field_value"`` — a field's value has the right type but is
+        not a legal value (an over-long or non-ASCII name, or an unknown
+        sensor name).
     """
 
     image_path: str = ""
@@ -379,7 +382,7 @@ def _signed_decimal_or_none(value: int | float | None) -> str | None:
 
 
 def get_recipe_data_from_qr_recipe(
-    *, qr_recipe: card_dataclasses.QRFujifilmRecipe,
+    *, qr_recipe: card_dataclasses.QRFujifilmRecipe, image_path: str,
 ) -> image_dataclasses.FujifilmRecipeData:
     """
     Translate a decoded QRFujifilmRecipe into a FujifilmRecipeData.
@@ -397,31 +400,43 @@ def get_recipe_data_from_qr_recipe(
       - grain_size when grain_roughness is "Off".
       - dynamic_range/highlight/shadow when DRP is active.
       - color for mono sims; mono color fields for colour sims.
+
+    :raises InvalidQRRecipePayloadError: If a field's value passes the payload
+        type checks but is rejected by the FujifilmRecipeData validators (an
+        over-long or non-ASCII name, or a sensor name this deployment does not
+        know).
     """
-    return recipe_normalization.normalize_recipe_data(
-        image_dataclasses.FujifilmRecipeData(
-            name=qr_recipe.name or "",
-            film_simulation=qr_recipe.film_simulation,
-            grain_roughness=qr_recipe.grain_roughness,
-            d_range_priority=qr_recipe.d_range_priority,
-            white_balance=qr_recipe.white_balance,
-            white_balance_red=qr_recipe.white_balance_red,
-            white_balance_blue=qr_recipe.white_balance_blue,
-            color_chrome_effect=qr_recipe.color_chrome_effect or "Off",
-            color_chrome_fx_blue=qr_recipe.color_chrome_fx_blue or "Off",
-            sharpness=_signed_decimal_or_none(qr_recipe.sharpness) or "0",
-            high_iso_nr=_signed_decimal_or_none(qr_recipe.high_iso_nr) or "0",
-            clarity=_signed_decimal_or_none(qr_recipe.clarity) or "0",
-            dynamic_range=qr_recipe.dynamic_range if qr_recipe.dynamic_range is not None else "",
-            grain_size=qr_recipe.grain_size,
-            highlight=_signed_decimal_or_none(qr_recipe.highlight) or "0",
-            shadow=_signed_decimal_or_none(qr_recipe.shadow) or "0",
-            color=_signed_decimal_or_none(qr_recipe.color) or "0",
-            monochromatic_color_warm_cool=_signed_decimal_or_none(qr_recipe.monochromatic_color_warm_cool) or "0",
-            monochromatic_color_magenta_green=_signed_decimal_or_none(qr_recipe.monochromatic_color_magenta_green) or "0",
-            # v=1 payloads omit ``sensors``; the dataclass leaves it None there.
-            # v=2 payloads may include it; either way we settle on an empty
-            # tuple when absent so the FujifilmRecipeData validator is happy.
-            sensors=qr_recipe.sensors if qr_recipe.sensors is not None else (),
+    try:
+        return recipe_normalization.normalize_recipe_data(
+            image_dataclasses.FujifilmRecipeData(
+                name=qr_recipe.name or "",
+                film_simulation=qr_recipe.film_simulation,
+                grain_roughness=qr_recipe.grain_roughness,
+                d_range_priority=qr_recipe.d_range_priority,
+                white_balance=qr_recipe.white_balance,
+                white_balance_red=qr_recipe.white_balance_red,
+                white_balance_blue=qr_recipe.white_balance_blue,
+                color_chrome_effect=qr_recipe.color_chrome_effect or "Off",
+                color_chrome_fx_blue=qr_recipe.color_chrome_fx_blue or "Off",
+                sharpness=_signed_decimal_or_none(qr_recipe.sharpness) or "0",
+                high_iso_nr=_signed_decimal_or_none(qr_recipe.high_iso_nr) or "0",
+                clarity=_signed_decimal_or_none(qr_recipe.clarity) or "0",
+                dynamic_range=qr_recipe.dynamic_range if qr_recipe.dynamic_range is not None else "",
+                grain_size=qr_recipe.grain_size,
+                highlight=_signed_decimal_or_none(qr_recipe.highlight) or "0",
+                shadow=_signed_decimal_or_none(qr_recipe.shadow) or "0",
+                color=_signed_decimal_or_none(qr_recipe.color) or "0",
+                monochromatic_color_warm_cool=_signed_decimal_or_none(qr_recipe.monochromatic_color_warm_cool) or "0",
+                monochromatic_color_magenta_green=_signed_decimal_or_none(qr_recipe.monochromatic_color_magenta_green) or "0",
+                # v=1 payloads omit ``sensors``; the dataclass leaves it None there.
+                # v=2 payloads may include it; either way we settle on an empty
+                # tuple when absent so the FujifilmRecipeData validator is happy.
+                sensors=qr_recipe.sensors if qr_recipe.sensors is not None else (),
+            )
         )
-    )
+    except ValueError:
+        # The FujifilmRecipeData validators raise plain ValueErrors. Translating
+        # them here keeps every bad-payload failure on the same exception, so a
+        # single unimportable card is recorded as a failed file by the caller
+        # instead of aborting the whole upload.
+        raise InvalidQRRecipePayloadError(image_path=image_path, reason="invalid_field_value")
