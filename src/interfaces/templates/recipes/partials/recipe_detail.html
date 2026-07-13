@@ -299,27 +299,48 @@
   .settings-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 0 2.5rem;
+    gap: 1.75rem 2.5rem;
   }
 
+  /* The column wrappers collapse so the sections become grid items directly.
+     Pairing them onto explicit rows makes each row as tall as the taller of
+     its two sections, so the pairs stay level across columns (Grain with
+     Dynamic Range, White Balance with Color Chrome) however tall either side
+     grows -- the camera badges, for instance, reserve extra height for their
+     overflow peek. */
+  .settings-grid > div { display: contents; }
+
+  .settings-grid .settings-section { margin-bottom: 0; }
+
+  .settings-section--basic         { grid-column: 1; grid-row: 1; }
+  .settings-section--grain         { grid-column: 1; grid-row: 2; }
+  .settings-section--white-balance { grid-column: 1; grid-row: 3; }
+  .settings-section--camera        { grid-column: 2; grid-row: 1; }
+  .settings-section--dynamic-range { grid-column: 2; grid-row: 2; }
+
+  /* Color Chrome and BW Tone share the cell opposite White Balance, so BW Tone
+     follows straight on from Color Chrome rather than being pushed below the
+     tall white-balance grid. */
+  .settings-cell--chrome-tone {
+    grid-column: 2;
+    grid-row: 3;
+    display: flex;
+    flex-direction: column;
+    gap: 1.75rem;
+  }
+
+  /* Separated from the grid above by the same gap that separates its rows, so
+     whichever section ends each column (White Balance, Color Chrome or BW
+     Tone) keeps its distance from Tone & Color and Detail. */
   .settings-bottom {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 0 2.5rem;
-    margin-top: 0.25rem;
+    margin-top: 1.75rem;
   }
 
   .settings-section {
     margin-bottom: 1.75rem;
-  }
-
-  /* The two camera-rows are taller than their settings-row counterparts in
-     the opposite column (the badge container reserves vertical space for an
-     overflow peek), so this section absorbs the extra height by giving up
-     some bottom margin -- keeping the next sections (Dynamic Range, Color
-     Chrome) aligned horizontally with Grain and White Balance across columns. */
-  .settings-section--camera {
-    margin-bottom: 0.6rem;
   }
 
   .settings-section-header {
@@ -436,45 +457,33 @@
     white-space: nowrap;
   }
 
-  /* WB color grid (read-only) */
-  .wb-grid-readonly-outer {
+  /* WB color grid (read-only) on the left, the white-balance values beside it.
+     The values start at the top, so they line up with the Color Chrome rows
+     opposite them; the grid gets room below so it does not crowd the section
+     underneath. */
+  .wb-layout {
     display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 1rem;
-    padding: 0.75rem 0.75rem 0.25rem;
+    align-items: flex-start;
+    gap: 1.5rem;
+    padding-bottom: 1.25rem;
   }
 
-  .wb-grid-readonly-legend {
-    display: flex;
-    flex-direction: column;
-    gap: 0.35rem;
-    white-space: nowrap;
+  /* Line the grid up with the properties beside it: indented to where their
+     names start (past the row's own indent and the label icon), and dropped by
+     the row's top padding so its top edge meets the first property rather than
+     floating above it. */
+  .wb-layout > .wb-grid-readonly-wrap {
+    margin-left: calc(0.75rem + 13px + 6px);
+    margin-top: 0.4rem;
   }
 
-  .wb-legend-line {
-    display: flex;
-    align-items: center;
-    gap: 6px;
+  .wb-layout__values {
+    flex: 1;
+    min-width: 0;
   }
 
-  .wb-legend-label {
-    font-size: 0.82rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    color: #9ca3af;
-  }
-
-  .wb-legend-value {
-    font-size: 0.9rem;
-    font-weight: 700;
-    font-family: monospace;
-    letter-spacing: 0.06em;
-  }
-
-  .wb-legend-value--red  { color: var(--color-accent); }
-  .wb-legend-value--blue { color: #2563eb; }
+  .settings-row-value--red  { color: var(--color-accent); }
+  .settings-row-value--blue { color: #2563eb; }
 
   .wb-grid-readonly-wrap {
     display: grid;
@@ -482,6 +491,7 @@
     grid-template-rows: repeat(19, 8px);
     gap: 1px;
     line-height: 0;
+    flex-shrink: 0;
   }
 
   .wb-dot {
@@ -547,7 +557,7 @@
           {# LEFT COLUMN: BASIC · GRAIN · WHITE BALANCE #}
           <div>
 
-            <div class="settings-section">
+            <div class="settings-section settings-section--basic">
               <div class="settings-section-header">Basic</div>
               <div class="settings-row">
                 <span class="settings-row-label">
@@ -576,7 +586,7 @@
               </div>
             </div>
 
-            <div class="settings-section">
+            <div class="settings-section settings-section--grain">
               <div class="settings-section-header">Grain</div>
               <div class="settings-row">
                 <span class="settings-row-label">
@@ -605,43 +615,46 @@
               </div>
             </div>
 
-            <div class="settings-section">
+            <div class="settings-section settings-section--white-balance">
               <div class="settings-section-header">White Balance</div>
-              <div class="settings-row">
-                <span class="settings-row-label">
-                  <svg class="field-icon" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M5 9.5 C5 9.5 3.2 8.3 3.2 6.2 A3.8 3.8 0 0 1 10.8 6.2 C10.8 8.3 9 9.5 9 9.5 Z"/>
-                    <line x1="5.2" y1="11" x2="8.8" y2="11"/>
-                    <line x1="5.8" y1="12.5" x2="8.2" y2="12.5"/>
-                  </svg>
-                  White Balance
-                </span>
-                <span class="settings-row-value">{{ recipe.white_balance }}</span>
-              </div>
-              {# WB Red/Blue shifts are read off the grid below; no need for separate text rows. #}
-              <div class="wb-grid-readonly-outer">
+              <div class="wb-layout">
                 <div class="wb-grid-readonly-wrap"
                      data-r="{{ recipe.white_balance_red }}"
                      data-b="{{ recipe.white_balance_blue }}"></div>
-                <div class="wb-grid-readonly-legend">
-                  <span class="wb-legend-line">
-                    <svg class="field-icon" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round">
-                      <line x1="2" y1="7" x2="11" y2="7"/>
-                      <polyline points="8.5,4.5 11,7 8.5,9.5"/>
-                      <text x="1" y="12" font-size="5" fill="currentColor" stroke="none" font-weight="700" font-family="sans-serif">R</text>
-                    </svg>
-                    <span class="wb-legend-label">Red</span>
-                    <span class="wb-legend-value wb-legend-value--red">{{ recipe.white_balance_red|signed }}</span>
-                  </span>
-                  <span class="wb-legend-line">
-                    <svg class="field-icon" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round">
-                      <line x1="2" y1="7" x2="11" y2="7"/>
-                      <polyline points="8.5,4.5 11,7 8.5,9.5"/>
-                      <text x="1" y="12" font-size="5" fill="currentColor" stroke="none" font-weight="700" font-family="sans-serif">B</text>
-                    </svg>
-                    <span class="wb-legend-label">Blue</span>
-                    <span class="wb-legend-value wb-legend-value--blue">{{ recipe.white_balance_blue|signed }}</span>
-                  </span>
+                <div class="wb-layout__values">
+                  <div class="settings-row">
+                    <span class="settings-row-label">
+                      <svg class="field-icon" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M5 9.5 C5 9.5 3.2 8.3 3.2 6.2 A3.8 3.8 0 0 1 10.8 6.2 C10.8 8.3 9 9.5 9 9.5 Z"/>
+                        <line x1="5.2" y1="11" x2="8.8" y2="11"/>
+                        <line x1="5.8" y1="12.5" x2="8.2" y2="12.5"/>
+                      </svg>
+                      White Balance
+                    </span>
+                    <span class="settings-row-value">{{ recipe.white_balance }}</span>
+                  </div>
+                  <div class="settings-row">
+                    <span class="settings-row-label">
+                      <svg class="field-icon" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round">
+                        <line x1="2" y1="7" x2="11" y2="7"/>
+                        <polyline points="8.5,4.5 11,7 8.5,9.5"/>
+                        <text x="1" y="12" font-size="5" fill="currentColor" stroke="none" font-weight="700" font-family="sans-serif">R</text>
+                      </svg>
+                      Red
+                    </span>
+                    <span class="settings-row-value settings-row-value--red">{{ recipe.white_balance_red|signed }}</span>
+                  </div>
+                  <div class="settings-row">
+                    <span class="settings-row-label">
+                      <svg class="field-icon" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round">
+                        <line x1="2" y1="7" x2="11" y2="7"/>
+                        <polyline points="8.5,4.5 11,7 8.5,9.5"/>
+                        <text x="1" y="12" font-size="5" fill="currentColor" stroke="none" font-weight="700" font-family="sans-serif">B</text>
+                      </svg>
+                      Blue
+                    </span>
+                    <span class="settings-row-value settings-row-value--blue">{{ recipe.white_balance_blue|signed }}</span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -694,7 +707,7 @@
               </div>
             </div>
 
-            <div class="settings-section">
+            <div class="settings-section settings-section--dynamic-range">
               <div class="settings-section-header">Dynamic Range</div>
               <div class="settings-row">
                 <span class="settings-row-label">
@@ -721,59 +734,63 @@
               </div>
             </div>
 
-            <div class="settings-section">
-              <div class="settings-section-header">Color Chrome</div>
-              <div class="settings-row">
-                <span class="settings-row-label">
-                  <svg class="field-icon" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round">
-                    <polygon points="7,1 13,12 1,12"/>
-                    <line x1="7" y1="1" x2="4" y2="7" stroke-width="0.8" opacity="0.5"/>
-                    <line x1="7" y1="1" x2="7.5" y2="5.5" stroke-width="0.8" opacity="0.5"/>
-                    <line x1="7" y1="1" x2="10.5" y2="8" stroke-width="0.8" opacity="0.5"/>
-                  </svg>
-                  Color Chrome Effect
-                </span>
-                <span class="settings-row-value">{{ recipe.color_chrome_effect }}</span>
-              </div>
-              <div class="settings-row">
-                <span class="settings-row-label">
-                  <svg class="field-icon" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.2">
-                    <circle cx="7" cy="7" r="5.5"/>
-                    <circle cx="7" cy="7" r="2" fill="currentColor" stroke="none" opacity="0.6"/>
-                  </svg>
-                  Color Chrome FX Blue
-                </span>
-                <span class="settings-row-value">{{ recipe.color_chrome_fx_blue }}</span>
-              </div>
-            </div>
+            <div class="settings-cell--chrome-tone">
 
-            {% if is_monochromatic %}
-            <div class="settings-section">
-              <div class="settings-section-header">BW Tone</div>
-              <div class="settings-row">
-                <span class="settings-row-label">
-                  <svg class="field-icon" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round">
-                    <line x1="1" y1="7" x2="13" y2="7"/>
-                    <polyline points="4,4.5 1,7 4,9.5"/>
-                    <polyline points="10,4.5 13,7 10,9.5"/>
-                  </svg>
-                  BW Warm / Cool
-                </span>
-                <span class="settings-row-value">{{ recipe.monochromatic_color_warm_cool|signed }}</span>
+              <div class="settings-section">
+                <div class="settings-section-header">Color Chrome</div>
+                <div class="settings-row">
+                  <span class="settings-row-label">
+                    <svg class="field-icon" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round">
+                      <polygon points="7,1 13,12 1,12"/>
+                      <line x1="7" y1="1" x2="4" y2="7" stroke-width="0.8" opacity="0.5"/>
+                      <line x1="7" y1="1" x2="7.5" y2="5.5" stroke-width="0.8" opacity="0.5"/>
+                      <line x1="7" y1="1" x2="10.5" y2="8" stroke-width="0.8" opacity="0.5"/>
+                    </svg>
+                    Color Chrome Effect
+                  </span>
+                  <span class="settings-row-value">{{ recipe.color_chrome_effect }}</span>
+                </div>
+                <div class="settings-row">
+                  <span class="settings-row-label">
+                    <svg class="field-icon" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.2">
+                      <circle cx="7" cy="7" r="5.5"/>
+                      <circle cx="7" cy="7" r="2" fill="currentColor" stroke="none" opacity="0.6"/>
+                    </svg>
+                    Color Chrome FX Blue
+                  </span>
+                  <span class="settings-row-value">{{ recipe.color_chrome_fx_blue }}</span>
+                </div>
               </div>
-              <div class="settings-row">
-                <span class="settings-row-label">
-                  <svg class="field-icon" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round">
-                    <line x1="7" y1="1" x2="7" y2="13"/>
-                    <polyline points="4.5,4 7,1 9.5,4"/>
-                    <polyline points="4.5,10 7,13 9.5,10"/>
-                  </svg>
-                  BW Magenta / Green
-                </span>
-                <span class="settings-row-value">{{ recipe.monochromatic_color_magenta_green|signed }}</span>
+
+              {% if is_monochromatic %}
+              <div class="settings-section">
+                <div class="settings-section-header">BW Tone</div>
+                <div class="settings-row">
+                  <span class="settings-row-label">
+                    <svg class="field-icon" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round">
+                      <line x1="1" y1="7" x2="13" y2="7"/>
+                      <polyline points="4,4.5 1,7 4,9.5"/>
+                      <polyline points="10,4.5 13,7 10,9.5"/>
+                    </svg>
+                    BW Warm / Cool
+                  </span>
+                  <span class="settings-row-value">{{ recipe.monochromatic_color_warm_cool|signed }}</span>
+                </div>
+                <div class="settings-row">
+                  <span class="settings-row-label">
+                    <svg class="field-icon" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round">
+                      <line x1="7" y1="1" x2="7" y2="13"/>
+                      <polyline points="4.5,4 7,1 9.5,4"/>
+                      <polyline points="4.5,10 7,13 9.5,10"/>
+                    </svg>
+                    BW Magenta / Green
+                  </span>
+                  <span class="settings-row-value">{{ recipe.monochromatic_color_magenta_green|signed }}</span>
+                </div>
               </div>
-            </div>
-            {% endif %}
+              {% endif %}
+
+            </div>{# /.settings-cell--chrome-tone #}
 
           </div>{# /right column #}
 
