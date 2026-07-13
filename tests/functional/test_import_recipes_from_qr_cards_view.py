@@ -1,8 +1,10 @@
+import json
 from io import BytesIO
 from pathlib import Path
 from unittest.mock import patch
 
 import pytest
+import qrcode  # type: ignore[import-untyped]
 from bs4 import BeautifulSoup
 
 from src.data import models
@@ -22,6 +24,39 @@ def _post(client, *filenames: str):
     files = [_fixture_upload(CARDS_FIXTURES_DIR, f) for f in filenames]
     data = {"images": files} if len(files) > 1 else {"images": files[0]}
     return client.post("/recipes/import-qr-cards/", data, format="multipart")
+
+
+def _card_upload(payload: dict[str, object], *, filename: str = "card.png") -> BytesIO:
+    """Render *payload* as a QR card image the view can accept as an upload."""
+    buffer = BytesIO()
+    qrcode.make(json.dumps(payload), box_size=10).save(buffer, format="PNG")
+    buffer.seek(0)
+    buffer.name = filename
+    return buffer
+
+
+def _post_card(client, payload: dict[str, object], *, filename: str = "card.png"):
+    return client.post(
+        "/recipes/import-qr-cards/",
+        {"images": _card_upload(payload, filename=filename)},
+        format="multipart",
+    )
+
+
+def _text(response) -> str:
+    """The response's visible text, with the template's line breaks collapsed."""
+    return " ".join(BeautifulSoup(response.content, "html.parser").get_text().split())
+
+
+PROVIA_PAYLOAD: dict[str, object] = {
+    "v": 1,
+    "film_simulation": "Provia",
+    "grain_roughness": "Off",
+    "d_range_priority": "Off",
+    "white_balance": "Auto",
+    "white_balance_red": 0,
+    "white_balance_blue": 0,
+}
 
 
 @pytest.mark.django_db
@@ -82,6 +117,38 @@ class TestImportRecipesFromQRCardsViewSuccess:
         _post(client, "card_classic_chrome.jpg")
         _post(client, "card_classic_chrome.jpg")
         assert models.FujifilmRecipe.objects.count() == 1
+
+
+@pytest.mark.django_db
+class TestImportRecipesFromQRCardsViewOutcomeBreakdown:
+    """
+    A bulk import of shared cards mostly matches recipes the library already
+    has, so the result says how many it created and how many it completed.
+    """
+
+    def test_response_reports_a_new_recipe_as_created(self, client):
+        response = _post(client, "card_classic_chrome.jpg")
+
+        assert "1 recipe created, 0 existing recipes updated" in _text(response)
+
+    def test_response_reports_a_card_that_names_an_existing_recipe_as_updated(self, client):
+        _post_card(client, PROVIA_PAYLOAD, filename="nameless.png")
+
+        response = _post_card(
+            client, {**PROVIA_PAYLOAD, "name": "Kodachrome"}, filename="named.png"
+        )
+
+        assert "0 recipes created, 1 existing recipe updated" in _text(response)
+        assert models.FujifilmRecipe.objects.count() == 1
+        assert models.FujifilmRecipe.objects.get().name == "Kodachrome"
+
+    def test_response_omits_the_breakdown_when_nothing_changed(self, client):
+        _post(client, "card_classic_chrome.jpg")
+
+        response = _post(client, "card_classic_chrome.jpg")
+
+        assert "created," not in _text(response)
+        assert "1 recipe imported successfully" in _text(response)
 
 
 @pytest.mark.django_db

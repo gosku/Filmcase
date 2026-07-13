@@ -686,7 +686,12 @@ class ImportRecipesFromUploadedQrCards(generic.View):
         return shortcuts.render(
             request,
             "recipes/partials/_import_result.html",
-            {"imported": result.imported, "failed": result.failed},
+            {
+                "imported": result.imported,
+                "failed": result.failed,
+                "created_count": len(result.created),
+                "updated_count": len(result.updated),
+            },
         )
 
 
