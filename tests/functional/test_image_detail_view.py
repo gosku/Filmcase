@@ -187,3 +187,17 @@ class TestImageDetailRecipeSection:
         response = self._get_partial(client, image.id)
         soup = BeautifulSoup(response.content, "html.parser")
         assert soup.find(class_="send-to-camera-btn") is None
+
+    def test_shows_bw_tone_section_for_monochromatic_recipe(self, client):
+        recipe = FujifilmRecipeFactory(film_simulation="Acros STD")
+        image = ImageFactory(fujifilm_recipe=recipe)
+        response = self._get_partial(client, image.id)
+        soup = BeautifulSoup(response.content, "html.parser")
+        assert soup.find(class_="settings-section--bw-tone") is not None
+
+    def test_hides_bw_tone_section_for_color_recipe(self, client):
+        recipe = FujifilmRecipeFactory(film_simulation="Provia")
+        image = ImageFactory(fujifilm_recipe=recipe)
+        response = self._get_partial(client, image.id)
+        soup = BeautifulSoup(response.content, "html.parser")
+        assert soup.find(class_="settings-section--bw-tone") is None

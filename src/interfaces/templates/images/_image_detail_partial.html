@@ -268,6 +268,7 @@
   .settings-section--white-balance { grid-column: 1; grid-row: 3; }
   .settings-section--dynamic-range { grid-column: 2; grid-row: 1; }
   .settings-section--color-chrome  { grid-column: 2; grid-row: 2; }
+  .settings-section--bw-tone       { grid-column: 2; grid-row: 3; }
 
   .settings-section-header {
     font-size: 0.7rem;
@@ -582,6 +583,34 @@
                   <span class="settings-row-value">{{ image.fujifilm_recipe.color_chrome_fx_blue }}</span>
                 </div>
               </div>
+
+              {% if is_monochromatic %}
+                <div class="settings-section settings-section--bw-tone">
+                  <div class="settings-section-header">BW Tone</div>
+                  <div class="settings-row">
+                    <span class="settings-row-label">
+                      <svg class="field-icon" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round">
+                        <line x1="1" y1="7" x2="13" y2="7"/>
+                        <polyline points="4,4.5 1,7 4,9.5"/>
+                        <polyline points="10,4.5 13,7 10,9.5"/>
+                      </svg>
+                      BW Warm / Cool
+                    </span>
+                    <span class="settings-row-value">{{ image.fujifilm_recipe.monochromatic_color_warm_cool|signed }}</span>
+                  </div>
+                  <div class="settings-row">
+                    <span class="settings-row-label">
+                      <svg class="field-icon" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round">
+                        <line x1="7" y1="1" x2="7" y2="13"/>
+                        <polyline points="4.5,4 7,1 9.5,4"/>
+                        <polyline points="4.5,10 7,13 9.5,10"/>
+                      </svg>
+                      BW Magenta / Green
+                    </span>
+                    <span class="settings-row-value">{{ image.fujifilm_recipe.monochromatic_color_magenta_green|signed }}</span>
+                  </div>
+                </div>
+              {% endif %}
 
             </div>{# /right column #}
 

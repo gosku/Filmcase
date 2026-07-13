@@ -485,6 +485,7 @@ class ImageDetailContext:
     image: models.Image
     prev_id: int | None
     next_id: int | None
+    is_monochromatic: bool
 
 
 def get_image_detail(
@@ -520,10 +521,16 @@ def get_image_detail(
     except ValueError:
         idx = -1
 
+    recipe = image.fujifilm_recipe
+
     return ImageDetailContext(
         image=image,
         prev_id=ids[idx - 1] if idx > 0 else None,
         next_id=ids[idx + 1] if idx < len(ids) - 1 else None,
+        is_monochromatic=(
+            recipe is not None
+            and recipe.film_simulation in recipe_constants.MONOCHROMATIC_FILM_SIMULATIONS
+        ),
     )
 
 
