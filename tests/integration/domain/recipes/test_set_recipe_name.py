@@ -19,11 +19,11 @@ class TestSetRecipeNamePersistence:
         recipe.refresh_from_db()
         assert recipe.film_simulation == "Provia"
 
-    def test_publishes_recipe_image_updated_event(self, captured_logs):
+    def test_publishes_recipe_name_updated_event(self, captured_logs):
         recipe = FujifilmRecipeFactory(name="")
         set_recipe_name(recipe=recipe, name="My Recipe")
 
-        updated_events = [e for e in captured_logs if e.get("event_type") == events.RECIPE_IMAGE_UPDATED]
+        updated_events = [e for e in captured_logs if e.get("event_type") == events.RECIPE_NAME_UPDATED]
         assert len(updated_events) == 1
         assert updated_events[0]["name"] == "My Recipe"
         assert updated_events[0]["recipe_id"] == recipe.pk
@@ -32,5 +32,5 @@ class TestSetRecipeNamePersistence:
         recipe = FujifilmRecipeFactory(name="")
         set_recipe_name(recipe=recipe, name="Velvia Vivid")
 
-        updated_events = [e for e in captured_logs if e.get("event_type") == events.RECIPE_IMAGE_UPDATED]
+        updated_events = [e for e in captured_logs if e.get("event_type") == events.RECIPE_NAME_UPDATED]
         assert {"name", "recipe_id"} <= updated_events[0].keys()

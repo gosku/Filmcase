@@ -466,7 +466,7 @@ def set_recipe_name(*, recipe: models.FujifilmRecipe, name: str) -> None:
         raise RecipeNameValidationError(name)
     recipe.set_name(name=name)
     events.publish_event(
-        event_type=events.RECIPE_IMAGE_UPDATED,
+        event_type=events.RECIPE_NAME_UPDATED,
         name=name,
         recipe_id=recipe.pk,
     )
