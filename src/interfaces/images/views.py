@@ -1,12 +1,14 @@
 import mimetypes
 from pathlib import Path
 
+import structlog
 from django.conf import settings
 from django.core import paginator as django_paginator
 from django import http
 from django import shortcuts
 from django.views import generic
 
+from src.application.usecases.images import set_images_rating as set_images_rating_uc
 from src.data import models
 from src.domain.images import filter_queries
 from src.domain.images import operations as image_operations
@@ -49,6 +51,7 @@ class Gallery(generic.View):
                 "sidebar_options": gallery.sidebar_options,
                 "recipe_options": gallery.recipe_options,
             })
+        max_rating = settings.IMAGE_MAX_RATING
         return shortcuts.render(
             request,
             "images/gallery.html",
@@ -57,6 +60,8 @@ class Gallery(generic.View):
                 "sidebar_options": gallery.sidebar_options,
                 "recipe_options": gallery.recipe_options,
                 "rating_first": "1" if rating_first else "0",
+                "max_rating": max_rating,
+                "rating_range": range(1, max_rating + 1),
             },
         )
 
@@ -182,6 +187,51 @@ class SetImageRating(generic.View):
                 "rating": self.image.rating,
                 "max_rating": max_rating,
                 "rating_range": range(1, max_rating + 1),
+            },
+        )
+
+
+class SetImagesRating(generic.View):
+    """
+    Set the same star rating on a batch of selected images.
+
+    Returns an HTML result fragment for the multi-select modal.
+    """
+
+    def post(self, request: http.HttpRequest) -> http.HttpResponse:
+        image_ids_raw = request.POST.getlist("image_ids")
+        try:
+            image_ids = [int(pk) for pk in image_ids_raw]
+        except (ValueError, TypeError):
+            return http.HttpResponseBadRequest("image_ids must be integers")
+        try:
+            rating = int(request.POST["rating"])
+        except (KeyError, ValueError, TypeError):
+            return http.HttpResponseBadRequest("rating must be an integer")
+
+        try:
+            result = set_images_rating_uc.set_images_rating(image_ids=image_ids, rating=rating)
+        except set_images_rating_uc.InvalidRatingError:
+            return shortcuts.render(
+                request,
+                "images/partials/set_images_rating_result.html",
+                {"error": "That rating is not allowed. Please try again."},
+            )
+        except Exception:
+            structlog.get_logger().exception("Unexpected error in SetImagesRating.post")
+            return shortcuts.render(
+                request,
+                "images/partials/set_images_rating_result.html",
+                {"error": "An unexpected error occurred. Please try again."},
+            )
+        return shortcuts.render(
+            request,
+            "images/partials/set_images_rating_result.html",
+            {
+                "rated_count": result.rated_count,
+                "not_found_count": result.not_found_count,
+                "rating": rating,
+                "all_succeeded": result.not_found_count == 0,
             },
         )
 
