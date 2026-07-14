@@ -29,6 +29,8 @@ class MultiSelectController {
     this.onSelectionChange = onSelectionChange;
     this.selectedPks = new Set();
     this.active = false;
+    // Card the next shift-click extends a range from.
+    this.anchorPk = null;
 
     if (!document.querySelector(containerSelector)) return;
     this._init();
@@ -54,9 +56,24 @@ class MultiSelectController {
         // preventDefault: prevents browser native anchor navigation.
         evt.stopPropagation();
         evt.preventDefault();
-        this._toggle(pk, card, container);
+        if (evt.shiftKey && this.anchorPk !== null && this.anchorPk !== pk) {
+          this._selectRange(pk, container);
+        } else {
+          this._toggle(pk, card, container);
+        }
       }
     }, true);
+
+    // A shift-click on a card would otherwise extend the browser's native text
+    // selection across the cards in between.
+    document.body.addEventListener('mousedown', (evt) => {
+      if (!evt.shiftKey) return;
+      if (!this.active && !evt.target.closest('.ms-checkbox')) return;
+      const container = document.querySelector(this._containerSelector);
+      if (!container) return;
+      const card = evt.target.closest(this.cardSelector);
+      if (card && container.contains(card)) evt.preventDefault();
+    });
 
     // Cancel button inside the toolbar.
     document.body.addEventListener('click', (evt) => {
@@ -93,15 +110,51 @@ class MultiSelectController {
   }
 
   _toggle(pk, card, container) {
-    if (this.selectedPks.has(pk)) {
-      this.selectedPks.delete(pk);
-      card.classList.remove('ms-selected');
-    } else {
-      this.selectedPks.add(pk);
-      card.classList.add('ms-selected');
+    this._setSelected(pk, card, !this.selectedPks.has(pk));
+    this.anchorPk = pk;
+    this._syncState(container);
+  }
+
+  // Shift-click: every card between the anchor and the clicked one takes the
+  // state the clicked card is toggling into, so a range can be selected or
+  // deselected in one go.
+  _selectRange(pk, container) {
+    const cards = Array.from(container.querySelectorAll(this.cardSelector));
+    const anchorIndex = cards.findIndex(c => c.getAttribute(this.pkAttr) === this.anchorPk);
+    const targetIndex = cards.findIndex(c => c.getAttribute(this.pkAttr) === pk);
+
+    // The anchor's card is gone (e.g. filtered out): fall back to a plain toggle.
+    if (anchorIndex === -1 || targetIndex === -1) {
+      const card = cards[targetIndex] || null;
+      if (card) this._toggle(pk, card, container);
+      return;
     }
 
+    const selected = !this.selectedPks.has(pk);
+    const start = Math.min(anchorIndex, targetIndex);
+    const end = Math.max(anchorIndex, targetIndex);
+    cards.slice(start, end + 1).forEach(card => {
+      const cardPk = card.getAttribute(this.pkAttr);
+      if (cardPk) this._setSelected(cardPk, card, selected);
+    });
+
+    this.anchorPk = pk;
+    this._syncState(container);
+  }
+
+  _setSelected(pk, card, selected) {
+    if (selected) {
+      this.selectedPks.add(pk);
+      card.classList.add('ms-selected');
+    } else {
+      this.selectedPks.delete(pk);
+      card.classList.remove('ms-selected');
+    }
+  }
+
+  _syncState(container) {
     this.active = this.selectedPks.size > 0;
+    if (!this.active) this.anchorPk = null;
     container.classList.toggle('ms-active', this.active);
     this._updateToolbar();
     this._dispatch(container);
@@ -110,6 +163,7 @@ class MultiSelectController {
   _resetState() {
     this.selectedPks.clear();
     this.active = false;
+    this.anchorPk = null;
     const container = document.querySelector(this._containerSelector);
     if (container) {
       container.classList.remove('ms-active');
