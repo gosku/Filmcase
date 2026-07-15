@@ -1,0 +1,6 @@
+<div class="detail-rating" id="set-rating-picker">
+  <button type="button" class="detail-rating-clear" data-rating="0" title="Clear rating">&#x2715;</button>
+  {% for i in rating_range %}
+    <button type="button" class="detail-rating-star" data-rating="{{ i }}" title="Rate {{ i }}/{{ max_rating }}">&#x2605;</button>
+  {% endfor %}
+</div>

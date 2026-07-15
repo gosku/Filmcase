@@ -1,6 +1,7 @@
-import attrs
 import os
+from collections.abc import Sequence
 
+import attrs
 from django import conf
 from django.db import transaction
 
@@ -44,6 +45,36 @@ def set_image_rating(*, image: models.Image, rating: int) -> None:
         image_id=image.pk,
         rating=rating,
     )
+
+
+def set_images_rating(*, image_ids: Sequence[int], rating: int) -> int:
+    """
+    Set the rating of every image in *image_ids* to *rating* in a single bulk update.
+
+    Publishes one IMAGE_RATING_SET event per image that is actually updated;
+    ids that do not exist are skipped and get no event. Returns the number of
+    images updated.
+
+    Raises:
+        InvalidImageRatingError: If *rating* is negative or exceeds
+            settings.IMAGE_MAX_RATING.
+    """
+    if rating < 0 or rating > conf.settings.IMAGE_MAX_RATING:
+        raise InvalidImageRatingError(rating)
+
+    with transaction.atomic():
+        images = models.Image.objects.filter(pk__in=image_ids)
+        updated_ids = list(images.values_list("pk", flat=True))
+        images.update(rating=rating)
+
+    for image_id in updated_ids:
+        events.publish_event(
+            event_type=events.IMAGE_RATING_SET,
+            image_id=image_id,
+            rating=rating,
+        )
+
+    return len(updated_ids)
 
 
 def rate_image(*, image_path: str, rating: int) -> models.Image:

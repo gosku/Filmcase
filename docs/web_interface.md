@@ -58,6 +58,17 @@ A **Clear all filters** link at the top of the sidebar resets everything in one 
 You can also enable **Rating first** to sort the grid by rating (highest first), so your
 best-rated images always appear at the top.
 
+#### Bulk actions
+
+The gallery supports **multi-select mode** for acting on several images at once. Click any
+image card's checkbox (or click a card while another is already selected) to enter selection
+mode, then open the _Actions_ menu to choose what to do with the selection.
+
+- **Set rating** — a modal shows how many images are selected and the same star widget used
+  in the image detail view. Pick a rating (or the ✕ to clear it) and confirm to apply it to
+  every selected image at once. The gallery reloads when you close the modal so the updated
+  star counts appear on the cards.
+
 ---
 
 ### Image Detail

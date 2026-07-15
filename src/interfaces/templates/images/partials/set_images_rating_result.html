@@ -1,0 +1,24 @@
+{% if error %}
+<div class="remove-result remove-result--error" data-all-succeeded="false">
+  <p class="remove-result__message">{{ error }}</p>
+</div>
+
+{% else %}
+<div class="remove-result" data-all-succeeded="{{ all_succeeded|yesno:'true,false' }}">
+  {% if rated_count %}
+  <p class="remove-result__message remove-result__message--success">
+    {{ rated_count }} image{{ rated_count|pluralize }} rated.
+  </p>
+  {% endif %}
+
+  {% if not_found_count %}
+  <p class="remove-result__message remove-result__message--warning">
+    {{ not_found_count }} image{{ not_found_count|pluralize }} could not be found.
+  </p>
+  {% endif %}
+
+  {% if not rated_count and not not_found_count %}
+  <p class="remove-result__message">No images were rated.</p>
+  {% endif %}
+</div>
+{% endif %}

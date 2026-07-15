@@ -379,6 +379,148 @@
     #detail-overlay .detail-overlay {
       height: 100%;
     }
+
+    /* Multi-select action dropdown option */
+    .ms-actions-option {
+      display: block;
+      width: 100%;
+      padding: 0.65rem 1rem;
+      background: none;
+      border: none;
+      text-align: left;
+      font-size: 0.875rem;
+      color: #333;
+      cursor: pointer;
+    }
+    .ms-actions-option:hover { background: #f5f5f5; }
+
+    /* Set-rating modal (shared shell also used by the recipes explorer) */
+    .import-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.45);
+      z-index: 200;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .import-overlay[hidden] { display: none; }
+    .import-modal {
+      background: #fff;
+      border-radius: 10px;
+      padding: 2rem;
+      width: 480px;
+      max-width: calc(100vw - 2rem);
+      max-height: calc(100vh - 4rem);
+      overflow-y: auto;
+      position: relative;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+    }
+    .import-modal__close {
+      position: absolute;
+      top: 1rem;
+      right: 1rem;
+      background: none;
+      border: none;
+      font-size: 1.4rem;
+      color: #888;
+      cursor: pointer;
+      line-height: 1;
+      padding: 0.2rem 0.4rem;
+    }
+    .import-modal__close:hover { color: #333; }
+    .import-modal h2 {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: #222;
+      margin-bottom: 0.5rem;
+    }
+    .import-modal__desc {
+      font-size: 0.875rem;
+      color: #666;
+      margin-bottom: 1.5rem;
+      line-height: 1.5;
+    }
+    .delete-confirm__actions {
+      display: flex;
+      gap: 0.75rem;
+      justify-content: flex-end;
+      margin-top: 1.5rem;
+    }
+    .delete-confirm__no-btn {
+      padding: 0.5rem 1.25rem;
+      background: none;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+      font-size: 0.875rem;
+      font-weight: 600;
+      color: #555;
+      cursor: pointer;
+    }
+    .delete-confirm__no-btn:hover { background: #f0f0f0; }
+    .delete-confirm__yes-btn {
+      padding: 0.5rem 1.25rem;
+      background: var(--color-accent);
+      border: none;
+      border-radius: 5px;
+      font-size: 0.875rem;
+      font-weight: 600;
+      color: #fff;
+      cursor: pointer;
+    }
+    .delete-confirm__yes-btn:hover { background: var(--color-accent-dark); }
+    .delete-confirm__yes-btn:disabled { background: #ccc; cursor: not-allowed; }
+
+    .remove-result { margin-top: 1.25rem; }
+    .remove-result__message { font-size: 0.875rem; margin-bottom: 0.35rem; }
+    .remove-result__message--success { color: var(--color-accent); font-weight: 600; }
+    .remove-result__message--warning { color: #b36b2d; font-weight: 600; }
+    .remove-result--error .remove-result__message { color: #c0392b; }
+
+    /* Star picker inside the set-rating modal (light background variant) */
+    .set-rating-modal__picker {
+      display: flex;
+      justify-content: center;
+      margin: 0.5rem 0 0.5rem;
+    }
+    .set-rating-modal__picker .detail-rating {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.15rem;
+    }
+    .set-rating-modal__picker .detail-rating-star {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 2.4rem;
+      height: 2.4rem;
+      border-radius: 50%;
+      background: transparent;
+      color: #d0d0d0;
+      font-size: 1.6rem;
+      border: none;
+      cursor: pointer;
+      transition: color 0.15s;
+      line-height: 1;
+    }
+    .set-rating-modal__picker .detail-rating-star:hover,
+    .set-rating-modal__picker .detail-rating-star--active { color: #f5c518; }
+    .set-rating-modal__picker .detail-rating-clear {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 1.8rem;
+      height: 1.8rem;
+      border-radius: 50%;
+      background: transparent;
+      color: #c0c0c0;
+      font-size: 0.95rem;
+      border: none;
+      cursor: pointer;
+      margin-right: 0.15rem;
+      transition: color 0.15s;
+    }
+    .set-rating-modal__picker .detail-rating-clear:hover { color: #666; }
   </style>
 </head>
 <body>
@@ -419,7 +561,7 @@
           </svg>
         </button>
         <div class="ms-actions-dropdown" id="ms-actions-dropdown" hidden>
-          <span class="ms-actions-empty">No actions available yet</span>
+          <button class="ms-actions-option" id="ms-set-rating-btn" type="button">Set rating</button>
         </div>
       </div>
     </div>
@@ -466,6 +608,115 @@
 </script>
 
 <div id="detail-overlay" hidden></div>
+
+<!-- Set rating modal -->
+<div class="import-overlay" id="set-rating-overlay" hidden>
+  <div class="import-modal" role="dialog" aria-modal="true" aria-labelledby="set-rating-modal-title">
+    <button class="import-modal__close" id="close-set-rating-btn" aria-label="Close">&#x2715;</button>
+    <div id="set-rating-modal-body">
+      <h2 id="set-rating-modal-title">Set Rating</h2>
+      <p class="import-modal__desc">
+        Set the rating for these <strong id="set-rating-count">0</strong> images.
+      </p>
+      <form id="set-rating-form"
+            hx-post="{% url 'images-set-rating' %}"
+            hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+            hx-target="#set-rating-modal-body"
+            hx-swap="innerHTML">
+        <div id="set-rating-pks-container"></div>
+        <input type="hidden" name="rating" id="set-rating-value" value="0">
+        <div class="set-rating-modal__picker">
+          {% include "images/_rating_picker.html" %}
+        </div>
+        <div class="delete-confirm__actions">
+          <button type="button" class="delete-confirm__no-btn" id="set-rating-cancel-btn">Cancel</button>
+          <button type="submit" class="delete-confirm__yes-btn" id="set-rating-confirm-btn" disabled>Confirm</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+  (function () {
+    var overlay        = document.getElementById('set-rating-overlay');
+    var closeBtn       = document.getElementById('close-set-rating-btn');
+    var _allSucceeded  = false;
+
+    // Snapshot the confirm form once so we can restore it after a submission
+    // replaces the modal body with the result partial.
+    var _confirmHTML = document.getElementById('set-rating-modal-body').innerHTML;
+
+    function handleClose() {
+      overlay.hidden = true;
+      if (_allSucceeded) {
+        _allSucceeded = false;
+        location.reload();
+      }
+    }
+
+    // Wire the star picker: clicking a star (or the clear button) sets the
+    // pending rating, repaints the filled stars, and enables Confirm.
+    function wirePicker(body) {
+      var picker = body.querySelector('#set-rating-picker');
+      var valueInput = body.querySelector('#set-rating-value');
+      var confirmBtn = body.querySelector('#set-rating-confirm-btn');
+      if (!picker) return;
+      picker.addEventListener('click', function (e) {
+        var btn = e.target.closest('[data-rating]');
+        if (!btn) return;
+        var rating = parseInt(btn.getAttribute('data-rating'), 10);
+        valueInput.value = rating;
+        picker.querySelectorAll('.detail-rating-star').forEach(function (star) {
+          var starValue = parseInt(star.getAttribute('data-rating'), 10);
+          star.classList.toggle('detail-rating-star--active', rating >= starValue);
+        });
+        confirmBtn.disabled = false;
+      });
+    }
+
+    function openModal() {
+      _allSucceeded = false;
+
+      // Restore the confirm form (in case a previous submission replaced it).
+      var body = document.getElementById('set-rating-modal-body');
+      body.innerHTML = _confirmHTML;
+      htmx.process(body);
+      wirePicker(body);
+
+      var pks = imageMultiSelect.getSelectedPks();
+      document.getElementById('set-rating-count').textContent = pks.length;
+      var container = document.getElementById('set-rating-pks-container');
+      pks.forEach(function (pk) {
+        var input = document.createElement('input');
+        input.type  = 'hidden';
+        input.name  = 'image_ids';
+        input.value = pk;
+        container.appendChild(input);
+      });
+
+      overlay.hidden = false;
+      document.getElementById('ms-actions-dropdown').hidden = true;
+    }
+
+    document.getElementById('ms-set-rating-btn').addEventListener('click', openModal);
+    closeBtn.addEventListener('click', handleClose);
+
+    // Delegate Cancel button and backdrop clicks (Cancel is inside the modal
+    // body and gets replaced by HTMX after a submission).
+    overlay.addEventListener('click', function (e) {
+      if (e.target === overlay || e.target.closest('#set-rating-cancel-btn')) {
+        handleClose();
+      }
+    });
+
+    document.body.addEventListener('htmx:afterSwap', function (e) {
+      if (e.detail.target.id !== 'set-rating-modal-body') return;
+      var resultEl = e.detail.target.querySelector('[data-all-succeeded]');
+      _allSucceeded = !!(resultEl && resultEl.dataset.allSucceeded === 'true');
+    });
+  }());
+</script>
 
 <script>
   // Multi-select recipe dropdown with search and removable tags.
