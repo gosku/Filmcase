@@ -58,6 +58,14 @@ def load_space_mono(size: int, *, bold: bool = False) -> ImageFont.FreeTypeFont:
     return ImageFont.truetype(str(path), size)
 
 
+def line_height(font: ImageFont.FreeTypeFont) -> int:
+    """
+    Return the font's vertical line height in pixels (ascent + descent).
+    """
+    ascent, descent = font.getmetrics()
+    return ascent + descent
+
+
 def draw_tracked_text(
     draw: ImageDraw.ImageDraw,
     xy: tuple[float, float],
