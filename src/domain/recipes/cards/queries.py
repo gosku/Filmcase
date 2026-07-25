@@ -13,7 +13,6 @@ from src.domain.recipes import constants as recipe_constants
 from src.domain.recipes import normalization as recipe_normalization
 from src.domain.recipes import queries as recipe_queries
 from src.domain.recipes.cards import dataclasses as card_dataclasses
-from src.domain.recipes.cards import templates as card_templates
 
 
 @attrs.frozen
@@ -174,17 +173,18 @@ def get_recipe_as_json(*, recipe: models.FujifilmRecipe) -> str:
 def get_recipe_cover_lines(
     *,
     recipe: models.FujifilmRecipe,
-    template: card_templates.CardTemplate,
+    label_style: str,
 ) -> tuple[FieldLine, ...]:
     """
-    Return display lines for the recipe card formatted per template label style.
+    Return display lines for the recipe card formatted per *label_style*.
 
-    Inapplicable fields (same rules as get_recipe_as_json) and null values are
-    omitted. When the recipe has attached sensors, a "Sensors" line is
-    prepended to the body so card recipients can see compatibility at a
-    glance before reading the settings.
+    *label_style* is ``"long"`` (full labels, e.g. "White Balance") or anything
+    else for the short forms (e.g. "WB"). Inapplicable fields (same rules as
+    get_recipe_as_json) and null values are omitted. When the recipe has attached
+    sensors, a "Sensors" line is prepended to the body so card recipients can see
+    compatibility at a glance before reading the settings.
     """
-    labels = _LONG_LABELS if template.label_style == "long" else _SHORT_LABELS
+    labels = _LONG_LABELS if label_style == "long" else _SHORT_LABELS
     lines: list[FieldLine] = []
     sensor_names = sorted(recipe.sensors.values_list("name", flat=True))
     if sensor_names:

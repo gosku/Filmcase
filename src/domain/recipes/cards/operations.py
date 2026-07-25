@@ -64,7 +64,7 @@ def _compose_card(
     draw = ImageDraw.Draw(canvas)
     label_font = rendering.load_font(_FONT_SIZE)
     value_font = rendering.load_font(_FONT_SIZE)
-    lines = card_queries.get_recipe_cover_lines(recipe=recipe, template=template)
+    lines = card_queries.get_recipe_cover_lines(recipe=recipe, label_style=template.label_style)
     x = panel_x + _TEXT_PADDING
     y = _TEXT_PADDING
     if recipe.name:
