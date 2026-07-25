@@ -837,21 +837,21 @@ class RecipeCardDesignOptions(generic.View):
 
 class RecipeCardPreview(generic.View):
     """
-    Generate and display a preview of a recipe card.
+    Return the preview <img> for the current options.
+
+    The card is not composed here: the <img> points at RecipeCardPreviewFile,
+    which renders it lazily when the browser loads it. This keeps the card
+    composed once per change rather than twice (pane + file).
     """
 
     def get(self, request: http.HttpRequest, recipe_id: int) -> http.HttpResponse:
         image_id_raw = request.GET.get("image_id")
         image_id = int(image_id_raw) if image_id_raw else None
-        design = _resolve_design(request.GET)
-        try:
-            preview_path = preview_recipe_card_uc.preview_recipe_card(
-                recipe_id=recipe_id,
-                image_id=image_id,
-                design=design,
-            )
-        except Exception:
-            structlog.get_logger().exception("Unexpected error generating recipe card preview")
+        # Cheap existence checks so a bad recipe/image shows a friendly message
+        # instead of a broken image; the expensive render happens in the file view.
+        recipe_missing = not models.FujifilmRecipe.objects.filter(pk=recipe_id).exists()
+        image_missing = image_id is not None and not models.Image.objects.filter(pk=image_id).exists()
+        if recipe_missing or image_missing:
             return shortcuts.render(
                 request,
                 "recipes/partials/recipe_card_result.html",
@@ -861,7 +861,7 @@ class RecipeCardPreview(generic.View):
             request,
             "recipes/partials/recipe_card_result.html",
             {
-                "preview_path": str(preview_path),
+                "preview": True,
                 "recipe_id": recipe_id,
                 "image_id": image_id,
                 "design": request.GET.get("design", _DEFAULT_CARD_DESIGN),
