@@ -63,6 +63,21 @@ class TestRecipeCardModalView:
         assert pane is not None
         assert pane.get("hx-get") == f"/recipes/{recipe.pk}/card/partial/preview/"
 
+    def test_renders_a_tab_per_design(self, client):
+        recipe = FujifilmRecipeFactory()
+        response = client.get(f"/recipes/{recipe.pk}/card/partial/modal/")
+        soup = BeautifulSoup(response.content, "html.parser")
+        designs = {tab["data-design"] for tab in soup.find_all(class_="card-design-tab")}
+        assert designs == {"classic", "aperture", "contact_sheet"}
+
+    def test_defaults_to_the_classic_design(self, client):
+        recipe = FujifilmRecipeFactory()
+        response = client.get(f"/recipes/{recipe.pk}/card/partial/modal/")
+        soup = BeautifulSoup(response.content, "html.parser")
+        assert soup.find("input", {"id": "card-design-input"}).get("value") == "classic"
+        # The classic options are rendered inline on open.
+        assert soup.find("input", {"name": "label_style"}) is not None
+
 
 @pytest.mark.django_db
 class TestCreateRecipeCardButtonInRecipeDetail:

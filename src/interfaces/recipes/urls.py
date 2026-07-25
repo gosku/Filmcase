@@ -23,6 +23,7 @@ urlpatterns = [
     path("recipes/<int:recipe_id>/set-name/", views.SetRecipeName.as_view(), name="set-recipe-name"),
     path("recipes/<int:recipe_id>/set-cover-image/<int:image_id>/", views.SetRecipeCoverImage.as_view(), name="set-recipe-cover-image"),
     path("recipes/<int:recipe_id>/card/partial/modal/", views.RecipeCardModal.as_view(), name="recipe-card-modal"),
+    path("recipes/card/partial/design-options/", views.RecipeCardDesignOptions.as_view(), name="recipe-card-design-options"),
     path("recipes/<int:recipe_id>/card/partial/preview/", views.RecipeCardPreview.as_view(), name="recipe-card-preview"),
     path("recipes/<int:recipe_id>/card/preview/file/", views.RecipeCardPreviewFile.as_view(), name="recipe-card-preview-file"),
     path("recipes/<int:recipe_id>/card/partial/create/", views.CreateRecipeCard.as_view(), name="create-recipe-card"),

@@ -62,6 +62,6 @@
   {% endif %}
 {% elif preview_path %}
   <img class="card-result-image"
-       src="{% url 'recipe-card-preview-file' recipe_id=recipe_id %}?image_id={{ image_id|default:'' }}&label_style={{ label_style }}&bg_effect={{ bg_effect }}&info_side={{ info_side }}"
+       src="{% url 'recipe-card-preview-file' recipe_id=recipe_id %}?image_id={{ image_id|default:'' }}&design={{ design }}&label_style={{ label_style }}&bg_effect={{ bg_effect }}&info_side={{ info_side }}"
        alt="Recipe card preview">
 {% endif %}

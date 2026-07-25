@@ -245,6 +245,50 @@
     color: #bbb;
     font-size: 0.85rem;
   }
+
+  .card-design-tabs {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .card-design-tab {
+    flex: 1;
+    padding: 0.6rem 0.75rem;
+    border: 2px solid #e0e0e0;
+    border-radius: 8px;
+    background: #fff;
+    color: #555;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s, color 0.15s;
+  }
+
+  .card-design-tab:hover { border-color: #ccc; }
+
+  .card-design-tab.active {
+    border-color: var(--color-accent);
+    background: var(--color-accent-light);
+    color: var(--color-accent);
+  }
+
+  .card-design-note {
+    padding: 0.25rem 0 1rem;
+  }
+
+  .card-design-note-title {
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: #222;
+    margin-bottom: 0.35rem;
+  }
+
+  .card-design-note-text {
+    font-size: 0.8rem;
+    line-height: 1.5;
+    color: #777;
+  }
 </style>
 
 <div class="card-modal">
@@ -259,7 +303,7 @@
       {% if images %}
         <p class="card-section-label">Background image (optional)</p>
         <div class="card-image-gallery">
-          <div class="card-no-image-option">
+          <div class="card-no-image-option" id="card-gradient-option">
             <input type="radio" name="image_id" id="card-no-image" value="" checked>
             <label for="card-no-image">Gradient<br>background</label>
           </div>
@@ -274,69 +318,21 @@
         </div>
       {% endif %}
 
-      <div class="card-option-row">
-        <div class="card-option-group">
-          <p class="card-section-label">Label style</p>
-          <div class="card-template-options">
-            <div class="card-template-option">
-              <input type="radio" name="label_style" id="card-lbl-long" value="long" checked>
-              <label for="card-lbl-long">
-                <p class="card-template-name">Full labels</p>
-                <p class="card-template-desc">White Balance, Highlights…</p>
-              </label>
-            </div>
-            <div class="card-template-option">
-              <input type="radio" name="label_style" id="card-lbl-short" value="short">
-              <label for="card-lbl-short">
-                <p class="card-template-name">Short labels</p>
-                <p class="card-template-desc">WB, HL, SH…</p>
-              </label>
-            </div>
-          </div>
-        </div>
-
-        <div class="card-option-group">
-          <p class="card-section-label">Background effect</p>
-          <div class="card-template-options">
-            <div class="card-template-option">
-              <input type="radio" name="bg_effect" id="card-bg-blur" value="blur" checked>
-              <label for="card-bg-blur">
-                <p class="card-template-name">Blur</p>
-                <p class="card-template-desc">Softens the background photo</p>
-              </label>
-            </div>
-            <div class="card-template-option">
-              <input type="radio" name="bg_effect" id="card-bg-sharp" value="sharp">
-              <label for="card-bg-sharp">
-                <p class="card-template-name">Sharp</p>
-                <p class="card-template-desc">Original photo, no blur</p>
-              </label>
-            </div>
-          </div>
-        </div>
+      <p class="card-section-label">Design</p>
+      <div class="card-design-tabs"
+           data-options-url="{% url 'recipe-card-design-options' %}">
+        <button type="button" class="card-design-tab active" data-design="classic"
+                onclick="selectCardDesign('classic')">Classic</button>
+        <button type="button" class="card-design-tab" data-design="aperture"
+                onclick="selectCardDesign('aperture')">Aperture</button>
+        <button type="button" class="card-design-tab" data-design="contact_sheet"
+                onclick="selectCardDesign('contact_sheet')">Contact Sheet</button>
       </div>
 
-      <div class="card-option-row">
-        <div class="card-option-group">
-          <p class="card-section-label">Card layout</p>
-          <div class="card-template-options">
-            <div class="card-template-option">
-              <input type="radio" name="info_side" id="card-side-left" value="left" checked>
-              <label for="card-side-left">
-                <p class="card-template-name">Info left</p>
-                <p class="card-template-desc">QR code on the right</p>
-              </label>
-            </div>
-            <div class="card-template-option">
-              <input type="radio" name="info_side" id="card-side-right" value="right">
-              <label for="card-side-right">
-                <p class="card-template-name">Info right</p>
-                <p class="card-template-desc">QR code on the left</p>
-              </label>
-            </div>
-          </div>
-        </div>
-        <div class="card-option-group" aria-hidden="true"></div>
+      <input type="hidden" name="design" id="card-design-input" value="classic">
+
+      <div id="card-design-options">
+        {% include "recipes/partials/card_design_options/classic.html" %}
       </div>
 
       <button type="button"
@@ -362,3 +358,53 @@
     </div>
   </div>
 </div>
+
+<script>
+(function () {
+  function optionsUrl(design) {
+    var tabs = document.querySelector('.card-design-tabs');
+    return tabs.dataset.optionsUrl + '?design=' + encodeURIComponent(design);
+  }
+
+  // Photo-centric designs cannot use the gradient background: hide that option
+  // and make sure a real image is selected when one of them is active.
+  function updateGradientVisibility() {
+    var form = document.getElementById('card-create-form');
+    var requiresImage = form.dataset.requiresImage === 'true';
+    var gradient = document.getElementById('card-gradient-option');
+    if (!gradient) { return; }
+    gradient.style.display = requiresImage ? 'none' : '';
+    if (requiresImage) {
+      var gradientRadio = gradient.querySelector('input[type=radio]');
+      if (gradientRadio && gradientRadio.checked) {
+        var firstImage = form.querySelector('.card-image-option input[type=radio]');
+        if (firstImage) { firstImage.checked = true; }
+      }
+    }
+  }
+
+  window.selectCardDesign = function (design) {
+    document.querySelectorAll('.card-design-tab').forEach(function (tab) {
+      tab.classList.toggle('active', tab.dataset.design === design);
+    });
+    document.getElementById('card-design-input').value = design;
+    var form = document.getElementById('card-create-form');
+    form.dataset.requiresImage = (design === 'classic') ? 'false' : 'true';
+    updateGradientVisibility();
+    // Load this design's options, then nudge the live preview to refresh (the
+    // preview pane listens for a change bubbling from the form).
+    var refresh = function () {
+      form.dispatchEvent(new Event('change', { bubbles: true }));
+    };
+    var request = window.htmx.ajax('GET', optionsUrl(design), {
+      target: '#card-design-options',
+      swap: 'innerHTML',
+    });
+    if (request && typeof request.then === 'function') {
+      request.then(refresh);
+    } else {
+      setTimeout(refresh, 120);
+    }
+  };
+})();
+</script>
