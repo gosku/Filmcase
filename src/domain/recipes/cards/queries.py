@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Sequence
 
 import attrs
 import piexif  # type: ignore[import-untyped]
@@ -121,15 +122,28 @@ _DRP_CONTROLLED_FIELDS: frozenset[str] = frozenset({
 })
 
 
+def is_monochromatic(recipe: models.FujifilmRecipe) -> bool:
+    """
+    Return True when the recipe's film simulation is a black-and-white one.
+    """
+    return recipe.film_simulation in recipe_constants.MONOCHROMATIC_FILM_SIMULATIONS
+
+
+def get_sensor_names(recipe: models.FujifilmRecipe) -> tuple[str, ...]:
+    """
+    Return the recipe's sensor names, sorted, for display on a card.
+    """
+    return tuple(sorted(recipe.sensors.values_list("name", flat=True)))
+
+
 def _is_applicable(recipe: models.FujifilmRecipe, field: str) -> bool:
     """
     Return False when a field is semantically inapplicable for this recipe.
     """
-    is_monochromatic = recipe.film_simulation in recipe_constants.MONOCHROMATIC_FILM_SIMULATIONS
     drp_active = recipe.d_range_priority != "Off"
-    if field in _COLOR_ONLY_FIELDS and is_monochromatic:
+    if field in _COLOR_ONLY_FIELDS and is_monochromatic(recipe):
         return False
-    if field in _MONOCHROME_ONLY_FIELDS and not is_monochromatic:
+    if field in _MONOCHROME_ONLY_FIELDS and not is_monochromatic(recipe):
         return False
     if field == _GRAIN_SIZE_FIELD and recipe.grain_roughness == "Off":
         return False
@@ -170,6 +184,32 @@ def get_recipe_as_json(*, recipe: models.FujifilmRecipe) -> str:
     return json.dumps(payload, separators=(",", ":"))
 
 
+def get_recipe_field_lines(
+    *,
+    recipe: models.FujifilmRecipe,
+    fields: Sequence[str],
+    label_style: str = "long",
+) -> tuple[FieldLine, ...]:
+    """
+    Return FieldLines for *fields*, in order, formatted per *label_style*.
+
+    Skips fields that are semantically inapplicable to the recipe (same rules as
+    get_recipe_as_json) or whose value is None. This is the shared building block
+    for card designs that choose their own field subset and order; it does not
+    prepend a Sensors line (designs that want sensors add them explicitly).
+    """
+    labels = _LONG_LABELS if label_style == "long" else _SHORT_LABELS
+    lines: list[FieldLine] = []
+    for field in fields:
+        if not _is_applicable(recipe, field):
+            continue
+        raw = _get_raw_value(recipe, field)
+        if raw is None:
+            continue
+        lines.append(FieldLine(label=labels[field], value=_format_value(field, raw)))
+    return tuple(lines)
+
+
 def get_recipe_cover_lines(
     *,
     recipe: models.FujifilmRecipe,
@@ -191,14 +231,7 @@ def get_recipe_cover_lines(
         lines.append(
             FieldLine(label=labels["sensors"], value=", ".join(sensor_names))
         )
-    for field in _DISPLAY_FIELDS:
-        if not _is_applicable(recipe, field):
-            continue
-        raw = _get_raw_value(recipe, field)
-        if raw is None:
-            continue
-        value = _format_value(field, raw)
-        lines.append(FieldLine(label=labels[field], value=value))
+    lines.extend(get_recipe_field_lines(recipe=recipe, fields=_DISPLAY_FIELDS, label_style=label_style))
     return tuple(lines)
 
 
