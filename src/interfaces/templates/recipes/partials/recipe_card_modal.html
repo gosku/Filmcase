@@ -311,7 +311,7 @@
             <div class="card-image-option">
               <input type="radio" name="image_id" id="card-img-{{ img.pk }}" value="{{ img.pk }}">
               <label for="card-img-{{ img.pk }}">
-                <img src="{% url 'image-file' image_id=img.pk %}?w=160" alt="">
+                <img src="{% url 'image-file' image_id=img.pk %}?width=600" alt="" loading="lazy">
               </label>
             </div>
           {% endfor %}
