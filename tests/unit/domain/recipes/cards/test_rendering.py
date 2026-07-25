@@ -1,6 +1,7 @@
 from pathlib import Path
 
 from PIL import Image as PILImage
+from PIL import ImageDraw, ImageFont
 
 from src.domain.recipes.cards import queries as card_queries
 from src.domain.recipes.cards import rendering
@@ -52,3 +53,76 @@ class TestEmbedRecipeExif:
         rendering.embed_recipe_exif(filepath=filepath, json_str=json_str)
 
         assert card_queries._read_exif_recipe(image_path=str(filepath)) == json_str
+
+
+class TestFontLoaders:
+    def test_archivo_loads_as_a_truetype_font(self) -> None:
+        font = rendering.load_archivo(52, weight=800)
+
+        assert isinstance(font, ImageFont.FreeTypeFont)
+
+    def test_archivo_weight_changes_glyph_width(self) -> None:
+        # A heavier weight renders wider glyphs, so the same text is wider.
+        thin = rendering.load_archivo(52, weight=100)
+        black = rendering.load_archivo(52, weight=900)
+        draw = ImageDraw.Draw(PILImage.new("RGB", (10, 10)))
+
+        assert draw.textlength("filmcase", font=black) > draw.textlength("filmcase", font=thin)
+
+    def test_space_mono_bold_and_regular_both_load(self) -> None:
+        assert isinstance(rendering.load_space_mono(24), ImageFont.FreeTypeFont)
+        assert isinstance(rendering.load_space_mono(24, bold=True), ImageFont.FreeTypeFont)
+
+
+class TestDrawTrackedText:
+    def test_positive_tracking_widens_the_run(self) -> None:
+        font = rendering.load_space_mono(24)
+        draw = ImageDraw.Draw(PILImage.new("RGB", (400, 60)))
+
+        untracked_end = rendering.draw_tracked_text(
+            draw, (0, 0), "ABCDE", font=font, fill=(255, 255, 255), tracking=0,
+        )
+        tracked_end = rendering.draw_tracked_text(
+            draw, (0, 0), "ABCDE", font=font, fill=(255, 255, 255), tracking=5,
+        )
+
+        assert tracked_end > untracked_end
+
+
+class TestFilmcaseWordmark:
+    def test_advances_past_the_start(self) -> None:
+        font = rendering.load_archivo(27, weight=900)
+        draw = ImageDraw.Draw(PILImage.new("RGB", (400, 60)))
+
+        end = rendering.draw_filmcase_wordmark(
+            draw, (10, 0), font=font, film_color=(239, 68, 68), case_color=(17, 24, 39),
+        )
+
+        assert end > 10
+
+
+class TestRoundedCorners:
+    def test_rounded_mask_clears_corners_and_fills_centre(self) -> None:
+        mask = rendering.rounded_mask((100, 100), radius=30)
+
+        assert mask.getpixel((0, 0)) == 0
+        assert mask.getpixel((50, 50)) == 255
+
+    def test_round_corners_makes_corner_transparent(self) -> None:
+        img = PILImage.new("RGB", (100, 100), (10, 20, 30))
+
+        rounded = rendering.round_corners(img, radius=30)
+
+        assert rounded.mode == "RGBA"
+        assert rounded.getpixel((0, 0))[3] == 0
+        assert rounded.getpixel((50, 50))[3] == 255
+
+    def test_paste_rounded_composites_onto_canvas(self) -> None:
+        canvas = PILImage.new("RGBA", (200, 200), (0, 0, 0, 255))
+        patch = PILImage.new("RGB", (100, 100), (255, 0, 0))
+
+        rendering.paste_rounded(canvas, patch, (50, 50), radius=20)
+
+        # Centre of the pasted patch is red; a canvas corner is untouched black.
+        assert canvas.getpixel((100, 100))[:3] == (255, 0, 0)
+        assert canvas.getpixel((0, 0))[:3] == (0, 0, 0)
