@@ -43,3 +43,16 @@ class TestRecipeCardPreview:
         soup = BeautifulSoup(response.content, "html.parser")
         img = soup.find("img", class_="card-result-image")
         assert "label_style=long" in img["src"]
+
+    def test_preview_image_src_is_cache_busted_per_request(self, client):
+        recipe = FujifilmRecipeFactory()
+
+        def _src() -> str:
+            response = client.get(f"/recipes/{recipe.pk}/card/partial/preview/")
+            soup = BeautifulSoup(response.content, "html.parser")
+            return soup.find("img", class_="card-result-image")["src"]
+
+        first, second = _src(), _src()
+        assert "&_=" in first
+        # Same options, but the cache-buster differs so the browser refetches.
+        assert first != second

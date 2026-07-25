@@ -15,6 +15,11 @@ class TestRecipeCardPreviewFile:
         response = client.get(f"/recipes/{recipe.pk}/card/preview/file/")
         assert response["Content-Type"] == "image/jpeg"
 
+    def test_is_not_cached(self, client):
+        recipe = FujifilmRecipeFactory()
+        response = client.get(f"/recipes/{recipe.pk}/card/preview/file/")
+        assert response["Cache-Control"] == "no-store"
+
     def test_returns_404_for_missing_recipe(self, client):
         response = client.get("/recipes/99999/card/preview/file/")
         assert response.status_code == 404

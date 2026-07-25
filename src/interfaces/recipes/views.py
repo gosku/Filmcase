@@ -1,6 +1,7 @@
 import json
 import re
 import tempfile
+import uuid
 from pathlib import Path
 from urllib.parse import urlencode
 import attrs as _attrs
@@ -867,6 +868,9 @@ class RecipeCardPreview(generic.View):
                 "label_style": request.GET.get("label_style", "long"),
                 "bg_effect": request.GET.get("bg_effect", "blur"),
                 "info_side": request.GET.get("info_side", "left"),
+                # Cache-buster so the browser always refetches the preview image
+                # even when the option URL is unchanged (e.g. after an env tweak).
+                "cache_bust": uuid.uuid4().hex,
             },
         )
 
@@ -891,7 +895,11 @@ class RecipeCardPreviewFile(generic.View):
         except Exception:
             structlog.get_logger().exception("Unexpected error generating recipe card preview file")
             raise http.Http404
-        return http.FileResponse(preview_path.open("rb"), content_type="image/jpeg")
+        response = http.FileResponse(preview_path.open("rb"), content_type="image/jpeg")
+        # A live preview must never be cached: options and server-side settings
+        # can change the image while the URL stays the same.
+        response["Cache-Control"] = "no-store"
+        return response
 
 
 class CreateRecipeCard(generic.View):
