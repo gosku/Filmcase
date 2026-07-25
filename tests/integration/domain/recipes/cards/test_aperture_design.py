@@ -2,6 +2,7 @@ from pathlib import Path
 
 import pytest
 from PIL import Image as PILImage
+from PIL import ImageStat
 
 from src.domain.recipes.cards import queries as card_queries
 from src.domain.recipes.cards.designs import aperture
@@ -62,3 +63,18 @@ class TestApertureDesignRender:
 
         assert rendered.canvas.size == (1080, 1920)
         assert rendered.embed_exif is True
+
+    def test_bottom_scrim_opacity_is_configurable(self, tmp_path: Path, settings: object) -> None:
+        recipe = FujifilmRecipeFactory(film_simulation="Classic Chrome")
+        photo = _photo(tmp_path)
+        # A bottom-corner strip shows the background scrim directly (no panels).
+        corner = (0, 1800, 90, 1880)
+
+        settings.RECIPE_CARD_APERTURE_SCRIM_BOTTOM_OPACITY = 80  # type: ignore[attr-defined]
+        dark = aperture.ApertureDesign().render(recipe=recipe, background_image=photo).canvas.crop(corner)
+        settings.RECIPE_CARD_APERTURE_SCRIM_BOTTOM_OPACITY = 10  # type: ignore[attr-defined]
+        light = aperture.ApertureDesign().render(recipe=recipe, background_image=photo).canvas.crop(corner)
+
+        dark_brightness = ImageStat.Stat(dark.convert("L")).mean[0]
+        light_brightness = ImageStat.Stat(light.convert("L")).mean[0]
+        assert light_brightness > dark_brightness

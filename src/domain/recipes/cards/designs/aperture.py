@@ -6,6 +6,8 @@ import attrs
 from PIL import Image as PILImage
 from PIL import ImageDraw, ImageEnhance, ImageFilter, ImageFont
 
+from django import conf
+
 from src.data import models
 from src.domain.recipes.cards import queries as card_queries
 from src.domain.recipes.cards import rendering
@@ -22,12 +24,15 @@ _MINUS = "−"
 
 # Background: blurred, lightly darkened but saturation-boosted photo with a
 # top->bottom black scrim (matches the design's blur/brightness/saturate).
+# The scrim's top/bottom opacity is configurable via settings (percentages).
 _BG_BLUR = 64
 _BG_BRIGHTNESS = 0.78
 _BG_SATURATION = 1.25
 _SCRIM_COLOR = (10, 11, 15)
-_SCRIM_ALPHA_TOP = int(0.30 * 255)
-_SCRIM_ALPHA_BOTTOM = int(0.80 * 255)
+
+
+def _scrim_alpha(percent: int) -> int:
+    return round(max(0, min(100, percent)) / 100 * 255)
 
 _WHITE = (255, 255, 255)
 _EYEBROW_COLOR = (170, 174, 182)
@@ -224,7 +229,12 @@ class ApertureDesign(base.CardDesign):
             saturated = ImageEnhance.Color(blurred).enhance(_BG_SATURATION)
             darkened = ImageEnhance.Brightness(saturated).enhance(_BG_BRIGHTNESS)
             base_img = darkened.convert("RGBA")
-        scrim = _vertical_scrim((width, height), _SCRIM_COLOR, _SCRIM_ALPHA_TOP, _SCRIM_ALPHA_BOTTOM)
+        scrim = _vertical_scrim(
+            (width, height),
+            _SCRIM_COLOR,
+            _scrim_alpha(conf.settings.RECIPE_CARD_APERTURE_SCRIM_TOP_OPACITY),
+            _scrim_alpha(conf.settings.RECIPE_CARD_APERTURE_SCRIM_BOTTOM_OPACITY),
+        )
         base_img.alpha_composite(scrim)
         return base_img
 
