@@ -4,8 +4,11 @@ import pytest
 
 from src.application.usecases.recipes import preview_recipe_card as uc
 from src.data import models
-from src.domain.recipes.cards import templates as card_templates
+from src.domain.recipes.cards.designs import classic as classic_design
 from tests.factories import FujifilmRecipeFactory
+
+_CLASSIC = classic_design.ClassicDesign()
+_CLASSIC_SHORT = classic_design.ClassicDesign(label_style="short")
 
 
 @pytest.mark.django_db
@@ -16,7 +19,7 @@ class TestPreviewRecipeCard:
         result = uc.preview_recipe_card(
             recipe_id=recipe.pk,
             image_id=None,
-            template=card_templates.LONG_LABEL,
+            design=_CLASSIC,
         )
 
         assert isinstance(result, Path)
@@ -27,7 +30,7 @@ class TestPreviewRecipeCard:
             uc.preview_recipe_card(
                 recipe_id=999999,
                 image_id=None,
-                template=card_templates.LONG_LABEL,
+                design=_CLASSIC,
             )
 
     def test_raises_if_image_does_not_exist(self) -> None:
@@ -37,7 +40,7 @@ class TestPreviewRecipeCard:
             uc.preview_recipe_card(
                 recipe_id=recipe.pk,
                 image_id=999999,
-                template=card_templates.LONG_LABEL,
+                design=_CLASSIC,
             )
 
     def test_output_path_is_deterministic(self) -> None:
@@ -46,35 +49,36 @@ class TestPreviewRecipeCard:
         path1 = uc.preview_recipe_card(
             recipe_id=recipe.pk,
             image_id=None,
-            template=card_templates.LONG_LABEL,
+            design=_CLASSIC,
         )
         path2 = uc.preview_recipe_card(
             recipe_id=recipe.pk,
             image_id=None,
-            template=card_templates.LONG_LABEL,
+            design=_CLASSIC,
         )
 
         assert path1 == path2
 
-    def test_different_info_side_produces_different_paths(self) -> None:
+    def test_info_side_reuses_the_same_deterministic_path(self) -> None:
+        # info_side is a ClassicDesign option but is not part of the persisted
+        # template name, so both sides share one preview file. The file is
+        # regenerated on every request, so this overwrite is intentional and
+        # keeps previews from accumulating.
         recipe = FujifilmRecipeFactory()
 
         path_left = uc.preview_recipe_card(
             recipe_id=recipe.pk,
             image_id=None,
-            template=card_templates.LONG_LABEL,
-            info_side="left",
+            design=classic_design.ClassicDesign(info_side="left"),
         )
         path_right = uc.preview_recipe_card(
             recipe_id=recipe.pk,
             image_id=None,
-            template=card_templates.LONG_LABEL,
-            info_side="right",
+            design=classic_design.ClassicDesign(info_side="right"),
         )
 
-        assert path_left != path_right
+        assert path_left == path_right
         assert path_left.exists()
-        assert path_right.exists()
 
     def test_different_templates_produce_different_paths(self) -> None:
         recipe = FujifilmRecipeFactory()
@@ -82,12 +86,12 @@ class TestPreviewRecipeCard:
         path_long = uc.preview_recipe_card(
             recipe_id=recipe.pk,
             image_id=None,
-            template=card_templates.LONG_LABEL,
+            design=_CLASSIC,
         )
         path_short = uc.preview_recipe_card(
             recipe_id=recipe.pk,
             image_id=None,
-            template=card_templates.SHORT_LABEL,
+            design=_CLASSIC_SHORT,
         )
 
         assert path_long != path_short

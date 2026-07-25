@@ -9,11 +9,12 @@ import attrs
 from src.application.usecases.recipes import create_recipe_card as create_recipe_card_uc
 from src.data import models
 from src.domain.recipes.cards import operations as card_operations
-from src.domain.recipes.cards import templates as card_templates
+from src.domain.recipes.cards.designs import classic as classic_design
 
-# Every batch card uses long labels on a generated gradient (no background
-# image), matching the agreed fixed template for bulk creation.
-_BATCH_TEMPLATE = card_templates.LONG_LABEL
+# Every batch card uses the classic design with long labels on a generated
+# gradient (no background image), matching the agreed fixed look for bulk
+# creation.
+_BATCH_DESIGN = classic_design.ClassicDesign(label_style="long", background_effect="blur")
 
 
 class CreateRecipeCardFailureReason(enum.StrEnum):
@@ -58,7 +59,7 @@ def create_recipe_cards_batch(
             card = create_recipe_card_uc.create_recipe_card(
                 recipe_id=recipe_id,
                 image_id=None,
-                template=_BATCH_TEMPLATE,
+                design=_BATCH_DESIGN,
             )
             created.append(card)
         except models.FujifilmRecipe.DoesNotExist:

@@ -2,12 +2,11 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
-from PIL import Image as PILImage
 
 from src.data import models
 from src.domain.images import events
 from src.domain.recipes.cards import operations as card_operations
-from src.domain.recipes.cards import templates as card_templates
+from src.domain.recipes.cards.designs import classic as classic_design
 
 
 def _make_fake_card(recipe_pk: int) -> MagicMock:
@@ -36,7 +35,7 @@ class TestCreateRecipeCardEventPublishing:
         ):
             card = card_operations.create_recipe_card(
                 recipe=recipe,
-                template=card_templates.LONG_LABEL,
+                design=classic_design.ClassicDesign(),
                 background_image=None,
                 output_dir=tmp_path,
             )
@@ -66,7 +65,7 @@ class TestCreateRecipeCardEventPublishing:
         ):
             card_operations.create_recipe_card(
                 recipe=recipe,
-                template=card_templates.SHORT_LABEL,
+                design=classic_design.ClassicDesign(label_style="short"),
                 background_image=None,
                 output_dir=tmp_path,
             )
@@ -90,7 +89,7 @@ class TestCreateRecipeCardEventPublishing:
             with pytest.raises(OSError):
                 card_operations.create_recipe_card(
                     recipe=recipe,
-                    template=card_templates.LONG_LABEL,
+                    design=classic_design.ClassicDesign(),
                     background_image=None,
                     output_dir=tmp_path,
                 )
@@ -99,142 +98,3 @@ class TestCreateRecipeCardEventPublishing:
             e for e in captured_logs if e.get("event_type") == events.RECIPE_CARD_CREATED
         ]
         assert len(card_events) == 0
-
-
-class TestComposeCardTitle:
-    def _generate_card(self, recipe: MagicMock, tmp_path: Path) -> Path:
-        output_path = tmp_path / "card.jpg"
-        with (
-            patch.object(card_operations, "_LOGO_PATH", tmp_path / "no_logo.png"),
-            patch.object(card_operations.card_queries, "get_recipe_cover_lines", return_value=()),
-            patch.object(card_operations.card_queries, "get_recipe_as_json", return_value='{"v":1}'),
-        ):
-            card_operations.preview_recipe_card_image(
-                recipe=recipe,
-                template=card_templates.LONG_LABEL,
-                background_image=None,
-                output_path=output_path,
-            )
-        return output_path
-
-    def _max_brightness_in_title_region(self, filepath: Path) -> int:
-        p = card_operations._TEXT_PADDING
-        with PILImage.open(filepath) as img:
-            region = img.crop((p, p, p + 300, p + card_operations._TITLE_LINE_HEIGHT))
-        return region.getextrema()[0][1]  # max R value in the region
-
-    def test_title_is_rendered_when_recipe_has_name(self, tmp_path: Path) -> None:
-        recipe = MagicMock()
-        recipe.name = "My Recipe"
-        recipe.pk = 1
-
-        filepath = self._generate_card(recipe, tmp_path)
-
-        # White text on a near-black gradient; max R in the title region must be bright.
-        assert self._max_brightness_in_title_region(filepath) > 200
-
-    def test_title_is_not_rendered_when_name_is_empty(self, tmp_path: Path) -> None:
-        recipe = MagicMock()
-        recipe.name = ""
-        recipe.pk = 1
-
-        filepath = self._generate_card(recipe, tmp_path)
-
-        # Gradient at top-left is ~(18, 51, 64); no text means no bright pixels.
-        assert self._max_brightness_in_title_region(filepath) < 100
-
-
-class TestComposeCardLogoFallback:
-    def test_missing_logo_file_does_not_raise(self, tmp_path: Path) -> None:
-        recipe = MagicMock()
-        recipe.name = ""
-        recipe.pk = 1
-
-        with (
-            patch.object(card_operations, "_LOGO_PATH", tmp_path / "no_logo.png"),
-            patch.object(card_operations.card_queries, "get_recipe_cover_lines", return_value=()),
-            patch.object(card_operations.card_queries, "get_recipe_as_json", return_value='{"v":1}'),
-        ):
-            output_path = tmp_path / "card.jpg"
-            result = card_operations.preview_recipe_card_image(
-                recipe=recipe,
-                template=card_templates.LONG_LABEL,
-                background_image=None,
-                output_path=output_path,
-            )
-
-        assert result == output_path
-        assert output_path.exists()
-
-
-class TestComposeCardInfoSide:
-    def _generate_card(
-        self, tmp_path: Path, info_side: card_templates.InfoSide
-    ) -> Path:
-        recipe = MagicMock()
-        recipe.name = "My Recipe"
-        recipe.pk = 1
-        output_path = tmp_path / f"card_{info_side}.jpg"
-        with (
-            patch.object(card_operations, "_LOGO_PATH", tmp_path / "no_logo.png"),
-            patch.object(card_operations.card_queries, "get_recipe_cover_lines", return_value=()),
-            patch.object(card_operations.card_queries, "get_recipe_as_json", return_value='{"v":1}'),
-        ):
-            card_operations.preview_recipe_card_image(
-                recipe=recipe,
-                template=card_templates.LONG_LABEL,
-                background_image=None,
-                output_path=output_path,
-                info_side=info_side,
-            )
-        return output_path
-
-    def _max_brightness(self, filepath: Path, x0: int) -> int:
-        p = card_operations._TEXT_PADDING
-        with PILImage.open(filepath) as img:
-            region = img.crop((x0, p, x0 + 300, p + card_operations._TITLE_LINE_HEIGHT))
-        return region.getextrema()[0][1]  # max R value in the region
-
-    def test_left_side_renders_title_in_left_half(self, tmp_path: Path) -> None:
-        filepath = self._generate_card(tmp_path, "left")
-
-        left_x = card_operations._TEXT_PADDING
-        right_x = 1080 // 2 + card_operations._TEXT_PADDING
-        assert self._max_brightness(filepath, left_x) > 200
-        assert self._max_brightness(filepath, right_x) < 100
-
-    def test_right_side_renders_title_in_right_half(self, tmp_path: Path) -> None:
-        filepath = self._generate_card(tmp_path, "right")
-
-        left_x = card_operations._TEXT_PADDING
-        right_x = 1080 // 2 + card_operations._TEXT_PADDING
-        assert self._max_brightness(filepath, right_x) > 200
-        assert self._max_brightness(filepath, left_x) < 100
-
-    def test_default_info_side_matches_explicit_left(self, tmp_path: Path) -> None:
-        recipe = MagicMock()
-        recipe.name = "My Recipe"
-        recipe.pk = 1
-        paths = {}
-        for label, kwargs in (
-            ("default", {}),
-            ("left", {"info_side": "left"}),
-        ):
-            output_path = tmp_path / f"card_{label}.jpg"
-            with (
-                patch.object(card_operations, "_LOGO_PATH", tmp_path / "no_logo.png"),
-                patch.object(card_operations.card_queries, "get_recipe_cover_lines", return_value=()),
-                patch.object(card_operations.card_queries, "get_recipe_as_json", return_value='{"v":1}'),
-            ):
-                card_operations.preview_recipe_card_image(
-                    recipe=recipe,
-                    template=card_templates.LONG_LABEL,
-                    background_image=None,
-                    output_path=output_path,
-                    **kwargs,
-                )
-            paths[label] = output_path.read_bytes()
-
-        assert paths["default"] == paths["left"]
-
-

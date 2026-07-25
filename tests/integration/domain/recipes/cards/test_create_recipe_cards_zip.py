@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 
 from src.domain.recipes.cards import operations as card_operations
-from src.domain.recipes.cards import templates as card_templates
+from src.domain.recipes.cards.designs import classic as classic_design
 from tests.factories import FujifilmRecipeFactory
 
 
@@ -15,7 +15,7 @@ class TestCreateRecipeCardsZip:
         recipe = FujifilmRecipeFactory()
         return card_operations.create_recipe_card(
             recipe=recipe,
-            template=card_templates.LONG_LABEL,
+            design=classic_design.ClassicDesign(),
             background_image=None,
             output_dir=tmp_path,
         )

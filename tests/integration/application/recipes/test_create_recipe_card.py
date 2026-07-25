@@ -4,7 +4,7 @@ import pytest
 
 from src.application.usecases.recipes import create_recipe_card as uc
 from src.data import models
-from src.domain.recipes.cards import templates as card_templates
+from src.domain.recipes.cards.designs import classic as classic_design
 from tests.factories import FujifilmRecipeFactory
 
 
@@ -17,7 +17,7 @@ class TestCreateRecipeCard:
         card = uc.create_recipe_card(
             recipe_id=recipe.pk,
             image_id=None,
-            template=card_templates.LONG_LABEL,
+            design=classic_design.ClassicDesign(),
         )
 
         assert isinstance(card, models.RecipeCard)
@@ -32,8 +32,7 @@ class TestCreateRecipeCard:
         card = uc.create_recipe_card(
             recipe_id=recipe.pk,
             image_id=None,
-            template=card_templates.LONG_LABEL,
-            info_side="right",
+            design=classic_design.ClassicDesign(info_side="right"),
         )
 
         assert isinstance(card, models.RecipeCard)
@@ -46,7 +45,7 @@ class TestCreateRecipeCard:
             uc.create_recipe_card(
                 recipe_id=999999,
                 image_id=None,
-                template=card_templates.LONG_LABEL,
+                design=classic_design.ClassicDesign(),
             )
 
     def test_raises_if_image_does_not_exist(self, tmp_path: Path, settings: object) -> None:
@@ -57,7 +56,7 @@ class TestCreateRecipeCard:
             uc.create_recipe_card(
                 recipe_id=recipe.pk,
                 image_id=999999,
-                template=card_templates.LONG_LABEL,
+                design=classic_design.ClassicDesign(),
             )
 
     def test_card_file_is_saved_to_recipe_cards_dir(self, tmp_path: Path, settings: object) -> None:
@@ -67,7 +66,7 @@ class TestCreateRecipeCard:
         card = uc.create_recipe_card(
             recipe_id=recipe.pk,
             image_id=None,
-            template=card_templates.LONG_LABEL,
+            design=classic_design.ClassicDesign(),
         )
 
         assert Path(card.filepath).parent == tmp_path
@@ -81,7 +80,7 @@ class TestCreateRecipeCard:
         uc.create_recipe_card(
             recipe_id=recipe.pk,
             image_id=None,
-            template=card_templates.LONG_LABEL,
+            design=classic_design.ClassicDesign(),
         )
 
         assert output_dir.exists()

@@ -35,7 +35,8 @@ from src.domain.recipes import dataclasses as recipe_dataclasses
 from src.domain.recipes import graph as recipe_graph
 from src.domain.recipes import operations as recipe_operations
 from src.domain.recipes import queries as recipe_queries
-from src.domain.recipes.cards import templates as card_templates
+from src.domain.recipes.cards.designs import base as card_designs
+from src.domain.recipes.cards.designs import classic as classic_design
 
 
 def _recipe_explorer_filters_from_request(request: http.HttpRequest) -> dict[str, list[str]]:
@@ -726,16 +727,20 @@ class RecipePathDeltas(generic.View):
         })
 
 
-def _resolve_card_template(
+def _resolve_design(
+    *,
     label_style: str,
     bg_effect: str,
-) -> card_templates.CardTemplate:
-    key = ("long" if label_style == "long" else "short") + "_label" + ("_sharp" if bg_effect == "sharp" else "")
-    return card_templates.TEMPLATES.get(key, card_templates.LONG_LABEL)
-
-
-def _resolve_info_side(value: str) -> card_templates.InfoSide:
-    return "right" if value == "right" else "left"
+    info_side: str,
+) -> card_designs.CardDesign:
+    """
+    Build the CardDesign for the classic card from the modal's option values.
+    """
+    return classic_design.ClassicDesign(
+        label_style="long" if label_style == "long" else "short",
+        background_effect="none" if bg_effect == "sharp" else "blur",
+        info_side="right" if info_side == "right" else "left",
+    )
 
 
 @_attrs.frozen
@@ -803,17 +808,16 @@ class RecipeCardPreview(generic.View):
     def get(self, request: http.HttpRequest, recipe_id: int) -> http.HttpResponse:
         image_id_raw = request.GET.get("image_id")
         image_id = int(image_id_raw) if image_id_raw else None
-        template = _resolve_card_template(
+        design = _resolve_design(
             label_style=request.GET.get("label_style", "long"),
             bg_effect=request.GET.get("bg_effect", "blur"),
+            info_side=request.GET.get("info_side", "left"),
         )
-        info_side = _resolve_info_side(request.GET.get("info_side", "left"))
         try:
             preview_path = preview_recipe_card_uc.preview_recipe_card(
                 recipe_id=recipe_id,
                 image_id=image_id,
-                template=template,
-                info_side=info_side,
+                design=design,
             )
         except Exception:
             structlog.get_logger().exception("Unexpected error generating recipe card preview")
@@ -831,7 +835,7 @@ class RecipeCardPreview(generic.View):
                 "image_id": image_id,
                 "label_style": request.GET.get("label_style", "long"),
                 "bg_effect": request.GET.get("bg_effect", "blur"),
-                "info_side": info_side,
+                "info_side": request.GET.get("info_side", "left"),
             },
         )
 
@@ -846,17 +850,16 @@ class RecipeCardPreviewFile(generic.View):
     def get(self, request: http.HttpRequest, recipe_id: int) -> http.FileResponse:
         image_id_raw = request.GET.get("image_id")
         image_id = int(image_id_raw) if image_id_raw else None
-        template = _resolve_card_template(
+        design = _resolve_design(
             label_style=request.GET.get("label_style", "long"),
             bg_effect=request.GET.get("bg_effect", "blur"),
+            info_side=request.GET.get("info_side", "left"),
         )
-        info_side = _resolve_info_side(request.GET.get("info_side", "left"))
         try:
             preview_path = preview_recipe_card_uc.preview_recipe_card(
                 recipe_id=recipe_id,
                 image_id=image_id,
-                template=template,
-                info_side=info_side,
+                design=design,
             )
         except Exception:
             structlog.get_logger().exception("Unexpected error generating recipe card preview file")
@@ -882,17 +885,16 @@ class CreateRecipeCard(generic.View):
     def post(self, request: http.HttpRequest, recipe_id: int) -> http.HttpResponse:
         image_id_raw = request.POST.get("image_id")
         image_id = int(image_id_raw) if image_id_raw else None
-        template = _resolve_card_template(
+        design = _resolve_design(
             label_style=request.POST.get("label_style", "long"),
             bg_effect=request.POST.get("bg_effect", "blur"),
+            info_side=request.POST.get("info_side", "left"),
         )
-        info_side = _resolve_info_side(request.POST.get("info_side", "left"))
         try:
             card = create_recipe_card_uc.create_recipe_card(
                 recipe_id=recipe_id,
                 image_id=image_id,
-                template=template,
-                info_side=info_side,
+                design=design,
             )
         except Exception:
             structlog.get_logger().exception("Unexpected error creating recipe card")
