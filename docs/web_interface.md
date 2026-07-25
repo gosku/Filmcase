@@ -147,10 +147,35 @@ Opening a recipe shows all its settings at a glance. From this page you can:
 - **Send the recipe to your camera** — write the recipe to one of your camera's custom slots
   (C1–C7) over USB. The interface shows what is already saved in each slot so you can choose
   where to write.
-- **Create a recipe card** — generate a shareable QR code card for the recipe, which other
-  Fujifilm shooters can import into their own library.
+- **Create a recipe card** — generate a shareable card for the recipe that other Fujifilm
+  shooters can import into their own library. Every card embeds the full recipe as a
+  scannable QR code — the same size and encoding across all designs — alongside a
+  human-readable list of the settings, so the recipe survives the EXIF stripping that social
+  platforms apply. Colour and black-and-white recipes automatically show the relevant fields
+  (for example the BW tone fields for Acros/Monochrome sims, or `Color` for colour sims).
+
+  Three designs are available, selected from tabs in the creation modal:
+
+  - **Classic** — a square 1080×1080 card with a photo or gradient background, a translucent
+    settings panel, and a corner QR. Options let you choose full or short field labels, a
+    blurred or sharp background, and which side holds the info panel.
+  - **Aperture** — a portrait 1080×1920 (9:16, sized for Instagram Stories/Reels) card: a
+    blurred, darkened version of your photo behind a hero image, frosted-glass parameter
+    tiles, and a bottom "import" module with the logo and QR. The darkening gradient is
+    tunable via the `RECIPE_CARD_APERTURE_SCRIM_TOP_OPACITY` /
+    `RECIPE_CARD_APERTURE_SCRIM_BOTTOM_OPACITY` settings.
+  - **Contact Sheet** — a portrait 1080×1920 light "paper" spec-sheet listing every parameter
+    in two columns over a blurred photo frame.
+
+  The photo-centric designs (Aperture and Contact Sheet) are built around a real example
+  photo, so they require a background image; the gradient-background option is offered only
+  for Classic. See [ADR 012](ADRs/012-pluggable-card-designs.md) for the design architecture.
 
 ![Recipe card creation](images/recipe_card_creation.jpeg)
+
+The **Aperture** (left) and **Contact Sheet** (right) designs:
+
+![Aperture recipe card](images/recipe_card_aperture.jpg) ![Contact Sheet recipe card](images/recipe_card_contact_sheet.jpg)
 
 - **Create a new version** — if the recipe already has images associated with it (and
   therefore cannot be edited in place), a _Create new version_ button lets you fork it into a
