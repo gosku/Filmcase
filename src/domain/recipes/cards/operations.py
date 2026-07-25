@@ -7,23 +7,18 @@ from collections.abc import Iterable
 from pathlib import Path
 
 import attrs
-import piexif  # type: ignore[import-untyped]
 from PIL import Image as PILImage
-from PIL import ImageDraw, ImageFilter, ImageFont
-
-import qrcode  # type: ignore[import-untyped]
-import qrcode.image.pil  # type: ignore[import-untyped]
+from PIL import ImageDraw, ImageFilter
 
 from django.db import transaction
 
 from src.data import models
 from src.domain.images import events
 from src.domain.recipes.cards import queries as card_queries
+from src.domain.recipes.cards import rendering
 from src.domain.recipes.cards import templates as card_templates
 
-_QR_SIZE = 300
 _QR_MARGIN = 20
-_BLUR_RADIUS = 12
 _PANEL_ALPHA = 140  # 0-255 opacity of the text-readability overlay panel
 _TEXT_PADDING = 40
 _LINE_HEIGHT = 44
@@ -36,61 +31,6 @@ _LOGO_PATH = Path(__file__).resolve().parents[3] / "interfaces" / "static" / "im
 _LOGO_WIDTH = 320
 _LOGO_PADDING = 20
 
-# Gradient colours (dark teal → dark indigo)
-_GRADIENT_TOP = (18, 52, 64)
-_GRADIENT_BOTTOM = (30, 20, 70)
-
-
-def _cover_fill(img: PILImage.Image, target_w: int, target_h: int) -> PILImage.Image:
-    """
-    Scale *img* so it fills (target_w × target_h) with no empty space, then center-crop.
-    """
-    scale = max(target_w / img.width, target_h / img.height)
-    new_w = int(img.width * scale)
-    new_h = int(img.height * scale)
-    img = img.resize((new_w, new_h), PILImage.Resampling.LANCZOS)
-    left = (new_w - target_w) // 2
-    top = (new_h - target_h) // 2
-    return img.crop((left, top, left + target_w, top + target_h))
-
-
-def _build_gradient(width: int, height: int) -> PILImage.Image:
-    """
-    Return a soft vertical gradient from _GRADIENT_TOP to _GRADIENT_BOTTOM.
-    """
-    img = PILImage.new("RGB", (width, height))
-    draw = ImageDraw.Draw(img)
-    r0, g0, b0 = _GRADIENT_TOP
-    r1, g1, b1 = _GRADIENT_BOTTOM
-    for y in range(height):
-        t = y / (height - 1)
-        r = int(r0 + (r1 - r0) * t)
-        g = int(g0 + (g1 - g0) * t)
-        b = int(b0 + (b1 - b0) * t)
-        draw.line([(0, y), (width, y)], fill=(r, g, b))
-    return img
-
-
-def _load_font(size: int) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
-    for name in ("DejaVuSans.ttf", "LiberationSans-Regular.ttf", "Arial.ttf"):
-        try:
-            return ImageFont.truetype(name, size)
-        except OSError:
-            continue
-    return ImageFont.load_default()
-
-
-def _embed_recipe_exif(*, filepath: Path, json_str: str) -> None:
-    """
-    Embed recipe JSON into the UserComment EXIF field of the saved JPEG at filepath.
-    """
-    exif_bytes = piexif.dump({
-        "Exif": {
-            piexif.ExifIFD.UserComment: b"ASCII\x00\x00\x00" + json_str.encode("ascii"),
-        }
-    })
-    piexif.insert(exif_bytes, str(filepath))
-
 
 def _compose_card(
     *,
@@ -98,21 +38,21 @@ def _compose_card(
     template: card_templates.CardTemplate,
     background_image: models.Image | None,
     info_side: card_templates.InfoSide,
-) -> tuple[PILImage.Image, str, bool]:
+) -> rendering.RenderedCard:
     """
-    Build the card PIL image. Returns (canvas, json_str, use_gradient).
+    Build the card PIL image.
 
     *info_side* chooses which half holds the info text + logo; the QR code
     goes on the opposite bottom corner.
     """
     target_w, target_h = template.output_size
     if background_image is None:
-        canvas = _build_gradient(target_w, target_h)
+        canvas = rendering.build_gradient(target_w, target_h)
     else:
         with PILImage.open(background_image.filepath) as img:
-            canvas = _cover_fill(img.convert("RGB"), target_w, target_h)
+            canvas = rendering.cover_fill(img.convert("RGB"), target_w, target_h)
         if template.background_effect == "blur":
-            canvas = canvas.filter(ImageFilter.GaussianBlur(radius=_BLUR_RADIUS))
+            canvas = canvas.filter(ImageFilter.GaussianBlur(radius=rendering.BLUR_RADIUS))
 
     panel_w = target_w // 2
     panel_x = 0 if info_side == "left" else target_w - panel_w
@@ -122,13 +62,13 @@ def _compose_card(
     canvas = canvas_rgba.convert("RGB")
 
     draw = ImageDraw.Draw(canvas)
-    label_font = _load_font(_FONT_SIZE)
-    value_font = _load_font(_FONT_SIZE)
+    label_font = rendering.load_font(_FONT_SIZE)
+    value_font = rendering.load_font(_FONT_SIZE)
     lines = card_queries.get_recipe_cover_lines(recipe=recipe, template=template)
     x = panel_x + _TEXT_PADDING
     y = _TEXT_PADDING
     if recipe.name:
-        title_font = _load_font(_TITLE_FONT_SIZE)
+        title_font = rendering.load_font(_TITLE_FONT_SIZE)
         draw.text((x, y), recipe.name, font=title_font, fill=_VALUE_COLOR)
         y += _TITLE_LINE_HEIGHT
     for line in lines:
@@ -140,10 +80,9 @@ def _compose_card(
         y += _LINE_HEIGHT
 
     json_str = card_queries.get_recipe_as_json(recipe=recipe)
-    qr_img = qrcode.make(json_str)
-    qr_img = qr_img.resize((_QR_SIZE, _QR_SIZE), PILImage.Resampling.LANCZOS)
-    qr_x = _QR_MARGIN if info_side == "right" else target_w - _QR_SIZE - _QR_MARGIN
-    qr_pos = (qr_x, target_h - _QR_SIZE - _QR_MARGIN)
+    qr_img = rendering.make_qr(json_str)
+    qr_x = _QR_MARGIN if info_side == "right" else target_w - rendering.QR_SIZE - _QR_MARGIN
+    qr_pos = (qr_x, target_h - rendering.QR_SIZE - _QR_MARGIN)
     canvas.paste(qr_img, qr_pos)
 
     if _LOGO_PATH.exists():
@@ -162,7 +101,11 @@ def _compose_card(
         canvas_rgba.paste(logo, (logo_x, logo_y), logo)
         canvas = canvas_rgba.convert("RGB")
 
-    return canvas, json_str, background_image is None
+    return rendering.RenderedCard(
+        canvas=canvas,
+        json_str=json_str,
+        embed_exif=background_image is None,
+    )
 
 
 def _save_card(
@@ -170,11 +113,11 @@ def _save_card(
     canvas: PILImage.Image,
     filepath: Path,
     json_str: str,
-    use_gradient: bool,
+    embed_exif: bool,
 ) -> None:
     canvas.save(str(filepath), format="JPEG", quality=90)
-    if use_gradient:
-        _embed_recipe_exif(filepath=filepath, json_str=json_str)
+    if embed_exif:
+        rendering.embed_recipe_exif(filepath=filepath, json_str=json_str)
 
 
 def preview_recipe_card_image(
@@ -192,13 +135,18 @@ def preview_recipe_card_image(
     deterministic /tmp/ path) so successive previews for the same options
     overwrite the previous file rather than accumulating.
     """
-    canvas, json_str, use_gradient = _compose_card(
+    rendered = _compose_card(
         recipe=recipe,
         template=template,
         background_image=background_image,
         info_side=info_side,
     )
-    _save_card(canvas=canvas, filepath=output_path, json_str=json_str, use_gradient=use_gradient)
+    _save_card(
+        canvas=rendered.canvas,
+        filepath=output_path,
+        json_str=rendered.json_str,
+        embed_exif=rendered.embed_exif,
+    )
     return output_path
 
 
@@ -218,14 +166,19 @@ def create_recipe_card_image(
     If background_image is None, generates a soft gradient background and embeds
     the recipe JSON into the EXIF UserComment so the card can be re-imported.
     """
-    canvas, json_str, use_gradient = _compose_card(
+    rendered = _compose_card(
         recipe=recipe,
         template=template,
         background_image=background_image,
         info_side=info_side,
     )
     filepath = output_dir / f"recipe_{recipe.pk}_{uuid.uuid4().hex[:8]}.jpg"
-    _save_card(canvas=canvas, filepath=filepath, json_str=json_str, use_gradient=use_gradient)
+    _save_card(
+        canvas=rendered.canvas,
+        filepath=filepath,
+        json_str=rendered.json_str,
+        embed_exif=rendered.embed_exif,
+    )
     return filepath
 
 
