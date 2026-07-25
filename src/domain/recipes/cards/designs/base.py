@@ -42,12 +42,14 @@ class CardDesign(abc.ABC):
         self,
         *,
         recipe: models.FujifilmRecipe,
-        background_image: models.Image | None,
+        background_photo_path: str | None,
     ) -> rendering.RenderedCard:
         """
-        Compose the card image for *recipe* over *background_image*.
+        Compose the card image for *recipe* over the photo at *background_photo_path*.
 
-        When *background_image* is None the design falls back to a generated
-        gradient background (only designs where requires_background_image is
-        False are expected to be called this way).
+        Passing a path decouples rendering from the persisted Image: callers can
+        supply the full-resolution original (for a saved card) or a smaller,
+        cached copy (for a fast preview). When it is None the design falls back
+        to a generated gradient background (only designs where
+        requires_background_image is False are expected to be called this way).
         """

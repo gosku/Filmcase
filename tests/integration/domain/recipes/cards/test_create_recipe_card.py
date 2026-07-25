@@ -20,7 +20,7 @@ class TestPreviewRecipeCardImage:
         result = card_operations.preview_recipe_card_image(
             recipe=recipe,
             design=_CLASSIC,
-            background_image=None,
+            background_photo_path=None,
             output_path=output_path,
         )
         assert result == output_path
@@ -31,7 +31,7 @@ class TestPreviewRecipeCardImage:
         card_operations.preview_recipe_card_image(
             recipe=recipe,
             design=_CLASSIC,
-            background_image=None,
+            background_photo_path=None,
             output_path=output_path,
         )
         assert output_path.exists()
@@ -42,7 +42,7 @@ class TestPreviewRecipeCardImage:
         card_operations.preview_recipe_card_image(
             recipe=recipe,
             design=_CLASSIC,
-            background_image=None,
+            background_photo_path=None,
             output_path=output_path,
         )
         with PILImage.open(output_path) as img:
@@ -54,13 +54,13 @@ class TestPreviewRecipeCardImage:
         card_operations.preview_recipe_card_image(
             recipe=recipe,
             design=_CLASSIC,
-            background_image=None,
+            background_photo_path=None,
             output_path=output_path,
         )
         card_operations.preview_recipe_card_image(
             recipe=recipe,
             design=_CLASSIC_SHORT,
-            background_image=None,
+            background_photo_path=None,
             output_path=output_path,
         )
         assert output_path.exists()

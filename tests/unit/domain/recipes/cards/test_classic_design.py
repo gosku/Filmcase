@@ -21,7 +21,7 @@ def _render(design: classic.ClassicDesign, recipe: MagicMock) -> rendering.Rende
         lines_patch,
         json_patch,
     ):
-        return design.render(recipe=recipe, background_image=None)
+        return design.render(recipe=recipe, background_photo_path=None)
 
 
 class TestClassicDesignMetadata:

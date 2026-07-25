@@ -9,15 +9,11 @@ from src.domain.recipes.cards.designs import aperture
 from tests.factories import FujifilmRecipeFactory
 
 
-def _photo(tmp_path: Path) -> object:
-    # A plain on-disk photo the design can open as the hero / blurred background.
+def _photo(tmp_path: Path) -> str:
+    # A plain on-disk photo path the design can open as the hero / blurred background.
     path = tmp_path / "photo.jpg"
     PILImage.new("RGB", (900, 600), (120, 60, 40)).save(str(path), format="JPEG")
-
-    class _Image:
-        filepath = str(path)
-
-    return _Image()
+    return str(path)
 
 
 class TestApertureDesignMetadata:
@@ -36,7 +32,7 @@ class TestApertureDesignRender:
     def test_renders_portrait_rgb_jpeg_canvas(self, tmp_path: Path) -> None:
         recipe = FujifilmRecipeFactory(name="Portra", film_simulation="Classic Chrome")
 
-        rendered = aperture.ApertureDesign().render(recipe=recipe, background_image=_photo(tmp_path))
+        rendered = aperture.ApertureDesign().render(recipe=recipe, background_photo_path=_photo(tmp_path))
 
         assert rendered.canvas.size == (1080, 1920)
         assert rendered.canvas.mode == "RGB"
@@ -44,7 +40,7 @@ class TestApertureDesignRender:
     def test_qr_round_trips(self, tmp_path: Path) -> None:
         recipe = FujifilmRecipeFactory(film_simulation="Classic Chrome")
 
-        rendered = aperture.ApertureDesign().render(recipe=recipe, background_image=_photo(tmp_path))
+        rendered = aperture.ApertureDesign().render(recipe=recipe, background_photo_path=_photo(tmp_path))
         out = tmp_path / "card.jpg"
         rendered.canvas.save(str(out), format="JPEG", quality=92)
 
@@ -59,7 +55,7 @@ class TestApertureDesignRender:
     def test_falls_back_to_gradient_without_photo(self) -> None:
         recipe = FujifilmRecipeFactory(film_simulation="Classic Chrome")
 
-        rendered = aperture.ApertureDesign().render(recipe=recipe, background_image=None)
+        rendered = aperture.ApertureDesign().render(recipe=recipe, background_photo_path=None)
 
         assert rendered.canvas.size == (1080, 1920)
         assert rendered.embed_exif is True
@@ -71,9 +67,9 @@ class TestApertureDesignRender:
         corner = (0, 1800, 90, 1880)
 
         settings.RECIPE_CARD_APERTURE_SCRIM_BOTTOM_OPACITY = 80  # type: ignore[attr-defined]
-        dark = aperture.ApertureDesign().render(recipe=recipe, background_image=photo).canvas.crop(corner)
+        dark = aperture.ApertureDesign().render(recipe=recipe, background_photo_path=photo).canvas.crop(corner)
         settings.RECIPE_CARD_APERTURE_SCRIM_BOTTOM_OPACITY = 10  # type: ignore[attr-defined]
-        light = aperture.ApertureDesign().render(recipe=recipe, background_image=photo).canvas.crop(corner)
+        light = aperture.ApertureDesign().render(recipe=recipe, background_photo_path=photo).canvas.crop(corner)
 
         dark_brightness = ImageStat.Stat(dark.convert("L")).mean[0]
         light_brightness = ImageStat.Stat(light.convert("L")).mean[0]

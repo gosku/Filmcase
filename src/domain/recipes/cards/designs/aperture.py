@@ -193,14 +193,14 @@ class ApertureDesign(base.CardDesign):
         self,
         *,
         recipe: models.FujifilmRecipe,
-        background_image: models.Image | None,
+        background_photo_path: str | None,
     ) -> rendering.RenderedCard:
-        canvas = self._build_background(background_image)
+        canvas = self._build_background(background_photo_path)
         draw = ImageDraw.Draw(canvas)
 
         y = self._draw_header(canvas, draw, recipe, _MARGIN_TOP)
-        if background_image is not None:
-            with PILImage.open(background_image.filepath) as photo:
+        if background_photo_path is not None:
+            with PILImage.open(background_photo_path) as photo:
                 hero = rendering.cover_fill(photo.convert("RGB"), _CONTENT_W, _HERO_H)
             rendering.paste_rounded(canvas, hero, (_CONTENT_X, y), _HERO_RADIUS)
             y += _HERO_H
@@ -215,15 +215,15 @@ class ApertureDesign(base.CardDesign):
         return rendering.RenderedCard(
             canvas=canvas.convert("RGB"),
             json_str=json_str,
-            embed_exif=background_image is None,
+            embed_exif=background_photo_path is None,
         )
 
-    def _build_background(self, background_image: models.Image | None) -> PILImage.Image:
+    def _build_background(self, background_photo_path: str | None) -> PILImage.Image:
         width, height = _SIZE
-        if background_image is None:
+        if background_photo_path is None:
             base_img = rendering.build_gradient(width, height).convert("RGBA")
         else:
-            with PILImage.open(background_image.filepath) as img:
+            with PILImage.open(background_photo_path) as img:
                 filled = rendering.cover_fill(img.convert("RGB"), width, height)
             blurred = filled.filter(ImageFilter.GaussianBlur(_BG_BLUR))
             saturated = ImageEnhance.Color(blurred).enhance(_BG_SATURATION)

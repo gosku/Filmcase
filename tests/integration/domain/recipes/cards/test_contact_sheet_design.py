@@ -8,14 +8,10 @@ from src.domain.recipes.cards.designs import contact_sheet
 from tests.factories import FujifilmRecipeFactory
 
 
-def _photo(tmp_path: Path) -> object:
+def _photo(tmp_path: Path) -> str:
     path = tmp_path / "photo.jpg"
     PILImage.new("RGB", (900, 600), (120, 60, 40)).save(str(path), format="JPEG")
-
-    class _Image:
-        filepath = str(path)
-
-    return _Image()
+    return str(path)
 
 
 class TestContactSheetDesignMetadata:
@@ -34,7 +30,7 @@ class TestContactSheetDesignRender:
     def test_renders_portrait_rgb_canvas(self, tmp_path: Path) -> None:
         recipe = FujifilmRecipeFactory(film_simulation="Classic Chrome")
 
-        rendered = contact_sheet.ContactSheetDesign().render(recipe=recipe, background_image=_photo(tmp_path))
+        rendered = contact_sheet.ContactSheetDesign().render(recipe=recipe, background_photo_path=_photo(tmp_path))
 
         assert rendered.canvas.size == (1080, 1920)
         assert rendered.canvas.mode == "RGB"
@@ -42,7 +38,7 @@ class TestContactSheetDesignRender:
     def test_qr_round_trips(self, tmp_path: Path) -> None:
         recipe = FujifilmRecipeFactory(film_simulation="Velvia")
 
-        rendered = contact_sheet.ContactSheetDesign().render(recipe=recipe, background_image=_photo(tmp_path))
+        rendered = contact_sheet.ContactSheetDesign().render(recipe=recipe, background_photo_path=_photo(tmp_path))
         out = tmp_path / "card.jpg"
         rendered.canvas.save(str(out), format="JPEG", quality=92)
 
@@ -77,7 +73,7 @@ class TestContactSheetDesignRender:
     def test_falls_back_to_gradient_without_photo(self) -> None:
         recipe = FujifilmRecipeFactory(film_simulation="Classic Chrome")
 
-        rendered = contact_sheet.ContactSheetDesign().render(recipe=recipe, background_image=None)
+        rendered = contact_sheet.ContactSheetDesign().render(recipe=recipe, background_photo_path=None)
 
         assert rendered.canvas.size == (1080, 1920)
         assert rendered.embed_exif is True

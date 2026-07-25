@@ -33,17 +33,18 @@ def preview_recipe_card_image(
     *,
     recipe: models.FujifilmRecipe,
     design: card_designs.CardDesign,
-    background_image: models.Image | None,
+    background_photo_path: str | None,
     output_path: Path,
 ) -> Path:
     """
     Compose a recipe card image and save it to output_path. Return output_path.
 
-    Intended for previews: the caller controls the exact output path (e.g. a
-    deterministic /tmp/ path) so successive previews for the same options
-    overwrite the previous file rather than accumulating.
+    Intended for previews: the caller passes the photo source directly (e.g. a
+    small cached thumbnail for speed) and controls the exact output path (a
+    deterministic /tmp/ path) so successive previews overwrite rather than
+    accumulate.
     """
-    rendered = design.render(recipe=recipe, background_image=background_image)
+    rendered = design.render(recipe=recipe, background_photo_path=background_photo_path)
     _save_card(
         canvas=rendered.canvas,
         filepath=output_path,
@@ -65,9 +66,11 @@ def create_recipe_card_image(
 
     The *design* controls the entire layout. When background_image is None the
     design falls back to a generated gradient and the recipe JSON is embedded in
-    the EXIF UserComment so the card can be re-imported without the QR.
+    the EXIF UserComment so the card can be re-imported without the QR. A saved
+    card always renders from the full-resolution original photo.
     """
-    rendered = design.render(recipe=recipe, background_image=background_image)
+    background_photo_path = background_image.filepath if background_image is not None else None
+    rendered = design.render(recipe=recipe, background_photo_path=background_photo_path)
     filepath = output_dir / f"recipe_{recipe.pk}_{uuid.uuid4().hex[:8]}.jpg"
     _save_card(
         canvas=rendered.canvas,

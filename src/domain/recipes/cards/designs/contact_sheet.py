@@ -120,9 +120,9 @@ class ContactSheetDesign(base.CardDesign):
         self,
         *,
         recipe: models.FujifilmRecipe,
-        background_image: models.Image | None,
+        background_photo_path: str | None,
     ) -> rendering.RenderedCard:
-        canvas = self._build_background(background_image)
+        canvas = self._build_background(background_photo_path)
         draw = ImageDraw.Draw(canvas)
 
         panel_x = _PANEL_INSET
@@ -133,9 +133,9 @@ class ContactSheetDesign(base.CardDesign):
 
         y = self._draw_header(canvas, draw, recipe, content_x, _PANEL_INSET + _PAD_T)
         y += _HEADER_TO_HERO
-        if background_image is not None:
+        if background_photo_path is not None:
             hero_h = content_w * 2 // 3
-            with PILImage.open(background_image.filepath) as photo:
+            with PILImage.open(background_photo_path) as photo:
                 hero = rendering.cover_fill(photo.convert("RGB"), content_w, hero_h)
             rendering.paste_rounded(canvas, hero, (content_x, y), _HERO_RADIUS)
             y += hero_h
@@ -148,15 +148,15 @@ class ContactSheetDesign(base.CardDesign):
         return rendering.RenderedCard(
             canvas=canvas.convert("RGB"),
             json_str=json_str,
-            embed_exif=background_image is None,
+            embed_exif=background_photo_path is None,
         )
 
-    def _build_background(self, background_image: models.Image | None) -> PILImage.Image:
+    def _build_background(self, background_photo_path: str | None) -> PILImage.Image:
         width, height = _SIZE
-        if background_image is None:
+        if background_photo_path is None:
             base_img = rendering.build_gradient(width, height).convert("RGBA")
         else:
-            with PILImage.open(background_image.filepath) as img:
+            with PILImage.open(background_photo_path) as img:
                 filled = rendering.cover_fill(img.convert("RGB"), width, height)
             blurred = filled.filter(ImageFilter.GaussianBlur(_BG_BLUR))
             base_img = ImageEnhance.Brightness(blurred).enhance(_BG_BRIGHTNESS).convert("RGBA")

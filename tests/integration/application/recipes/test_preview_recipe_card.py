@@ -1,11 +1,12 @@
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
 from src.application.usecases.recipes import preview_recipe_card as uc
 from src.data import models
 from src.domain.recipes.cards.designs import classic as classic_design
-from tests.factories import FujifilmRecipeFactory
+from tests.factories import FujifilmRecipeFactory, ImageFactory
 
 _CLASSIC = classic_design.ClassicDesign()
 _CLASSIC_SHORT = classic_design.ClassicDesign(label_style="short")
@@ -79,6 +80,21 @@ class TestPreviewRecipeCard:
 
         assert path_left == path_right
         assert path_left.exists()
+
+    def test_uses_the_cached_gallery_thumbnail_as_the_photo_source(self, tmp_path: Path) -> None:
+        recipe = FujifilmRecipeFactory()
+        image = ImageFactory(fujifilm_recipe=recipe)
+        thumbnail = tmp_path / "thumb.jpg"
+
+        with (
+            patch.object(uc.thumbnail_operations, "generate_thumbnail", return_value=thumbnail) as mock_thumb,
+            patch.object(uc.card_operations, "preview_recipe_card_image", return_value=Path("/tmp/x.jpg")) as mock_render,
+        ):
+            uc.preview_recipe_card(recipe_id=recipe.pk, image_id=image.pk, design=_CLASSIC)
+
+        # The gallery-sized (600px) thumbnail is what gets rendered.
+        assert mock_thumb.call_args.kwargs["width"] == 600
+        assert mock_render.call_args.kwargs["background_photo_path"] == str(thumbnail)
 
     def test_different_templates_produce_different_paths(self) -> None:
         recipe = FujifilmRecipeFactory()

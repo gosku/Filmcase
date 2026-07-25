@@ -61,13 +61,13 @@ class ClassicDesign(base.CardDesign):
         self,
         *,
         recipe: models.FujifilmRecipe,
-        background_image: models.Image | None,
+        background_photo_path: str | None,
     ) -> rendering.RenderedCard:
         target_w, target_h = self.output_size
-        if background_image is None:
+        if background_photo_path is None:
             canvas = rendering.build_gradient(target_w, target_h)
         else:
-            with PILImage.open(background_image.filepath) as img:
+            with PILImage.open(background_photo_path) as img:
                 canvas = rendering.cover_fill(img.convert("RGB"), target_w, target_h)
             if self.background_effect == "blur":
                 canvas = canvas.filter(ImageFilter.GaussianBlur(radius=rendering.BLUR_RADIUS))
@@ -126,5 +126,5 @@ class ClassicDesign(base.CardDesign):
         return rendering.RenderedCard(
             canvas=canvas,
             json_str=json_str,
-            embed_exif=background_image is None,
+            embed_exif=background_photo_path is None,
         )
