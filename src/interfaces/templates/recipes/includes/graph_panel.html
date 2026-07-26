@@ -1,0 +1,35 @@
+{% comment %}
+Docked info panel for the recipe graph pages. Always mounted at a fixed width so
+the canvas never reflows; only the selected section toggles.
+{% endcomment %}
+<aside class="graph-panel" id="recipe-card">
+  <div class="graph-panel__section" id="card-root-section">
+    <div class="graph-panel__title">Recipe of Reference</div>
+    <div class="graph-panel__name-row">
+      <div class="graph-panel__name" id="card-root-name"></div>
+      <button class="graph-panel__btn" id="card-root-detail-btn">View recipe</button>
+    </div>
+    <div class="graph-panel__fields graph-panel__fields--two-col" id="card-root-fields"></div>
+  </div>
+
+  <div id="card-selected-section" style="display:none">
+    <div class="graph-panel__section">
+      <div class="graph-panel__title">Compare with Recipe</div>
+      <div class="graph-panel__name-row">
+        <div class="graph-panel__name" id="card-selected-name"></div>
+        <button class="graph-panel__btn" id="card-show-graph-btn">Go to this recipe graph</button>
+      </div>
+      <div class="graph-panel__title graph-panel__title--spaced">Differences</div>
+      <div class="graph-panel__fields" id="card-root-diffs"></div>
+    </div>
+
+    <div class="graph-panel__section" id="card-delta-section" style="display:none">
+      <div class="graph-panel__title">Delta Breakdown</div>
+      <div id="card-delta-nodes"></div>
+    </div>
+
+    <div class="graph-panel__section">
+      <button class="graph-panel__btn graph-panel__btn--block" id="card-compare-btn">Compare images</button>
+    </div>
+  </div>
+</aside>

@@ -1,6 +1,7 @@
 import json
 
 import pytest
+from bs4 import BeautifulSoup
 
 from tests.factories import FujifilmRecipeFactory, ImageFactory
 
@@ -265,6 +266,46 @@ def _recipe(film_simulation=_DEFAULT_SIM, **kwargs):
     return FujifilmRecipeFactory(**defaults)
 
 
+def _graph_body_stray_text(response):
+    """
+    Return any non-whitespace text sitting directly inside .graph-body.
+
+    The canvas and the panel are flex siblings, so a bare text node between them
+    becomes an anonymous flex item whose width collapses the canvas to zero and
+    the graph silently stops rendering. A leaked template comment is one way to
+    introduce one.
+    """
+    soup = BeautifulSoup(response.content, "html.parser")
+    body = soup.find(class_="graph-body")
+    assert body is not None, "graph-body container is missing"
+    return "".join(
+        child for child in body.find_all(string=True, recursive=False)
+    ).strip()
+
+
+@pytest.mark.django_db
+class TestGraphPagesHaveNoStrayCanvasSiblings:
+    def test_film_sim_graph_body_contains_no_bare_text(self, client):
+        _recipe()
+
+        response = client.get("/recipes/graph/?film_sim=Provia")
+
+        assert _graph_body_stray_text(response) == ""
+
+    def test_per_recipe_graph_body_contains_no_bare_text(self, client):
+        recipe = _recipe()
+
+        response = client.get(f"/recipes/graph/{recipe.pk}/")
+
+        assert _graph_body_stray_text(response) == ""
+
+    @pytest.mark.parametrize("url_template", ["/recipes/graph/", "/recipes/graph/{pk}/"])
+    def test_no_template_comment_leaks_into_the_page(self, client, url_template):
+        recipe = _recipe()
+
+        response = client.get(url_template.format(pk=recipe.pk))
+
+        assert "{#" not in response.content.decode()
 
 
 @pytest.mark.django_db
