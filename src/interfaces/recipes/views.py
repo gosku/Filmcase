@@ -296,6 +296,40 @@ def _root_fields_json(root_id: int | None) -> list[dict[str, str]]:
     return [{"field": f.field, "value": f.value} for f in recipe_queries.get_recipe_all_fields(recipe=root)]
 
 
+def _cyto_elements(*, graph_data: recipe_graph.RecipeTreeData) -> list[dict[str, object]]:
+    """
+    Serialise a recipe tree into the element list Cytoscape.js expects.
+
+    Shared by both graph views so the two pages always render the same node and
+    edge attributes.
+    """
+    nodes: list[dict[str, object]] = [
+        {
+            "data": {
+                "id": str(node.id),
+                "label": node.label,
+                "distance": node.distance,
+                "image_count": node.image_count,
+                "is_root": node.id == graph_data.root_id,
+            }
+        }
+        for node in graph_data.nodes
+    ]
+    edges: list[dict[str, object]] = [
+        {
+            "data": {
+                "source": str(edge.source),
+                "target": str(edge.target),
+                "distance": edge.distance,
+                "distanceLabel": f"d={edge.distance}" if edge.distance > 1 else "",
+                "is_exact": edge.is_exact,
+            }
+        }
+        for edge in graph_data.edges
+    ]
+    return nodes + edges
+
+
 class RecipesGraph(generic.View):
     """
     Display the network graph of all recipes for a given film simulation.
@@ -305,28 +339,7 @@ class RecipesGraph(generic.View):
         film_simulation = request.GET.get("film_sim", _RECIPES_GRAPH_DEFAULT_FILM_SIM)
         result = build_graph_uc.build_recipe_network(film_simulation=film_simulation)
         root_id = result.graph_data.root_id
-        cyto_elements = [
-            {
-                "data": {
-                    "id": str(n.id),
-                    "label": n.label,
-                    "distance": n.distance,
-                    "image_count": n.image_count,
-                    "is_root": n.id == root_id,
-                }
-            }
-            for n in result.graph_data.nodes
-        ] + [
-            {
-                "data": {
-                    "source": str(e.source),
-                    "target": str(e.target),
-                    "distance": e.distance,
-                    "distanceLabel": f"d={e.distance}" if e.distance > 1 else "",
-                }
-            }
-            for e in result.graph_data.edges
-        ]
+        cyto_elements = _cyto_elements(graph_data=result.graph_data)
         root_fields = _root_fields_json(root_id)
         root_label = ""
         if root_id is not None:
@@ -363,51 +376,26 @@ class RecipeGraph(generic.View):
         self.recipe = shortcuts.get_object_or_404(models.FujifilmRecipe, pk=kwargs["recipe_id"])
 
     def get(self, request: http.HttpRequest, recipe_id: int) -> http.HttpResponse:
-        all_recipes = list(models.FujifilmRecipe.objects.all())
-        max_distance: int = settings.RECIPE_GRAPH_MAX_DISTANCE
-        image_counts = recipe_queries.get_image_counts(recipe_pks=[r.pk for r in all_recipes])
-        graph_data = recipe_graph.build_recipe_graph(
+        result = build_graph_uc.build_recipe_neighbourhood(
             root=self.recipe,
-            all_recipes=all_recipes,
-            max_distance=max_distance,
-            image_counts=image_counts,
+            max_distance=settings.RECIPE_GRAPH_MAX_DISTANCE,
         )
-        cyto_elements = [
-            {
-                "data": {
-                    "id": str(n.id),
-                    "label": n.label,
-                    "distance": n.distance,
-                    "image_count": n.image_count,
-                }
-            }
-            for n in graph_data.nodes
-        ] + [
-            {
-                "data": {
-                    "source": str(e.source),
-                    "target": str(e.target),
-                    "distance": e.distance,
-                    "distanceLabel": f"d={e.distance}" if e.distance > 1 else "",
-                }
-            }
-            for e in graph_data.edges
-        ]
+        cyto_elements = _cyto_elements(graph_data=result.graph_data)
         root_fields = [{"field": f.field, "value": f.value} for f in recipe_queries.get_recipe_all_fields(recipe=self.recipe)]
-        root_label = self.recipe.name or f"#{self.recipe.pk}"
         if request.headers.get("Accept") == "application/json":
             return http.JsonResponse({
-                "root_id": graph_data.root_id,
-                "root_label": root_label,
+                "root_id": result.graph_data.root_id,
+                "root_label": result.root_label,
                 "root_fields": root_fields,
                 "elements": cyto_elements,
             })
         return shortcuts.render(request, "recipes/recipe_graph.html", {
-            "root_id": graph_data.root_id,
+            "root_id": result.graph_data.root_id,
             "graph_elements_json": json.dumps(cyto_elements),
-            "max_distance": max_distance,
+            "max_distance": result.max_distance,
             "root_fields_json": json.dumps(root_fields),
-            "root_label": root_label,
+            "root_label": result.root_label,
+            "recipe_name": result.root_label,
         })
 
 
