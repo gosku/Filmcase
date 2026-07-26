@@ -69,8 +69,9 @@ similar to it, and how different are they?"
 
 The graph is centred on a chosen **reference recipe**. Every other recipe whose Hamming
 distance from the reference is below a configurable threshold
-(`settings.RECIPE_GRAPH_MAX_DISTANCE`, default 6) appears as a node. Recipes beyond the
-threshold are excluded — they are too remote to be useful neighbours.
+(`settings.RECIPE_GRAPH_MAX_DISTANCE`, default 7) appears as a node. Recipes beyond the
+threshold are excluded — they are too remote to be useful neighbours. Unlike the film
+simulation view, the candidates span every film simulation.
 
 Clicking a node selects it and shows a comparison between that node and the reference
 recipe, surfacing the exact fields that differ between the two.
@@ -115,11 +116,7 @@ Visual complexity scales with the number of nodes, not the number of pairs.
 
 ### Chaining nodes through intermediate transitions
 
-When there is no direct neighbour at distance `d − 1` from a node, the algorithm does not
-connect it straight to the reference node. Instead it walks upward — to distance `d − 1`, `d − 2`,
-and so on — until it finds the closest node that can act as a valid parent.
-
-This deliberately chains nodes through intermediaries when those intermediaries represent
+Nodes are deliberately chained through intermediaries when those intermediaries represent
 a plausible transition path. If recipes N1, N2, and N3 exist at distances 0, 1, and 2
 from the reference node and N3 is one step away from N2, the graph becomes:
 
@@ -132,11 +129,34 @@ N1 → N2, N1 → N3  (both hanging directly off the reference node)
 The chain is more informative: it communicates that N3 is not just "different from the
 reference node" but specifically "a further refinement of N2".
 
-The film simulation tree uses a **shortest-path spanning tree** variant with an additional
-constraint: the sum of edge distances along any reference node → node path must equal the node's
-Hamming distance from the reference node. This prevents misleading path inflation — without it, an
-algorithm can chain A → B → C with edge distances 1 + 2 = 3, even when
-`dist(reference, C) = 2`. Enforcing the constraint means the path sum is always truthful.
+### One shortest-path spanning tree for both views
+
+Both views are built by the same function, `build_recipe_tree`, which enforces a
+**shortest-path constraint**: a node's parent `P` must satisfy
+`dist(reference, P) + dist(P, node) == dist(reference, node)`. This means the sum of edge
+distances along any reference → node path equals that node's Hamming distance from the
+reference, so ring radius and summed edge labels always agree.
+
+The constraint exists to prevent misleading path inflation. Without it, an algorithm that
+simply attaches each node to its closest neighbour one ring up can chain A → B → C with
+edge distances 1 + 2 = 3 even when `dist(reference, C) = 2`, making the displayed
+distances untrue.
+
+This matters because the two views did not originally share an algorithm. The per-recipe
+view used the closest-parent-at-`d − 1` rule, which on the current collection left roughly
+two thirds of nodes with path sums that exceeded their true distance from the reference.
+Unifying both views onto the constrained algorithm removed that discrepancy entirely.
+
+The two views differ only in which recipes they feed the builder as candidates: everything
+sharing a film simulation, or everything within `settings.RECIPE_GRAPH_MAX_DISTANCE` of the
+reference recipe.
+
+**When the constraint cannot be met.** Occasionally no node already in the tree satisfies
+it, which is more likely on the per-recipe view because truncating candidates at the
+maximum distance can exclude the intermediate a node would have needed. Such a node is
+attached to its nearest in-tree neighbour and its edge is flagged `is_exact=False` and
+drawn **dashed**. A solid edge is therefore a guarantee that the path sums are truthful,
+and a dashed one is an explicit admission that they are not.
 
 ### Concentric (radial) layout
 
@@ -172,10 +192,18 @@ encoding: the further from the centre, the more different from the reference rec
 ## Differences and breakdown of deltas
 
 The graph visualises which recipes are close to each other and how they chain together,
-but it does not on its own explain *what* the differences are. To surface that, a floating
-info card appears when the user clicks a node.
+but it does not on its own explain *what* the differences are. To surface that, an info
+panel docked to the right of the canvas fills in when the user clicks a node.
 
-The card shows the **path delta** from the reference node to the selected node: the list of fields
+The panel is a sibling of the canvas in a flex row rather than an overlay floating above
+it. An overlay hid the right-hand portion of the graph and, because the canvas still
+spanned the full width underneath, the radial tree centred itself partly behind the panel.
+Docking it means the canvas owns a known width and the tree is centred in genuinely usable
+space. The panel is also always mounted at a fixed width, with only its selected-recipe
+section toggling, so selecting a node never resizes the canvas and re-centres the graph
+under the user's cursor.
+
+The panel shows the **path delta** from the reference node to the selected node: the list of fields
 that differ between the two recipes, with the value each recipe carries for that field.
 When the node is reached through a chain of intermediate nodes, the card also breaks the
 path down by edge — showing which fields changed at each hop along the route.

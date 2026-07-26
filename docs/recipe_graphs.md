@@ -12,15 +12,20 @@ further a recipe sits from the centre, the more settings it differs from the ref
 Recipes that are one or two changes away cluster close in; recipes with many differences
 sit further out.
 
-A **Film Simulation** dropdown in the corner lets you switch to a different film
+A **Film Simulation** dropdown in the left sidebar lets you switch to a different film
 simulation without leaving the page.
+
+Most connections are drawn as solid lines. A **dashed** line is a warning: it means the
+recipe could not be placed on an exact path from the reference, so adding up the numbers
+along its route will overstate how far it really is from the centre. Its ring position is
+still correct.
 
 ![Film simulation recipe graph](images/film_sim_recipe_graph.jpg)
 
 ### Exploring a node
 
-Clicking any node on the graph opens an info panel with details about that recipe
-relative to the reference. The panel shows:
+Clicking any node on the graph fills in the info panel on the right with details about that
+recipe relative to the reference. The panel shows:
 
 - **All differences** between the selected recipe and the reference — every setting where
   the two recipes disagree, with the value each one carries.
@@ -52,9 +57,12 @@ described above. It works like the film simulation graph but with three differen
    are close enough.
 
 3. **A maximum distance limit applies.** Only recipes within a certain number of
-   differences from the reference are shown (normally 6). Recipes further away than that
+   differences from the reference are shown (normally 7). Recipes further away than that
    threshold are excluded, keeping the graph focused on genuinely nearby recipes rather
    than pulling in the entire collection.
+
+   Because this cutoff can leave out a recipe that another one would have connected
+   through, dashed connections show up more often here than on the film simulation graph.
 
 Everything else works the same way: nodes radiate outward by distance, clicking a node
 opens the same info panel with differences, path breakdown, image comparison, and the
