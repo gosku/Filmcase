@@ -61,6 +61,8 @@ GALLERY_PAGE_SIZE: int = env.int("GALLERY_PAGE_SIZE", default=24)  # number of i
 RECIPE_EXPLORER_PAGE_SIZE: int = env.int("RECIPE_EXPLORER_PAGE_SIZE", default=24)  # number of recipes shown per page in the recipe explorer
 IMAGE_MAX_RATING: int = env.int("IMAGE_MAX_RATING", default=5)  # maximum star rating a user can assign to an image (1–N)
 RECIPE_GRAPH_MAX_DISTANCE: int = env.int("RECIPE_GRAPH_MAX_DISTANCE", default=7)  # maximum Hamming distance for an edge to appear in the recipe relationship graph
+RECIPE_CARD_APERTURE_SCRIM_TOP_OPACITY: int = env.int("RECIPE_CARD_APERTURE_SCRIM_TOP_OPACITY", default=20)  # % opacity of the Aperture card's darkening scrim at the top (0–100)
+RECIPE_CARD_APERTURE_SCRIM_BOTTOM_OPACITY: int = env.int("RECIPE_CARD_APERTURE_SCRIM_BOTTOM_OPACITY", default=60)  # % opacity of the Aperture card's darkening scrim at the bottom (0–100)
 CAMERA_VERIFY_WRITES: bool = env.bool("CAMERA_VERIFY_WRITES", default=False)  # set to False to skip read-back verification after writing
 
 # Camera I/O policy — timing (seconds) and retry behaviour.

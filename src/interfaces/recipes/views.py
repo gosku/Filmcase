@@ -1,6 +1,7 @@
 import json
 import re
 import tempfile
+import uuid
 from pathlib import Path
 from urllib.parse import urlencode
 import attrs as _attrs
@@ -35,7 +36,10 @@ from src.domain.recipes import dataclasses as recipe_dataclasses
 from src.domain.recipes import graph as recipe_graph
 from src.domain.recipes import operations as recipe_operations
 from src.domain.recipes import queries as recipe_queries
-from src.domain.recipes.cards import templates as card_templates
+from src.domain.recipes.cards.designs import aperture as aperture_design
+from src.domain.recipes.cards.designs import base as card_designs
+from src.domain.recipes.cards.designs import classic as classic_design
+from src.domain.recipes.cards.designs import contact_sheet as contact_sheet_design
 
 
 def _recipe_explorer_filters_from_request(request: http.HttpRequest) -> dict[str, list[str]]:
@@ -726,16 +730,28 @@ class RecipePathDeltas(generic.View):
         })
 
 
-def _resolve_card_template(
-    label_style: str,
-    bg_effect: str,
-) -> card_templates.CardTemplate:
-    key = ("long" if label_style == "long" else "short") + "_label" + ("_sharp" if bg_effect == "sharp" else "")
-    return card_templates.TEMPLATES.get(key, card_templates.LONG_LABEL)
+_CARD_DESIGN_NAMES: tuple[str, ...] = ("classic", "aperture", "contact_sheet")
+_DEFAULT_CARD_DESIGN = "classic"
 
 
-def _resolve_info_side(value: str) -> card_templates.InfoSide:
-    return "right" if value == "right" else "left"
+def _resolve_design(params: "http.QueryDict") -> card_designs.CardDesign:
+    """
+    Build the CardDesign selected in the modal from the request parameters.
+
+    The ``design`` parameter chooses the design; the classic design also reads
+    its label-style / background-effect / info-side options. Unknown designs
+    fall back to the classic default.
+    """
+    design = params.get("design", _DEFAULT_CARD_DESIGN)
+    if design == "aperture":
+        return aperture_design.ApertureDesign()
+    if design == "contact_sheet":
+        return contact_sheet_design.ContactSheetDesign()
+    return classic_design.ClassicDesign(
+        label_style="long" if params.get("label_style", "long") == "long" else "short",
+        background_effect="none" if params.get("bg_effect", "blur") == "sharp" else "blur",
+        info_side="right" if params.get("info_side", "left") == "right" else "left",
+    )
 
 
 @_attrs.frozen
@@ -795,28 +811,47 @@ class RecipeCardModal(generic.View):
         )
 
 
+_CARD_DESIGN_OPTION_TEMPLATES: dict[str, str] = {
+    "classic": "recipes/partials/card_design_options/classic.html",
+    "aperture": "recipes/partials/card_design_options/aperture.html",
+    "contact_sheet": "recipes/partials/card_design_options/contact_sheet.html",
+}
+
+
+class RecipeCardDesignOptions(generic.View):
+    """
+    Render the option controls for one card design (the htmx tab content).
+
+    Each design shows only its own options: the classic design offers label
+    style, background effect, and info side; the photo-centric designs have no
+    extra knobs and just describe themselves.
+    """
+
+    def get(self, request: http.HttpRequest) -> http.HttpResponse:
+        design = request.GET.get("design", _DEFAULT_CARD_DESIGN)
+        template = _CARD_DESIGN_OPTION_TEMPLATES.get(
+            design, _CARD_DESIGN_OPTION_TEMPLATES[_DEFAULT_CARD_DESIGN]
+        )
+        return shortcuts.render(request, template, {})
+
+
 class RecipeCardPreview(generic.View):
     """
-    Generate and display a preview of a recipe card.
+    Return the preview <img> for the current options.
+
+    The card is not composed here: the <img> points at RecipeCardPreviewFile,
+    which renders it lazily when the browser loads it. This keeps the card
+    composed once per change rather than twice (pane + file).
     """
 
     def get(self, request: http.HttpRequest, recipe_id: int) -> http.HttpResponse:
         image_id_raw = request.GET.get("image_id")
         image_id = int(image_id_raw) if image_id_raw else None
-        template = _resolve_card_template(
-            label_style=request.GET.get("label_style", "long"),
-            bg_effect=request.GET.get("bg_effect", "blur"),
-        )
-        info_side = _resolve_info_side(request.GET.get("info_side", "left"))
-        try:
-            preview_path = preview_recipe_card_uc.preview_recipe_card(
-                recipe_id=recipe_id,
-                image_id=image_id,
-                template=template,
-                info_side=info_side,
-            )
-        except Exception:
-            structlog.get_logger().exception("Unexpected error generating recipe card preview")
+        # Cheap existence checks so a bad recipe/image shows a friendly message
+        # instead of a broken image; the expensive render happens in the file view.
+        recipe_missing = not models.FujifilmRecipe.objects.filter(pk=recipe_id).exists()
+        image_missing = image_id is not None and not models.Image.objects.filter(pk=image_id).exists()
+        if recipe_missing or image_missing:
             return shortcuts.render(
                 request,
                 "recipes/partials/recipe_card_result.html",
@@ -826,12 +861,16 @@ class RecipeCardPreview(generic.View):
             request,
             "recipes/partials/recipe_card_result.html",
             {
-                "preview_path": str(preview_path),
+                "preview": True,
                 "recipe_id": recipe_id,
                 "image_id": image_id,
+                "design": request.GET.get("design", _DEFAULT_CARD_DESIGN),
                 "label_style": request.GET.get("label_style", "long"),
                 "bg_effect": request.GET.get("bg_effect", "blur"),
-                "info_side": info_side,
+                "info_side": request.GET.get("info_side", "left"),
+                # Cache-buster so the browser always refetches the preview image
+                # even when the option URL is unchanged (e.g. after an env tweak).
+                "cache_bust": uuid.uuid4().hex,
             },
         )
 
@@ -846,22 +885,21 @@ class RecipeCardPreviewFile(generic.View):
     def get(self, request: http.HttpRequest, recipe_id: int) -> http.FileResponse:
         image_id_raw = request.GET.get("image_id")
         image_id = int(image_id_raw) if image_id_raw else None
-        template = _resolve_card_template(
-            label_style=request.GET.get("label_style", "long"),
-            bg_effect=request.GET.get("bg_effect", "blur"),
-        )
-        info_side = _resolve_info_side(request.GET.get("info_side", "left"))
+        design = _resolve_design(request.GET)
         try:
             preview_path = preview_recipe_card_uc.preview_recipe_card(
                 recipe_id=recipe_id,
                 image_id=image_id,
-                template=template,
-                info_side=info_side,
+                design=design,
             )
         except Exception:
             structlog.get_logger().exception("Unexpected error generating recipe card preview file")
             raise http.Http404
-        return http.FileResponse(preview_path.open("rb"), content_type="image/jpeg")
+        response = http.FileResponse(preview_path.open("rb"), content_type="image/jpeg")
+        # A live preview must never be cached: options and server-side settings
+        # can change the image while the URL stays the same.
+        response["Cache-Control"] = "no-store"
+        return response
 
 
 class CreateRecipeCard(generic.View):
@@ -882,17 +920,12 @@ class CreateRecipeCard(generic.View):
     def post(self, request: http.HttpRequest, recipe_id: int) -> http.HttpResponse:
         image_id_raw = request.POST.get("image_id")
         image_id = int(image_id_raw) if image_id_raw else None
-        template = _resolve_card_template(
-            label_style=request.POST.get("label_style", "long"),
-            bg_effect=request.POST.get("bg_effect", "blur"),
-        )
-        info_side = _resolve_info_side(request.POST.get("info_side", "left"))
+        design = _resolve_design(request.POST)
         try:
             card = create_recipe_card_uc.create_recipe_card(
                 recipe_id=recipe_id,
                 image_id=image_id,
-                template=template,
-                info_side=info_side,
+                design=design,
             )
         except Exception:
             structlog.get_logger().exception("Unexpected error creating recipe card")

@@ -78,6 +78,40 @@ class TestCreateRecipeCard:
         assert response.status_code == 200
         assert models.RecipeCard.objects.filter(recipe=recipe).exists()
 
+    def test_post_with_aperture_design_saves_aperture_card(self, client, tmp_path, settings):
+        settings.RECIPE_CARDS_DIR = str(tmp_path)
+        recipe = FujifilmRecipeFactory()
+        response = client.post(
+            f"/recipes/{recipe.pk}/card/partial/create/", {"design": "aperture"}
+        )
+        assert response.status_code == 200
+        card = models.RecipeCard.objects.get(recipe=recipe)
+        assert card.template == "aperture"
+
+
+@pytest.mark.django_db
+class TestRecipeCardDesignOptions:
+    def test_classic_returns_label_style_controls(self, client):
+        response = client.get("/recipes/card/partial/design-options/?design=classic")
+        assert response.status_code == 200
+        soup = BeautifulSoup(response.content, "html.parser")
+        assert soup.find("input", {"name": "label_style"}) is not None
+
+    def test_aperture_returns_a_note_without_classic_controls(self, client):
+        response = client.get("/recipes/card/partial/design-options/?design=aperture")
+        soup = BeautifulSoup(response.content, "html.parser")
+        assert soup.find("input", {"name": "label_style"}) is None
+        assert "Aperture" in response.content.decode()
+
+    def test_contact_sheet_returns_its_note(self, client):
+        response = client.get("/recipes/card/partial/design-options/?design=contact_sheet")
+        assert "Contact Sheet" in response.content.decode()
+
+    def test_unknown_design_falls_back_to_classic(self, client):
+        response = client.get("/recipes/card/partial/design-options/?design=bogus")
+        soup = BeautifulSoup(response.content, "html.parser")
+        assert soup.find("input", {"name": "label_style"}) is not None
+
 
 @pytest.mark.django_db
 class TestRecipeCardPreview:
@@ -100,3 +134,15 @@ class TestRecipeCardPreview:
         soup = BeautifulSoup(response.content, "html.parser")
         img = soup.find("img", class_="card-result-image")
         assert "info_side=right" in img["src"]
+
+    def test_preview_image_src_carries_selected_design(
+        self, client, tmp_path, settings
+    ):
+        settings.RECIPE_CARDS_DIR = str(tmp_path)
+        recipe = FujifilmRecipeFactory()
+        response = client.get(
+            f"/recipes/{recipe.pk}/card/partial/preview/", {"design": "contact_sheet"}
+        )
+        soup = BeautifulSoup(response.content, "html.parser")
+        img = soup.find("img", class_="card-result-image")
+        assert "design=contact_sheet" in img["src"]

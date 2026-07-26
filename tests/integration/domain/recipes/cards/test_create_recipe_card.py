@@ -5,8 +5,11 @@ from PIL import Image as PILImage
 
 from src.domain.images import events
 from src.domain.recipes.cards import operations as card_operations
-from src.domain.recipes.cards import templates as card_templates
+from src.domain.recipes.cards.designs import classic as classic_design
 from tests.factories import FujifilmRecipeFactory
+
+_CLASSIC = classic_design.ClassicDesign()
+_CLASSIC_SHORT = classic_design.ClassicDesign(label_style="short")
 
 
 @pytest.mark.django_db
@@ -16,8 +19,8 @@ class TestPreviewRecipeCardImage:
         output_path = tmp_path / "preview.jpg"
         result = card_operations.preview_recipe_card_image(
             recipe=recipe,
-            template=card_templates.LONG_LABEL,
-            background_image=None,
+            design=_CLASSIC,
+            background_photo_path=None,
             output_path=output_path,
         )
         assert result == output_path
@@ -27,8 +30,8 @@ class TestPreviewRecipeCardImage:
         output_path = tmp_path / "preview.jpg"
         card_operations.preview_recipe_card_image(
             recipe=recipe,
-            template=card_templates.LONG_LABEL,
-            background_image=None,
+            design=_CLASSIC,
+            background_photo_path=None,
             output_path=output_path,
         )
         assert output_path.exists()
@@ -38,26 +41,26 @@ class TestPreviewRecipeCardImage:
         output_path = tmp_path / "preview.jpg"
         card_operations.preview_recipe_card_image(
             recipe=recipe,
-            template=card_templates.LONG_LABEL,
-            background_image=None,
+            design=_CLASSIC,
+            background_photo_path=None,
             output_path=output_path,
         )
         with PILImage.open(output_path) as img:
-            assert img.size == card_templates.LONG_LABEL.output_size
+            assert img.size == classic_design.ClassicDesign.output_size
 
     def test_successive_calls_overwrite_the_same_file(self, tmp_path: Path) -> None:
         recipe = FujifilmRecipeFactory()
         output_path = tmp_path / "preview.jpg"
         card_operations.preview_recipe_card_image(
             recipe=recipe,
-            template=card_templates.LONG_LABEL,
-            background_image=None,
+            design=_CLASSIC,
+            background_photo_path=None,
             output_path=output_path,
         )
         card_operations.preview_recipe_card_image(
             recipe=recipe,
-            template=card_templates.SHORT_LABEL,
-            background_image=None,
+            design=_CLASSIC_SHORT,
+            background_photo_path=None,
             output_path=output_path,
         )
         assert output_path.exists()
@@ -70,7 +73,7 @@ class TestCreateRecipeCardImage:
         recipe = FujifilmRecipeFactory()
         filepath = card_operations.create_recipe_card_image(
             recipe=recipe,
-            template=card_templates.LONG_LABEL,
+            design=_CLASSIC,
             background_image=None,
             output_dir=tmp_path,
         )
@@ -80,7 +83,7 @@ class TestCreateRecipeCardImage:
         recipe = FujifilmRecipeFactory()
         filepath = card_operations.create_recipe_card_image(
             recipe=recipe,
-            template=card_templates.LONG_LABEL,
+            design=_CLASSIC,
             background_image=None,
             output_dir=tmp_path,
         )
@@ -90,19 +93,19 @@ class TestCreateRecipeCardImage:
         recipe = FujifilmRecipeFactory()
         filepath = card_operations.create_recipe_card_image(
             recipe=recipe,
-            template=card_templates.LONG_LABEL,
+            design=_CLASSIC,
             background_image=None,
             output_dir=tmp_path,
         )
         with PILImage.open(filepath) as img:
-            assert img.size == card_templates.LONG_LABEL.output_size
+            assert img.size == classic_design.ClassicDesign.output_size
 
     def test_gradient_card_embeds_recipe_json_in_exif(self, tmp_path: Path) -> None:
         import piexif
         recipe = FujifilmRecipeFactory()
         filepath = card_operations.create_recipe_card_image(
             recipe=recipe,
-            template=card_templates.LONG_LABEL,
+            design=_CLASSIC,
             background_image=None,
             output_dir=tmp_path,
         )
@@ -114,13 +117,13 @@ class TestCreateRecipeCardImage:
         recipe = FujifilmRecipeFactory()
         filepath1 = card_operations.create_recipe_card_image(
             recipe=recipe,
-            template=card_templates.LONG_LABEL,
+            design=_CLASSIC,
             background_image=None,
             output_dir=tmp_path,
         )
         filepath2 = card_operations.create_recipe_card_image(
             recipe=recipe,
-            template=card_templates.LONG_LABEL,
+            design=_CLASSIC,
             background_image=None,
             output_dir=tmp_path,
         )
@@ -133,7 +136,7 @@ class TestCreateRecipeCard:
         recipe = FujifilmRecipeFactory()
         card = card_operations.create_recipe_card(
             recipe=recipe,
-            template=card_templates.LONG_LABEL,
+            design=_CLASSIC,
             background_image=None,
             output_dir=tmp_path,
         )
@@ -144,7 +147,7 @@ class TestCreateRecipeCard:
         recipe = FujifilmRecipeFactory()
         card = card_operations.create_recipe_card(
             recipe=recipe,
-            template=card_templates.LONG_LABEL,
+            design=_CLASSIC,
             background_image=None,
             output_dir=tmp_path,
         )
@@ -154,7 +157,7 @@ class TestCreateRecipeCard:
         recipe = FujifilmRecipeFactory()
         card = card_operations.create_recipe_card(
             recipe=recipe,
-            template=card_templates.LONG_LABEL,
+            design=_CLASSIC,
             background_image=None,
             output_dir=tmp_path,
         )
@@ -164,7 +167,7 @@ class TestCreateRecipeCard:
         recipe = FujifilmRecipeFactory()
         card = card_operations.create_recipe_card(
             recipe=recipe,
-            template=card_templates.SHORT_LABEL,
+            design=_CLASSIC_SHORT,
             background_image=None,
             output_dir=tmp_path,
         )
@@ -179,7 +182,7 @@ class TestCreateRecipeCardEventPublishing:
         recipe = FujifilmRecipeFactory()
         card = card_operations.create_recipe_card(
             recipe=recipe,
-            template=card_templates.LONG_LABEL,
+            design=_CLASSIC,
             background_image=None,
             output_dir=tmp_path,
         )
@@ -196,7 +199,7 @@ class TestCreateRecipeCardEventPublishing:
         recipe = FujifilmRecipeFactory()
         card_operations.create_recipe_card(
             recipe=recipe,
-            template=card_templates.SHORT_LABEL,
+            design=_CLASSIC_SHORT,
             background_image=None,
             output_dir=tmp_path,
         )
@@ -212,7 +215,7 @@ class TestRecipeCardLogo:
         recipe = FujifilmRecipeFactory()
         filepath = card_operations.create_recipe_card_image(
             recipe=recipe,
-            template=card_templates.LONG_LABEL,
+            design=_CLASSIC,
             background_image=None,
             output_dir=tmp_path,
         )
@@ -220,8 +223,8 @@ class TestRecipeCardLogo:
             # Sample inside the left padding strip of the white logo pill.
             # This strip (x < _TEXT_PADDING) contains only the white background,
             # not the logo itself, so it is reliably white regardless of logo content.
-            x = card_operations._TEXT_PADDING - card_operations._LOGO_PADDING // 2
-            y = img.height - card_operations._TEXT_PADDING - card_operations._LOGO_PADDING
+            x = classic_design._TEXT_PADDING - classic_design._LOGO_PADDING // 2
+            y = img.height - classic_design._TEXT_PADDING - classic_design._LOGO_PADDING
             r, g, b = img.getpixel((x, y))
         # The gradient background at this position is near-black (~30, 20, 70).
         assert r > 200 and g > 200 and b > 200
@@ -232,9 +235,9 @@ class TestRecipeCardInfoSide:
     def _max_title_brightness(self, img: PILImage.Image, panel_x: int) -> int:
         # The title sits in the top padding strip of the info panel. This region
         # is well above the QR code, so it isolates the info-panel placement.
-        p = card_operations._TEXT_PADDING
+        p = classic_design._TEXT_PADDING
         region = img.crop(
-            (panel_x + p, p, panel_x + p + 300, p + card_operations._TITLE_LINE_HEIGHT)
+            (panel_x + p, p, panel_x + p + 300, p + classic_design._TITLE_LINE_HEIGHT)
         )
         return region.getextrema()[0][1]  # max R value
 
@@ -242,10 +245,9 @@ class TestRecipeCardInfoSide:
         recipe = FujifilmRecipeFactory(name="My Recipe")
         filepath = card_operations.create_recipe_card_image(
             recipe=recipe,
-            template=card_templates.LONG_LABEL,
+            design=classic_design.ClassicDesign(info_side="left"),
             background_image=None,
             output_dir=tmp_path,
-            info_side="left",
         )
         with PILImage.open(filepath) as img:
             assert self._max_title_brightness(img, panel_x=0) > 200
@@ -255,10 +257,9 @@ class TestRecipeCardInfoSide:
         recipe = FujifilmRecipeFactory(name="My Recipe")
         filepath = card_operations.create_recipe_card_image(
             recipe=recipe,
-            template=card_templates.LONG_LABEL,
+            design=classic_design.ClassicDesign(info_side="right"),
             background_image=None,
             output_dir=tmp_path,
-            info_side="right",
         )
         with PILImage.open(filepath) as img:
             assert self._max_title_brightness(img, panel_x=img.width // 2) > 200

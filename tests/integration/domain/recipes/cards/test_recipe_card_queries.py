@@ -3,7 +3,7 @@ import json
 import pytest
 
 from src.data import models
-from src.domain.recipes.cards import queries, templates
+from src.domain.recipes.cards import queries
 
 
 def _recipe(**kwargs: object) -> models.FujifilmRecipe:
@@ -125,25 +125,25 @@ class TestGetRecipeAsJson:
 class TestGetRecipeCoverLines:
     def test_returns_field_lines(self) -> None:
         recipe = _recipe()
-        lines = queries.get_recipe_cover_lines(recipe=recipe, template=templates.LONG_LABEL)
+        lines = queries.get_recipe_cover_lines(recipe=recipe, label_style="long")
         assert all(isinstance(line, queries.FieldLine) for line in lines)
 
     def test_uses_long_labels_for_long_template(self) -> None:
         recipe = _recipe(film_simulation="Provia")
-        lines = queries.get_recipe_cover_lines(recipe=recipe, template=templates.LONG_LABEL)
+        lines = queries.get_recipe_cover_lines(recipe=recipe, label_style="long")
         labels = [line.label for line in lines]
         assert "Film Simulation" in labels
 
     def test_uses_short_labels_for_short_template(self) -> None:
         recipe = _recipe(film_simulation="Provia")
-        lines = queries.get_recipe_cover_lines(recipe=recipe, template=templates.SHORT_LABEL)
+        lines = queries.get_recipe_cover_lines(recipe=recipe, label_style="short")
         labels = [line.label for line in lines]
         assert "Film Sim" in labels
         assert "Film Simulation" not in labels
 
     def test_film_simulation_value_is_present(self) -> None:
         recipe = _recipe(film_simulation="Velvia")
-        lines = queries.get_recipe_cover_lines(recipe=recipe, template=templates.LONG_LABEL)
+        lines = queries.get_recipe_cover_lines(recipe=recipe, label_style="long")
         film_line = next(l for l in lines if l.label == "Film Simulation")
         assert film_line.value == "Velvia"
 
@@ -151,19 +151,19 @@ class TestGetRecipeCoverLines:
         # ``color`` is the only field flagged as colour-only via
         # _COLOR_ONLY_FIELDS; for a mono sim it is omitted from the card.
         recipe = _recipe(film_simulation="Acros STD", color=None)
-        lines = queries.get_recipe_cover_lines(recipe=recipe, template=templates.LONG_LABEL)
+        lines = queries.get_recipe_cover_lines(recipe=recipe, label_style="long")
         labels = [line.label for line in lines]
         assert "Color" not in labels
 
     def test_omits_grain_size_when_grain_roughness_is_off(self) -> None:
         recipe = _recipe(grain_roughness="Off", grain_size="Small")
-        lines = queries.get_recipe_cover_lines(recipe=recipe, template=templates.LONG_LABEL)
+        lines = queries.get_recipe_cover_lines(recipe=recipe, label_style="long")
         labels = [line.label for line in lines]
         assert "Grain Size" not in labels
 
     def test_omits_none_values(self) -> None:
         recipe = _recipe(highlight=None, shadow=None)
-        lines = queries.get_recipe_cover_lines(recipe=recipe, template=templates.LONG_LABEL)
+        lines = queries.get_recipe_cover_lines(recipe=recipe, label_style="long")
         labels = [line.label for line in lines]
         assert "Highlight" not in labels
         assert "Shadow" not in labels
@@ -171,7 +171,7 @@ class TestGetRecipeCoverLines:
     def test_omits_drp_fields_when_drp_is_active(self) -> None:
         from decimal import Decimal
         recipe = _recipe(d_range_priority="Auto", dynamic_range="DR100", highlight=Decimal("1"), shadow=Decimal("-1"))
-        lines = queries.get_recipe_cover_lines(recipe=recipe, template=templates.LONG_LABEL)
+        lines = queries.get_recipe_cover_lines(recipe=recipe, label_style="long")
         labels = [line.label for line in lines]
         assert "Dynamic Range" not in labels
         assert "Highlight" not in labels
@@ -187,7 +187,7 @@ class TestGetRecipeCoverLines:
             highlight=Decimal("1"),
             shadow=Decimal("-1"),
         )
-        lines = queries.get_recipe_cover_lines(recipe=recipe, template=templates.LONG_LABEL)
+        lines = queries.get_recipe_cover_lines(recipe=recipe, label_style="long")
         present_fields = [line.label for line in lines]
         film_idx = present_fields.index("Film Simulation")
         wb_idx = present_fields.index("White Balance")
@@ -236,7 +236,7 @@ class TestGetRecipeCoverLinesSensors:
     def test_omits_sensors_line_when_recipe_has_none(self) -> None:
         recipe = _recipe()
 
-        lines = queries.get_recipe_cover_lines(recipe=recipe, template=templates.LONG_LABEL)
+        lines = queries.get_recipe_cover_lines(recipe=recipe, label_style="long")
 
         assert "Sensors" not in [line.label for line in lines]
 
@@ -246,7 +246,7 @@ class TestGetRecipeCoverLinesSensors:
             sensors=models.Sensor.objects.filter(name__in=["X-Trans IV", "GFX"])
         )
 
-        lines = queries.get_recipe_cover_lines(recipe=recipe, template=templates.LONG_LABEL)
+        lines = queries.get_recipe_cover_lines(recipe=recipe, label_style="long")
 
         # The sensors line is first so receivers see compatibility before
         # reading any settings.
@@ -257,7 +257,7 @@ class TestGetRecipeCoverLinesSensors:
         recipe = _recipe()
         recipe.set_sensors(sensors=models.Sensor.objects.filter(name="X-Trans V"))
 
-        lines = queries.get_recipe_cover_lines(recipe=recipe, template=templates.SHORT_LABEL)
+        lines = queries.get_recipe_cover_lines(recipe=recipe, label_style="short")
 
         # Long/short happen to be identical here ("Sensors"); the test
         # documents the contract for future divergence.

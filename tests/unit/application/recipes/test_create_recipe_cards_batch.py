@@ -39,7 +39,7 @@ class TestCreateRecipeCardsBatchSuccessCount:
             uc.create_recipe_cards_batch(recipe_ids=[1, 2])
         assert mock_create.call_count == 2
         mock_create.assert_any_call(
-            recipe_id=1, image_id=None, template=uc._BATCH_TEMPLATE
+            recipe_id=1, image_id=None, design=uc._BATCH_DESIGN
         )
 
 
@@ -79,7 +79,7 @@ class TestCreateRecipeCardsBatchFailureCapture:
         assert result.failures[0].is_not_found
 
     def test_failure_does_not_stop_processing_remaining_ids(self) -> None:
-        def _side_effect(*, recipe_id: int, image_id: int | None, template: object) -> MagicMock:
+        def _side_effect(*, recipe_id: int, image_id: int | None, design: object) -> MagicMock:
             if recipe_id == 2:
                 raise models.FujifilmRecipe.DoesNotExist
             return _fake_card()

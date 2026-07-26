@@ -4,15 +4,14 @@ from django.conf import settings
 
 from src.data import models
 from src.domain.recipes.cards import operations as card_operations
-from src.domain.recipes.cards import templates as card_templates
+from src.domain.recipes.cards.designs import base as card_designs
 
 
 def create_recipe_card(
     *,
     recipe_id: int,
     image_id: int | None,
-    template: card_templates.CardTemplate,
-    info_side: card_templates.InfoSide = card_templates.DEFAULT_INFO_SIDE,
+    design: card_designs.CardDesign,
 ) -> models.RecipeCard:
     """
     Create a recipe card for the given recipe and persist it.
@@ -28,8 +27,7 @@ def create_recipe_card(
     output_dir.mkdir(parents=True, exist_ok=True)
     return card_operations.create_recipe_card(
         recipe=recipe,
-        template=template,
+        design=design,
         background_image=background_image,
         output_dir=output_dir,
-        info_side=info_side,
     )
