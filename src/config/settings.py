@@ -3,11 +3,14 @@ from envparse import Env
 from kombu import Queue
 from pathlib import Path
 
+import os
 import structlog
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
-load_dotenv(BASE_DIR / "src/config/env")
+# Defaults to the developer's personal, gitignored config. Override to read a different file,
+# or os.devnull to ignore it entirely and run purely on the defaults declared below.
+load_dotenv(os.environ.get("FILMCASE_ENV_FILE", BASE_DIR / "src/config/env"))
 
 env = Env()
 
