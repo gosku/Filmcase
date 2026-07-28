@@ -15,6 +15,11 @@ sit further out.
 A **Film Simulation** dropdown in the left sidebar lets you switch to a different film
 simulation without leaving the page.
 
+Below it the sidebar lists every recipe in the graph, ordered by how many images you have
+shot with each. Clicking a name does exactly what clicking its node does. A **Named
+recipes only** switch above the list hides the recipes you have not named yet, which is
+usually most of them; the reference recipe always stays, named or not.
+
 Most connections are drawn as solid lines. A **dashed** line is a warning: it means the
 recipe could not be placed on an exact path from the reference, so adding up the numbers
 along its route will overstate how far it really is from the centre. Its ring position is
@@ -24,14 +29,19 @@ still correct.
 
 ### Exploring a node
 
-Clicking any node on the graph fills in the info panel on the right with details about that
-recipe relative to the reference. The panel shows:
+Before you pick anything, the panel on the right shows the reference recipe on its own:
+every setting, grouped into categories, with the film simulation and image count at the top.
 
-- **All differences** between the selected recipe and the reference — every setting where
-  the two recipes disagree, with the value each one carries.
+Clicking any node fills that panel in with a comparison. The panel shows:
+
+- **Every setting, with the changed ones highlighted.** A changed row shows both values
+  inline, reference first and the compared recipe's value after the arrow. Unchanged rows
+  stay in place but recede, so you can see the whole recipe and the differences at once.
+  An **All properties / Only changes** switch narrows the list to just what differs.
 - **Differences broken down by path** — if the selected recipe sits further out and there
   are intermediate recipes between it and the reference, the panel breaks the changes
-  down hop by hop, showing which settings shifted at each step along the route.
+  down hop by hop as a timeline, showing which settings shifted at each step along the
+  route. A single hop skips this, since the list above already says everything.
 - **Compare images** — a side-by-side image viewer that lets you look at photos from both
   recipes at the same time, so you can judge the visual difference rather than just the
   numerical one.
@@ -64,6 +74,7 @@ described above. It works like the film simulation graph but with three differen
    Because this cutoff can leave out a recipe that another one would have connected
    through, dashed connections show up more often here than on the film simulation graph.
 
-Everything else works the same way: nodes radiate outward by distance, clicking a node
-opens the same info panel with differences, path breakdown, image comparison, and the
-option to jump to that recipe's own graph.
+Everything else works the same way: nodes radiate outward by distance, the sidebar lists
+the recipes in the graph with the same Named recipes only switch, and clicking a node fills in
+the same panel with differences, path breakdown, image comparison, and the option to jump
+to that recipe's own graph.
