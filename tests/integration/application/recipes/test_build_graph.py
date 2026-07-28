@@ -134,6 +134,39 @@ class TestBuildRecipeNetwork:
         assert result.graph_data.root_id == unnamed_root.pk
         assert unnamed_root.pk in {n.id for n in result.graph_data.nodes}
 
+    def test_recipes_by_usage_is_ordered_most_used_first(self):
+        quiet = FujifilmRecipeFactory(film_simulation="Provia", name="Quiet", grain_roughness="Off")
+        busy = FujifilmRecipeFactory(film_simulation="Provia", name="Busy", grain_roughness="Strong")
+        ImageFactory.create_batch(2, fujifilm_recipe=quiet)
+        ImageFactory.create_batch(9, fujifilm_recipe=busy)
+
+        result = build_recipe_network(film_simulation="Provia")
+
+        assert [row.id for row in result.recipes_by_usage] == [busy.pk, quiet.pk]
+
+    def test_recipes_by_usage_breaks_ties_on_label(self):
+        # Unused recipes all share a count of zero, so without a tie-break the
+        # sidebar order would wander between requests.
+        FujifilmRecipeFactory(film_simulation="Provia", name="Zulu", grain_roughness="Off")
+        FujifilmRecipeFactory(film_simulation="Provia", name="Alpha", grain_roughness="Strong")
+
+        result = build_recipe_network(film_simulation="Provia")
+
+        assert [row.label for row in result.recipes_by_usage] == ["Alpha", "Zulu"]
+
+    def test_recipes_by_usage_covers_every_node(self):
+        FujifilmRecipeFactory(film_simulation="Provia", grain_roughness="Off")
+        FujifilmRecipeFactory(film_simulation="Provia", grain_roughness="Strong")
+
+        result = build_recipe_network(film_simulation="Provia")
+
+        assert {row.id for row in result.recipes_by_usage} == {n.id for n in result.graph_data.nodes}
+
+    def test_recipes_by_usage_is_empty_when_no_recipes(self):
+        result = build_recipe_network(film_simulation="Provia")
+
+        assert result.recipes_by_usage == ()
+
     def test_edges_connect_recipes_within_film_sim(self):
         r1 = FujifilmRecipeFactory(film_simulation="Provia", grain_roughness="Off", white_balance_red=0, white_balance_blue=0)
         r2 = FujifilmRecipeFactory(film_simulation="Provia", grain_roughness="Strong", white_balance_red=0, white_balance_blue=0)

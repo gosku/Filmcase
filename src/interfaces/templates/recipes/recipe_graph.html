@@ -14,12 +14,19 @@
 
 <div class="content-area">
 
-  <aside class="sidebar">
+  <aside class="sidebar" id="graph-sidebar">
     {% include "recipes/includes/section_toggle.html" with active="graph" %}
     {% if recipe_name %}
-    <p class="sidebar-recipe-name">{{ recipe_name }}</p>
-    <p class="sidebar-meta">Max distance: {{ max_distance }}</p>
+    <div class="graph-sidebar__section">
+      <div class="graph-sidebar__label">Reference recipe</div>
+      <p class="sidebar-recipe-name">{{ recipe_name }}</p>
+      <p class="sidebar-meta">Max distance: {{ max_distance }}</p>
+    </div>
     {% endif %}
+
+    <div id="graph-sidebar-body" class="graph-sidebar__body">
+      {% include "recipes/includes/graph_sidebar_body.html" %}
+    </div>
   </aside>
 
   <main class="main">
@@ -40,6 +47,7 @@
 
 <script id="init-data" type="application/json">
   {
+    "named_only": {% if named_only %}true{% else %}false{% endif %},
     "root_id": {% if root_id %}{{ root_id }}{% else %}null{% endif %},
     "root_label": "{{ root_label|escapejs }}",
     "root_fields": {{ root_fields_json|safe }},
@@ -51,6 +59,29 @@
 <script>
   (function () {
     var initData = JSON.parse(document.getElementById("init-data").textContent);
+    var namedOnly = initData.named_only;
+
+    function graphUrl(recipeId, named) {
+      var url = "/recipes/graph/" + recipeId + "/";
+      return named ? url + "?named=1" : url;
+    }
+
+    function loadGraph(recipeId, named, rootLabel) {
+      var url = graphUrl(recipeId, named);
+      fetch(url, {headers: {"Accept": "application/json"}})
+        .then(function (response) { return response.json(); })
+        .then(function (data) {
+          graph.replaceGraph({
+            elements: data.elements,
+            rootId: data.root_id,
+            rootLabel: data.root_label,
+            rootFields: data.root_fields,
+            sidebarHtml: data.sidebar_html,
+          });
+          history.pushState(null, "", url);
+          updateSidebar(data.root_label);
+        });
+    }
 
     var graph = RecipeGraph.init({
       containerId: "cy",
@@ -60,19 +91,11 @@
       rootFields: initData.root_fields,
       // Re-root onto the selected recipe without a page reload.
       onSelectedGraphRequested: function (nodeId) {
-        var url = "/recipes/graph/" + nodeId + "/";
-        fetch(url, {headers: {"Accept": "application/json"}})
-          .then(function (response) { return response.json(); })
-          .then(function (data) {
-            graph.replaceGraph({
-              elements: data.elements,
-              rootId: data.root_id,
-              rootLabel: data.root_label,
-              rootFields: data.root_fields,
-            });
-            history.pushState(null, "", url);
-            updateSidebar(data.root_label);
-          });
+        loadGraph(nodeId, namedOnly);
+      },
+      onNamedOnlyChanged: function (nextNamedOnly) {
+        namedOnly = nextNamedOnly;
+        loadGraph(graph.getRootId(), namedOnly);
       },
     });
 

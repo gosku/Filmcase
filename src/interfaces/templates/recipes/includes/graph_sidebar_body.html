@@ -1,0 +1,55 @@
+{% comment %}
+Legend plus the recipe list, shared by both graph pages. Re-rendered on its own
+and swapped in when the film simulation or the named-only filter changes, so it
+must not depend on anything outside this context.
+
+Context: recipes_by_usage, root_id, named_only, comparing (bool).
+{% endcomment %}
+<div class="graph-sidebar__section">
+  <div class="graph-sidebar__label">Legend</div>
+  <div class="graph-legend{% if not comparing %} graph-legend--no-comparison{% endif %}">
+    <div class="graph-legend__row">
+      <span class="graph-legend__dot graph-legend__dot--reference"></span>
+      Reference (graph root)
+    </div>
+    <div class="graph-legend__row graph-legend__row--compared">
+      <span class="graph-legend__dot graph-legend__dot--compared"></span>
+      Selected to compare
+    </div>
+    <div class="graph-legend__row graph-legend__row--pick">
+      <span class="graph-legend__dot graph-legend__dot--pick"></span>
+      Pick one to compare
+    </div>
+    <div class="graph-legend__row">
+      <span class="graph-legend__dot graph-legend__dot--recipe"></span>
+      Recipe &middot; size = uses
+    </div>
+  </div>
+</div>
+
+<div class="graph-sidebar__section graph-sidebar__section--list">
+  <div class="graph-sidebar__label">
+    Recipes in graph <span class="graph-sidebar__count">&middot; {{ recipes_by_usage|length }}</span>
+  </div>
+
+  <label class="toggle-switch graph-sidebar__filter" for="named-only-toggle">
+    <input type="checkbox" id="named-only-toggle"{% if named_only %} checked{% endif %}>
+    Named recipes only
+  </label>
+
+  <ul class="graph-recipe-list" id="graph-recipe-list">
+    {% for row in recipes_by_usage %}
+    <li>
+      <button type="button"
+              class="graph-recipe-list__row{% if row.is_reference %} graph-recipe-list__row--reference{% endif %}"
+              data-recipe-id="{{ row.id }}">
+        <span class="graph-recipe-list__dot"></span>
+        <span class="graph-recipe-list__name">{{ row.label }}</span>
+        <span class="graph-recipe-list__uses">{{ row.uses_display }}</span>
+      </button>
+    </li>
+    {% empty %}
+    <li class="graph-recipe-list__empty">No recipes in this graph.</li>
+    {% endfor %}
+  </ul>
+</div>

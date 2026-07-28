@@ -32,6 +32,12 @@ window.RecipeGraph = (function () {
   var PATH_COLOR = "#ef4444";
   var CANVAS_COLOR = "#f5f5f5";
 
+  // The compared node wears an accent ring, matching the sidebar legend's
+  // "Selected to compare" swatch.
+  var SELECTED_BORDER_COLOR = "#ef4444";
+  var SELECTED_BORDER_WIDTH = 3;
+  var BASE_BORDER_WIDTH = 1.5;
+
   var MIN_NODE_SIZE = 14;
   var MAX_NODE_SIZE = 80;
   var MIN_ROOT_SIZE = 32;
@@ -229,8 +235,8 @@ window.RecipeGraph = (function () {
     {
       selector: "node:selected",
       style: {
-        "border-width": 3,
-        "border-color": "#111111",
+        "border-width": SELECTED_BORDER_WIDTH,
+        "border-color": SELECTED_BORDER_COLOR,
       },
     },
   ]);
@@ -266,6 +272,8 @@ window.RecipeGraph = (function () {
     var selectedId = null;
     var selectedLabel = "";
     var highlightedEdges = [];
+    // The node currently wearing the accent ring, so it can be unrung later.
+    var markedNodeId = null;
 
     var panel = {
       rootName: document.getElementById("card-root-name"),
@@ -330,6 +338,37 @@ window.RecipeGraph = (function () {
           "text-margin-y": offAxisY ? sin * LABEL_GAP : 0,
         });
       });
+    }
+
+    /**
+     * Ring the compared node in the accent colour and unring the previous one.
+     *
+     * Done explicitly rather than through the `node:selected` stylesheet rule
+     * because applyNodeStyles sets border-color inline, and inline styles win
+     * over the stylesheet in Cytoscape.
+     */
+    function markSelectedNode(nodeId) {
+      if (markedNodeId !== null) {
+        var previous = cy.getElementById(markedNodeId);
+        if (previous.nonempty()) {
+          var wasRoot = rootId !== null && markedNodeId === rootId;
+          previous.style({
+            "border-color": wasRoot ? ROOT_BORDER_COLOR : NODE_BORDER_COLOR,
+            "border-width": BASE_BORDER_WIDTH,
+          });
+        }
+      }
+      markedNodeId = nodeId;
+      if (nodeId === null) {
+        return;
+      }
+      var node = cy.getElementById(nodeId);
+      if (node.nonempty()) {
+        node.style({
+          "border-color": SELECTED_BORDER_COLOR,
+          "border-width": SELECTED_BORDER_WIDTH,
+        });
+      }
     }
 
     function applyNodeStyles(currentElements) {
@@ -496,21 +535,75 @@ window.RecipeGraph = (function () {
       tooltip.root.style.display = "none";
     });
 
+    /* --- Sidebar --- */
+
+    var sidebarBody = document.getElementById("graph-sidebar-body");
+
+    /**
+     * Highlight the row for the compared recipe, or fall back to the reference
+     * row when nothing is compared.
+     */
+    function markActiveRow(nodeId) {
+      if (!sidebarBody) {
+        return;
+      }
+      sidebarBody.querySelectorAll(".graph-recipe-list__row").forEach(function (row) {
+        var isActive = nodeId !== null && row.getAttribute("data-recipe-id") === nodeId;
+        row.classList.toggle("graph-recipe-list__row--active", isActive);
+      });
+    }
+
+    function setLegendComparing(comparing) {
+      if (!sidebarBody) {
+        return;
+      }
+      var legend = sidebarBody.querySelector(".graph-legend");
+      if (legend) {
+        legend.classList.toggle("graph-legend--no-comparison", !comparing);
+      }
+    }
+
+    // Delegated so the handlers survive the sidebar being replaced wholesale.
+    if (sidebarBody) {
+      sidebarBody.addEventListener("click", function (event) {
+        var row = event.target.closest(".graph-recipe-list__row");
+        if (row) {
+          selectRecipe(row.getAttribute("data-recipe-id"));
+        }
+      });
+
+      sidebarBody.addEventListener("change", function (event) {
+        if (event.target.id === "named-only-toggle" && config.onNamedOnlyChanged) {
+          config.onNamedOnlyChanged(event.target.checked);
+        }
+      });
+    }
+
     /* --- Selection --- */
 
-    cy.on("click", "node", function (event) {
-      var nodeId = event.target.data("id");
+    /**
+     * Select a recipe to compare against the reference. The single entry point
+     * for both a graph node click and a sidebar row click, so the two stay in
+     * step by construction.
+     */
+    function selectRecipe(nodeId) {
+      var node = cy.getElementById(nodeId);
+      if (node.empty()) {
+        return;
+      }
       if (rootId !== null && nodeId === rootId) {
-        hideSelectedSection();
-        clearPathHighlight();
+        clearSelection();
         return;
       }
 
       selectedId = nodeId;
-      selectedLabel = event.target.data("label");
+      selectedLabel = node.data("label");
 
       var path = findPath(nodeId);
       highlightPath(path);
+      markSelectedNode(nodeId);
+      markActiveRow(nodeId);
+      setLegendComparing(true);
 
       panel.selectedName.textContent = selectedLabel;
       panel.rootDiffs.innerHTML = '<span class="graph-panel__loading">Loading&hellip;</span>';
@@ -522,6 +615,20 @@ window.RecipeGraph = (function () {
         .then(function (data) {
           showSelectedSection(selectedLabel, data.root_diffs, data.path_nodes);
         });
+    }
+
+    function clearSelection() {
+      selectedId = null;
+      selectedLabel = "";
+      hideSelectedSection();
+      clearPathHighlight();
+      markSelectedNode(null);
+      markActiveRow(null);
+      setLegendComparing(false);
+    }
+
+    cy.on("click", "node", function (event) {
+      selectRecipe(event.target.data("id"));
     });
 
     panel.rootDetailBtn.onclick = function () {
@@ -562,22 +669,34 @@ window.RecipeGraph = (function () {
       selectedId = null;
       selectedLabel = "";
       highlightedEdges = [];
+      // The old nodes are about to go, so there is nothing left to unring.
+      markedNodeId = null;
 
       cy.elements().remove();
       cy.add(nextElements);
       applyNodeStyles(nextElements);
       cy.layout(makePresetLayout(buildRadialPositions(nextElements, rootId), applyRadialLabels)).run();
 
+      // The recipe list and its counts belong to the graph that was just
+      // loaded, so they are re-rendered server side and swapped in together.
+      if (sidebarBody && next.sidebarHtml !== undefined) {
+        sidebarBody.innerHTML = next.sidebarHtml;
+      }
+
       populateRootPanel();
       hideSelectedSection();
+      markActiveRow(null);
+      setLegendComparing(false);
     }
 
     applyNodeStyles(elements);
     populateRootPanel();
+    setLegendComparing(false);
 
     return {
       cy: cy,
       replaceGraph: replaceGraph,
+      selectRecipe: selectRecipe,
       getRootId: function () { return rootId; },
     };
   }

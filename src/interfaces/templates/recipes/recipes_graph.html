@@ -14,7 +14,7 @@
 
 <div class="content-area">
 
-  <aside class="sidebar">
+  <aside class="sidebar" id="graph-sidebar">
     {% include "recipes/includes/section_toggle.html" with active="graph" %}
 
     <div class="sidebar-filter">
@@ -24,6 +24,10 @@
         <option value="{{ sim }}"{% if sim == active_film_simulation %} selected{% endif %}>{{ sim }}</option>
         {% endfor %}
       </select>
+    </div>
+
+    <div id="graph-sidebar-body" class="graph-sidebar__body">
+      {% include "recipes/includes/graph_sidebar_body.html" %}
     </div>
   </aside>
 
@@ -46,6 +50,7 @@
 <script id="init-data" type="application/json">
   {
     "active_film_sim": "{{ active_film_simulation|escapejs }}",
+    "named_only": {% if named_only %}true{% else %}false{% endif %},
     "root_id": {% if root_id %}{{ root_id }}{% else %}null{% endif %},
     "root_label": "{{ root_label|escapejs }}",
     "root_fields": {{ root_fields_json|safe }},
@@ -58,6 +63,9 @@
   (function () {
     var initData = JSON.parse(document.getElementById("init-data").textContent);
     var defaultFilmSim = initData.active_film_sim;
+    var namedOnly = initData.named_only;
+
+    var select = document.getElementById("film-sim-select");
 
     var graph = RecipeGraph.init({
       containerId: "cy",
@@ -68,12 +76,21 @@
       onSelectedGraphRequested: function (nodeId) {
         window.location.href = "/recipes/graph/" + nodeId + "/";
       },
+      onNamedOnlyChanged: function (nextNamedOnly) {
+        namedOnly = nextNamedOnly;
+        loadGraph(select.value, namedOnly, true);
+      },
     });
 
-    var select = document.getElementById("film-sim-select");
-
-    function loadFilmSim(sim, pushState) {
+    function graphUrl(sim, named) {
       var url = "/recipes/graph/?film_sim=" + encodeURIComponent(sim);
+      return named ? url + "&named=1" : url;
+    }
+
+    // The film-simulation selector and the All / Named switch both reload the
+    // whole graph, so they share one path.
+    function loadGraph(sim, named, pushState) {
+      var url = graphUrl(sim, named);
       if (pushState) {
         history.pushState(null, "", url);
       }
@@ -85,21 +102,24 @@
             rootId: data.root_id,
             rootLabel: data.root_label,
             rootFields: data.root_fields,
+            sidebarHtml: data.sidebar_html,
           });
         });
     }
 
     select.addEventListener("change", function () {
-      loadFilmSim(this.value, true);
+      loadGraph(this.value, namedOnly, true);
     });
 
-    // Keep the dropdown and the graph in step with browser history.
+    // Keep the controls and the graph in step with browser history.
     window.addEventListener("popstate", function () {
       var params = new URLSearchParams(window.location.search);
       var sim = params.get("film_sim") || defaultFilmSim;
-      if (select.value !== sim) {
+      var named = params.get("named") === "1";
+      if (select.value !== sim || named !== namedOnly) {
         select.value = sim;
-        loadFilmSim(sim, false);
+        namedOnly = named;
+        loadGraph(sim, named, false);
       }
     });
   })();

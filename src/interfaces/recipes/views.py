@@ -11,6 +11,7 @@ from django.conf import settings
 from django import http
 from django import shortcuts
 from django import urls
+from django.template import loader
 from django.views import generic
 
 from src.interfaces import forms as interface_forms
@@ -331,6 +332,52 @@ def _cyto_elements(*, graph_data: recipe_graph.RecipeTreeData) -> list[dict[str,
     return nodes + edges
 
 
+@_attrs.frozen
+class GraphRecipeRow:
+    """
+    One row of the graph sidebar's recipe list, ready to render.
+    """
+
+    id: int
+    label: str
+    is_reference: bool
+    uses_display: str
+
+    @classmethod
+    def from_nodes(
+        cls,
+        nodes: "tuple[recipe_graph.RecipeTreeNode, ...]",
+        root_id: int | None,
+    ) -> list["GraphRecipeRow"]:
+        return [
+            cls(
+                id=node.id,
+                label=node.label,
+                is_reference=node.id == root_id,
+                # django.contrib.humanize is not installed, so group here.
+                uses_display=f"{node.image_count:,}",
+            )
+            for node in nodes
+        ]
+
+
+def _render_graph_sidebar(
+    *,
+    request: http.HttpRequest,
+    rows: list[GraphRecipeRow],
+    named_only: bool,
+    comparing: bool = False,
+) -> str:
+    """
+    Render the graph sidebar's legend and recipe list as an HTML fragment.
+    """
+    return loader.render_to_string(
+        "recipes/includes/graph_sidebar_body.html",
+        {"recipes_by_usage": rows, "named_only": named_only, "comparing": comparing},
+        request=request,
+    )
+
+
 def _named_only(request: http.HttpRequest) -> bool:
     """
     Read the graph's "named recipes only" switch from the query string.
@@ -364,6 +411,13 @@ class RecipesGraph(generic.View):
                 "root_id": root_id,
                 "root_fields": root_fields,
                 "root_label": root_label,
+                # Rendered from the same include the page uses, so the list has
+                # one source whether it arrives on load or after a filter change.
+                "sidebar_html": _render_graph_sidebar(
+                    request=request,
+                    rows=GraphRecipeRow.from_nodes(result.recipes_by_usage, root_id),
+                    named_only=result.named_only,
+                ),
             })
         return shortcuts.render(request, "recipes/recipes_graph.html", {
             "graph_elements_json": json.dumps(cyto_elements),
@@ -373,6 +427,8 @@ class RecipesGraph(generic.View):
             "root_fields_json": json.dumps(root_fields),
             "root_label": root_label,
             "named_only": result.named_only,
+            "recipes_by_usage": GraphRecipeRow.from_nodes(result.recipes_by_usage, root_id),
+            "comparing": False,
         })
 
 
@@ -403,6 +459,13 @@ class RecipeGraph(generic.View):
                 "root_label": result.root_label,
                 "root_fields": root_fields,
                 "elements": cyto_elements,
+                "sidebar_html": _render_graph_sidebar(
+                    request=request,
+                    rows=GraphRecipeRow.from_nodes(
+                        result.recipes_by_usage, result.graph_data.root_id,
+                    ),
+                    named_only=result.named_only,
+                ),
             })
         return shortcuts.render(request, "recipes/recipe_graph.html", {
             "root_id": result.graph_data.root_id,
@@ -412,6 +475,10 @@ class RecipeGraph(generic.View):
             "root_label": result.root_label,
             "recipe_name": result.root_label,
             "named_only": result.named_only,
+            "recipes_by_usage": GraphRecipeRow.from_nodes(
+                result.recipes_by_usage, result.graph_data.root_id,
+            ),
+            "comparing": False,
         })
 
 

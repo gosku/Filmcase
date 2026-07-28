@@ -31,11 +31,20 @@ body {
 /* Sidebar
    ===================================== */
 
+/* The sidebar is a column so the recipe list can take the leftover height and
+   scroll on its own, rather than the whole sidebar scrolling. */
+
+/* Width and padding match the explorer and recipe detail sidebars, so the
+   column does not jump when you move between the sections. */
+
 .sidebar {
     width: 320px;
     min-width: 320px;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
     padding: 1.5rem;
-    overflow-y: auto;
+    overflow: hidden;
     border-right: 1px solid var(--color-border);
     background: var(--color-bg-surface);
 }
@@ -50,12 +59,44 @@ body {
 
 /* The Explorer / Graph toggle is the shared .segmented-toggle in brand.css. */
 
-.segmented-toggle {
-    margin-bottom: 1.5rem;
+/* Wrapper the JS replaces wholesale when the graph reloads. */
+
+.graph-sidebar__body {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    min-height: 0;
+}
+
+.graph-sidebar__section {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-height: 0;
+}
+
+.graph-sidebar__section--list {
+    flex: 1;
+}
+
+.graph-sidebar__label {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .13em;
+    color: #9aa3af;
+}
+
+.graph-sidebar__count {
+    color: #b4bcc7;
+}
+
+.graph-sidebar__filter {
+    margin-bottom: 4px;
 }
 
 .sidebar-recipe-name {
-    margin-bottom: .4rem;
     font-size: .95rem;
     font-weight: 600;
     color: #222222;
@@ -66,30 +107,181 @@ body {
     color: #888888;
 }
 
+/* Legend
+   ===================================== */
+
+.graph-legend {
+    display: flex;
+    flex-direction: column;
+    gap: 9px;
+}
+
+.graph-legend__row {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    font-size: 12.5px;
+    color: #5a6675;
+}
+
+/* The middle row swaps between "selected to compare" and a prompt to pick one,
+   depending on whether a comparison is active. */
+
+.graph-legend__row--pick {
+    color: #a3abb6;
+}
+
+.graph-legend .graph-legend__row--pick,
+.graph-legend--no-comparison .graph-legend__row--compared {
+    display: none;
+}
+
+.graph-legend--no-comparison .graph-legend__row--pick {
+    display: flex;
+}
+
+/* Matches NODE_COLOR in recipe-graph.js, so the swatch is literally the colour
+   the graph draws. */
+
+.graph-legend__dot {
+    flex-shrink: 0;
+    width: 13px;
+    height: 13px;
+    border-radius: 50%;
+    background: #334155;
+}
+
+.graph-legend__dot--reference {
+    background: var(--color-accent);
+}
+
+.graph-legend__dot--compared {
+    box-shadow: 0 0 0 2px var(--color-accent);
+}
+
+.graph-legend__dot--pick {
+    border: 2px dashed #c3cad3;
+    background: #ffffff;
+}
+
+.graph-legend__dot--recipe {
+    width: 11px;
+    height: 11px;
+}
+
+/* Recipe list
+   ===================================== */
+
+.graph-recipe-list {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-height: 0;
+    margin: 0;
+    padding: 0;
+    overflow-y: auto;
+    list-style: none;
+}
+
+.graph-recipe-list__row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 8px 10px;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    font-family: inherit;
+    font-size: 13px;
+    text-align: left;
+    background: transparent;
+    cursor: pointer;
+}
+
+.graph-recipe-list__row:hover {
+    background: rgba(255, 255, 255, .6);
+}
+
+.graph-recipe-list__row--active,
+.graph-recipe-list__row--reference {
+    border-color: #f0d3cf;
+    background: #ffffff;
+}
+
+.graph-recipe-list__dot {
+    flex-shrink: 0;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #a9b2bd;
+}
+
+.graph-recipe-list__row--reference .graph-recipe-list__dot {
+    width: 8px;
+    height: 8px;
+    background: var(--color-accent);
+}
+
+.graph-recipe-list__row--active .graph-recipe-list__dot {
+    width: 8px;
+    height: 8px;
+    background: #28323f;
+    box-shadow: 0 0 0 2px var(--color-accent);
+}
+
+.graph-recipe-list__name {
+    flex: 1;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    color: #5a6675;
+}
+
+.graph-recipe-list__row--active .graph-recipe-list__name,
+.graph-recipe-list__row--reference .graph-recipe-list__name {
+    font-weight: 600;
+    color: #2c3744;
+}
+
+.graph-recipe-list__uses {
+    flex-shrink: 0;
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+    color: #b4bcc7;
+}
+
+.graph-recipe-list__empty {
+    padding: 8px 10px;
+    font-size: 12.5px;
+    font-style: italic;
+    color: #a3abb6;
+}
+
 /* Film-simulation filter, docked in the sidebar so nothing overlays the canvas.
    ===================================== */
 
 .sidebar-filter {
     display: flex;
     flex-direction: column;
-    gap: .4rem;
-    margin-bottom: 1.25rem;
+    gap: 8px;
 }
 
 .sidebar-filter__label {
-    font-size: .72rem;
+    font-size: 10px;
+    font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: .05em;
-    color: #888888;
+    letter-spacing: .13em;
+    color: #9aa3af;
 }
 
 .sidebar-filter__select {
     width: 100%;
-    padding: .3rem .5rem;
-    border: 1px solid #d1d5db;
-    border-radius: 4px;
-    font-size: .85rem;
-    color: #222222;
+    padding: 11px 12px;
+    border: 1px solid #d7dee6;
+    border-radius: 9px;
+    font-size: 14px;
+    color: #2c3744;
     background: var(--color-bg-page);
     cursor: pointer;
 }
