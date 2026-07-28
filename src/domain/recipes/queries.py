@@ -304,6 +304,10 @@ def get_recipe_comparison(*, recipe_ids: list[int]) -> RecipeComparisonResult:
     )
 
 
+# Shown where a recipe has no value for a field the other recipe does have.
+EMPTY_VALUE = "—"  # em dash
+
+
 def _field_display_value(field: str, raw: object) -> str | None:
     """
     Return a display-ready string for *field*'s value, or None to omit it.
@@ -338,8 +342,8 @@ def _recipe_diff_fields(
             before = _field_display_value(field, getattr(a, field))
             result.append(FieldValue(
                 field=_FIELD_LABELS[field],
-                value=after if after is not None else "—",
-                before=before if before is not None else "—",
+                value=after if after is not None else EMPTY_VALUE,
+                before=before if before is not None else EMPTY_VALUE,
             ))
     return tuple(result)
 
@@ -349,6 +353,122 @@ def get_recipe_all_fields(*, recipe: models.FujifilmRecipe) -> tuple[FieldValue,
     Return all non-None RECIPE_FIELDS of *recipe* as display-ready FieldValue tuples.
     """
     return _recipe_all_fields(recipe)
+
+
+# Recipe fields arranged into the categories the comparison panel renders.
+# Every entry of RECIPE_FIELDS must appear exactly once; a test enforces it, so
+# a newly added field cannot be silently dropped from the panel.
+PROPERTY_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
+    ("Basic", ("film_simulation",)),
+    ("Dynamic Range", ("dynamic_range", "d_range_priority")),
+    ("Grain", ("grain_roughness", "grain_size")),
+    ("Color Chrome", ("color_chrome_effect", "color_chrome_fx_blue")),
+    ("White Balance", ("white_balance", "white_balance_red", "white_balance_blue")),
+    ("Tone & Color", ("highlight", "shadow", "color")),
+    ("Detail", ("sharpness", "high_iso_nr", "clarity")),
+    ("Monochrome", ("monochromatic_color_warm_cool", "monochromatic_color_magenta_green")),
+)
+
+
+@attrs.frozen
+class PropertyRow:
+    key: str  # the model field name, so callers can map an icon to it
+    label: str
+    reference_value: str
+    # None when only one recipe is being shown and there is nothing to compare.
+    compared_value: str | None
+    changed: bool
+
+
+@attrs.frozen
+class PropertyGroup:
+    label: str
+    rows: tuple[PropertyRow, ...]
+
+    @property
+    def changed_count(self) -> int:
+        return sum(1 for row in self.rows if row.changed)
+
+
+@attrs.frozen
+class RecipePropertyView:
+    groups: tuple[PropertyGroup, ...]
+    changed_count: int
+
+
+def _build_property_view(
+    *,
+    reference: models.FujifilmRecipe,
+    compared: models.FujifilmRecipe | None,
+) -> RecipePropertyView:
+    """
+    Group *reference*'s fields, optionally paired with *compared*'s values.
+
+    A field is omitted when neither recipe has a value for it, and a group with
+    no remaining rows is dropped. That is what keeps the Monochrome group out of
+    a colour recipe's panel without special-casing it.
+    """
+    groups: list[PropertyGroup] = []
+    changed_count = 0
+
+    for label, fields in PROPERTY_GROUPS:
+        rows: list[PropertyRow] = []
+        for field in fields:
+            reference_value = _field_display_value(field, getattr(reference, field))
+            compared_value = (
+                _field_display_value(field, getattr(compared, field))
+                if compared is not None
+                else None
+            )
+            if reference_value is None and compared_value is None:
+                continue
+
+            changed = compared is not None and getattr(reference, field) != getattr(compared, field)
+            if changed:
+                changed_count += 1
+
+            rows.append(PropertyRow(
+                key=field,
+                label=_FIELD_LABELS[field],
+                reference_value=reference_value if reference_value is not None else EMPTY_VALUE,
+                compared_value=(
+                    (compared_value if compared_value is not None else EMPTY_VALUE)
+                    if compared is not None
+                    else None
+                ),
+                changed=changed,
+            ))
+
+        if rows:
+            groups.append(PropertyGroup(label=label, rows=tuple(rows)))
+
+    return RecipePropertyView(groups=tuple(groups), changed_count=changed_count)
+
+
+def get_recipe_properties(*, recipe: models.FujifilmRecipe) -> RecipePropertyView:
+    """
+    Return *recipe*'s fields grouped into display categories, one value per row.
+
+    Used when a reference recipe is being inspected on its own, so nothing is
+    marked as changed and `compared_value` is None throughout.
+    """
+    return _build_property_view(reference=recipe, compared=None)
+
+
+def get_recipe_property_comparison(
+    *,
+    reference: models.FujifilmRecipe,
+    compared: models.FujifilmRecipe,
+) -> RecipePropertyView:
+    """
+    Return every field of both recipes, grouped, with the pair of values and a
+    changed flag on each row.
+
+    Unlike `get_path_deltas`, which reports only what differs, this keeps the
+    unchanged rows so the panel can show the full recipe and filter down to the
+    changes on demand.
+    """
+    return _build_property_view(reference=reference, compared=compared)
 
 
 def get_path_deltas(*, path_ids: list[int]) -> PathDeltaResult:
