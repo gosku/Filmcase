@@ -15,10 +15,7 @@
 <div class="content-area">
 
   <aside class="sidebar">
-    <nav class="sidebar-nav">
-      <a href="{% url 'recipes-explorer' %}" class="sidebar-nav__link">Explorer</a>
-      <a href="{% url 'recipes-graph' %}" class="sidebar-nav__link sidebar-nav__link--active">Graph</a>
-    </nav>
+    {% include "recipes/includes/section_toggle.html" with active="graph" %}
 
     <div class="sidebar-filter">
       <label class="sidebar-filter__label" for="film-sim-select">Film Simulation</label>

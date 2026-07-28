@@ -40,3 +40,63 @@
 .button--primary:hover {
     background: var(--color-accent-dark);
 }
+
+/* ------------------------------------ */
+/* Segmented toggle component           */
+/* ------------------------------------ */
+
+/* Equal halves sharing a sunken track, for picking between two labelled
+   alternatives. Use .toggle-switch instead when a single option is simply
+   being turned on or off. */
+
+.segmented-toggle {
+    display: flex;
+    flex-direction: row;
+    gap: 2px;
+    padding: 3px;
+    border-radius: 8px;
+    background: #e1e7ed;
+}
+
+.segmented-toggle__option {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 6px;
+    border: none;
+    border-radius: 6px;
+    font-family: inherit;
+    font-size: .78rem;
+    font-weight: 500;
+    text-align: center;
+    text-decoration: none;
+    color: #6b7684;
+    background: transparent;
+    cursor: default;
+}
+
+/* Only a half that navigates or acts is interactive. The half representing the
+   current state renders without href / with disabled, so it keeps the default
+   cursor and no hover. */
+
+.segmented-toggle__option[href],
+.segmented-toggle__option:not(:disabled) {
+    cursor: pointer;
+}
+
+.segmented-toggle__option[href]:hover,
+.segmented-toggle__option:not(:disabled):hover {
+    color: var(--color-text-primary);
+}
+
+.segmented-toggle__option--active {
+    font-weight: 600;
+    color: var(--color-text-light);
+    background: var(--color-accent);
+    box-shadow: 0 2px 8px rgba(239, 68, 68, .3);
+}
+
+.segmented-toggle__option--active:hover {
+    color: var(--color-text-light);
+}
