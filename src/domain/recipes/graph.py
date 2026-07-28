@@ -54,6 +54,8 @@ class RecipeTreeNode:
     label: str
     distance: int
     image_count: int
+    # False when the recipe has no name and `label` is the "#<pk>" fallback.
+    is_named: bool
 
 
 @attrs.frozen
@@ -93,6 +95,27 @@ def recipes_within_distance(
         if recipe.pk != root.pk and hamming_distance(a=root, b=recipe) < max_distance
     )
     return within
+
+
+def named_recipes(
+    *,
+    root: models.FujifilmRecipe,
+    all_recipes: Iterable[models.FujifilmRecipe],
+) -> list[models.FujifilmRecipe]:
+    """
+    Return *root* plus every recipe that has a name.
+
+    The root is kept even when it is unnamed. It anchors the tree, and the
+    most-used recipe for a film simulation is often unnamed, so dropping it
+    would leave the graph rootless. Keeping it also means toggling this filter
+    never changes which recipe the others are compared against.
+    """
+    kept = [root]
+    kept.extend(
+        recipe for recipe in all_recipes
+        if recipe.pk != root.pk and recipe.name
+    )
+    return kept
 
 
 def build_recipe_tree(
@@ -186,6 +209,7 @@ def build_recipe_tree(
             label=recipe.name or f"#{recipe.pk}",
             distance=dist_from_root[recipe.pk],
             image_count=image_counts.get(recipe.pk, 0),
+            is_named=bool(recipe.name),
         )
         for recipe in recipes
     )

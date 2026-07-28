@@ -284,6 +284,56 @@ def _graph_body_stray_text(response):
 
 
 @pytest.mark.django_db
+class TestGraphNamedOnlyFilter:
+    def test_named_param_drops_unnamed_recipes_from_the_network(self, client):
+        named = _recipe(name="Named", grain_roughness="Off")
+        unnamed = _recipe(name="", grain_roughness="Strong")
+
+        response = client.get("/recipes/graph/", {"film_sim": _DEFAULT_SIM, "named": "1"})
+
+        node_ids = {n["data"]["id"] for n in _nodes(response)}
+        assert str(named.pk) in node_ids
+        assert str(unnamed.pk) not in node_ids
+
+    def test_without_the_param_every_recipe_is_shown(self, client):
+        _recipe(name="Named", grain_roughness="Off")
+        unnamed = _recipe(name="", grain_roughness="Strong")
+
+        response = client.get("/recipes/graph/", {"film_sim": _DEFAULT_SIM})
+
+        assert str(unnamed.pk) in {n["data"]["id"] for n in _nodes(response)}
+        assert response.context["named_only"] is False
+
+    def test_named_param_is_reflected_in_the_context(self, client):
+        _recipe(name="Named")
+
+        response = client.get("/recipes/graph/", {"film_sim": _DEFAULT_SIM, "named": "1"})
+
+        assert response.context["named_only"] is True
+
+    def test_named_param_applies_to_the_per_recipe_graph(self, client):
+        root = _recipe(name="Root", grain_roughness="Off")
+        unnamed = _recipe(name="", grain_roughness="Strong")
+
+        response = client.get(f"/recipes/graph/{root.pk}/", {"named": "1"})
+
+        elements = json.loads(response.context["graph_elements_json"])
+        node_ids = {e["data"]["id"] for e in elements if "source" not in e["data"]}
+        assert str(unnamed.pk) not in node_ids
+        assert response.context["named_only"] is True
+
+    def test_nodes_carry_the_is_named_flag(self, client):
+        named = _recipe(name="Named", grain_roughness="Off")
+        unnamed = _recipe(name="", grain_roughness="Strong")
+
+        response = client.get("/recipes/graph/", {"film_sim": _DEFAULT_SIM})
+
+        by_id = {n["data"]["id"]: n["data"] for n in _nodes(response)}
+        assert by_id[str(named.pk)]["is_named"] is True
+        assert by_id[str(unnamed.pk)]["is_named"] is False
+
+
+@pytest.mark.django_db
 class TestGraphPagesHaveNoStrayCanvasSiblings:
     def test_film_sim_graph_body_contains_no_bare_text(self, client):
         _recipe()

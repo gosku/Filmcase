@@ -97,6 +97,43 @@ class TestBuildRecipeNetwork:
         node = next(n for n in result.graph_data.nodes if n.id == provia.pk)
         assert node.image_count == 2
 
+    def test_named_only_drops_unnamed_recipes(self):
+        named = FujifilmRecipeFactory(
+            film_simulation="Provia", name="Named", grain_roughness="Off",
+            white_balance_red=0, white_balance_blue=0,
+        )
+        unnamed = FujifilmRecipeFactory(
+            film_simulation="Provia", name="", grain_roughness="Strong",
+            white_balance_red=0, white_balance_blue=0,
+        )
+
+        result = build_recipe_network(film_simulation="Provia", named_only=True)
+
+        node_ids = {n.id for n in result.graph_data.nodes}
+        assert named.pk in node_ids
+        assert unnamed.pk not in node_ids
+
+    def test_named_only_is_off_by_default(self):
+        FujifilmRecipeFactory(film_simulation="Provia", name="Named")
+        unnamed = FujifilmRecipeFactory(film_simulation="Provia", name="", grain_roughness="Strong")
+
+        result = build_recipe_network(film_simulation="Provia")
+
+        assert unnamed.pk in {n.id for n in result.graph_data.nodes}
+        assert result.named_only is False
+
+    def test_named_only_keeps_the_root_even_when_unnamed(self):
+        # The most-used recipe anchors the tree. Some film simulations have an
+        # unnamed most-used recipe, and the graph must still have a root.
+        unnamed_root = FujifilmRecipeFactory(film_simulation="Provia", name="")
+        ImageFactory.create_batch(5, fujifilm_recipe=unnamed_root)
+        FujifilmRecipeFactory(film_simulation="Provia", name="Named", grain_roughness="Strong")
+
+        result = build_recipe_network(film_simulation="Provia", named_only=True)
+
+        assert result.graph_data.root_id == unnamed_root.pk
+        assert unnamed_root.pk in {n.id for n in result.graph_data.nodes}
+
     def test_edges_connect_recipes_within_film_sim(self):
         r1 = FujifilmRecipeFactory(film_simulation="Provia", grain_roughness="Off", white_balance_red=0, white_balance_blue=0)
         r2 = FujifilmRecipeFactory(film_simulation="Provia", grain_roughness="Strong", white_balance_red=0, white_balance_blue=0)
@@ -202,6 +239,36 @@ class TestBuildRecipeNeighbourhood:
 
         assert len(result.graph_data.nodes) == 1
         assert result.graph_data.edges == ()
+
+    def test_named_only_drops_unnamed_neighbours(self):
+        root = _recipe(grain_roughness="Off")
+        named = _recipe(grain_roughness="Strong")
+        named.name = "Named neighbour"
+        named.save()
+        unnamed = _recipe(grain_size="Large")
+
+        result = build_recipe_neighbourhood(root=root, max_distance=4, named_only=True)
+
+        node_ids = {n.id for n in result.graph_data.nodes}
+        assert named.pk in node_ids
+        assert unnamed.pk not in node_ids
+
+    def test_named_only_is_off_by_default(self):
+        root = _recipe(grain_roughness="Off")
+        unnamed = _recipe(grain_roughness="Strong")
+
+        result = build_recipe_neighbourhood(root=root, max_distance=4)
+
+        assert unnamed.pk in {n.id for n in result.graph_data.nodes}
+        assert result.named_only is False
+
+    def test_named_only_keeps_an_unnamed_root(self):
+        root = _recipe()
+        assert root.name == ""
+
+        result = build_recipe_neighbourhood(root=root, max_distance=4, named_only=True)
+
+        assert result.graph_data.root_id == root.pk
 
     def test_path_sums_match_distance_from_root(self):
         # The invariant that the per-recipe graph previously broke.

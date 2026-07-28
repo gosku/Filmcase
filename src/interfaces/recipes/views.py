@@ -311,6 +311,7 @@ def _cyto_elements(*, graph_data: recipe_graph.RecipeTreeData) -> list[dict[str,
                 "distance": node.distance,
                 "image_count": node.image_count,
                 "is_root": node.id == graph_data.root_id,
+                "is_named": node.is_named,
             }
         }
         for node in graph_data.nodes
@@ -330,6 +331,15 @@ def _cyto_elements(*, graph_data: recipe_graph.RecipeTreeData) -> list[dict[str,
     return nodes + edges
 
 
+def _named_only(request: http.HttpRequest) -> bool:
+    """
+    Read the graph's "named recipes only" switch from the query string.
+
+    Absent means off, so the graph shows every recipe unless asked otherwise.
+    """
+    return request.GET.get("named") in {"1", "true", "on"}
+
+
 class RecipesGraph(generic.View):
     """
     Display the network graph of all recipes for a given film simulation.
@@ -337,7 +347,10 @@ class RecipesGraph(generic.View):
 
     def get(self, request: http.HttpRequest) -> http.HttpResponse:
         film_simulation = request.GET.get("film_sim", _RECIPES_GRAPH_DEFAULT_FILM_SIM)
-        result = build_graph_uc.build_recipe_network(film_simulation=film_simulation)
+        result = build_graph_uc.build_recipe_network(
+            film_simulation=film_simulation,
+            named_only=_named_only(request),
+        )
         root_id = result.graph_data.root_id
         cyto_elements = _cyto_elements(graph_data=result.graph_data)
         root_fields = _root_fields_json(root_id)
@@ -359,6 +372,7 @@ class RecipesGraph(generic.View):
             "active_film_simulation": result.active_film_simulation,
             "root_fields_json": json.dumps(root_fields),
             "root_label": root_label,
+            "named_only": result.named_only,
         })
 
 
@@ -379,6 +393,7 @@ class RecipeGraph(generic.View):
         result = build_graph_uc.build_recipe_neighbourhood(
             root=self.recipe,
             max_distance=settings.RECIPE_GRAPH_MAX_DISTANCE,
+            named_only=_named_only(request),
         )
         cyto_elements = _cyto_elements(graph_data=result.graph_data)
         root_fields = [{"field": f.field, "value": f.value} for f in recipe_queries.get_recipe_all_fields(recipe=self.recipe)]
@@ -396,6 +411,7 @@ class RecipeGraph(generic.View):
             "root_fields_json": json.dumps(root_fields),
             "root_label": result.root_label,
             "recipe_name": result.root_label,
+            "named_only": result.named_only,
         })
 
 

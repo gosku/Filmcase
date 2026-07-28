@@ -6,6 +6,7 @@ from src.domain.recipes.graph import (
     RecipeTreeNode,
     build_recipe_tree,
     hamming_distance,
+    named_recipes,
     recipes_within_distance,
 )
 from tests.factories import FujifilmRecipeFactory
@@ -134,6 +135,88 @@ class TestRecipesWithinDistance:
 
 
 # ---------------------------------------------------------------------------
+# named_recipes
+# ---------------------------------------------------------------------------
+
+@pytest.mark.django_db
+class TestNamedRecipes:
+    def test_named_recipe_is_kept(self):
+        root = _recipe()
+        named = _recipe(grain_roughness="Strong")
+        named.name = "Kodak Portra"
+        named.save()
+
+        kept = named_recipes(root=root, all_recipes=[root, named])
+
+        assert named.pk in {r.pk for r in kept}
+
+    def test_unnamed_recipe_is_dropped(self):
+        root = _recipe()
+        unnamed = _recipe(grain_roughness="Strong")
+        assert unnamed.name == ""
+
+        kept = named_recipes(root=root, all_recipes=[root, unnamed])
+
+        assert unnamed.pk not in {r.pk for r in kept}
+
+    def test_unnamed_root_is_still_kept(self):
+        # The most-used recipe for a film simulation is often unnamed. Dropping
+        # it would leave the graph with no root at all.
+        root = _recipe()
+        assert root.name == ""
+
+        kept = named_recipes(root=root, all_recipes=[root])
+
+        assert [r.pk for r in kept] == [root.pk]
+
+    def test_root_is_kept_when_absent_from_all_recipes(self):
+        root = _recipe()
+
+        kept = named_recipes(root=root, all_recipes=[])
+
+        assert [r.pk for r in kept] == [root.pk]
+
+    def test_root_is_not_duplicated_when_named(self):
+        root = _recipe()
+        root.name = "Named root"
+        root.save()
+
+        kept = named_recipes(root=root, all_recipes=[root])
+
+        assert [r.pk for r in kept] == [root.pk]
+
+    def test_filtered_tree_is_still_connected_and_spanning(self):
+        root = _recipe(grain_roughness="Off", grain_size="Off")
+        named = _recipe(grain_roughness="Strong", grain_size="Off")
+        named.name = "Named"
+        named.save()
+        _recipe(grain_roughness="Strong", grain_size="Large")  # unnamed, dropped
+
+        kept = named_recipes(root=root, all_recipes=[root, named])
+        graph = build_recipe_tree(root=root, candidates=kept, image_counts={})
+
+        assert len(graph.nodes) == 2
+        assert len(graph.edges) == len(graph.nodes) - 1
+
+    def test_path_sums_still_hold_after_filtering(self):
+        # Dropping intermediates makes the shortest-path constraint fail more
+        # often, but every exact edge must still satisfy the invariant.
+        root = _recipe(grain_roughness="Off", grain_size="Off", color_chrome_effect="Off")
+        far = _recipe(grain_roughness="Strong", grain_size="Large", color_chrome_effect="Strong")
+        far.name = "Far named"
+        far.save()
+        _recipe(grain_roughness="Strong", grain_size="Off", color_chrome_effect="Off")  # unnamed
+
+        kept = named_recipes(root=root, all_recipes=[root, far])
+        graph = build_recipe_tree(root=root, candidates=kept, image_counts={})
+
+        distance_from_root = {n.id: n.distance for n in graph.nodes}
+        for edge in graph.edges:
+            if edge.is_exact:
+                assert distance_from_root[edge.source] + edge.distance == distance_from_root[edge.target]
+
+
+# ---------------------------------------------------------------------------
 # build_recipe_tree — nodes
 # ---------------------------------------------------------------------------
 
@@ -211,6 +294,22 @@ class TestBuildRecipeTreeNodes:
         graph = build_recipe_tree(root=root, candidates=[root], image_counts={})
         node = next(n for n in graph.nodes if n.id == root.pk)
         assert node.label == f"#{root.pk}"
+
+    def test_named_recipe_node_is_flagged_named(self):
+        root = _recipe()
+        root.name = "My Provia"
+        graph = build_recipe_tree(root=root, candidates=[root], image_counts={})
+        node = next(n for n in graph.nodes if n.id == root.pk)
+        assert node.is_named is True
+
+    def test_unnamed_recipe_node_is_flagged_unnamed(self):
+        # The label falls back to "#<pk>", so callers need the flag rather than
+        # sniffing the label for a leading hash.
+        root = _recipe()
+        assert root.name == ""
+        graph = build_recipe_tree(root=root, candidates=[root], image_counts={})
+        node = next(n for n in graph.nodes if n.id == root.pk)
+        assert node.is_named is False
 
     def test_node_image_count_comes_from_provided_mapping(self):
         root = _recipe()
