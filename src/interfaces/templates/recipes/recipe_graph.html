@@ -36,7 +36,7 @@
 
     <div class="graph-body">
       <div class="graph-canvas" id="cy"></div>
-      {% include "recipes/includes/graph_panel.html" %}
+      <aside class="graph-panel" id="recipe-card">{{ panel_html }}</aside>
     </div>
   </main>
 
@@ -44,13 +44,13 @@
 
 {% include "recipes/_compare_overlay.html" %}
 {% include "recipes/includes/graph_tooltip.html" %}
+{% include "recipes/includes/property_icon_sprite.html" %}
 
 <script id="init-data" type="application/json">
   {
     "named_only": {% if named_only %}true{% else %}false{% endif %},
     "root_id": {% if root_id %}{{ root_id }}{% else %}null{% endif %},
     "root_label": "{{ root_label|escapejs }}",
-    "root_fields": {{ root_fields_json|safe }},
     "elements": {{ graph_elements_json|safe }}
   }
 </script>
@@ -75,8 +75,8 @@
             elements: data.elements,
             rootId: data.root_id,
             rootLabel: data.root_label,
-            rootFields: data.root_fields,
             sidebarHtml: data.sidebar_html,
+            panelHtml: data.panel_html,
           });
           history.pushState(null, "", url);
           updateSidebar(data.root_label);
@@ -88,7 +88,6 @@
       elements: initData.elements,
       rootId: initData.root_id,
       rootLabel: initData.root_label,
-      rootFields: initData.root_fields,
       // Re-root onto the selected recipe without a page reload.
       onSelectedGraphRequested: function (nodeId) {
         loadGraph(nodeId, namedOnly);

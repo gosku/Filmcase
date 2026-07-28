@@ -7,6 +7,9 @@
  * distances along a root-to-node path add up to that ring number. Edges whose
  * data carries is_exact === false are the exception and are drawn dashed.
  *
+ * The sidebar recipe list and the comparison panel are rendered server side and
+ * swapped in as HTML, so their markup lives in Django templates only.
+ *
  * Usage:
  *
  *   var graph = RecipeGraph.init({
@@ -14,11 +17,14 @@
  *     elements: [...],
  *     rootId: 12,
  *     rootLabel: "My Provia",
- *     rootFields: [{field: "Film Simulation", value: "Provia"}],
- *     onSelectedGraphRequested: function (nodeId) { ... }   // optional
+ *     onSelectedGraphRequested: function (nodeId) { ... },  // optional
+ *     onNamedOnlyChanged: function (namedOnly) { ... }      // optional
  *   });
  *
- *   graph.replaceGraph({elements: [...], rootId: 5, rootLabel: "...", rootFields: [...]});
+ *   graph.replaceGraph({
+ *     elements: [...], rootId: 5, rootLabel: "...",
+ *     sidebarHtml: "...", panelHtml: "..."
+ *   });
  */
 window.RecipeGraph = (function () {
   "use strict";
@@ -50,14 +56,6 @@ window.RecipeGraph = (function () {
   // off-axis; nearer the axis it is centred instead.
   var LABEL_AXIS_THRESHOLD = 0.4;
   var LABEL_GAP = 6;
-
-  function escapeHtml(value) {
-    return String(value)
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;");
-  }
 
   function isNodeElement(element) {
     return element.data && element.data.source === undefined;
@@ -268,25 +266,15 @@ window.RecipeGraph = (function () {
       ? null
       : String(config.rootId);
     var rootLabel = config.rootLabel || "";
-    var rootFields = config.rootFields || [];
     var selectedId = null;
     var selectedLabel = "";
     var highlightedEdges = [];
     // The node currently wearing the accent ring, so it can be unrung later.
     var markedNodeId = null;
 
-    var panel = {
-      rootName: document.getElementById("card-root-name"),
-      rootFields: document.getElementById("card-root-fields"),
-      rootDetailBtn: document.getElementById("card-root-detail-btn"),
-      selectedSection: document.getElementById("card-selected-section"),
-      selectedName: document.getElementById("card-selected-name"),
-      rootDiffs: document.getElementById("card-root-diffs"),
-      deltaSection: document.getElementById("card-delta-section"),
-      deltaNodes: document.getElementById("card-delta-nodes"),
-      showGraphBtn: document.getElementById("card-show-graph-btn"),
-      compareBtn: document.getElementById("card-compare-btn"),
-    };
+    // The panel's markup is rendered server side; this only swaps it and binds
+    // the controls it contains.
+    var panelEl = document.getElementById("recipe-card");
 
     var tooltip = {
       root: document.getElementById("tooltip"),
@@ -385,71 +373,84 @@ window.RecipeGraph = (function () {
       });
     }
 
-    /* --- Panel rendering --- */
+    /* --- Panel --- */
 
-    function renderFields(containerEl, fields) {
-      containerEl.innerHTML = "";
-      fields.forEach(function (field) {
-        var row = document.createElement("div");
-        row.className = "graph-panel__field";
-        var valueHtml = field.before != null
-          ? '<span class="graph-panel__field-transition">' +
-              escapeHtml(field.before) + " &rarr; " + escapeHtml(field.value) +
-            "</span>"
-          : '<span class="graph-panel__field-value">' + escapeHtml(field.value) + "</span>";
-        row.innerHTML =
-          '<span class="graph-panel__field-name">' + escapeHtml(field.field) + "</span>" +
-          valueHtml;
-        containerEl.appendChild(row);
-      });
-    }
-
-    function populateRootPanel() {
-      panel.rootName.textContent = rootLabel;
-      renderFields(panel.rootFields, rootFields);
-    }
-
-    function hideSelectedSection() {
-      panel.selectedSection.style.display = "none";
-    }
-
-    function showSelectedSection(label, rootDiffs, pathNodes) {
-      panel.selectedName.textContent = label;
-
-      if (rootDiffs.length === 0) {
-        panel.rootDiffs.innerHTML =
-          '<em class="graph-panel__empty">No differences</em>';
-      } else {
-        renderFields(panel.rootDiffs, rootDiffs);
+    /**
+     * Replace the panel's contents and rebind the controls inside it.
+     *
+     * The markup comes from the server so the two panel states have a single
+     * source; this only wires up what the fragment cannot do for itself.
+     */
+    function setPanelHtml(html) {
+      if (!panelEl) {
+        return;
       }
+      panelEl.innerHTML = html;
+      bindPanelControls();
+    }
 
-      // With a single hop there is nothing to break down: the differences list
-      // above already says everything.
-      var intermediateNodes = pathNodes.slice(1);
-      if (intermediateNodes.length <= 1) {
-        panel.deltaSection.style.display = "none";
-      } else {
-        panel.deltaNodes.innerHTML = "";
-        intermediateNodes.forEach(function (node) {
-          var wrapper = document.createElement("div");
-          wrapper.className = "graph-panel__delta-node";
-
-          var label = document.createElement("div");
-          label.className = "graph-panel__delta-label";
-          label.textContent = node.label;
-          wrapper.appendChild(label);
-
-          var fields = document.createElement("div");
-          fields.className = "graph-panel__fields";
-          renderFields(fields, node.fields);
-          wrapper.appendChild(fields);
-
-          panel.deltaNodes.appendChild(wrapper);
+    function loadPanel(path) {
+      if (!panelEl) {
+        return;
+      }
+      panelEl.classList.add("graph-panel--loading");
+      fetch("/recipes/graph/comparison/?ids=" + path.join(","))
+        .then(function (response) { return response.text(); })
+        .then(function (html) {
+          panelEl.classList.remove("graph-panel--loading");
+          setPanelHtml(html);
         });
-        panel.deltaSection.style.display = "";
+    }
+
+    function bindPanelControls() {
+      var showGraphBtn = document.getElementById("card-show-graph-btn");
+      if (showGraphBtn && config.onSelectedGraphRequested) {
+        showGraphBtn.onclick = function () {
+          config.onSelectedGraphRequested(selectedId);
+        };
       }
 
-      panel.selectedSection.style.display = "";
+      var compareBtn = document.getElementById("card-compare-btn");
+      if (compareBtn && window.RecipeCompareOverlay) {
+        compareBtn.onclick = function () {
+          window.RecipeCompareOverlay.open({
+            leftRecipeId: rootId,
+            leftTitle: rootLabel,
+            rightRecipeId: selectedId,
+            rightTitle: selectedLabel,
+          });
+        };
+      }
+
+      bindPropertyFilter();
+    }
+
+    /**
+     * The All / Only changes filter hides unchanged rows, and any group left
+     * with nothing to show, without going back to the server.
+     */
+    function bindPropertyFilter() {
+      var filter = document.getElementById("property-filter");
+      if (!filter) {
+        return;
+      }
+      filter.addEventListener("click", function (event) {
+        var option = event.target.closest(".segmented-toggle__option");
+        if (!option) {
+          return;
+        }
+        var changesOnly = option.getAttribute("data-properties") === "changes";
+        filter.querySelectorAll(".segmented-toggle__option").forEach(function (el) {
+          el.classList.toggle(
+            "segmented-toggle__option--active",
+            (el.getAttribute("data-properties") === "changes") === changesOnly,
+          );
+        });
+        var body = document.getElementById("graph-panel-body");
+        if (body) {
+          body.classList.toggle("graph-panel__body--changes-only", changesOnly);
+        }
+      });
     }
 
     /* --- Path finding and highlighting --- */
@@ -604,53 +605,25 @@ window.RecipeGraph = (function () {
       markSelectedNode(nodeId);
       markActiveRow(nodeId);
       setLegendComparing(true);
-
-      panel.selectedName.textContent = selectedLabel;
-      panel.rootDiffs.innerHTML = '<span class="graph-panel__loading">Loading&hellip;</span>';
-      panel.deltaSection.style.display = "none";
-      panel.selectedSection.style.display = "";
-
-      fetch("/recipes/path-deltas/?ids=" + path.join(","))
-        .then(function (response) { return response.json(); })
-        .then(function (data) {
-          showSelectedSection(selectedLabel, data.root_diffs, data.path_nodes);
-        });
+      loadPanel(path);
     }
 
+    /** Drop back to showing the reference recipe on its own. */
     function clearSelection() {
       selectedId = null;
       selectedLabel = "";
-      hideSelectedSection();
       clearPathHighlight();
       markSelectedNode(null);
       markActiveRow(null);
       setLegendComparing(false);
+      if (rootId !== null) {
+        loadPanel([rootId]);
+      }
     }
 
     cy.on("click", "node", function (event) {
       selectRecipe(event.target.data("id"));
     });
-
-    panel.rootDetailBtn.onclick = function () {
-      window.location.href = "/recipes/" + rootId + "/";
-    };
-
-    if (panel.showGraphBtn && config.onSelectedGraphRequested) {
-      panel.showGraphBtn.onclick = function () {
-        config.onSelectedGraphRequested(selectedId);
-      };
-    }
-
-    if (panel.compareBtn && window.RecipeCompareOverlay) {
-      panel.compareBtn.onclick = function () {
-        window.RecipeCompareOverlay.open({
-          leftRecipeId: rootId,
-          leftTitle: rootLabel,
-          rightRecipeId: selectedId,
-          rightTitle: selectedLabel,
-        });
-      };
-    }
 
     /* --- Public surface --- */
 
@@ -665,7 +638,6 @@ window.RecipeGraph = (function () {
         ? null
         : String(next.rootId);
       rootLabel = next.rootLabel || "";
-      rootFields = next.rootFields || [];
       selectedId = null;
       selectedLabel = "";
       highlightedEdges = [];
@@ -677,20 +649,22 @@ window.RecipeGraph = (function () {
       applyNodeStyles(nextElements);
       cy.layout(makePresetLayout(buildRadialPositions(nextElements, rootId), applyRadialLabels)).run();
 
-      // The recipe list and its counts belong to the graph that was just
-      // loaded, so they are re-rendered server side and swapped in together.
+      // The recipe list, its counts and the panel all belong to the graph that
+      // was just loaded, so they are re-rendered server side and swapped in
+      // together with it.
       if (sidebarBody && next.sidebarHtml !== undefined) {
         sidebarBody.innerHTML = next.sidebarHtml;
       }
+      if (next.panelHtml !== undefined) {
+        setPanelHtml(next.panelHtml);
+      }
 
-      populateRootPanel();
-      hideSelectedSection();
       markActiveRow(null);
       setLegendComparing(false);
     }
 
     applyNodeStyles(elements);
-    populateRootPanel();
+    bindPanelControls();
     setLegendComparing(false);
 
     return {

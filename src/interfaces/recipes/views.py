@@ -287,16 +287,6 @@ class MoveRecipeToVersionLinePreview(generic.View):
 _RECIPES_GRAPH_DEFAULT_FILM_SIM = "Provia"
 
 
-def _root_fields_json(root_id: int | None) -> list[dict[str, str]]:
-    if root_id is None:
-        return []
-    try:
-        root = models.FujifilmRecipe.objects.get(pk=root_id)
-    except models.FujifilmRecipe.DoesNotExist:
-        return []
-    return [{"field": f.field, "value": f.value} for f in recipe_queries.get_recipe_all_fields(recipe=root)]
-
-
 def _cyto_elements(*, graph_data: recipe_graph.RecipeTreeData) -> list[dict[str, object]]:
     """
     Serialise a recipe tree into the element list Cytoscape.js expects.
@@ -400,35 +390,45 @@ class RecipesGraph(generic.View):
         )
         root_id = result.graph_data.root_id
         cyto_elements = _cyto_elements(graph_data=result.graph_data)
-        root_fields = _root_fields_json(root_id)
         root_label = ""
         if root_id is not None:
             root_node = next((n for n in result.graph_data.nodes if n.id == root_id), None)
             root_label = root_node.label if root_node else ""
+
+        # The sidebar and the panel are rendered from the same templates the
+        # page uses, so the markup has one source whether it arrives on load or
+        # after the film simulation or named filter changes.
+        panel_html = ""
+        if root_id is not None:
+            panel_html = render_comparison_panel(
+                request=request,
+                reference=models.FujifilmRecipe.objects.get(pk=root_id),
+                compared=None,
+            )
+        sidebar_html = _render_graph_sidebar(
+            request=request,
+            rows=GraphRecipeRow.from_nodes(result.recipes_by_usage, root_id),
+            named_only=result.named_only,
+        )
+
         if request.headers.get("Accept") == "application/json":
             return http.JsonResponse({
                 "elements": cyto_elements,
                 "root_id": root_id,
-                "root_fields": root_fields,
                 "root_label": root_label,
-                # Rendered from the same include the page uses, so the list has
-                # one source whether it arrives on load or after a filter change.
-                "sidebar_html": _render_graph_sidebar(
-                    request=request,
-                    rows=GraphRecipeRow.from_nodes(result.recipes_by_usage, root_id),
-                    named_only=result.named_only,
-                ),
+                "sidebar_html": sidebar_html,
+                "panel_html": panel_html,
             })
         return shortcuts.render(request, "recipes/recipes_graph.html", {
             "graph_elements_json": json.dumps(cyto_elements),
             "root_id": root_id,
             "film_simulations": result.film_simulations,
             "active_film_simulation": result.active_film_simulation,
-            "root_fields_json": json.dumps(root_fields),
             "root_label": root_label,
             "named_only": result.named_only,
             "recipes_by_usage": GraphRecipeRow.from_nodes(result.recipes_by_usage, root_id),
             "comparing": False,
+            "panel_html": panel_html,
         })
 
 
@@ -452,27 +452,31 @@ class RecipeGraph(generic.View):
             named_only=_named_only(request),
         )
         cyto_elements = _cyto_elements(graph_data=result.graph_data)
-        root_fields = [{"field": f.field, "value": f.value} for f in recipe_queries.get_recipe_all_fields(recipe=self.recipe)]
+        panel_html = render_comparison_panel(
+            request=request, reference=self.recipe, compared=None,
+        )
+        sidebar_html = _render_graph_sidebar(
+            request=request,
+            rows=GraphRecipeRow.from_nodes(
+                result.recipes_by_usage, result.graph_data.root_id,
+            ),
+            named_only=result.named_only,
+        )
+
         if request.headers.get("Accept") == "application/json":
             return http.JsonResponse({
                 "root_id": result.graph_data.root_id,
                 "root_label": result.root_label,
-                "root_fields": root_fields,
                 "elements": cyto_elements,
-                "sidebar_html": _render_graph_sidebar(
-                    request=request,
-                    rows=GraphRecipeRow.from_nodes(
-                        result.recipes_by_usage, result.graph_data.root_id,
-                    ),
-                    named_only=result.named_only,
-                ),
+                "sidebar_html": sidebar_html,
+                "panel_html": panel_html,
             })
         return shortcuts.render(request, "recipes/recipe_graph.html", {
             "root_id": result.graph_data.root_id,
             "graph_elements_json": json.dumps(cyto_elements),
             "max_distance": result.max_distance,
-            "root_fields_json": json.dumps(root_fields),
             "root_label": result.root_label,
+            "panel_html": panel_html,
             "recipe_name": result.root_label,
             "named_only": result.named_only,
             "recipes_by_usage": GraphRecipeRow.from_nodes(
@@ -770,9 +774,74 @@ class ImportRecipesFromUploadedQrCards(generic.View):
         )
 
 
-class RecipePathDeltas(generic.View):
+@_attrs.frozen
+class PanelRecipe:
     """
-    Return the field differences along a recipe path in the network graph.
+    The bare recipe details the comparison panel renders.
+    """
+
+    id: int
+    label: str
+    meta: str = ""
+
+
+def _panel_recipe(recipe: models.FujifilmRecipe, *, image_count: int | None = None) -> PanelRecipe:
+    meta = ""
+    if image_count is not None:
+        plural = "" if image_count == 1 else "s"
+        meta = f"{recipe.film_simulation} · {image_count:,} image{plural}"
+    return PanelRecipe(id=recipe.pk, label=recipe.name or f"#{recipe.pk}", meta=meta)
+
+
+def render_comparison_panel(
+    *,
+    request: http.HttpRequest,
+    reference: models.FujifilmRecipe,
+    compared: models.FujifilmRecipe | None,
+    path_ids: list[int] | None = None,
+) -> str:
+    """
+    Render the graph's right-hand panel as an HTML fragment.
+
+    With *compared* unset this is the reference recipe on its own; with it set,
+    the two are compared property by property and *path_ids* drives the delta
+    breakdown along the route between them.
+    """
+    if compared is None:
+        properties = recipe_queries.get_recipe_properties(recipe=reference)
+        image_counts = recipe_queries.get_image_counts(recipe_pks=[reference.pk])
+        context: dict[str, object] = {
+            "reference": _panel_recipe(reference, image_count=image_counts.get(reference.pk, 0)),
+            "compared": None,
+            "properties": properties,
+        }
+    else:
+        properties = recipe_queries.get_recipe_property_comparison(
+            reference=reference, compared=compared,
+        )
+        path_nodes: tuple[recipe_queries.PathNodeDelta, ...] = ()
+        if path_ids:
+            path_nodes = recipe_queries.get_path_deltas(path_ids=path_ids).path_nodes
+        context = {
+            "reference": _panel_recipe(reference),
+            "compared": _panel_recipe(compared),
+            "properties": properties,
+            # A single hop needs no breakdown: the property list above already
+            # says everything that changed.
+            "path_nodes": path_nodes if len(path_nodes) > 2 else (),
+        }
+
+    return loader.render_to_string(
+        "recipes/partials/graph_comparison_panel.html", context, request=request,
+    )
+
+
+class RecipeComparisonPanel(generic.View):
+    """
+    Render the graph comparison panel for a path through the recipe graph.
+
+    *ids* is the ordered path from the reference recipe to the selected one. A
+    single id renders the reference on its own.
     """
 
     def get(self, request: http.HttpRequest) -> http.HttpResponse:
@@ -783,22 +852,22 @@ class RecipePathDeltas(generic.View):
             return http.HttpResponseBadRequest("ids must be comma-separated integers")
         if not path_ids:
             return http.HttpResponseBadRequest("ids parameter is required")
-        result = recipe_queries.get_path_deltas(path_ids=path_ids)
 
-        def _serialize_field(f: recipe_queries.FieldValue) -> dict[str, str | None]:
-            return {"field": f.field, "value": f.value, "before": f.before}
+        recipes_by_id = {
+            r.pk: r for r in models.FujifilmRecipe.objects.filter(pk__in=path_ids)
+        }
+        ordered = [recipes_by_id[i] for i in path_ids if i in recipes_by_id]
+        if not ordered:
+            raise http.Http404("no recipes matched the given ids")
 
-        return http.JsonResponse({
-            "root_diffs": [_serialize_field(f) for f in result.root_diffs],
-            "path_nodes": [
-                {
-                    "id": n.recipe_id,
-                    "label": n.label,
-                    "fields": [_serialize_field(f) for f in n.changed_fields],
-                }
-                for n in result.path_nodes
-            ],
-        })
+        reference = ordered[0]
+        compared = ordered[-1] if len(ordered) > 1 else None
+        return http.HttpResponse(render_comparison_panel(
+            request=request,
+            reference=reference,
+            compared=compared,
+            path_ids=[r.pk for r in ordered],
+        ))
 
 
 _CARD_DESIGN_NAMES: tuple[str, ...] = ("classic", "aperture", "contact_sheet")

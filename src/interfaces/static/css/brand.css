@@ -156,3 +156,33 @@
 .toggle-switch input[type="checkbox"]:checked::after {
     left: calc(100% - 1.2rem);
 }
+
+/* Subtle variant, for switches that filter a view rather than navigate between
+   sections. The active half lifts off a lighter track instead of taking the
+   accent colour, so it does not compete with the primary toggle above it. */
+
+.segmented-toggle--subtle {
+    gap: 0;
+    padding: 3px;
+    border-radius: 8px;
+    background: #f1f4f7;
+}
+
+.segmented-toggle--subtle .segmented-toggle__option {
+    padding: 5px;
+    border-radius: 6px;
+    font-size: 11.5px;
+    font-weight: 500;
+    color: #8a93a3;
+}
+
+.segmented-toggle--subtle .segmented-toggle__option--active {
+    font-weight: 600;
+    color: var(--color-text-primary);
+    background: var(--color-bg-page);
+    box-shadow: 0 1px 3px rgba(20, 30, 45, .12);
+}
+
+.segmented-toggle--subtle .segmented-toggle__option--active:hover {
+    color: var(--color-text-primary);
+}

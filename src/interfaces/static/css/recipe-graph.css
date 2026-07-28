@@ -345,115 +345,408 @@ body {
    width, which would otherwise reflow and re-centre the whole graph. */
 
 .graph-panel {
-    width: 390px;
-    min-width: 390px;
-    overflow-y: auto;
+    width: 396px;
+    min-width: 396px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
     border-left: 1px solid var(--color-border);
     font-size: .8rem;
     color: #333333;
     background: #ffffff;
 }
 
-.graph-panel__section {
-    padding: .85rem 1rem;
-    border-bottom: 1px solid #f0f0f0;
+.graph-panel--loading {
+    opacity: .6;
 }
 
-.graph-panel__section:last-child {
-    border-bottom: none;
+/* Header stays put while the property list scrolls under it. */
+
+.graph-panel__header {
+    flex-shrink: 0;
+    padding: 14px 20px 10px;
 }
 
-.graph-panel__title {
-    margin-bottom: .5rem;
-    font-size: .7rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: .06em;
-    color: #999999;
+.graph-panel__header--reference {
+    padding-bottom: 4px;
 }
 
-.graph-panel__title--spaced {
-    margin-top: .6rem;
-}
-
-.graph-panel__name {
-    margin-bottom: .45rem;
-    font-size: .88rem;
-    font-weight: 600;
-    color: #222222;
-}
-
-.graph-panel__name-row {
+.graph-panel__header-row {
     display: flex;
     align-items: center;
-    gap: .5rem;
-    margin-bottom: .45rem;
+    justify-content: space-between;
+    gap: 12px;
 }
 
-.graph-panel__name-row .graph-panel__name {
+.graph-panel__label {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .13em;
+    color: #9aa3af;
+}
+
+.graph-panel__body {
     flex: 1;
-    margin-bottom: 0;
+    overflow-y: auto;
+    padding: 0 20px 10px;
 }
 
-.graph-panel__fields {
+/* Reference and compared cards
+   ===================================== */
+
+.graph-panel__cards {
+    display: flex;
+    gap: 8px;
+    margin-top: 10px;
+}
+
+.graph-panel__card {
+    flex: 1;
+    min-width: 0;
+    padding: 6px 10px;
+    border: 1px solid #edf1f5;
+    border-radius: 10px;
+}
+
+.graph-panel__card--compared {
+    border-color: #f0d3cf;
+    background: #fffaf9;
+}
+
+.graph-panel__card-kicker {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 3px;
+    font-size: 8.5px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .1em;
+    color: #a3abb6;
+}
+
+.graph-panel__card-name {
+    margin-bottom: 2px;
+    overflow: hidden;
+    font-size: 13px;
+    font-weight: 700;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    color: #1b2430;
+}
+
+.graph-panel__card-links {
+    display: flex;
+    gap: 13px;
+}
+
+.graph-panel__dot {
+    flex-shrink: 0;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #28323f;
+}
+
+.graph-panel__dot--reference {
+    background: var(--color-accent);
+}
+
+.graph-panel__dot--compared {
+    box-shadow: 0 0 0 2px var(--color-accent);
+}
+
+.graph-panel__link {
+    padding: 0;
+    border: none;
+    font-family: inherit;
+    font-size: 11.5px;
+    text-decoration: none;
+    color: var(--color-accent);
+    background: none;
+    cursor: pointer;
+}
+
+.graph-panel__link:hover {
+    color: var(--color-accent-dark);
+}
+
+.graph-panel__filter {
+    margin-top: 10px;
+    font-size: 12px;
+}
+
+/* Tighter than the default subtle toggle: this one sits in a header that has
+   to stay above the fold. */
+
+.graph-panel__filter.segmented-toggle--subtle {
+    padding: 2px;
+}
+
+.graph-panel__filter .segmented-toggle__option {
+    padding: 4px;
+}
+
+/* Reference-only header
+   ===================================== */
+
+.graph-panel__reference-name {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    margin-top: 10px;
+    font-size: 17px;
+    font-weight: 700;
+    color: #1b2430;
+}
+
+.graph-panel__reference-name .graph-panel__dot {
+    width: 10px;
+    height: 10px;
+}
+
+.graph-panel__reference-meta {
+    margin: 4px 0 0 19px;
+    font-size: 12px;
+    color: #a3abb6;
+}
+
+.graph-panel__prompt {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 10px;
+    font-size: 12px;
+    color: #8a93a3;
+}
+
+.graph-panel__prompt-arrow {
+    font-size: 15px;
+    color: #b4bcc7;
+}
+
+/* Property rows
+   ===================================== */
+
+.graph-panel__group {
+    margin-top: 8px;
+}
+
+.graph-panel__group-label {
+    margin-bottom: 2px;
+    padding-left: 8px;
+    font-size: 10px;
+}
+
+.graph-panel__row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 2px 12px;
+    /* Pinned rather than left to the browser default, so the 16 rows are the
+       same height in every engine and the list fits without scrolling. */
+    line-height: 1.15;
+    border: 1px solid transparent;
+    border-radius: 9px;
+}
+
+.graph-panel__row--changed {
+    margin-bottom: 2px;
+    border-color: #f3d3cf;
+    background: #fcebe9;
+}
+
+/* Roomier than a comparison row: this state has no delta breakdown under it,
+   so the list would otherwise leave dead space at the bottom of the panel. */
+
+.graph-panel__row--reference {
+    padding: 5px 12px;
+    border-radius: 0;
+    border-bottom: 1px solid #f4f6f8;
+}
+
+.graph-panel__icon {
+    flex-shrink: 0;
+    width: 15px;
+    height: 15px;
+    fill: none;
+    stroke: #8a93a3;
+    stroke-width: 1.7;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    opacity: .9;
+}
+
+.graph-panel__row--unchanged .graph-panel__icon {
+    opacity: .5;
+}
+
+.graph-panel__row--reference .graph-panel__icon {
+    opacity: .8;
+}
+
+.graph-panel__key {
+    flex: 1;
+    min-width: 0;
+    font-size: 13px;
+    font-weight: 500;
+    color: #2c3744;
+}
+
+.graph-panel__row--unchanged .graph-panel__key {
+    font-weight: 400;
+    color: #939ca8;
+}
+
+.graph-panel__row--reference .graph-panel__key {
+    font-weight: 400;
+    color: #5a6675;
+}
+
+.graph-panel__value {
+    font-size: 13px;
+    font-variant-numeric: tabular-nums;
+    color: #aeb6c0;
+}
+
+.graph-panel__value--strong {
+    font-size: 13.5px;
+    font-weight: 600;
+    color: #2c3744;
+}
+
+.graph-panel__from {
+    font-size: 13px;
+    font-variant-numeric: tabular-nums;
+    color: #8a93a3;
+}
+
+.graph-panel__arrow {
+    color: var(--color-accent);
+}
+
+.graph-panel__to {
+    font-size: 14px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    color: var(--color-accent-dark);
+}
+
+/* "Only changes" hides unchanged rows, and any group left with nothing. */
+
+.graph-panel__body--changes-only .graph-panel__row--unchanged,
+.graph-panel__body--changes-only .graph-panel__group[data-changed-count="0"] {
+    display: none;
+}
+
+/* Delta breakdown timeline
+   ===================================== */
+
+.graph-panel__delta {
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 1px solid #edf1f5;
+}
+
+.graph-timeline {
+    margin: 10px 0 0;
+    padding: 0;
+    list-style: none;
+}
+
+.graph-timeline__node {
+    display: flex;
+    gap: 10px;
+}
+
+.graph-timeline__gutter {
     display: flex;
     flex-direction: column;
-    gap: .2rem;
-}
-
-.graph-panel__fields--two-col {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: .15rem .5rem;
-    font-size: .73rem;
-}
-
-.graph-panel__field {
-    display: flex;
-    justify-content: space-between;
-    gap: .5rem;
-    min-width: 0;
-}
-
-.graph-panel__field-name {
+    align-items: center;
     flex-shrink: 0;
-    color: #888888;
 }
 
-.graph-panel__field-value {
-    font-weight: 500;
-    text-align: right;
-    color: #222222;
+.graph-timeline__dot {
+    flex-shrink: 0;
+    width: 13px;
+    height: 13px;
+    border-radius: 50%;
+    background: #28323f;
+    box-shadow: 0 0 0 2px #c3cad3;
 }
 
-.graph-panel__field-transition {
-    font-weight: 500;
-    text-align: right;
-    white-space: nowrap;
-    color: #222222;
+.graph-timeline__dot--root {
+    background: var(--color-accent);
+    box-shadow: 0 0 0 2px var(--color-accent);
 }
 
-.graph-panel__delta-node {
-    margin-bottom: .55rem;
+.graph-timeline__dot--target {
+    box-shadow: 0 0 0 2px var(--color-accent);
 }
 
-.graph-panel__delta-node:last-child {
-    margin-bottom: 0;
+.graph-timeline__line {
+    flex: 1;
+    width: 2px;
+    min-height: 20px;
+    margin: 4px 0;
+    background: var(--color-border);
 }
 
-.graph-panel__delta-label {
-    margin-bottom: .2rem;
-    font-size: .78rem;
+.graph-timeline__content {
+    flex: 1;
+    min-width: 0;
+    padding-bottom: 12px;
+}
+
+.graph-timeline__node--last .graph-timeline__content {
+    padding-bottom: 0;
+}
+
+.graph-timeline__name {
+    font-size: 13px;
     font-weight: 600;
-    color: #444444;
+    color: #2c3744;
+}
+
+.graph-timeline__meta {
+    font-size: 11.5px;
+    color: #a3abb6;
+}
+
+.graph-timeline__changes {
+    margin-top: 6px;
+    padding: 6px 10px;
+    border: 1px solid #eaeff4;
+    border-radius: 7px;
+    background: #f7f9fb;
+}
+
+.graph-timeline__change {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 10px;
+    font-size: 12px;
+}
+
+.graph-timeline__change-key {
+    color: #6b7684;
+}
+
+.graph-timeline__change-values {
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+    color: #8a93a3;
 }
 
 .graph-panel__btn {
     flex-shrink: 0;
-    padding: .3rem .6rem;
+    padding: 6px 12px;
     border: none;
-    border-radius: 5px;
-    font-size: .72rem;
+    border-radius: 8px;
+    font-family: inherit;
+    font-size: 12px;
     font-weight: 600;
     white-space: nowrap;
     color: #ffffff;
@@ -463,22 +756,6 @@ body {
 
 .graph-panel__btn:hover {
     background: var(--color-accent-dark);
-}
-
-.graph-panel__btn--block {
-    width: 100%;
-}
-
-.graph-panel__loading {
-    font-size: .78rem;
-    font-style: italic;
-    color: #aaaaaa;
-}
-
-.graph-panel__empty {
-    font-size: .78rem;
-    font-style: italic;
-    color: #aaaaaa;
 }
 
 /* Hover tooltip
