@@ -1,0 +1,62 @@
+{% comment %}
+Line glyphs for the recipe property rows, one <symbol> per icon.
+
+Inlined rather than referenced as an external sprite file so the page's CSS can
+drive stroke colour and per-state opacity; an external <use> target does not
+inherit styles from the host document in every browser.
+
+Included once per page; rows reference a symbol with <use href="#prop-...">.
+{% endcomment %}
+<svg xmlns="http://www.w3.org/2000/svg" width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <defs>
+    <symbol id="prop-film-sim" viewBox="0 0 24 24">
+      <rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7 5v14M17 5v14"/>
+    </symbol>
+    <symbol id="prop-dynamic-range" viewBox="0 0 24 24">
+      <path d="M5 19v-7M12 19V5M19 19v-5"/>
+    </symbol>
+    <symbol id="prop-dr-priority" viewBox="0 0 24 24">
+      <path d="M4 7h16M4 12h11M4 17h7"/>
+    </symbol>
+    <symbol id="prop-grain-roughness" viewBox="0 0 24 24">
+      <circle cx="7" cy="8" r="1"/><circle cx="14" cy="6" r="1"/><circle cx="17" cy="13" r="1"/>
+      <circle cx="9" cy="15" r="1"/><circle cx="12" cy="11" r="1"/>
+    </symbol>
+    <symbol id="prop-grain-size" viewBox="0 0 24 24">
+      <circle cx="12" cy="12" r="2.6"/>
+    </symbol>
+    <symbol id="prop-color-chrome" viewBox="0 0 24 24">
+      <path d="M12 4l8 15H4z"/>
+    </symbol>
+    <symbol id="prop-cc-fx-blue" viewBox="0 0 24 24">
+      <circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="1.6"/>
+    </symbol>
+    <symbol id="prop-white-balance" viewBox="0 0 24 24">
+      <path d="M9 18h6M10 21h4"/>
+      <path d="M12 3a6 6 0 0 1 4 10.5c-.7.6-1 1-1 2H9c0-1-.3-1.4-1-2A6 6 0 0 1 12 3z"/>
+    </symbol>
+    <symbol id="prop-wb-shift" viewBox="0 0 24 24">
+      <path d="M4 12h13M13 7l5 5-5 5"/>
+    </symbol>
+    <symbol id="prop-highlight" viewBox="0 0 24 24">
+      <circle cx="12" cy="12" r="4"/>
+      <path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5L19 19M19 5l-1.5 1.5M6.5 17.5L5 19"/>
+    </symbol>
+    <symbol id="prop-shadow" viewBox="0 0 24 24">
+      <path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8z"/>
+    </symbol>
+    <symbol id="prop-color" viewBox="0 0 24 24">
+      <circle cx="12" cy="12" r="8"/><circle cx="9.5" cy="10.5" r="1"/><circle cx="14.5" cy="10.5" r="1"/>
+      <path d="M9 14.5c1.7 1.4 4.3 1.4 6 0"/>
+    </symbol>
+    <symbol id="prop-sharpness" viewBox="0 0 24 24">
+      <path d="M12 3l6 9-6 9-6-9z"/>
+    </symbol>
+    <symbol id="prop-high-iso-nr" viewBox="0 0 24 24">
+      <path d="M4 5h16l-6 7v6l-4 2v-8z"/>
+    </symbol>
+    <symbol id="prop-clarity" viewBox="0 0 24 24">
+      <circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/>
+    </symbol>
+  </defs>
+</svg>

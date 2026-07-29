@@ -30,44 +30,9 @@
       margin-bottom: 1.5rem;
     }
 
-    .sidebar-nav {
-      display: flex;
-      flex-direction: row;
-      gap: 0.25rem;
+    /* The Explorer / Graph toggle is the shared .segmented-toggle in brand.css. */
+    .segmented-toggle {
       margin-bottom: 1.5rem;
-    }
-
-    .sidebar-nav__link {
-      flex: 1;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 0.35rem 0.6rem;
-      border-radius: 4px;
-      border: 1px solid #ccc;
-      font-size: 0.8rem;
-      font-weight: 500;
-      color: #555;
-      text-decoration: none;
-      cursor: default;
-      text-align: center;
-    }
-
-    .sidebar-nav__link[href] {
-      cursor: pointer;
-    }
-
-    .sidebar-nav__link[href]:hover {
-      background: #e8e8e8;
-      color: #222;
-      border-color: #bbb;
-    }
-
-    .sidebar-nav__link--active {
-      background: var(--color-accent-light);
-      color: var(--color-accent);
-      font-weight: 600;
-      border-color: var(--color-accent);
     }
 
     .recipe-name-search {
@@ -684,10 +649,7 @@
 <div class="content-area">
 
   <aside class="sidebar">
-    <nav class="sidebar-nav">
-      <a class="sidebar-nav__link sidebar-nav__link--active">Explorer</a>
-      <a href="{% url 'recipes-graph' %}" class="sidebar-nav__link">Graph</a>
-    </nav>
+    {% include "recipes/includes/section_toggle.html" with active="explorer" %}
     <a href="{% url 'recipes-explorer' %}" class="clear-filters-btn">Clear all filters</a>
     <form id="recipe-filter-form"
           hx-get="{% url 'recipes-explorer' %}"

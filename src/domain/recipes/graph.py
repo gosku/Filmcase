@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from collections.abc import Iterable, Mapping, Sequence
+
 import attrs
 
 from src.data import models
@@ -27,6 +29,10 @@ _RECIPE_GRAPH_FIELDS: tuple[str, ...] = (
     "monochromatic_color_magenta_green",
 )
 
+# Two recipes differing in every compared field are this far apart. Used as a
+# sentinel that any real distance beats.
+_MAX_HAMMING_DISTANCE = len(_RECIPE_GRAPH_FIELDS)
+
 
 def hamming_distance(
     *,
@@ -43,282 +49,179 @@ def hamming_distance(
 
 
 @attrs.frozen
-class RecipeNode:
+class RecipeTreeNode:
     id: int
     label: str
     distance: int
     image_count: int
+    # False when the recipe has no name and `label` is the "#<pk>" fallback.
+    is_named: bool
 
 
 @attrs.frozen
-class RecipeEdge:
+class RecipeTreeEdge:
     source: int
     target: int
     distance: int
+    # True when this edge satisfies the shortest-path constraint, meaning the
+    # edge distances from the root down to `target` sum to the target's own
+    # distance from root. False for fallback attachments, where they do not.
+    is_exact: bool
 
 
 @attrs.frozen
-class RecipeGraphData:
-    root_id: int
-    nodes: tuple[RecipeNode, ...]
-    edges: tuple[RecipeEdge, ...]
-
-
-@attrs.frozen
-class AllRecipeNode:
-    id: int
-    label: str
-    film_simulation: str
-    image_count: int
-
-
-@attrs.frozen
-class AllRecipeEdge:
-    source: int
-    target: int
-    distance: int
-
-
-@attrs.frozen
-class AllRecipeGraphData:
-    nodes: tuple[AllRecipeNode, ...]
-    edges: tuple[AllRecipeEdge, ...]
-
-
-@attrs.frozen
-class FilmSimTreeNode:
-    id: int
-    label: str
-    distance: int
-    image_count: int
-
-
-@attrs.frozen
-class FilmSimTreeData:
+class RecipeTreeData:
     root_id: int | None
-    nodes: tuple[FilmSimTreeNode, ...]
-    edges: tuple[AllRecipeEdge, ...]
+    nodes: tuple[RecipeTreeNode, ...]
+    edges: tuple[RecipeTreeEdge, ...]
 
 
-def build_film_sim_tree(
+def recipes_within_distance(
     *,
     root: models.FujifilmRecipe,
-    all_recipes: list[models.FujifilmRecipe],
-    image_counts: dict[int, int],
-) -> FilmSimTreeData:
+    all_recipes: Iterable[models.FujifilmRecipe],
+    max_distance: int,
+) -> list[models.FujifilmRecipe]:
     """
-    Build a shortest-path spanning tree rooted at *root*.
+    Return *root* plus every recipe whose Hamming distance from it is strictly
+    less than *max_distance*.
 
-    Each node is connected to a parent such that the sum of edge distances along
-    the path from root to that node equals hamming_distance(root, node). This means
-    traversing any root→node path and summing its edge distances gives the true
-    Hamming distance — no artificial inflation from chaining via unrelated nodes.
-
-    Among all valid parents (those satisfying the shortest-path constraint), the one
-    that minimises the direct edge distance to the child is chosen, producing the
-    most chain-like structure when multiple valid parents exist.
-
-    Nodes are processed in ascending dist(root, node) order so that all candidate
-    parents are already in the tree when a node is attached.
-
-    Node `distance` = hamming_distance(root, node).
-    Edge `distance` = hamming distance between the two directly connected nodes.
+    The root is always included, even when *max_distance* is zero, so the result
+    is never empty and always usable as a candidate set for `build_recipe_tree`.
     """
-    recipe_by_pk = {r.pk: r for r in all_recipes}
+    within = [root]
+    within.extend(
+        recipe for recipe in all_recipes
+        if recipe.pk != root.pk and hamming_distance(a=root, b=recipe) < max_distance
+    )
+    return within
+
+
+def named_recipes(
+    *,
+    root: models.FujifilmRecipe,
+    all_recipes: Iterable[models.FujifilmRecipe],
+) -> list[models.FujifilmRecipe]:
+    """
+    Return *root* plus every recipe that has a name.
+
+    The root is kept even when it is unnamed. It anchors the tree, and the
+    most-used recipe for a film simulation is often unnamed, so dropping it
+    would leave the graph rootless. Keeping it also means toggling this filter
+    never changes which recipe the others are compared against.
+    """
+    kept = [root]
+    kept.extend(
+        recipe for recipe in all_recipes
+        if recipe.pk != root.pk and recipe.name
+    )
+    return kept
+
+
+def build_recipe_tree(
+    *,
+    root: models.FujifilmRecipe,
+    candidates: Sequence[models.FujifilmRecipe],
+    image_counts: Mapping[int, int],
+) -> RecipeTreeData:
+    """
+    Build a shortest-path spanning tree over *candidates*, rooted at *root*.
+
+    The caller decides which recipes are candidates: all recipes sharing a film
+    simulation, or everything within a maximum distance of the root. Every
+    candidate ends up in the tree, so the graph never contains isolated islands.
+    *root* is included whether or not it appears in *candidates*.
+
+    Each node is connected to a parent satisfying the shortest-path constraint
+    `dist(root, P) + dist(P, node) == dist(root, node)`, so summing the edge
+    distances along any root to node path gives the node's true Hamming distance
+    from the root. Among all valid parents the one minimising the direct edge
+    distance is chosen, producing the most chain-like structure available.
+
+    When no parent satisfies the constraint the node is attached to the nearest
+    node already in the tree and its edge is marked `is_exact=False`. Path sums
+    through such an edge exceed the true distance, so callers should present
+    them differently.
+
+    Nodes are processed in ascending distance-from-root order, which guarantees
+    every candidate parent is already in the tree when a node is attached.
+
+    Node `distance` is `hamming_distance(root, node)`, not hop depth.
+    Edge `distance` is the Hamming distance between the two connected recipes.
+    """
+    recipes = list(candidates)
+    if all(recipe.pk != root.pk for recipe in recipes):
+        recipes.insert(0, root)
+
+    recipe_by_pk = {recipe.pk: recipe for recipe in recipes}
 
     dist_from_root: dict[int, int] = {
-        r.pk: (0 if r.pk == root.pk else hamming_distance(a=root, b=r))
-        for r in all_recipes
+        recipe.pk: (0 if recipe.pk == root.pk else hamming_distance(a=root, b=recipe))
+        for recipe in recipes
     }
 
-    in_tree: set[int] = {root.pk}
+    # Kept as an insertion-ordered list rather than a set so that ties between
+    # equally good parents resolve the same way on every request, making the
+    # rendered graph stable.
+    tree_pks: list[int] = [root.pk]
     parent_of: dict[int, int] = {}
-    edge_distances: dict[int, int] = {}
+    edge_distance_of: dict[int, int] = {}
+    is_exact_of: dict[int, bool] = {}
 
-    # Process non-root nodes in ascending dist-from-root order so every valid
-    # parent (dist d-k for some k≥1) is already in the tree.
     ordered = sorted(
-        (r for r in all_recipes if r.pk != root.pk),
-        key=lambda r: dist_from_root[r.pk],
+        (recipe for recipe in recipes if recipe.pk != root.pk),
+        key=lambda recipe: dist_from_root[recipe.pk],
     )
 
     for recipe in ordered:
-        d_to_root = dist_from_root[recipe.pk]
-        # Valid parents are in-tree nodes P where dist(root,P) + dist(P,recipe) == dist(root,recipe).
-        # Among those, pick the one with the smallest direct edge (dist(P, recipe)).
+        distance_to_root = dist_from_root[recipe.pk]
+
+        # One pass finds both the best constrained parent and the nearest in-tree
+        # node overall, so the fallback needs no further distance computations.
         best_parent_pk: int | None = None
-        best_edge_d = d_to_root + 1  # sentinel — worse than any valid parent
-        for pk in in_tree:
-            edge_d = hamming_distance(a=recipe, b=recipe_by_pk[pk])
-            if dist_from_root[pk] + edge_d == d_to_root and edge_d < best_edge_d:
-                best_edge_d = edge_d
+        best_edge_distance = distance_to_root + 1  # worse than any valid parent
+        nearest_pk = root.pk
+        nearest_edge_distance = _MAX_HAMMING_DISTANCE + 1
+
+        for pk in tree_pks:
+            edge_distance = hamming_distance(a=recipe, b=recipe_by_pk[pk])
+            if edge_distance < nearest_edge_distance:
+                nearest_edge_distance = edge_distance
+                nearest_pk = pk
+            satisfies_constraint = dist_from_root[pk] + edge_distance == distance_to_root
+            if satisfies_constraint and edge_distance < best_edge_distance:
+                best_edge_distance = edge_distance
                 best_parent_pk = pk
 
-        # Fallback: no strictly valid parent (can happen when dist_from_root values
-        # don't form an exact chain). Attach to the tree node with minimum edge cost.
-        if best_parent_pk is None:
-            best_parent_pk = min(
-                in_tree, key=lambda pk: hamming_distance(a=recipe, b=recipe_by_pk[pk])
-            )
-            best_edge_d = hamming_distance(a=recipe, b=recipe_by_pk[best_parent_pk])
-
-        in_tree.add(recipe.pk)
-        parent_of[recipe.pk] = best_parent_pk
-        edge_distances[recipe.pk] = best_edge_d
+        if best_parent_pk is not None:
+            parent_of[recipe.pk] = best_parent_pk
+            edge_distance_of[recipe.pk] = best_edge_distance
+            is_exact_of[recipe.pk] = True
+        else:
+            parent_of[recipe.pk] = nearest_pk
+            edge_distance_of[recipe.pk] = nearest_edge_distance
+            is_exact_of[recipe.pk] = False
+        tree_pks.append(recipe.pk)
 
     nodes = tuple(
-        FilmSimTreeNode(
-            id=r.pk,
-            label=r.name or f"#{r.pk}",
-            distance=dist_from_root[r.pk],
-            image_count=image_counts.get(r.pk, 0),
+        RecipeTreeNode(
+            id=recipe.pk,
+            label=recipe.name or f"#{recipe.pk}",
+            distance=dist_from_root[recipe.pk],
+            image_count=image_counts.get(recipe.pk, 0),
+            is_named=bool(recipe.name),
         )
-        for r in all_recipes
+        for recipe in recipes
     )
 
     edges = tuple(
-        AllRecipeEdge(source=parent_of[pk], target=pk, distance=edge_distances[pk])
-        for pk in parent_of
-    )
-
-    return FilmSimTreeData(root_id=root.pk, nodes=nodes, edges=edges)
-
-
-_ALL_RECIPE_GRAPH_MAX_DISTANCE = 9
-
-
-def build_all_recipe_graph(
-    *,
-    all_recipes: list[models.FujifilmRecipe],
-    image_counts: dict[int, int],
-) -> AllRecipeGraphData:
-    """
-    Build a per-film-simulation recipe network.
-
-    Recipes are only connected to other recipes sharing the same film simulation,
-    producing one island per film sim. Within each island, edges are drawn for pairs
-    whose Hamming distance is <= _ALL_RECIPE_GRAPH_MAX_DISTANCE, with the same
-    blocking constraint: a distance-d edge is suppressed for a node that already has
-    neighbours at both d-1 and d-2 (distances 1 and 2 are never suppressed).
-    """
-    nodes = tuple(
-        AllRecipeNode(
-            id=r.pk,
-            label=r.name or f"#{r.pk}",
-            film_simulation=r.film_simulation,
-            image_count=image_counts.get(r.pk, 0),
+        RecipeTreeEdge(
+            source=parent_pk,
+            target=pk,
+            distance=edge_distance_of[pk],
+            is_exact=is_exact_of[pk],
         )
-        for r in all_recipes
+        for pk, parent_pk in parent_of.items()
     )
 
-    # Group recipes by film simulation so pairs are only computed within each group.
-    by_film_sim: dict[str, list[models.FujifilmRecipe]] = {}
-    for r in all_recipes:
-        by_film_sim.setdefault(r.film_simulation, []).append(r)
-
-    # Pass 1 — collect intra-group pairs within the max distance and record which
-    # distances each node has at least one neighbour at.
-    pairs: list[tuple[int, int, int]] = []  # (pk_a, pk_b, distance)
-    distances_present: dict[int, set[int]] = {r.pk: set() for r in all_recipes}
-    for group in by_film_sim.values():
-        for i in range(len(group)):
-            for j in range(i + 1, len(group)):
-                d = hamming_distance(a=group[i], b=group[j])
-                if d > _ALL_RECIPE_GRAPH_MAX_DISTANCE:
-                    continue
-                pk_i = group[i].pk
-                pk_j = group[j].pk
-                pairs.append((pk_i, pk_j, d))
-                distances_present[pk_i].add(d)
-                distances_present[pk_j].add(d)
-
-    def _blocked(pk: int, d: int) -> bool:
-        """
-        A node is blocked from distance-d edges if it already has neighbours at
-        both d-1 and d-2. Distances 1 and 2 are never blocked (d-2 <= 0 never exists).
-        """
-        present = distances_present[pk]
-        return (d - 1) in present and (d - 2) in present
-
-    # Pass 2 — emit edges where neither endpoint is blocked at that distance.
-    edges: list[AllRecipeEdge] = []
-    for pk_i, pk_j, d in pairs:
-        if not _blocked(pk_i, d) and not _blocked(pk_j, d):
-            edges.append(AllRecipeEdge(source=pk_i, target=pk_j, distance=d))
-
-    return AllRecipeGraphData(nodes=nodes, edges=tuple(edges))
-
-
-def build_recipe_graph(
-    *,
-    root: models.FujifilmRecipe,
-    all_recipes: list[models.FujifilmRecipe],
-    max_distance: int,
-    image_counts: dict[int, int],
-) -> RecipeGraphData:
-    """
-    Build a recipe graph centred on *root*.
-
-    Nodes: all recipes (including root) whose Hamming distance from *root* is
-    strictly less than *max_distance*.
-
-    Edges: a spanning tree where each node connects to its nearest neighbour at
-    distance - 1, forming chains like root → N2 → N3 rather than always
-    connecting every node back to root directly. When an intermediate distance
-    layer is empty, the algorithm falls back to the nearest node at any lower
-    distance to avoid isolated islands.
-    """
-    dist_from_root: dict[int, int] = {root.pk: 0}
-    for recipe in all_recipes:
-        if recipe.pk == root.pk:
-            continue
-        d = hamming_distance(a=root, b=recipe)
-        if d < max_distance:
-            dist_from_root[recipe.pk] = d
-
-    visible: dict[int, models.FujifilmRecipe] = {
-        r.pk: r for r in all_recipes if r.pk in dist_from_root
-    }
-
-    nodes = tuple(
-        RecipeNode(
-            id=r.pk,
-            label=r.name or f"#{r.pk}",
-            distance=dist_from_root[r.pk],
-            image_count=image_counts.get(r.pk, 0),
-        )
-        for r in visible.values()
-    )
-
-    # Group visible recipes by their distance from root.
-    by_distance: dict[int, list[models.FujifilmRecipe]] = {}
-    for r in visible.values():
-        by_distance.setdefault(dist_from_root[r.pk], []).append(r)
-
-    # For each node at distance d, connect it to the closest node at any lower
-    # distance. Prefer d-1 but fall back through d-2, d-3 … to avoid islands
-    # when an intermediate distance layer is empty.
-    edges: list[RecipeEdge] = []
-    for d in sorted(by_distance):
-        if d == 0:
-            continue
-        parents: list[models.FujifilmRecipe] = []
-        for pd in range(d - 1, -1, -1):
-            parents = by_distance.get(pd, [])
-            if parents:
-                break
-        if not parents:
-            continue
-        for recipe in by_distance[d]:
-            closest = min(parents, key=lambda p: hamming_distance(a=recipe, b=p))
-            edges.append(RecipeEdge(
-                source=closest.pk,
-                target=recipe.pk,
-                distance=hamming_distance(a=recipe, b=closest),
-            ))
-
-    return RecipeGraphData(
-        root_id=root.pk,
-        nodes=nodes,
-        edges=tuple(edges),
-    )
+    return RecipeTreeData(root_id=root.pk, nodes=nodes, edges=edges)

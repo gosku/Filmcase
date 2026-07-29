@@ -1,0 +1,137 @@
+{% load recipe_property_icons %}{% comment %}
+The graph's right-hand panel, in one of two states:
+
+  compared set   comparison of reference against the selected recipe
+  compared unset the reference recipe on its own
+
+Rendered into the page on load and re-fetched on selection, so both states come
+from this one template rather than being rebuilt in JavaScript.
+
+Context: reference, compared, properties, path_nodes, compare_images_url.
+{% endcomment %}
+{% if compared %}
+
+<div class="graph-panel__header">
+  <div class="graph-panel__header-row">
+    <span class="graph-panel__label">Comparison</span>
+    <button type="button" class="graph-panel__btn" id="card-compare-btn">Compare images</button>
+  </div>
+
+  <div class="graph-panel__cards">
+    <div class="graph-panel__card">
+      <div class="graph-panel__card-kicker">
+        <span class="graph-panel__dot graph-panel__dot--reference"></span>Reference
+      </div>
+      <div class="graph-panel__card-name" title="{{ reference.label }}">{{ reference.label }}</div>
+      <a class="graph-panel__link" href="{% url 'recipe-detail' reference.id %}">View recipe &rsaquo;</a>
+    </div>
+
+    <div class="graph-panel__card graph-panel__card--compared">
+      <div class="graph-panel__card-kicker">
+        <span class="graph-panel__dot graph-panel__dot--compared"></span>Comparing with
+      </div>
+      <div class="graph-panel__card-name" title="{{ compared.label }}">{{ compared.label }}</div>
+      <div class="graph-panel__card-links">
+        <a class="graph-panel__link" href="{% url 'recipe-detail' compared.id %}">View recipe &rsaquo;</a>
+        <button type="button" class="graph-panel__link graph-panel__link--button"
+                id="card-show-graph-btn" title="Go to this recipe graph">View graph &rsaquo;</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="segmented-toggle segmented-toggle--subtle graph-panel__filter" id="property-filter">
+    <button type="button" class="segmented-toggle__option segmented-toggle__option--active"
+            data-properties="all">All properties</button>
+    <button type="button" class="segmented-toggle__option" data-properties="changes">
+      Only changes &middot; {{ properties.changed_count }}
+    </button>
+  </div>
+</div>
+
+<div class="graph-panel__body" id="graph-panel-body">
+  {% for group in properties.groups %}
+  <div class="graph-panel__group" data-changed-count="{{ group.changed_count }}">
+    <div class="graph-panel__label graph-panel__group-label">{{ group.label }}</div>
+    {% for row in group.rows %}
+    <div class="graph-panel__row{% if row.changed %} graph-panel__row--changed{% else %} graph-panel__row--unchanged{% endif %}">
+      <svg class="graph-panel__icon" aria-hidden="true"><use href="#{{ row.key|property_icon }}"></use></svg>
+      <span class="graph-panel__key">{{ row.label }}</span>
+      {% if row.changed %}
+      <span class="graph-panel__from">{{ row.reference_value }}</span>
+      <span class="graph-panel__arrow">&rarr;</span>
+      <span class="graph-panel__to">{{ row.compared_value }}</span>
+      {% else %}
+      <span class="graph-panel__value">{{ row.reference_value }}</span>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+  {% endfor %}
+
+  {% if path_nodes %}
+  <div class="graph-panel__delta">
+    <div class="graph-panel__label">Delta breakdown</div>
+    <ol class="graph-timeline">
+      {% for node in path_nodes %}
+      <li class="graph-timeline__node{% if forloop.last %} graph-timeline__node--last{% endif %}">
+        <div class="graph-timeline__gutter">
+          <span class="graph-timeline__dot{% if forloop.first %} graph-timeline__dot--root{% elif forloop.last %} graph-timeline__dot--target{% endif %}"></span>
+          {% if not forloop.last %}<span class="graph-timeline__line"></span>{% endif %}
+        </div>
+        <div class="graph-timeline__content">
+          <div class="graph-timeline__name">{{ node.label }}</div>
+          {% if forloop.first %}
+          <div class="graph-timeline__meta">Reference &middot; starting point</div>
+          {% else %}
+          <div class="graph-timeline__changes">
+            {% for change in node.changed_fields %}
+            <div class="graph-timeline__change">
+              <span class="graph-timeline__change-key">{{ change.field }}</span>
+              <span class="graph-timeline__change-values">
+                {{ change.before }} <span class="graph-panel__arrow">&rarr;</span> <span class="graph-panel__to">{{ change.value }}</span>
+              </span>
+            </div>
+            {% endfor %}
+          </div>
+          {% endif %}
+        </div>
+      </li>
+      {% endfor %}
+    </ol>
+  </div>
+  {% endif %}
+</div>
+
+{% else %}
+
+<div class="graph-panel__header graph-panel__header--reference">
+  <div class="graph-panel__header-row">
+    <span class="graph-panel__label">Recipe of reference</span>
+    <a class="graph-panel__link" href="{% url 'recipe-detail' reference.id %}">View recipe &rsaquo;</a>
+  </div>
+  <div class="graph-panel__reference-name">
+    <span class="graph-panel__dot graph-panel__dot--reference"></span>{{ reference.label }}
+  </div>
+  <div class="graph-panel__reference-meta">{{ reference.meta }}</div>
+  <div class="graph-panel__prompt">
+    <span class="graph-panel__prompt-arrow">&larr;</span>
+    Click any node to compare it against this recipe.
+  </div>
+</div>
+
+<div class="graph-panel__body" id="graph-panel-body">
+  {% for group in properties.groups %}
+  <div class="graph-panel__group">
+    <div class="graph-panel__label graph-panel__group-label">{{ group.label }}</div>
+    {% for row in group.rows %}
+    <div class="graph-panel__row graph-panel__row--reference">
+      <svg class="graph-panel__icon" aria-hidden="true"><use href="#{{ row.key|property_icon }}"></use></svg>
+      <span class="graph-panel__key">{{ row.label }}</span>
+      <span class="graph-panel__value graph-panel__value--strong">{{ row.reference_value }}</span>
+    </div>
+    {% endfor %}
+  </div>
+  {% endfor %}
+</div>
+
+{% endif %}
