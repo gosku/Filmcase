@@ -69,15 +69,34 @@ window.RecipeGraph = (function () {
   /* Node sizing                          */
   /* ------------------------------------ */
 
-  function maxImageCount(elements) {
+  /**
+   * The image count that maps to MAX_NODE_SIZE.
+   *
+   * The root is deliberately left out. It is usually the most-used recipe by a
+   * wide margin, so letting it set the scale flattened everything else: with a
+   * root on 2,444 images and the next recipe on 283, all 52 remaining Provia
+   * recipes landed within 7.6px of each other. The root does not need the help,
+   * being red, centred and floored at MIN_ROOT_SIZE.
+   */
+  function sizingMaxImageCount(elements, rootId) {
     var counts = elements
       .filter(isNodeElement)
+      .filter(function (element) { return String(element.data.id) !== rootId; })
       .map(function (element) { return element.data.image_count || 0; });
     return Math.max.apply(null, counts.concat([1]));
   }
 
-  function sizeForImageCount(count, maxImages) {
-    return MIN_NODE_SIZE + (count / maxImages) * (MAX_NODE_SIZE - MIN_NODE_SIZE);
+  /**
+   * Size a node so its *area* is proportional to its image count, which is what
+   * the eye actually compares between circles. Scaling the diameter directly
+   * would overstate the busy recipes and flatten the rest.
+   *
+   * Counts above *scaleMax* clamp to the largest size; only the root can exceed
+   * it, since it is excluded from the scale.
+   */
+  function sizeForImageCount(count, scaleMax) {
+    var ratio = Math.min(count, scaleMax) / scaleMax;
+    return MIN_NODE_SIZE + Math.sqrt(ratio) * (MAX_NODE_SIZE - MIN_NODE_SIZE);
   }
 
   /* ------------------------------------ */
@@ -360,10 +379,10 @@ window.RecipeGraph = (function () {
     }
 
     function applyNodeStyles(currentElements) {
-      var maxImages = maxImageCount(currentElements);
+      var scaleMax = sizingMaxImageCount(currentElements, rootId);
       cy.nodes().forEach(function (node) {
         var isRoot = rootId !== null && node.data("id") === rootId;
-        var size = sizeForImageCount(node.data("image_count") || 0, maxImages);
+        var size = sizeForImageCount(node.data("image_count") || 0, scaleMax);
         node.style({
           "background-color": isRoot ? ROOT_COLOR : NODE_COLOR,
           "border-color": isRoot ? ROOT_BORDER_COLOR : NODE_BORDER_COLOR,
