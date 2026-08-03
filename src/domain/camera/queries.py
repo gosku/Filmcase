@@ -137,8 +137,14 @@ def camera_info(device: ptp_device.PTPDevice) -> CameraInfo:
 
     This is safe to call at any time after connect().
     """
-    battery_raw = _get_int(device, constants.PROP_BATTERY)
-    usb_mode = _get_int(device, 0xD16E)         # PTP_DPC_FUJI_USBMode
+    try:
+        battery_raw = _get_int(device, constants.PROP_BATTERY)
+    except ptp_device.CameraConnectionError:
+        battery_raw = 0  # not supported on all models (e.g. X-E5)
+    try:
+        usb_mode = _get_int(device, 0xD16E)      # PTP_DPC_FUJI_USBMode
+    except ptp_device.CameraConnectionError:
+        usb_mode = 0  # not supported on all models (e.g. X-E5)
     try:
         firmware_version = _get_int(device, 0xD153)  # PTP_DPC_FUJI_FirmwareVersion
     except ptp_device.CameraConnectionError:
