@@ -172,6 +172,20 @@ class SlotState:
         return constants.PTP_TO_FILM_SIMULATION.get(self.film_sim_ptp, f"Unknown({self.film_sim_ptp})")
 
 
+def supports_custom_slots(device: ptp_device.PTPDevice) -> bool | None:
+    """
+    Whether this body exposes the slot cursor, without which C1–Cn is unreachable.
+
+    Returns None when the camera does not answer GetDeviceInfo — the older
+    bodies this code already tolerates report no property list at all, so an
+    empty answer means "unknown", not "unsupported".
+    """
+    supported = device.supported_properties()
+    if not supported:
+        return None
+    return constants.PROP_SLOT_CURSOR in supported
+
+
 def slot_states(device: ptp_device.PTPDevice, slot_count: int) -> list[SlotState]:
     """
     Read the current content (name + film sim) of each custom slot.

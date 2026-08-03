@@ -28,6 +28,7 @@ from typing import Any
 from django.core.management.base import BaseCommand, CommandParser
 
 from src.application.usecases.camera import get_camera_info as get_camera_info_uc
+from src.data.camera import constants
 from src.domain.camera import ptp_device
 
 
@@ -61,6 +62,15 @@ class Command(BaseCommand):
         self.stdout.write("Disconnected.")
 
         if options["slots"]:
+            if result.slots_supported is False:
+                self.stderr.write(
+                    self.style.ERROR(
+                        "This body does not advertise the custom-slot cursor "
+                        f"(0x{constants.PROP_SLOT_CURSOR:04X}), so C1–Cn cannot be read "
+                        "or written over USB."
+                    )
+                )
+                return
             if result.slots is None:
                 self.stdout.write("  (This camera model does not support custom slots.)")
                 return
