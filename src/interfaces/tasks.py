@@ -7,6 +7,7 @@ from django.conf import settings
 from src.application.usecases.library.process_synced_image import process_synced_image
 from src.domain.images import events, operations
 from src.domain.images.thumbnails import operations as thumbnail_operations
+from src.domain.recipes import validation as recipe_validation
 
 
 @shared_task(name="domain.process_image", bind=True, queue=settings.PROCESS_IMAGE_QUEUE)
@@ -22,7 +23,20 @@ def process_image_task(self: Any, /, *, image_path: str, **kwargs: object) -> st
     try:
         recipe = operations.process_image(image_path=image_path)
     except operations.NoFilmSimulationError:
+        events.publish_event(
+            event_type=events.IMAGE_IMPORT_SKIPPED,
+            image_path=image_path,
+            reason=events.SKIP_REASON_NO_FILM_SIMULATION,
+        )
         return f"Skipped {image_path} (no film simulation)"
+    except recipe_validation.InvalidFujifilmRecipeData as exc:
+        events.publish_event(
+            event_type=events.IMAGE_IMPORT_SKIPPED,
+            image_path=image_path,
+            reason=events.SKIP_REASON_INVALID_RECIPE_DATA,
+            recipe_field=exc.field,
+        )
+        return f"Skipped {image_path} (invalid recipe data)"
     events.publish_event(
         event_type=events.TASK_IMAGE_COMPLETED,
         image_path=image_path,
