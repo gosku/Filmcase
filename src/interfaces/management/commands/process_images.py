@@ -16,9 +16,18 @@ class Command(BaseCommand):
         folder = options["folder"]
         self.stdout.write(f"Scanning {folder} for JPG files…")
 
-        total = process_images.import_images_from_folder(folder=folder)
+        summary = process_images.import_images_from_folder(folder=folder)
 
         if settings.USE_ASYNC_TASKS:
-            self.stdout.write(self.style.SUCCESS(f"Successfully enqueued {total} tasks."))
-        else:
-            self.stdout.write(self.style.SUCCESS(f"Successfully processed {total} images."))
+            self.stdout.write(self.style.SUCCESS(f"Successfully enqueued {summary.total} tasks."))
+            return
+
+        self.stdout.write(self.style.SUCCESS(
+            f"Successfully processed {summary.processed} of {summary.total} images."
+        ))
+        if summary.skipped:
+            self.stdout.write(f"Skipped {len(summary.skipped)} image(s) that cannot produce a recipe.")
+            # The full list is behind -v 2 so a large skip run does not swamp the output.
+            if options["verbosity"] >= 2:
+                for path in summary.skipped:
+                    self.stdout.write(f"  skipped: {path}")
