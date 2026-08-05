@@ -102,8 +102,13 @@ if color is a numeric label (e.g. "0 (normal)", "+2 (high)"):
     → saturation adjustment; decode using table below
 
 elif color is a non-numeric string (e.g. "Acros", "None (B&W)", "Film Simulation"):
-    → film simulation name or special case; recipe returns "N/A" for the Color field
+    → film simulation name or special case; recipe returns None for the Color field
 ```
+
+Note that Color returns `None`, not the string `"N/A"` that Sharpness uses for its
+equivalent case. For a monochromatic simulation that absence is correct and the
+recipe is stored. For a colour simulation it is not: a colour recipe with no Color
+value fails `validate_recipe_data`, and the image is skipped at ingest.
 
 ### Numeric saturation mapping table
 
@@ -136,8 +141,9 @@ elif color is a non-numeric string (e.g. "Acros", "None (B&W)", "Film Simulation
 
 ### Key observations
 
-- `Film Simulation` appears for some film simulations (e.g. Eterna, Astia, Pro Neg. Std); it means the film profile controls saturation internally and the user cannot override it.
-- For B&W/Acros/Sepia simulations the `Film Mode` EXIF field is absent; `Saturation` encodes the simulation name instead.  In those cases the Color recipe field is `"N/A"` — there is no separate saturation adjustment.
+- `Film Simulation` means the camera, not the user, drove saturation for that shot.  It is not a property of the film simulation: it has been observed on Eterna, Astia and Pro Neg. Std images, but the same simulations carry numeric values on the great majority of shots.  Nothing else in the EXIF flags the condition, so this value is the only signal.
+- A colour simulation whose `Saturation` is `Film Simulation` records no recipe of the user's, so the image is skipped at ingest rather than stored with an empty Color.  See [management_commands.md](management_commands.md) for how skips are reported.
+- For B&W/Acros/Sepia simulations the `Film Mode` EXIF field is absent; `Saturation` encodes the simulation name instead.  In those cases the Color recipe field is `None` — there is no separate saturation adjustment, and the recipe is stored normally.
 - Recipe output for numeric values is a signed integer string: `"-2"`, `"+3"`, `"0"`.
 
 ---

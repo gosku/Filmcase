@@ -63,6 +63,13 @@ Behaviour depends on your install mode:
 - **Full install** (`USE_ASYNC_TASKS=True`): one Celery task is enqueued per image and
   processed in parallel by the worker (start it first with `make worker`).
 
+Files that cannot produce a recipe are skipped, never aborting the run. That covers
+images carrying no Fujifilm metadata, and images whose EXIF fails recipe validation,
+such as a colour simulation whose Color the camera set rather than the user. In lite
+mode the command reports how many were skipped; add `--verbosity 2` to list their
+paths. In full install mode each skip is recorded as an `image.import.skipped` event
+in the worker log, carrying the reason and the offending recipe field.
+
 ---
 
 ## Rating images in bulk
