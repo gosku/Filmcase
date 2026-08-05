@@ -6,11 +6,17 @@ import pytest
 
 from src.application.usecases.library.process_synced_image import process_synced_image
 from src.data import models
+from src.domain.images import events
 from tests.factories import SyncRunFactory
 
 FIXTURES_DIR = Path(__file__).resolve().parent.parent.parent.parent / "fixtures" / "images"
 FUJIFILM_FIXTURE = FIXTURES_DIR / "XS107114.JPG"
 NON_FUJIFILM_FIXTURE = FIXTURES_DIR / "sub-folder" / "img_4968_dng_embedded.jpg"
+# The camera set this file's Saturation, so its EXIF cannot produce a valid recipe.
+CAMERA_CONTROLLED_FIXTURE = (
+    Path(__file__).resolve().parent.parent.parent.parent
+    / "fixtures" / "recipe" / "film_simulation_eterna.jpg"
+)
 
 
 @pytest.mark.django_db
@@ -38,6 +44,30 @@ class TestProcessSyncedImage:
         run.refresh_from_db()
         assert run.skipped == 1
         assert run.processed == 0
+
+    def test_records_skipped_for_an_image_that_fails_recipe_validation(self, tmp_path):
+        image_path = tmp_path / CAMERA_CONTROLLED_FIXTURE.name
+        shutil.copy(CAMERA_CONTROLLED_FIXTURE, image_path)
+        run = SyncRunFactory(state=models.SyncRun.STATE_PROCESSING, total=1)
+
+        process_synced_image(image_path=str(image_path), sync_run_id=run.pk)
+
+        run.refresh_from_db()
+        assert run.skipped == 1
+        assert run.errors == 0
+        assert run.processed == 0
+
+    def test_publishes_an_import_skipped_event_for_invalid_recipe_data(self, tmp_path, captured_logs):
+        image_path = tmp_path / CAMERA_CONTROLLED_FIXTURE.name
+        shutil.copy(CAMERA_CONTROLLED_FIXTURE, image_path)
+        run = SyncRunFactory(state=models.SyncRun.STATE_PROCESSING, total=1)
+
+        process_synced_image(image_path=str(image_path), sync_run_id=run.pk)
+
+        skipped = [e for e in captured_logs if e.get("event_type") == events.IMAGE_IMPORT_SKIPPED]
+        assert len(skipped) == 1
+        assert skipped[0]["reason"] == events.SKIP_REASON_INVALID_RECIPE_DATA
+        assert skipped[0]["recipe_field"] == "color"
 
     def test_records_error_and_continues_on_unexpected_failure(self):
         run = SyncRunFactory(state=models.SyncRun.STATE_PROCESSING, total=1)
