@@ -9,6 +9,11 @@ from src.data import models
 from src.domain.recipes.dataclasses import ImportRecipesResult, UploadedFile
 
 FIXTURES_DIR = Path(__file__).resolve().parent.parent.parent.parent / "fixtures" / "images"
+# The camera set this file's Saturation, so its EXIF cannot produce a valid recipe.
+CAMERA_CONTROLLED_FIXTURE = (
+    Path(__file__).resolve().parent.parent.parent.parent
+    / "fixtures" / "recipe" / "film_simulation_eterna.jpg"
+)
 
 
 def uploaded_file_from_fixture(filename: str) -> UploadedFile:
@@ -61,6 +66,33 @@ class TestImportRecipesFromUploadedFiles:
 
         assert result.imported == ()
         assert result.failed == ("canon.jpg",)
+
+    def test_records_failure_for_a_file_that_fails_recipe_validation(self):
+        files = [
+            UploadedFile(
+                name="camera_controlled.jpg",
+                content=CAMERA_CONTROLLED_FIXTURE.read_bytes(),
+            )
+        ]
+
+        result = import_recipes_from_uploaded_files(files=files)
+
+        assert result.imported == ()
+        assert result.failed == ("camera_controlled.jpg",)
+
+    def test_continues_after_a_file_that_fails_recipe_validation(self):
+        files = [
+            UploadedFile(
+                name="camera_controlled.jpg",
+                content=CAMERA_CONTROLLED_FIXTURE.read_bytes(),
+            ),
+            uploaded_file_from_fixture("XS107114.JPG"),
+        ]
+
+        result = import_recipes_from_uploaded_files(files=files)
+
+        assert len(result.imported) == 1
+        assert result.failed == ("camera_controlled.jpg",)
 
     def test_continues_after_failure_and_processes_remaining_files(self):
         non_fujifilm = UploadedFile(name="bad.jpg", content=b"\xff\xd8\xff\xd9")
