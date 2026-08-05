@@ -126,6 +126,8 @@ def process_image(*, image_path: str) -> models.Image:
 
     Raises:
         NoFilmSimulationError: If the image has no film simulation EXIF data.
+        InvalidFujifilmRecipeData: If the image's EXIF cannot produce a valid
+            recipe. Nothing is persisted: the whole call is one transaction.
     """
     metadata = queries.read_image_exif(image_path=image_path)
 

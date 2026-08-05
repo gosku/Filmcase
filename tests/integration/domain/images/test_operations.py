@@ -9,6 +9,7 @@ from src.data import models
 from src.domain.images import events
 from src.domain.images.dataclasses import ImageExifData
 from src.domain.images.operations import NoFilmSimulationError, process_image
+from src.domain.recipes.validation import InvalidFujifilmRecipeData
 
 FIXTURES_DIR = Path(__file__).resolve().parent.parent.parent.parent / "fixtures" / "images"
 FIXTURE_IMAGE = str(FIXTURES_DIR / "XS107114.JPG")
@@ -185,3 +186,30 @@ class TestProcessImageNoFilmSimulation:
                 process_image(image_path="any/path.jpg")
 
         assert models.Image.objects.count() == 0
+
+
+@pytest.mark.django_db
+class TestProcessImageInvalidRecipeData:
+    def test_raises_for_an_image_whose_color_the_camera_set(self):
+        """The camera writes the sentinel 'Film Simulation' into Color when it, not
+        the user, drives saturation. A colour simulation with no Color value cannot
+        produce a valid recipe."""
+        image_path = str(RECIPE_FIXTURES_DIR / "film_simulation_eterna.jpg")
+
+        with pytest.raises(InvalidFujifilmRecipeData) as exc_info:
+            process_image(image_path=image_path)
+
+        assert exc_info.value.field == "color"
+        assert exc_info.value.value is None
+
+    def test_leaves_no_partial_rows_behind(self):
+        """process_image is one transaction, so a rejected recipe must not leave the
+        FujifilmExif row it creates before validation runs."""
+        image_path = str(RECIPE_FIXTURES_DIR / "film_simulation_eterna.jpg")
+
+        with pytest.raises(InvalidFujifilmRecipeData):
+            process_image(image_path=image_path)
+
+        assert models.Image.objects.count() == 0
+        assert models.FujifilmExif.objects.count() == 0
+        assert models.FujifilmRecipe.objects.count() == 0

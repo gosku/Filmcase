@@ -387,6 +387,9 @@ def get_or_create_recipe_from_metadata(
     Create or retrieve a FujifilmRecipe for the given parsed EXIF data.
 
     :raises NoFilmSimulationError: If the EXIF data contains no known film simulation.
+    :raises InvalidFujifilmRecipeData: If the EXIF data cannot produce a valid
+        recipe, e.g. a colour simulation whose Color the camera set rather than
+        the user, leaving no value to store.
     """
     try:
         recipe_data = image_queries.exif_to_recipe(exif=metadata)
@@ -402,6 +405,7 @@ def get_or_create_recipe_from_filepath(
     Read EXIF from *filepath* and return the matching FujifilmRecipe, creating it if needed.
 
     :raises NoFilmSimulationError: If the file is not a Fujifilm image or has no film simulation.
+    :raises InvalidFujifilmRecipeData: If the file's EXIF cannot produce a valid recipe.
     """
     metadata = image_queries.read_image_exif(image_path=filepath)
     if metadata.camera_make.upper() != "FUJIFILM":
