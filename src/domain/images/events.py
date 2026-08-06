@@ -22,9 +22,14 @@ RECIPE_IMPORT_QR_CARD_FAILED = "recipe.import.qr_card.failed"
 IMAGE_RATING_SET = "image.rating.set"
 IMAGE_RATING_FAILED = "image.rating.failed"
 IMAGE_DEDUP_FILE_MISSING = "image.dedup.file.missing"
+IMAGE_IMPORT_SKIPPED = "image.import.skipped"
 TASK_IMAGE_ENQUEUED = "task.image.enqueued"
 TASK_IMAGE_STARTED = "task.image.started"
 TASK_IMAGE_COMPLETED = "task.image.completed"
+
+# Values carried on the `reason` field of IMAGE_IMPORT_SKIPPED.
+SKIP_REASON_NO_FILM_SIMULATION = "no_film_simulation"
+SKIP_REASON_INVALID_RECIPE_DATA = "invalid_recipe_data"
 
 
 def publish_event(*, event_type: str, **kwargs: object) -> None:

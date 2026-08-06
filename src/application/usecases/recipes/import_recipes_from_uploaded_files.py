@@ -5,6 +5,7 @@ from src.data import models
 from src.domain.images.queries import NoFilmSimulationError
 from src.domain.recipes import dataclasses as recipe_dataclasses
 from src.domain.recipes import operations
+from src.domain.recipes import validation as recipe_validation
 
 
 def import_recipes_from_uploaded_files(
@@ -17,8 +18,9 @@ def import_recipes_from_uploaded_files(
     the recipe is extracted, and the temporary file is deleted immediately
     afterwards — whether the operation succeeds or fails.
 
-    Files that do not contain Fujifilm recipe EXIF data are recorded as
-    failures; processing continues with the remaining files.
+    Files that do not contain Fujifilm recipe EXIF data, and files whose EXIF
+    cannot produce a valid recipe, are recorded as failures; processing
+    continues with the remaining files.
 
     Returns an ImportRecipesResult describing which files were imported
     and which failed.
@@ -34,7 +36,7 @@ def import_recipes_from_uploaded_files(
                 tmp_path = tmp.name
             recipe, _ = operations.get_or_create_recipe_from_filepath(filepath=tmp_path)
             imported.append(recipe)
-        except NoFilmSimulationError:
+        except (NoFilmSimulationError, recipe_validation.InvalidFujifilmRecipeData):
             failed.append(file.name)
         finally:
             if tmp_path is not None:
