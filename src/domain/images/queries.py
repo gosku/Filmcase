@@ -468,6 +468,25 @@ def get_all_known_image_paths() -> frozenset[str]:
     return frozenset(models.Image.objects.values_list("filepath", flat=True))
 
 
+def get_image_paths_under_folder(*, folder_path: str) -> frozenset[str]:
+    """
+    Return the filepath of every catalogued image stored under *folder_path*.
+
+    Membership is decided by path prefix because Image has no foreign key to
+    LibraryFolder. The separator is part of the prefix so that a folder named
+    ``/Photos`` does not also claim ``/Photos-old``.
+
+    Images imported from outside every registered library folder are never
+    returned, which is what keeps them out of any prune.
+    """
+    prefix = folder_path.rstrip(os.sep) + os.sep
+    return frozenset(
+        models.Image.objects
+        .filter(filepath__startswith=prefix)
+        .values_list("filepath", flat=True)
+    )
+
+
 @attrs.frozen
 class ImageDetailContext:
     image: models.Image
