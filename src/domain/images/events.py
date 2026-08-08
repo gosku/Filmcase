@@ -24,6 +24,7 @@ IMAGE_RATING_FAILED = "image.rating.failed"
 IMAGE_DEDUP_FILE_MISSING = "image.dedup.file.missing"
 IMAGE_IMPORT_SKIPPED = "image.import.skipped"
 IMAGE_FILE_RELOCATED = "image.file.relocated"
+IMAGE_REMOVED = "image.removed"
 TASK_IMAGE_ENQUEUED = "task.image.enqueued"
 TASK_IMAGE_STARTED = "task.image.started"
 TASK_IMAGE_COMPLETED = "task.image.completed"
@@ -31,6 +32,11 @@ TASK_IMAGE_COMPLETED = "task.image.completed"
 # Values carried on the `reason` field of IMAGE_IMPORT_SKIPPED.
 SKIP_REASON_NO_FILM_SIMULATION = "no_film_simulation"
 SKIP_REASON_INVALID_RECIPE_DATA = "invalid_recipe_data"
+
+# Values carried on the `reason` field of IMAGE_REMOVED. Both mean the catalog
+# entry was removed; neither involves deleting the file from disk.
+REMOVE_REASON_FILE_MISSING = "file_missing"
+REMOVE_REASON_FOLDER_REMOVED = "folder_removed"
 
 
 def publish_event(*, event_type: str, **kwargs: object) -> None:
