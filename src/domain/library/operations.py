@@ -1,12 +1,21 @@
-import attrs
+import os
 from pathlib import Path
 
+import attrs
+from django import conf
 from django.db import IntegrityError, transaction
 from django.utils import timezone
 
 from src.data import models
+from src.domain.images import events as image_events
+from src.domain.images import operations as image_operations
+from src.domain.images import queries as image_queries
 from src.domain.library import events
 from src.domain.library.queries import FolderNotFound, LibraryFolderNotFound
+
+# How many missing paths a prune reports back for a dry run, so the caller can
+# show what would go without echoing an unbounded list.
+_PRUNE_SAMPLE_LIMIT = 20
 
 
 @attrs.frozen
@@ -25,6 +34,22 @@ class SyncAlreadyInProgress(Exception):
     """
 
     folder_id: int
+
+
+@attrs.frozen
+class PruneResult:
+    """
+    Outcome of a prune pass over one library folder.
+
+    ``skipped_reason`` is empty when the prune ran; otherwise it carries the
+    SyncRun.SKIPPED_* code explaining why nothing was removed.
+    """
+
+    missing_found: int
+    removed: int
+    total: int
+    skipped_reason: str
+    sample_paths: tuple[str, ...]
 
 
 def _normalize_path(path: str) -> str:
@@ -107,6 +132,122 @@ def update_library_folder_path(*, folder_id: int, path: str) -> models.LibraryFo
         path=folder.path,
     )
     return folder
+
+
+def prune_guard_trips(*, missing: int, total: int) -> bool:
+    """
+    Return True when removing *missing* of *total* images looks like a mass wipe
+    rather than a deliberate cleanup.
+
+    Both thresholds must be exceeded, so a small folder losing all its photos and
+    a large folder losing a handful are both applied without complaint. What the
+    guard is there to catch is a drive that is mounted but empty, or a directory
+    that has become unreadable, where nearly everything looks gone at once.
+    """
+    if total <= 0:
+        return False
+    if missing <= conf.settings.LIBRARY_PRUNE_GUARD_MIN_IMAGES:
+        return False
+    return missing / total > conf.settings.LIBRARY_PRUNE_GUARD_FRACTION
+
+
+def prune_missing_images(*, folder: models.LibraryFolder, mode: str) -> PruneResult:
+    """
+    Remove catalog entries for images under *folder* whose files are gone.
+
+    Removes catalog entries only: no image file is ever deleted from disk.
+
+    Only paths under this folder are considered, so images imported from outside
+    the library can never be pruned. Nothing is pruned when the folder itself is
+    not on disk, because an unplugged drive must not empty the gallery.
+
+    Candidates come from the difference between the catalogued paths and the
+    files found by a fresh walk, then each candidate is confirmed with a stat.
+    The walk alone is not enough: it does not follow symlinked directories, it
+    silently yields nothing for a directory it cannot read, and it only matches
+    JPEG extensions, so anything it misses would otherwise look deleted.
+    """
+    if not Path(folder.path).is_dir():
+        return PruneResult(
+            missing_found=0,
+            removed=0,
+            total=0,
+            skipped_reason=models.SyncRun.SKIPPED_FOLDER_MISSING,
+            sample_paths=(),
+        )
+
+    if mode == models.SyncRun.PRUNE_MODE_OFF:
+        return PruneResult(
+            missing_found=0,
+            removed=0,
+            total=0,
+            skipped_reason=models.SyncRun.SKIPPED_OFF,
+            sample_paths=(),
+        )
+
+    known = image_queries.get_image_paths_under_folder(folder_path=folder.path)
+    found = set(image_queries.collect_image_paths(folder=folder.path))
+
+    # os.path.lexists, not exists: a broken symlink still occupies the path, and
+    # for a destructive step "something is there" has to mean "keep the record".
+    missing = sorted(path for path in known - found if not os.path.lexists(path))
+    sample = tuple(missing[:_PRUNE_SAMPLE_LIMIT])
+
+    if mode == models.SyncRun.PRUNE_MODE_AUTO and prune_guard_trips(
+        missing=len(missing), total=len(known)
+    ):
+        events.publish_event(
+            event_type=events.LIBRARY_SYNC_PRUNE_SKIPPED,
+            folder_id=folder.pk,
+            missing_found=len(missing),
+            total=len(known),
+            reason=models.SyncRun.SKIPPED_GUARD,
+        )
+        return PruneResult(
+            missing_found=len(missing),
+            removed=0,
+            total=len(known),
+            skipped_reason=models.SyncRun.SKIPPED_GUARD,
+            sample_paths=sample,
+        )
+
+    if mode == models.SyncRun.PRUNE_MODE_DRY_RUN:
+        events.publish_event(
+            event_type=events.LIBRARY_SYNC_PRUNE_SKIPPED,
+            folder_id=folder.pk,
+            missing_found=len(missing),
+            total=len(known),
+            reason=models.SyncRun.SKIPPED_DRY_RUN,
+        )
+        return PruneResult(
+            missing_found=len(missing),
+            removed=0,
+            total=len(known),
+            skipped_reason=models.SyncRun.SKIPPED_DRY_RUN,
+            sample_paths=sample,
+        )
+
+    removed = 0
+    for image in models.Image.objects.filter(filepath__in=missing):
+        image_operations.remove_image(
+            image=image,
+            reason=image_events.REMOVE_REASON_FILE_MISSING,
+        )
+        removed += 1
+
+    events.publish_event(
+        event_type=events.LIBRARY_SYNC_PRUNE_COMPLETED,
+        folder_id=folder.pk,
+        missing_found=len(missing),
+        removed=removed,
+    )
+    return PruneResult(
+        missing_found=len(missing),
+        removed=removed,
+        total=len(known),
+        skipped_reason="",
+        sample_paths=sample,
+    )
 
 
 def start_sync_run(*, folder: models.LibraryFolder) -> models.SyncRun:
