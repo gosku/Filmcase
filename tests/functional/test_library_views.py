@@ -146,6 +146,50 @@ class TestLibraryFolderRemove:
 
 
 @pytest.mark.django_db
+class TestLibraryFolderRemoveConfirm:
+    def test_shows_how_many_images_would_leave_the_gallery(self, client):
+        folder = LibraryFolderFactory(path="/photos")
+        ImageFactory(filepath="/photos/DSCF0001.JPG")
+        ImageFactory(filepath="/photos/2024/DSCF0002.JPG")
+
+        response = client.get(f"/library/{folder.pk}/confirm-delete/")
+
+        content = response.content.decode()
+        assert response.status_code == 200
+        assert "2" in content
+        assert "Remove folder and its 2 images from the gallery" in content
+
+    def test_says_the_files_stay_on_disk(self, client):
+        folder = LibraryFolderFactory(path="/photos")
+        ImageFactory(filepath="/photos/DSCF0001.JPG")
+
+        response = client.get(f"/library/{folder.pk}/confirm-delete/")
+
+        assert "Your photo files are never deleted" in response.content.decode()
+
+    def test_offers_only_the_folder_when_nothing_would_leave_the_gallery(self, client):
+        folder = LibraryFolderFactory(path="/photos")
+
+        response = client.get(f"/library/{folder.pk}/confirm-delete/")
+
+        content = response.content.decode()
+        assert "No image in the gallery comes only from this folder" in content
+        assert "delete_images" not in content
+
+    def test_reports_nothing_removable_for_a_folder_nested_in_another(self, client):
+        LibraryFolderFactory(path="/photos")
+        inner = LibraryFolderFactory(path="/photos/2024")
+        ImageFactory(filepath="/photos/2024/DSCF0001.JPG")
+
+        response = client.get(f"/library/{inner.pk}/confirm-delete/")
+
+        assert "No image in the gallery comes only from this folder" in response.content.decode()
+
+    def test_returns_404_for_unknown_folder_id(self, client):
+        assert client.get("/library/99999/confirm-delete/").status_code == 404
+
+
+@pytest.mark.django_db
 class TestLibraryFolderPathUpdate:
     def test_updates_path_and_redirects_to_list(self, client, tmp_path):
         old_dir = tmp_path / "old"

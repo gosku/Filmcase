@@ -1,0 +1,35 @@
+<h2 id="browser-modal-title" class="remove-folder__title">Remove folder from the library</h2>
+
+<p class="remove-folder__path">{{ preview.path }}</p>
+
+{% if preview.removable_images %}
+  <p class="remove-folder__count">
+    <strong>{{ preview.removable_images }}</strong> image{{ preview.removable_images|pluralize }}
+    in the gallery come{{ preview.removable_images|pluralize:"s," }} only from this folder.
+  </p>
+{% else %}
+  <p class="remove-folder__count">No image in the gallery comes only from this folder.</p>
+{% endif %}
+
+<p class="remove-folder__reassurance">
+  Your photo files are never deleted. Removing images here only takes them out of the gallery;
+  everything stays on disk exactly where it is.
+</p>
+
+<form method="post" action="{% url 'library-folder-delete' preview.folder_id %}" class="remove-folder__actions">
+  {% csrf_token %}
+  <button type="submit" class="btn-update">Remove folder only</button>
+  {% if preview.removable_images %}
+    <button type="submit" name="delete_images" value="on" class="btn-remove">
+      Remove folder and its {{ preview.removable_images }} image{{ preview.removable_images|pluralize }} from the gallery
+    </button>
+  {% endif %}
+</form>
+
+<style>
+  .remove-folder__title { margin: 0 0 0.75rem; font-size: 1.1rem; }
+  .remove-folder__path { margin: 0 0 1rem; font-family: monospace; word-break: break-all; color: #555; }
+  .remove-folder__count { margin: 0 0 0.5rem; }
+  .remove-folder__reassurance { margin: 0 0 1.25rem; color: #666; font-size: 0.9rem; }
+  .remove-folder__actions { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+</style>
