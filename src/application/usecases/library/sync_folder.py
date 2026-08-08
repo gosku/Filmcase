@@ -16,8 +16,7 @@ def sync_folder(*, folder_id: int) -> None:
     Scan a single library folder and import new images, tracking progress in a
     SyncRun.
 
-    Creates a run, walks the folder (mtime-gated by its last_checked_at), and
-    dispatches each new image: in async mode by enqueuing a Celery task, in sync
+    Creates a run, walks the whole folder, and dispatches each new image: in async mode by enqueuing a Celery task, in sync
     mode by processing inline. The run is completed here only when nothing new is
     found; otherwise the last processed image completes it.
 
@@ -39,10 +38,7 @@ def sync_folder(*, folder_id: int) -> None:
     now = datetime.now(tz=timezone.utc)
 
     try:
-        found_paths = image_queries.get_image_paths_in_folder(
-            folder_path=folder.path,
-            last_checked_at=folder.last_checked_at,
-        )
+        found_paths = image_queries.collect_image_paths(folder=folder.path)
     except FileNotFoundError:
         folder.set_last_checked_at(value=now)
         library_operations.fail_sync_run(run=run, message="Folder does not exist")

@@ -433,14 +433,18 @@ def find_image_by_content_hash(*, content_hash: str) -> models.Image | None:
     )
 
 
-def collect_image_paths(*, folder: str, last_checked_at: datetime | None = None) -> list[str]:
+def collect_image_paths(*, folder: str) -> list[str]:
     """
     Return absolute paths of all JPG files inside *folder* (recursively).
 
-    When *last_checked_at* is provided, directories whose mtime is older than
-    that timestamp are skipped. Their subdirectories are still walked because
-    only the immediate parent's mtime updates when a file is added deeper in
-    the tree.
+    The whole tree is walked every time. Directory mtimes are deliberately not
+    used to skip anything: renaming a directory updates its parent's mtime and
+    not its own, so a gated walk never revisits a renamed subtree, which would
+    leave every image under it pointing at a path that no longer exists. The
+    expensive part of an import (reading EXIF and hashing) is already avoided by
+    diffing against the known catalog paths, so the walk costs little.
+
+    :raises FileNotFoundError: If *folder* does not exist or is not a directory.
     """
     root = Path(folder)
     if not root.is_dir():
@@ -449,10 +453,6 @@ def collect_image_paths(*, folder: str, last_checked_at: datetime | None = None)
     extensions = {".jpg", ".jpeg"}
     paths: list[str] = []
     for dirpath, _dirnames, filenames in os.walk(root):
-        if last_checked_at is not None:
-            dir_mtime = datetime.fromtimestamp(os.path.getmtime(dirpath), tz=timezone.utc)
-            if dir_mtime <= last_checked_at:
-                continue
         for fname in filenames:
             if Path(fname).suffix.lower() in extensions:
                 paths.append(os.path.join(dirpath, fname))
@@ -466,18 +466,6 @@ def get_all_known_image_paths() -> frozenset[str]:
     Return the filepath of every Image in the catalog as an immutable set.
     """
     return frozenset(models.Image.objects.values_list("filepath", flat=True))
-
-
-def get_image_paths_in_folder(*, folder_path: str, last_checked_at: datetime | None = None) -> list[str]:
-    """
-    Return absolute paths of all JPG/JPEG files inside *folder_path* (recursively).
-
-    When *last_checked_at* is provided, directories unchanged since that
-    timestamp are skipped (mtime gating).
-
-    :raises FileNotFoundError: If *folder_path* does not exist or is not a directory.
-    """
-    return collect_image_paths(folder=folder_path, last_checked_at=last_checked_at)
 
 
 @attrs.frozen
