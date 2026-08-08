@@ -278,16 +278,23 @@ def update_library_folder_path(*, folder_id: int, path: str) -> models.LibraryFo
     return folder
 
 
-def start_sync_run(*, folder: models.LibraryFolder) -> models.SyncRun:
+def start_sync_run(
+    *,
+    folder: models.LibraryFolder,
+    prune_mode: str = models.SyncRun.PRUNE_MODE_AUTO,
+) -> models.SyncRun:
     """
     Create a new sync run for *folder* in the scanning state.
 
-    :raises SyncAlreadyInProgress: If *folder* already has an active (scanning or
-        processing) run.
+    *prune_mode* is stored on the run because the caller that finalises it may be
+    a different process entirely, and cannot be told any other way.
+
+    :raises SyncAlreadyInProgress: If *folder* already has an active (scanning,
+        processing or pruning) run.
     """
     try:
         with transaction.atomic():
-            run = models.SyncRun.create(folder=folder)
+            run = models.SyncRun.create(folder=folder, prune_mode=prune_mode)
     except IntegrityError:
         raise SyncAlreadyInProgress(folder_id=folder.pk)
 

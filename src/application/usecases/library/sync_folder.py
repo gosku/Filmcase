@@ -2,6 +2,7 @@ from datetime import datetime, timezone
 
 from django.conf import settings
 
+from src.application.usecases.library.finalize_sync_run import finalize_sync_run
 from src.application.usecases.library.process_synced_image import process_synced_image
 from src.data import models
 from src.domain.images import queries as image_queries
@@ -12,17 +13,20 @@ from src.services import workertasks
 _SYNC_PROCESS_IMAGE_TASK = "src.interfaces.tasks.sync_process_image_task"
 
 
-def sync_folder(*, folder_id: int) -> None:
+def sync_folder(*, folder_id: int, prune_mode: str = models.SyncRun.PRUNE_MODE_AUTO) -> None:
     """
-    Scan a single library folder and import new images, tracking progress in a
-    SyncRun.
+    Scan a single library folder, import new images and remove catalog entries
+    whose files have disappeared, tracking progress in a SyncRun.
 
-    Creates a run, walks the whole folder, and dispatches each new image: in async mode by enqueuing a Celery task, in sync
-    mode by processing inline. The run is completed here only when nothing new is
-    found; otherwise the last processed image completes it.
+    Creates a run, walks the whole folder, and dispatches each new image: in
+    async mode by enqueuing a Celery task, in sync mode by processing inline.
+    Whoever handles the last image finalises the run, which is also where the
+    prune happens, so imports always land before anything is removed.
 
     Returns without doing anything if the folder no longer exists or already has
-    an active run (the concurrency guard).
+    an active run (the concurrency guard). A folder that is missing from disk
+    fails its run and removes nothing, because an unplugged drive is far more
+    likely than a deletion of everything at once.
     """
     try:
         folder = library_queries.get_library_folder(folder_id=folder_id)
@@ -30,7 +34,7 @@ def sync_folder(*, folder_id: int) -> None:
         return
 
     try:
-        run = library_operations.start_sync_run(folder=folder)
+        run = library_operations.start_sync_run(folder=folder, prune_mode=prune_mode)
     except library_operations.SyncAlreadyInProgress:
         return
 
@@ -58,7 +62,9 @@ def sync_folder(*, folder_id: int) -> None:
         folder.set_last_processed_at(value=now)
 
     if not new_paths:
-        library_operations.complete_sync_run(run=run)
+        # Nothing new is exactly the case where photos were deleted, so this
+        # branch still has to finalise (and therefore prune).
+        finalize_sync_run(run=run)
         return
 
     for path in new_paths:

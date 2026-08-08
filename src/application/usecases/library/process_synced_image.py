@@ -1,9 +1,9 @@
 import structlog
 
+from src.application.usecases.library.finalize_sync_run import finalize_sync_run
 from src.domain.images import events as image_events
 from src.domain.images import operations as image_operations
 from src.domain.images.queries import NoFilmSimulationError
-from src.domain.library import operations as library_operations
 from src.domain.library import queries as library_queries
 from src.domain.recipes import validation as recipe_validation
 
@@ -54,4 +54,4 @@ def process_synced_image(*, image_path: str, sync_run_id: int) -> None:
 
     run.refresh_from_db()
     if run.all_images_accounted_for():
-        library_operations.complete_sync_run(run=run)
+        finalize_sync_run(run=run)
