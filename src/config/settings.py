@@ -81,6 +81,16 @@ CAMERA_RETRY_BACKOFF_S:     float = env.float("CAMERA_RETRY_BACKOFF_S",     defa
 THUMBNAIL_CACHE_DIR = BASE_DIR / "thumbnail_cache"  # filesystem directory where generated thumbnails are cached
 RECIPE_CARDS_DIR: Path = Path(env.str("RECIPE_CARDS_DIR", default=str(BASE_DIR / "recipe_cards")))  # filesystem directory where generated recipe card images are stored
 
+# Library sync removes catalog entries whose files have disappeared. A sync that finds most of a
+# folder's images missing is far more likely to be an unmounted drive or an unreadable directory
+# than a real deletion, so an automatic prune above this share of the folder's catalogued images is
+# reported instead of applied. Override a single run with `sync_library --force-prune`.
+LIBRARY_PRUNE_GUARD_FRACTION: float = env.float("LIBRARY_PRUNE_GUARD_FRACTION", default=0.5)
+
+# The guard above only engages once at least this many images would be removed, so that ordinary
+# small cleanups (emptying a folder of a handful of photos) are applied without a warning.
+LIBRARY_PRUNE_GUARD_MIN_IMAGES: int = env.int("LIBRARY_PRUNE_GUARD_MIN_IMAGES", default=20)
+
 
 TEMPLATES = [
     {
