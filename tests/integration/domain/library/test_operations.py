@@ -216,6 +216,14 @@ class TestCompleteSyncRun:
         matching = [e for e in captured_logs if e.get("event_type") == events.LIBRARY_SYNC_RUN_COMPLETED]
         assert matching == []
 
+    def test_transitions_a_pruning_run_to_completed(self):
+        run = SyncRunFactory(state=models.SyncRun.STATE_PRUNING, total=1)
+
+        assert complete_sync_run(run=run) is True
+
+        run.refresh_from_db()
+        assert run.state == models.SyncRun.STATE_COMPLETED
+
 
 @pytest.mark.django_db
 class TestFailSyncRun:

@@ -1,3 +1,6 @@
+from collections.abc import Sequence
+from datetime import datetime
+
 from django.db import models
 from django.utils import timezone
 
@@ -122,14 +125,24 @@ class SyncRun(models.Model):
             **{field: models.F(field) + 1},
         )
 
-    def mark_completed(self) -> bool:
-        # Conditional so exactly one caller wins the finalize under concurrency.
-        # Returns True if this call transitioned the run to COMPLETED.
-        now = timezone.now()
-        rows = type(self).objects.filter(pk=self.pk, state=_STATE_PROCESSING).update(
-            state=_STATE_COMPLETED,
-            finished_at=now,
-            updated_at=now,
+    def transition_state(
+        self,
+        *,
+        from_states: Sequence[str],
+        to_state: str,
+        finished_at: datetime | None,
+    ) -> bool:
+        """
+        Move this run to *to_state* only if it is currently in one of *from_states*.
+
+        A single conditional UPDATE, so under concurrent workers exactly one caller
+        gets True. The caller decides which transitions are legal and whether the
+        target state is terminal, passing finished_at=None when it is not.
+        """
+        rows = type(self).objects.filter(pk=self.pk, state__in=from_states).update(
+            state=to_state,
+            finished_at=finished_at,
+            updated_at=timezone.now(),
         )
         return rows > 0
 
