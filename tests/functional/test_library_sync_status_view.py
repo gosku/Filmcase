@@ -78,3 +78,62 @@ class TestLibraryFolderSyncStatus:
         content = response.content.decode()
         assert "Sync failed" in content
         assert "hx-trigger" not in content
+
+
+@pytest.mark.django_db
+class TestLibraryFolderSyncStatusRemovals:
+    def test_shows_removed_count_on_a_completed_run(self, client):
+        folder = LibraryFolderFactory()
+        run = SyncRunFactory(folder=folder, state=models.SyncRun.STATE_COMPLETED, total=2)
+        run.record_prune_result(missing_found=3, removed=3, skipped_reason="")
+
+        response = client.get(f"/library/{folder.pk}/sync-status/")
+
+        assert "removed 3" in response.content.decode()
+
+    def test_polls_while_pruning(self, client):
+        folder = LibraryFolderFactory()
+        SyncRunFactory(folder=folder, state=models.SyncRun.STATE_PRUNING, total=2)
+
+        response = client.get(f"/library/{folder.pk}/sync-status/")
+
+        content = response.content.decode()
+        assert "Removing missing images" in content
+        assert 'hx-trigger="every 2s"' in content
+
+    def test_warns_when_the_guard_skipped_a_removal(self, client):
+        folder = LibraryFolderFactory()
+        run = SyncRunFactory(folder=folder, state=models.SyncRun.STATE_COMPLETED, total=0)
+        run.record_prune_result(
+            missing_found=30, removed=0, skipped_reason=models.SyncRun.SKIPPED_GUARD
+        )
+
+        response = client.get(f"/library/{folder.pk}/sync-status/")
+
+        content = response.content.decode()
+        assert "Skipped removing 30 missing image" in content
+        assert "--force-prune" in content
+
+    def test_explains_a_folder_that_is_missing_from_disk(self, client):
+        folder = LibraryFolderFactory()
+        run = SyncRunFactory(folder=folder, state=models.SyncRun.STATE_SCANNING)
+        run.mark_failed(
+            reason=models.SyncRun.FAILED_FOLDER_MISSING,
+            message="Folder does not exist",
+        )
+
+        response = client.get(f"/library/{folder.pk}/sync-status/")
+
+        content = response.content.decode()
+        assert "Folder not found on disk" in content
+        assert "Nothing was removed from the gallery" in content
+        assert "Sync failed" not in content
+
+    def test_still_reports_a_plain_failure_without_a_reason_code(self, client):
+        folder = LibraryFolderFactory()
+        run = SyncRunFactory(folder=folder, state=models.SyncRun.STATE_SCANNING)
+        run.mark_failed(reason="", message="something else went wrong")
+
+        response = client.get(f"/library/{folder.pk}/sync-status/")
+
+        assert "Sync failed" in response.content.decode()

@@ -134,6 +134,22 @@
 
     .btn-remove:hover { background: #fef2f2; }
 
+    /* Sync status */
+    .sync-status__label--done { color: #16a34a; }
+    .sync-status__label--error { color: #dc2626; }
+
+    /* A folder missing from disk, or a prune the guard stopped, needs to stand
+       out without reading as a failure: nothing is broken and nothing was lost. */
+    .sync-status__label--warning {
+      display: inline-block;
+      color: #92400e;
+      background: #fef3c7;
+      border: 1px solid #fcd34d;
+      border-radius: 4px;
+      padding: 0.1rem 0.4rem;
+      cursor: help;
+    }
+
     /* Browser modal */
     .browser-overlay {
       position: fixed;

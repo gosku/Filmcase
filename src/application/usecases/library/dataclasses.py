@@ -21,12 +21,19 @@ class SyncRunData:
     errors: int
     handled: int
     percent: int
+    removed: int
+    missing_found: int
     is_active: bool
     is_scanning: bool
     is_processing: bool
+    is_pruning: bool
     is_completed: bool
     is_failed: bool
     is_interrupted: bool
+    # Resolved from the stored codes here so templates never compare against
+    # database values.
+    folder_is_missing: bool
+    prune_skipped_by_guard: bool
 
 
 @attrs.frozen
