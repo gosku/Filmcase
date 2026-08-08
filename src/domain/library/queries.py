@@ -95,6 +95,40 @@ def get_sync_run(*, run_id: int) -> models.SyncRun:
         raise SyncRunNotFound(run_id=run_id)
 
 
+def _folder_prefix(*, path: str) -> str:
+    return path.rstrip(os.sep) + os.sep
+
+
+def get_exclusively_owned_image_ids(*, folder_id: int) -> list[int]:
+    """
+    Return the ids of images under this folder's path that no other registered
+    library folder also covers.
+
+    Library folders may nest, so an image below ``/photos/2024`` is also below
+    ``/photos``. Removing the inner folder must not take images the outer one
+    still monitors, so anything covered by another registered folder is excluded.
+
+    :raises LibraryFolderNotFound: If no folder with *folder_id* exists.
+    """
+    folder = get_library_folder(folder_id=folder_id)
+
+    owned = models.Image.objects.filter(filepath__startswith=_folder_prefix(path=folder.path))
+    for other in models.LibraryFolder.objects.exclude(pk=folder_id):
+        owned = owned.exclude(filepath__startswith=_folder_prefix(path=other.path))
+
+    return list(owned.order_by("id").values_list("id", flat=True))
+
+
+def count_exclusively_owned_images(*, folder_id: int) -> int:
+    """
+    Return how many images would leave the gallery if this folder were removed
+    together with its images.
+
+    :raises LibraryFolderNotFound: If no folder with *folder_id* exists.
+    """
+    return len(get_exclusively_owned_image_ids(folder_id=folder_id))
+
+
 def get_active_sync_run(*, folder_id: int) -> models.SyncRun | None:
     """
     Return the in-progress (scanning or processing) sync run for *folder_id*, or
