@@ -3,6 +3,7 @@ import attrs
 from django.conf import settings
 
 from src.application.usecases.library.sync_folder import sync_folder
+from src.data import models
 from src.domain.library import operations as library_operations
 from src.domain.library import queries as library_queries
 from src.services import workertasks
@@ -54,7 +55,7 @@ def sync_library() -> SyncLibraryResult:
         run = library_queries.get_latest_sync_run(folder_id=folder.pk)
         if run is None:
             continue
-        if run.state == run.STATE_FAILED:
+        if run.failure_reason == models.SyncRun.FAILED_FOLDER_MISSING:
             missing_folders.append(folder.path)
         elif settings.USE_ASYNC_TASKS:
             new_files_found += run.total or 0

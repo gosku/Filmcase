@@ -261,17 +261,22 @@ class TestFailSyncRun:
     def test_marks_run_failed_with_message(self):
         run = SyncRunFactory(state=models.SyncRun.STATE_SCANNING)
 
-        fail_sync_run(run=run, message="folder no longer exists")
+        fail_sync_run(
+            run=run,
+            reason=models.SyncRun.FAILED_FOLDER_MISSING,
+            message="folder no longer exists",
+        )
 
         run.refresh_from_db()
         assert run.state == models.SyncRun.STATE_FAILED
+        assert run.failure_reason == models.SyncRun.FAILED_FOLDER_MISSING
         assert run.error_message == "folder no longer exists"
         assert run.finished_at is not None
 
     def test_publishes_sync_run_failed_event(self, captured_logs):
         run = SyncRunFactory(state=models.SyncRun.STATE_SCANNING)
 
-        fail_sync_run(run=run, message="boom")
+        fail_sync_run(run=run, reason=models.SyncRun.FAILED_FOLDER_MISSING, message="boom")
 
         matching = [e for e in captured_logs if e.get("event_type") == events.LIBRARY_SYNC_RUN_FAILED]
         assert len(matching) == 1

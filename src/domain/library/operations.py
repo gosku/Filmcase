@@ -318,15 +318,22 @@ def complete_sync_run(*, run: models.SyncRun) -> bool:
     return completed
 
 
-def fail_sync_run(*, run: models.SyncRun, message: str) -> None:
+def fail_sync_run(*, run: models.SyncRun, reason: str, message: str) -> None:
     """
-    Mark *run* as failed, recording *message* as the failure reason.
+    Mark *run* as failed, recording *reason* as the failure code and *message* as
+    the human-readable detail.
+
+    The code lets callers tell a folder that is missing from disk apart from any
+    other failure, which matters because the two need very different responses:
+    a missing folder is usually an unplugged drive, and nothing should be removed
+    from the gallery on its account.
     """
-    run.mark_failed(message=message)
+    run.mark_failed(reason=reason, message=message)
     events.publish_event(
         event_type=events.LIBRARY_SYNC_RUN_FAILED,
         run_id=run.pk,
         folder_id=run.folder_id,
+        failure_reason=reason,
         reason=message,
     )
 

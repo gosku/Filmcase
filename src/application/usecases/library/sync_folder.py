@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 from django.conf import settings
 
 from src.application.usecases.library.process_synced_image import process_synced_image
+from src.data import models
 from src.domain.images import queries as image_queries
 from src.domain.library import operations as library_operations
 from src.domain.library import queries as library_queries
@@ -41,7 +42,11 @@ def sync_folder(*, folder_id: int) -> None:
         found_paths = image_queries.collect_image_paths(folder=folder.path)
     except FileNotFoundError:
         folder.set_last_checked_at(value=now)
-        library_operations.fail_sync_run(run=run, message="Folder does not exist")
+        library_operations.fail_sync_run(
+            run=run,
+            reason=models.SyncRun.FAILED_FOLDER_MISSING,
+            message="Folder does not exist",
+        )
         return
 
     known_paths = image_queries.get_all_known_image_paths()
