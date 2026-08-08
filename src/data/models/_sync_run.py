@@ -147,11 +147,12 @@ class SyncRun(models.Model):
         )
         return rows > 0
 
-    def mark_failed(self, *, message: str) -> None:
+    def mark_failed(self, *, reason: str, message: str) -> None:
         self.state = _STATE_FAILED
+        self.failure_reason = reason
         self.error_message = message
         self.finished_at = timezone.now()
-        self.save(update_fields=["state", "error_message", "finished_at", "updated_at"])
+        self.save(update_fields=["state", "failure_reason", "error_message", "finished_at", "updated_at"])
 
     def record_removal_results(
         self,
