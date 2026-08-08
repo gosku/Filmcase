@@ -10,7 +10,7 @@ from src.data import models
 from src.domain.images import events as image_events
 from src.domain.images import operations as image_operations
 from src.domain.images import queries as image_queries
-from src.domain.library import events
+from src.domain.library import events, queries
 from src.domain.library.queries import FolderNotFound, LibraryFolderNotFound
 
 # How many missing paths a prune reports back for a dry run, so the caller can
@@ -81,11 +81,16 @@ def add_library_folder(*, path: str) -> models.LibraryFolder:
     return folder
 
 
-def remove_library_folder(*, folder_id: int) -> None:
+def remove_library_folder(*, folder_id: int, delete_images: bool) -> int:
     """
     Remove the library folder with *folder_id* from the monitored list.
 
-    Does not delete any images from the catalog.
+    When *delete_images* is true the folder's images also leave the gallery.
+    Only images no other registered folder covers are removed, so removing a
+    folder nested inside another one never takes images the outer folder still
+    monitors. No image file is ever deleted from disk.
+
+    Returns the number of images removed from the gallery.
 
     :raises LibraryFolderNotFound: If no folder with *folder_id* exists.
     """
@@ -95,43 +100,31 @@ def remove_library_folder(*, folder_id: int) -> None:
         raise LibraryFolderNotFound(folder_id=folder_id)
 
     path = folder.path
+    removed = 0
+
+    if delete_images:
+        # Resolved before the folder row goes, because ownership is worked out
+        # by comparing this folder's path against the other registered ones.
+        image_ids = queries.get_exclusively_owned_image_ids(folder_id=folder_id)
+        for image in models.Image.objects.filter(pk__in=image_ids):
+            image_operations.remove_image(
+                image=image,
+                reason=image_events.REMOVE_REASON_FOLDER_REMOVED,
+            )
+            removed += 1
+
     folder.delete()
     events.publish_event(event_type=events.LIBRARY_FOLDER_REMOVED, folder_id=folder_id, path=path)
 
+    if removed:
+        events.publish_event(
+            event_type=events.LIBRARY_FOLDER_IMAGES_REMOVED,
+            folder_id=folder_id,
+            path=path,
+            removed=removed,
+        )
 
-def update_library_folder_path(*, folder_id: int, path: str) -> models.LibraryFolder:
-    """
-    Update the path of the library folder with *folder_id*.
-
-    Normalizes the new path before storing it.
-
-    :raises LibraryFolderNotFound: If no folder with *folder_id* exists.
-    :raises FolderNotFound: If the normalized path does not exist on disk
-        or is not a directory.
-    :raises FolderAlreadyInLibrary: If the normalized path is already
-        registered under a different folder_id.
-    """
-    try:
-        folder = models.LibraryFolder.objects.get(pk=folder_id)
-    except models.LibraryFolder.DoesNotExist:
-        raise LibraryFolderNotFound(folder_id=folder_id)
-
-    normalized = _normalize_path(path)
-    if not Path(normalized).is_dir():
-        raise FolderNotFound(path=normalized)
-
-    try:
-        with transaction.atomic():
-            folder.set_path(path=normalized)
-    except IntegrityError:
-        raise FolderAlreadyInLibrary(path=normalized)
-
-    events.publish_event(
-        event_type=events.LIBRARY_FOLDER_PATH_UPDATED,
-        folder_id=folder.pk,
-        path=folder.path,
-    )
-    return folder
+    return removed
 
 
 def prune_guard_trips(*, missing: int, total: int) -> bool:
@@ -248,6 +241,41 @@ def prune_missing_images(*, folder: models.LibraryFolder, mode: str) -> PruneRes
         skipped_reason="",
         sample_paths=sample,
     )
+
+
+def update_library_folder_path(*, folder_id: int, path: str) -> models.LibraryFolder:
+    """
+    Update the path of the library folder with *folder_id*.
+
+    Normalizes the new path before storing it.
+
+    :raises LibraryFolderNotFound: If no folder with *folder_id* exists.
+    :raises FolderNotFound: If the normalized path does not exist on disk
+        or is not a directory.
+    :raises FolderAlreadyInLibrary: If the normalized path is already
+        registered under a different folder_id.
+    """
+    try:
+        folder = models.LibraryFolder.objects.get(pk=folder_id)
+    except models.LibraryFolder.DoesNotExist:
+        raise LibraryFolderNotFound(folder_id=folder_id)
+
+    normalized = _normalize_path(path)
+    if not Path(normalized).is_dir():
+        raise FolderNotFound(path=normalized)
+
+    try:
+        with transaction.atomic():
+            folder.set_path(path=normalized)
+    except IntegrityError:
+        raise FolderAlreadyInLibrary(path=normalized)
+
+    events.publish_event(
+        event_type=events.LIBRARY_FOLDER_PATH_UPDATED,
+        folder_id=folder.pk,
+        path=folder.path,
+    )
+    return folder
 
 
 def start_sync_run(*, folder: models.LibraryFolder) -> models.SyncRun:

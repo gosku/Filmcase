@@ -15,7 +15,7 @@ from src.domain.library.operations import (
     update_library_folder_path,
 )
 from src.domain.library.queries import FolderNotFound, LibraryFolderNotFound
-from tests.factories import LibraryFolderFactory, SyncRunFactory
+from tests.factories import ImageFactory, LibraryFolderFactory, SyncRunFactory
 
 
 @pytest.mark.django_db
@@ -62,12 +62,12 @@ class TestAddLibraryFolder:
 class TestRemoveLibraryFolder:
     def test_deletes_library_folder_row(self, tmp_path):
         folder = LibraryFolderFactory(path=str(tmp_path))
-        remove_library_folder(folder_id=folder.pk)
+        remove_library_folder(folder_id=folder.pk, delete_images=False)
         assert not models.LibraryFolder.objects.filter(pk=folder.pk).exists()
 
     def test_publishes_folder_removed_event(self, tmp_path, captured_logs):
         folder = LibraryFolderFactory(path=str(tmp_path))
-        remove_library_folder(folder_id=folder.pk)
+        remove_library_folder(folder_id=folder.pk, delete_images=False)
 
         matching = [e for e in captured_logs if e.get("event_type") == events.LIBRARY_FOLDER_REMOVED]
         assert len(matching) == 1
@@ -76,8 +76,70 @@ class TestRemoveLibraryFolder:
 
     def test_raises_library_folder_not_found_for_unknown_id(self):
         with pytest.raises(LibraryFolderNotFound) as exc_info:
-            remove_library_folder(folder_id=99999)
+            remove_library_folder(folder_id=99999, delete_images=False)
         assert exc_info.value.folder_id == 99999
+
+    def test_keeps_the_images_when_only_the_folder_is_removed(self, tmp_path):
+        folder = LibraryFolderFactory(path=str(tmp_path))
+        image = ImageFactory(filepath=str(tmp_path / "DSCF0001.JPG"))
+
+        removed = remove_library_folder(folder_id=folder.pk, delete_images=False)
+
+        assert removed == 0
+        assert models.Image.objects.filter(pk=image.pk).exists()
+
+    def test_removes_the_images_when_asked_to(self, tmp_path):
+        folder = LibraryFolderFactory(path=str(tmp_path))
+        image = ImageFactory(filepath=str(tmp_path / "DSCF0001.JPG"))
+
+        removed = remove_library_folder(folder_id=folder.pk, delete_images=True)
+
+        assert removed == 1
+        assert not models.Image.objects.filter(pk=image.pk).exists()
+
+    def test_never_deletes_the_image_files(self, tmp_path):
+        folder = LibraryFolderFactory(path=str(tmp_path))
+        photo = tmp_path / "DSCF0001.JPG"
+        photo.write_bytes(b"\xff\xd8")
+        ImageFactory(filepath=str(photo))
+
+        remove_library_folder(folder_id=folder.pk, delete_images=True)
+
+        assert photo.exists()
+
+    def test_keeps_images_a_second_registered_folder_still_covers(self, tmp_path):
+        outer = LibraryFolderFactory(path=str(tmp_path))
+        inner_dir = tmp_path / "2024"
+        LibraryFolderFactory(path=str(inner_dir))
+        shared = ImageFactory(filepath=str(inner_dir / "DSCF0001.JPG"))
+        only_outer = ImageFactory(filepath=str(tmp_path / "DSCF0002.JPG"))
+
+        removed = remove_library_folder(folder_id=outer.pk, delete_images=True)
+
+        assert removed == 1
+        assert models.Image.objects.filter(pk=shared.pk).exists()
+        assert not models.Image.objects.filter(pk=only_outer.pk).exists()
+
+    def test_publishes_folder_images_removed_when_images_go(self, tmp_path, captured_logs):
+        folder = LibraryFolderFactory(path=str(tmp_path))
+        ImageFactory(filepath=str(tmp_path / "DSCF0001.JPG"))
+
+        remove_library_folder(folder_id=folder.pk, delete_images=True)
+
+        matching = [
+            e for e in captured_logs if e.get("event_type") == events.LIBRARY_FOLDER_IMAGES_REMOVED
+        ]
+        assert len(matching) == 1
+        assert matching[0]["removed"] == 1
+
+    def test_publishes_no_images_removed_event_when_none_go(self, tmp_path, captured_logs):
+        folder = LibraryFolderFactory(path=str(tmp_path))
+
+        remove_library_folder(folder_id=folder.pk, delete_images=True)
+
+        assert [
+            e for e in captured_logs if e.get("event_type") == events.LIBRARY_FOLDER_IMAGES_REMOVED
+        ] == []
 
 
 @pytest.mark.django_db
