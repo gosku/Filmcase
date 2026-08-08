@@ -4,6 +4,7 @@ from django.views import generic
 from src.application.usecases.library import add_library_folder as add_library_folder_uc
 from src.application.usecases.library import browse_filesystem as browse_filesystem_uc
 from src.application.usecases.library import dataclasses as library_dataclasses
+from src.application.usecases.library import get_folder_removal_preview as get_folder_removal_preview_uc
 from src.application.usecases.library import remove_library_folder as remove_library_folder_uc
 from src.application.usecases.library import trigger_folder_sync as trigger_folder_sync_uc
 from src.application.usecases.library import update_library_folder_path as update_library_folder_path_uc
@@ -81,6 +82,22 @@ class LibraryFolderAdd(generic.View):
                 "error": "Folder added, but no image worker is running to sync it. Start one with 'make worker'.",
             })
         return shortcuts.redirect(urls.reverse("library-list"))
+
+
+class LibraryFolderRemoveConfirm(generic.View):
+    """Show what removing a folder would cost before anything happens.
+
+    :raises Http404: if no folder with the given ID exists.
+    """
+
+    def get(self, request: http.HttpRequest, folder_id: int) -> http.HttpResponse:
+        try:
+            preview = get_folder_removal_preview_uc.get_folder_removal_preview(folder_id=folder_id)
+        except get_folder_removal_preview_uc.LibraryFolderNotFound:
+            raise http.Http404
+        return shortcuts.render(request, "library/partials/remove_folder_confirm.html", {
+            "preview": preview,
+        })
 
 
 class LibraryFolderRemove(generic.View):

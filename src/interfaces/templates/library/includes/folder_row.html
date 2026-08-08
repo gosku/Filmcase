@@ -26,13 +26,9 @@
       class="btn-update"
       onclick="openBrowserModal({{ folder.folder_id }}, '{{ folder.path|escapejs }}')"
     >Update Path</button>
-    <form method="post" action="{% url 'library-folder-delete' folder.folder_id %}" style="display: inline;">
-      {% csrf_token %}
-      <button
-        type="submit"
-        class="btn-remove"
-        onclick="return confirm('Remove this folder from the library?')"
-      >Remove</button>
-    </form>
+    <button
+      class="btn-remove"
+      onclick="openRemoveFolderModal('{% url 'library-folder-confirm-delete' folder.folder_id %}')"
+    >Remove</button>
   </td>
 </tr>

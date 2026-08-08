@@ -250,6 +250,13 @@
     document.getElementById('browser-modal').hidden = true;
   }
 
+  // Reuses the same modal shell as the folder browser: the confirmation is just
+  // another partial rendered into it.
+  function openRemoveFolderModal(url) {
+    htmx.ajax('GET', url, {target: '#browser-modal-content'});
+    document.getElementById('browser-modal').hidden = false;
+  }
+
   document.getElementById('browser-modal').addEventListener('click', function (e) {
     if (e.target === this) closeBrowserModal();
   });
