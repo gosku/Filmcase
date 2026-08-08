@@ -84,14 +84,18 @@ class LibraryFolderAdd(generic.View):
 
 
 class LibraryFolderRemove(generic.View):
-    """Remove a folder from the image library.
+    """Remove a folder from the image library, optionally with its images.
 
     :raises Http404: if no folder with the given ID exists.
     """
 
     def post(self, request: http.HttpRequest, folder_id: int) -> http.HttpResponse:
+        delete_images = request.POST.get("delete_images") == "on"
         try:
-            remove_library_folder_uc.remove_library_folder(folder_id=folder_id)
+            remove_library_folder_uc.remove_library_folder(
+                folder_id=folder_id,
+                delete_images=delete_images,
+            )
         except remove_library_folder_uc.LibraryFolderNotFound:
             raise http.Http404
         return shortcuts.redirect(urls.reverse("library-list"))

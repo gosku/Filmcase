@@ -13,15 +13,27 @@ class LibraryFolderNotFound(Exception):
     folder_id: int
 
 
-def remove_library_folder(*, folder_id: int) -> None:
+@attrs.frozen
+class RemoveLibraryFolderResult:
+    images_removed: int
+
+
+def remove_library_folder(*, folder_id: int, delete_images: bool) -> RemoveLibraryFolderResult:
     """
     Remove the library folder with *folder_id* from the monitored list.
 
-    Does not delete any images from the catalog.
+    When *delete_images* is true the folder's images also leave the gallery,
+    except any a second registered folder still covers. No image file is ever
+    deleted from disk.
 
     :raises LibraryFolderNotFound: If no folder with *folder_id* exists.
     """
     try:
-        domain_operations.remove_library_folder(folder_id=folder_id)
+        removed = domain_operations.remove_library_folder(
+            folder_id=folder_id,
+            delete_images=delete_images,
+        )
     except DomainLibraryFolderNotFound as exc:
         raise LibraryFolderNotFound(folder_id=exc.folder_id)
+
+    return RemoveLibraryFolderResult(images_removed=removed)

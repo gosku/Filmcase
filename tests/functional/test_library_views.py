@@ -5,7 +5,7 @@ from bs4 import BeautifulSoup
 
 from src.application.usecases.library.trigger_folder_sync import CeleryWorkerUnavailable
 from src.data import models
-from tests.factories import LibraryFolderFactory
+from tests.factories import ImageFactory, LibraryFolderFactory
 
 TRIGGER = "src.interfaces.library.views.trigger_folder_sync_uc.trigger_folder_sync"
 
@@ -127,6 +127,22 @@ class TestLibraryFolderRemove:
     def test_returns_404_for_unknown_folder_id(self, client):
         response = client.post("/library/99999/delete/")
         assert response.status_code == 404
+
+    def test_keeps_the_images_by_default(self, client):
+        folder = LibraryFolderFactory(path="/photos")
+        image = ImageFactory(filepath="/photos/DSCF0001.JPG")
+
+        client.post(f"/library/{folder.pk}/delete/")
+
+        assert models.Image.objects.filter(pk=image.pk).exists()
+
+    def test_removes_the_images_when_asked_to(self, client):
+        folder = LibraryFolderFactory(path="/photos")
+        image = ImageFactory(filepath="/photos/DSCF0001.JPG")
+
+        client.post(f"/library/{folder.pk}/delete/", {"delete_images": "on"})
+
+        assert not models.Image.objects.filter(pk=image.pk).exists()
 
 
 @pytest.mark.django_db
