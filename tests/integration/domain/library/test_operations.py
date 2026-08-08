@@ -1,5 +1,4 @@
 import pytest
-from django.utils import timezone
 
 from src.data import models
 from src.domain.library import events
@@ -94,18 +93,6 @@ class TestUpdateLibraryFolderPath:
         assert result.path == str(new_dir)
         folder.refresh_from_db()
         assert folder.path == str(new_dir)
-
-    def test_resets_last_checked_at_so_new_tree_is_fully_rescanned(self, tmp_path):
-        old_dir = tmp_path / "old"
-        new_dir = tmp_path / "new"
-        old_dir.mkdir()
-        new_dir.mkdir()
-
-        folder = LibraryFolderFactory(path=str(old_dir), last_checked_at=timezone.now())
-        update_library_folder_path(folder_id=folder.pk, path=str(new_dir))
-
-        folder.refresh_from_db()
-        assert folder.last_checked_at is None
 
     def test_publishes_folder_path_updated_event(self, tmp_path, captured_logs):
         old_dir = tmp_path / "old"

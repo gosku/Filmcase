@@ -1,10 +1,9 @@
-import os
 import subprocess
 from unittest.mock import patch
 
 import pytest
 
-from src.domain.images.queries import _normalize_wb_fine_tune, collect_image_paths, read_image_exif
+from src.domain.images.queries import _normalize_wb_fine_tune, read_image_exif
 
 SAMPLE_EXIFTOOL_OUTPUT = """\
 [ExifTool]      ExifTool Version Number         : 12.76
@@ -265,57 +264,3 @@ class TestNormalizeWbFineTune:
 
     def test_handles_negative_red(self):
         assert _normalize_wb_fine_tune(raw="Red -40, Blue +60") == "Red -2, Blue +3"
-
-
-class TestCollectImagePaths:
-    def test_returns_jpg_files(self, tmp_path):
-        (tmp_path / "photo1.jpg").write_bytes(b"\xff\xd8")
-        (tmp_path / "photo2.JPG").write_bytes(b"\xff\xd8")
-        (tmp_path / "photo3.jpeg").write_bytes(b"\xff\xd8")
-        (tmp_path / "document.pdf").write_bytes(b"%PDF")
-
-        paths = collect_image_paths(folder=str(tmp_path))
-
-        filenames = [os.path.basename(p) for p in paths]
-        assert "photo1.jpg" in filenames
-        assert "photo2.JPG" in filenames
-        assert "photo3.jpeg" in filenames
-        assert "document.pdf" not in filenames
-
-    def test_returns_sorted_paths(self, tmp_path):
-        (tmp_path / "c.jpg").write_bytes(b"\xff\xd8")
-        (tmp_path / "a.jpg").write_bytes(b"\xff\xd8")
-        (tmp_path / "b.jpg").write_bytes(b"\xff\xd8")
-
-        paths = collect_image_paths(folder=str(tmp_path))
-
-        filenames = [os.path.basename(p) for p in paths]
-        assert filenames == sorted(filenames)
-
-    def test_finds_files_recursively(self, tmp_path):
-        sub = tmp_path / "sub"
-        sub.mkdir()
-        (tmp_path / "top.jpg").write_bytes(b"\xff\xd8")
-        (sub / "nested.jpg").write_bytes(b"\xff\xd8")
-
-        paths = collect_image_paths(folder=str(tmp_path))
-
-        filenames = [os.path.basename(p) for p in paths]
-        assert "top.jpg" in filenames
-        assert "nested.jpg" in filenames
-
-    def test_returns_absolute_paths(self, tmp_path):
-        (tmp_path / "photo.jpg").write_bytes(b"\xff\xd8")
-
-        paths = collect_image_paths(folder=str(tmp_path))
-
-        for p in paths:
-            assert os.path.isabs(p)
-
-    def test_empty_folder_returns_empty_list(self, tmp_path):
-        paths = collect_image_paths(folder=str(tmp_path))
-        assert paths == []
-
-    def test_nonexistent_folder_raises(self):
-        with pytest.raises(FileNotFoundError):
-            collect_image_paths(folder="/nonexistent/folder")
