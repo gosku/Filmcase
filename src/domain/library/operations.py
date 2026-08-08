@@ -137,13 +137,17 @@ def start_sync_run(*, folder: models.LibraryFolder) -> models.SyncRun:
 
 def complete_sync_run(*, run: models.SyncRun) -> bool:
     """
-    Mark *run* as completed if it is still processing.
+    Mark *run* as completed if it is still processing or pruning.
 
     Uses a conditional update so that, under concurrent workers, exactly one
     caller transitions the run and publishes the completion event. Returns True
     if this call completed the run.
     """
-    completed = run.mark_completed()
+    completed = run.transition_state(
+        from_states=(models.SyncRun.STATE_PROCESSING, models.SyncRun.STATE_PRUNING),
+        to_state=models.SyncRun.STATE_COMPLETED,
+        finished_at=timezone.now(),
+    )
     if completed:
         events.publish_event(
             event_type=events.LIBRARY_SYNC_RUN_COMPLETED,
