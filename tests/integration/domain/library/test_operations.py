@@ -6,6 +6,7 @@ from src.domain.library.operations import (
     FolderAlreadyInLibrary,
     SyncAlreadyInProgress,
     add_library_folder,
+    begin_pruning,
     complete_sync_run,
     fail_sync_run,
     interrupt_active_sync_runs,
@@ -210,6 +211,49 @@ class TestCompleteSyncRun:
 
         run.refresh_from_db()
         assert run.state == models.SyncRun.STATE_COMPLETED
+
+
+@pytest.mark.django_db
+class TestBeginPruning:
+    def test_transitions_a_processing_run_to_pruning(self):
+        run = SyncRunFactory(state=models.SyncRun.STATE_PROCESSING, total=1)
+
+        assert begin_pruning(run=run) is True
+
+        run.refresh_from_db()
+        assert run.state == models.SyncRun.STATE_PRUNING
+        assert run.finished_at is None
+
+    def test_leaves_the_folder_locked_against_a_second_sync_while_pruning(self):
+        run = SyncRunFactory(state=models.SyncRun.STATE_PROCESSING, total=1)
+
+        begin_pruning(run=run)
+
+        run.refresh_from_db()
+        assert run.state in models.SyncRun.ACTIVE_STATES
+
+    def test_only_the_first_caller_wins(self):
+        run = SyncRunFactory(state=models.SyncRun.STATE_PROCESSING, total=1)
+        contender = models.SyncRun.objects.get(pk=run.pk)
+
+        assert begin_pruning(run=run) is True
+        assert begin_pruning(run=contender) is False
+
+    def test_does_not_start_from_a_failed_run(self):
+        run = SyncRunFactory(state=models.SyncRun.STATE_FAILED, total=1)
+
+        assert begin_pruning(run=run) is False
+
+    def test_publishes_prune_started_only_for_the_winner(self, captured_logs):
+        run = SyncRunFactory(state=models.SyncRun.STATE_PROCESSING, total=1)
+        contender = models.SyncRun.objects.get(pk=run.pk)
+
+        begin_pruning(run=run)
+        begin_pruning(run=contender)
+
+        matching = [e for e in captured_logs if e.get("event_type") == events.LIBRARY_SYNC_PRUNE_STARTED]
+        assert len(matching) == 1
+        assert matching[0]["run_id"] == run.pk
 
 
 @pytest.mark.django_db
