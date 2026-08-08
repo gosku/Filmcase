@@ -27,13 +27,29 @@ python manage.py <command> [args]
 python manage.py sync_library
 ```
 
-Scans all folders registered in the Library, finds JPEG files not yet in the catalog, and
-imports them. This command is run automatically by `make start` before the web server starts,
-so in normal use you do not need to call it directly.
+Scans all folders registered in the Library, finds JPEG files not yet in the catalog, imports
+them, and takes out of the gallery any entry whose file has disappeared. This command is run
+automatically by `make start` before the web server starts, so in normal use you do not need to
+call it directly.
 
-The command skips directories whose modification time predates the folder's last check
-timestamp, so repeated runs are fast even over large collections. If a registered folder is
-no longer present on disk, a warning is printed and the remaining folders are still scanned.
+Removing an entry never deletes the photo file: it only removes Filmcase's record of it. A
+photo you renamed or moved is recognised by its contents and keeps its rating and favourite
+mark rather than being removed and re-imported.
+
+If a registered folder is no longer present on disk, a warning is printed, **nothing is removed
+from the gallery**, and the remaining folders are still scanned.
+
+Three flags control removal (they are mutually exclusive):
+
+| Flag | Effect |
+|---|---|
+| `--dry-run-prune` | List which entries would be removed, and remove none |
+| `--force-prune` | Remove even when the mass-removal safety guard would stop it |
+| `--no-prune` | Import only; never remove anything |
+
+The safety guard stops a pass that would remove more than half of a folder's images and more
+than twenty of them, since that usually means a drive is not mounted rather than that the
+photos were deleted. See `docs/library_sync.md` for the full picture.
 
 Behaviour depends on your install mode:
 
