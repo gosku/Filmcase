@@ -1,5 +1,6 @@
 import os
 from collections.abc import Sequence
+from pathlib import Path
 
 import attrs
 from django import conf
@@ -8,6 +9,7 @@ from django.db import transaction
 from src.data import models
 from src.domain.images import events, queries
 from src.domain.images.queries import NoFilmSimulationError as NoFilmSimulationError
+from src.domain.images.thumbnails import operations as thumbnail_operations
 from src.domain.recipes import operations as recipe_operations
 
 
@@ -143,6 +145,42 @@ def relocate_image(*, image: models.Image, new_path: str) -> bool:
         new_filepath=new_path,
     )
     return True
+
+
+@transaction.atomic(durable=True)
+def remove_image(*, image: models.Image, reason: str) -> None:
+    """
+    Remove *image* from the catalog because its file is gone or its library
+    folder was removed.
+
+    Removes the catalog entry only: the image file on disk is never touched.
+
+    Recipe-card and cover-image references are set to null by the schema and are
+    deliberately not repointed. A card is a self-contained rendered JPEG that
+    outlives its source image, and a recipe with no explicit cover already falls
+    back to its most-used image. The image's FujifilmExif row is deleted if this
+    leaves it orphaned. The FujifilmRecipe is never touched, because recipes are
+    shared and worth keeping even with no images left.
+    """
+    image_id = image.pk
+    filepath = image.filepath
+    exif_id = image.fujifilm_exif_id
+
+    image.delete()
+
+    if exif_id is not None and not models.Image.objects.filter(fujifilm_exif_id=exif_id).exists():
+        models.FujifilmExif.objects.filter(pk=exif_id).delete()
+
+    # Durable, so the row is committed before the cache files go: a rollback must
+    # never leave a record pointing at thumbnails that have been unlinked.
+    thumbnail_operations.delete_cached_thumbnails(original_path=Path(filepath))
+
+    events.publish_event(
+        event_type=events.IMAGE_REMOVED,
+        image_id=image_id,
+        filepath=filepath,
+        reason=reason,
+    )
 
 
 @transaction.atomic()
