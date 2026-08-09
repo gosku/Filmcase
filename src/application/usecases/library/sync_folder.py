@@ -1,3 +1,4 @@
+import os
 from datetime import datetime, timezone
 
 from django.conf import settings
@@ -54,7 +55,8 @@ def sync_folder(*, folder_id: int, prune_mode: str = models.SyncRun.PRUNE_MODE_A
         return
 
     known_paths = image_queries.get_all_known_image_paths()
-    new_paths = sorted(set(found_paths) - known_paths)
+    candidates = sorted(set(found_paths) - known_paths)
+    new_paths = _drop_unchanged_ignored(folder_id=folder.pk, candidates=candidates)
 
     run.begin_processing(total=len(new_paths))
     folder.set_last_checked_at(value=now)
@@ -67,6 +69,47 @@ def sync_folder(*, folder_id: int, prune_mode: str = models.SyncRun.PRUNE_MODE_A
         finalize_sync_run(run=run)
         return
 
+    _dispatch(new_paths=new_paths, run=run)
+
+
+def _drop_unchanged_ignored(*, folder_id: int, candidates: list[str]) -> list[str]:
+    """
+    Return the candidates worth examining, dropping files already known to be
+    unimportable that have not changed since they were last looked at.
+
+    A file the sync cannot import has no catalog entry, so it would otherwise be
+    rediscovered on every single sync and re-read from scratch each time. On a
+    large library that is thousands of pointless exiftool processes per startup.
+
+    The fingerprint check costs one stat, and only for candidates that already
+    have a record, so the extra syscalls are bounded by how many files are
+    ignored rather than by the size of the tree. Anything whose size or
+    modification time has moved falls through to be examined again, which is how
+    a file the user fixes in place comes back on its own.
+    """
+    fingerprints = library_queries.get_ignored_fingerprints(folder_id=folder_id)
+    if not fingerprints:
+        return candidates
+
+    worth_examining = []
+    for path in candidates:
+        fingerprint = fingerprints.get(path)
+        if fingerprint is None:
+            worth_examining.append(path)
+            continue
+        try:
+            stat_result = os.stat(path)
+        except OSError:
+            # Gone between the walk and now. The next sync will not find it either.
+            continue
+        modified_at = datetime.fromtimestamp(stat_result.st_mtime, tz=timezone.utc)
+        if stat_result.st_size != fingerprint.file_size or modified_at != fingerprint.file_modified_at:
+            worth_examining.append(path)
+
+    return worth_examining
+
+
+def _dispatch(*, new_paths: list[str], run: models.SyncRun) -> None:
     for path in new_paths:
         if settings.USE_ASYNC_TASKS:
             workertasks.enqueue_task(
