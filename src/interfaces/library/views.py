@@ -1,4 +1,8 @@
+import os
+
 from django import http, shortcuts, urls
+from django.conf import settings
+from django.core import paginator as django_paginator
 from django.views import generic
 
 from src.application.usecases.library import add_library_folder as add_library_folder_uc
@@ -202,4 +206,68 @@ class FilesystemBrowser(generic.View):
             "result": result,
             "action_url": action_url,
             "folder_id": folder_id,
+        })
+
+
+_IGNORED_REASON_LABELS = {
+    models.IgnoredImage.REASON_NO_FILM_SIMULATION: "Not a Fujifilm photo",
+    models.IgnoredImage.REASON_INVALID_RECIPE_DATA: "Recipe could not be read",
+    models.IgnoredImage.REASON_ERROR: "Failed with an error",
+}
+# Only an error is worth retrying by hand. The other two are verdicts on the
+# file's own contents, so an unchanged file gets the same verdict again.
+_RETRY_CHANGES_SOMETHING = {models.IgnoredImage.REASON_ERROR}
+
+
+def _ignored_image_data(ignored: models.IgnoredImage) -> library_dataclasses.IgnoredImageData:
+    return library_dataclasses.IgnoredImageData(
+        ignored_id=ignored.pk,
+        filepath=ignored.filepath,
+        filename=os.path.basename(ignored.filepath),
+        reason_label=_IGNORED_REASON_LABELS.get(ignored.reason, ignored.reason),
+        detail=ignored.detail,
+        created_at=ignored.created_at,
+        retry_is_a_no_op_until_the_file_changes=ignored.reason not in _RETRY_CHANGES_SOMETHING,
+    )
+
+
+def _reason_filters(*, counts: dict[str, int], active: str | None) -> list[library_dataclasses.IgnoredReasonFilter]:
+    return [
+        library_dataclasses.IgnoredReasonFilter(
+            code=code,
+            label=label,
+            count=counts.get(code, 0),
+            is_active=active == code,
+        )
+        for code, label in _IGNORED_REASON_LABELS.items()
+        if counts.get(code, 0)
+    ]
+
+
+class LibraryFolderIgnoredImages(generic.View):
+    """List the files this folder's syncs could not import.
+
+    :raises Http404: if no folder with the given ID exists.
+    """
+
+    def get(self, request: http.HttpRequest, folder_id: int) -> http.HttpResponse:
+        try:
+            folder = domain_queries.get_library_folder(folder_id=folder_id)
+        except domain_queries.LibraryFolderNotFound:
+            raise http.Http404
+
+        reason = request.GET.get("reason") or None
+        ignored = domain_queries.get_ignored_images(folder_id=folder_id, reason=reason)
+        counts = domain_queries.count_ignored_images_by_reason(folder_id=folder_id)
+        page_obj = django_paginator.Paginator(ignored, settings.GALLERY_PAGE_SIZE).get_page(
+            request.GET.get("page", 1)
+        )
+
+        return shortcuts.render(request, "library/ignored_images.html", {
+            "folder": _folder_data(folder),
+            "ignored_images": [_ignored_image_data(i) for i in page_obj],
+            "page_obj": page_obj,
+            "reason_filters": _reason_filters(counts=counts, active=reason),
+            "active_reason": reason,
+            "total": sum(counts.values()),
         })

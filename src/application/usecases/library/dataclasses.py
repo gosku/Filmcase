@@ -47,3 +47,25 @@ class FilesystemBrowseResult:
     current_path: str
     parent_path: str | None
     entries: tuple[FilesystemEntry, ...]
+
+
+@attrs.frozen
+class IgnoredImageData:
+    ignored_id: int
+    filepath: str
+    filename: str
+    reason_label: str
+    detail: str
+    created_at: datetime
+    # An unchanged file that is simply not Fujifilm will be rejected again the
+    # moment it is examined, so retrying it does nothing until the file changes.
+    # Resolved here so the template can say so rather than imply otherwise.
+    retry_is_a_no_op_until_the_file_changes: bool
+
+
+@attrs.frozen
+class IgnoredReasonFilter:
+    code: str
+    label: str
+    count: int
+    is_active: bool
