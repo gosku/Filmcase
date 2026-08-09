@@ -4,7 +4,8 @@
 
 - [1 Library](#1-library)
   - [1.1 Managing folders](#11-managing-folders)
-  - [1.2 Automatic sync on startup](#12-automatic-sync-on-startup)
+  - [1.2 Files that could not be imported](#12-files-that-could-not-be-imported)
+  - [1.3 Automatic sync on startup](#13-automatic-sync-on-startup)
 - [2 Images](#2-images)
   - [2.1 Gallery](#21-gallery)
     - [2.1.1 Filtering](#211-filtering)
@@ -44,7 +45,22 @@ folder was checked and the last time new images were found in it.
   the gallery too. **Neither option deletes a photo file**; your files stay on disk. If folders
   are nested, removing the inner one never takes images the outer one still monitors.
 
-### 1.2 Automatic sync on startup
+### 1.2 Files that could not be imported
+
+Each folder row shows how many of its files the sync could not import, linking to a page that lists
+them with the reason and, for failures, the error message. Photos from other camera brands are the
+usual bulk of it.
+
+**None of these files has been deleted or changed.** They were never imported, so they are simply
+not in the gallery. Filmcase remembers them so it does not re-read them on every sync, and examines
+any of them again automatically if the file itself changes.
+
+The page can be filtered by reason, which is how you find the handful of genuine errors among
+thousands of "not a Fujifilm photo" entries. You can retry one file, retry every error at once, or
+retry everything. Retrying a non-Fujifilm file that has not changed does nothing, and the page says
+so on the row.
+
+### 1.3 Automatic sync on startup
 
 Every time you start the app with `make start`, Filmcase runs a sync pass across all
 registered library folders before the web server comes up. New images are imported

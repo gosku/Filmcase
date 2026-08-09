@@ -149,3 +149,7 @@ photos were shot with each one. Also shows a monthly breakdown of usage, which i
 understanding how a recipe evolved in your workflow over time.
 
 Recipe IDs can be found in the URL when viewing an image in the web interface.
+
+`--retry-failed` examines every previously skipped or failed file again, instead of leaving them
+alone until they change on disk. Use it after fixing whatever caused a batch of failures. It is slow
+on a library carrying many ignored files, since re-examining them is the cost the records avoid.

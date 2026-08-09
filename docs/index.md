@@ -37,4 +37,4 @@
 - [ADR 011 — Library Sync on Folder Add/Update](ADRs/011-library-sync-on-folder-change.md) — triggering a single-folder sync from the Library page with server-side, DB-backed progress in both install modes
 - [ADR 012 — Pluggable Card Designs](ADRs/012-pluggable-card-designs.md) — a CardDesign abstraction replacing the flat CardTemplate, enabling fundamentally different card layouts (supersedes ADR 005's composition model)
 - [ADR 013 — Library Sync Removes Missing Images](ADRs/013-library-sync-removes-missing-images.md) — removing catalog entries whose files are gone, telling a move apart from a deletion, and the guard against a mass wipe (supersedes ADR 010's add-only sync and mtime gating, and ADR 011's removal and rescan decisions)
-
+- [ADR 014 — Remembering Images That Cannot Be Imported](ADRs/014-remembering-images-that-cannot-be-imported.md) — recording files the sync cannot import so they are not re-examined on every run, and batching worker dispatch so a large import does not block startup

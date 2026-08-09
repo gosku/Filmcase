@@ -147,3 +147,52 @@ Again, no photo file is deleted either way.
 If folders are nested (say both `/Photos` and `/Photos/2024` are registered), removing the
 inner one never takes images the outer one still monitors. Only images that come *exclusively*
 from the folder you are removing are counted, and only those can go.
+
+## Files the sync cannot import
+
+Not every JPEG in a library folder can be imported. Photos from another camera carry no Fujifilm
+recipe, and occasionally a file fails outright. Filmcase remembers those files instead of
+re-reading them on every sync.
+
+**Nothing is deleted or changed.** An ignored file was never in the gallery to begin with; the
+record only means the sync stops looking at it. Your files stay on disk exactly where they are.
+
+Why it matters: reading a photo's metadata costs a separate `exiftool` process. On a library with
+15,000 non-Fujifilm JPEGs, re-examining them on every startup is 15,000 processes to reach the same
+conclusion as last time.
+
+**A file you fix comes back on its own.** Each record stores the file's size and modification time
+as they were when it was examined. If either changes, the file is examined again automatically, so
+re-exporting a photo with proper EXIF at the same path is enough. Nothing needs clicking.
+
+### Seeing and undoing it
+
+Each folder row in the Library page shows how many of its files are ignored, linking to a page that
+lists them with the reason and, for failures, the error. Filter by reason to find the handful of
+real errors among the many "not a Fujifilm photo" entries.
+
+From there you can retry a single file, retry every error at once, or retry everything. Retrying an
+unchanged non-Fujifilm file does nothing, since it will be read and rejected again; the page says so
+on each such row.
+
+From the command line:
+
+```sh
+python manage.py sync_library --retry-failed   # examine every ignored file again
+```
+
+Expect that run to be slow: examining them again is exactly the cost the records avoid.
+
+## Why a large import no longer blocks startup
+
+In full install mode the sync hands images to the Celery worker, and it cannot return until every
+message has been published. One message per file meant a large import held up `make start` for as
+long as publishing took: on tens of thousands of files, tens of seconds before the server was even
+reachable.
+
+Images are now sent in batches, so the message count falls by the batch size (`SYNC_IMAGE_BATCH_SIZE`,
+100 by default). Each image is still processed and counted individually, so progress in the Sync
+column is unchanged.
+
+Note that changing this required a new worker task, so **restart your Celery worker once** after
+upgrading (`make worker`).
