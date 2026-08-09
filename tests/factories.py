@@ -16,6 +16,8 @@ Usage::
     image = ImageFactory(is_favorite=True, camera_model="X-T5")
 """
 
+from datetime import datetime, timezone as dt_timezone
+
 import factory
 from django.utils import timezone
 
@@ -100,6 +102,19 @@ class LibraryFolderFactory(factory.django.DjangoModelFactory):
 
     # path has a unique constraint, so use a sequence to avoid collisions.
     path = factory.Sequence(lambda n: f"/photos/library_{n:04d}")
+
+
+class IgnoredImageFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = models.IgnoredImage
+
+    folder = factory.SubFactory(LibraryFolderFactory)
+    # filepath has a unique constraint, so use a sequence to avoid collisions.
+    filepath = factory.Sequence(lambda n: f"/photos/ignored_{n:04d}.jpg")
+    reason = models.IgnoredImage.REASON_NO_FILM_SIMULATION
+    detail = ""
+    file_size = 1024
+    file_modified_at = datetime(2026, 1, 1, tzinfo=dt_timezone.utc)
 
 
 class SyncRunFactory(factory.django.DjangoModelFactory):
