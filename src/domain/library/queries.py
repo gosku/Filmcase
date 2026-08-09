@@ -1,6 +1,9 @@
-import attrs
 import os
+from datetime import datetime
 from pathlib import Path
+
+import attrs
+from django.db.models import Count, QuerySet
 
 from src.data import models
 
@@ -30,6 +33,91 @@ class SyncRunNotFound(Exception):
     """
 
     run_id: int
+
+
+@attrs.frozen
+class IgnoredImageNotFound(Exception):
+    """
+    Raised when no IgnoredImage row matches the given ignored_id.
+    """
+
+    ignored_id: int
+
+
+@attrs.frozen
+class IgnoredFingerprint:
+    """
+    Size and modification time of a file as it was when last examined.
+    """
+
+    file_size: int
+    file_modified_at: datetime
+
+
+def get_ignored_fingerprints(*, folder_id: int) -> dict[str, IgnoredFingerprint]:
+    """
+    Return the recorded fingerprint of every ignored file under *folder_id*,
+    keyed by path.
+
+    One query, because the sync compares this against every candidate path it
+    found on disk.
+    """
+    rows = models.IgnoredImage.objects.filter(folder_id=folder_id).values_list(
+        "filepath", "file_size", "file_modified_at"
+    )
+    return {
+        filepath: IgnoredFingerprint(file_size=file_size, file_modified_at=file_modified_at)
+        for filepath, file_size, file_modified_at in rows
+    }
+
+
+def get_ignored_image(*, ignored_id: int) -> models.IgnoredImage:
+    """
+    Return the IgnoredImage with the given id.
+
+    :raises IgnoredImageNotFound: If no row with *ignored_id* exists.
+    """
+    try:
+        return models.IgnoredImage.objects.get(pk=ignored_id)
+    except models.IgnoredImage.DoesNotExist:
+        raise IgnoredImageNotFound(ignored_id=ignored_id)
+
+
+def get_ignored_images(*, folder_id: int, reason: str | None = None) -> QuerySet[models.IgnoredImage]:
+    """
+    Return the ignored files under *folder_id*, oldest path first, optionally
+    limited to one reason.
+
+    Returns a queryset rather than a list because the caller paginates it: these
+    lists run to tens of thousands of rows.
+    """
+    ignored = models.IgnoredImage.objects.filter(folder_id=folder_id)
+    if reason is not None:
+        ignored = ignored.filter(reason=reason)
+    return ignored.order_by("filepath", "id")
+
+
+def count_ignored_images_by_reason(*, folder_id: int) -> dict[str, int]:
+    """
+    Return how many files are ignored under *folder_id*, keyed by reason.
+    """
+    rows = (
+        models.IgnoredImage.objects.filter(folder_id=folder_id)
+        .values("reason")
+        .annotate(total=Count("id"))
+    )
+    return {row["reason"]: row["total"] for row in rows}
+
+
+def get_ignored_counts_by_folder() -> dict[int, int]:
+    """
+    Return how many files are ignored, keyed by library folder id.
+
+    One aggregate for the whole Library page, so listing a count per row does
+    not cost a query per folder.
+    """
+    rows = models.IgnoredImage.objects.values("folder_id").annotate(total=Count("id"))
+    return {row["folder_id"]: row["total"] for row in rows}
 
 
 def get_all_library_folders() -> list[models.LibraryFolder]:
