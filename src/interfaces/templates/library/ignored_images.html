@@ -41,6 +41,22 @@
     .ignored-file__path { color: #94a3b8; font-family: monospace; font-size: 0.78rem; word-break: break-all; }
     .ignored-detail { color: #64748b; font-family: monospace; font-size: 0.78rem; word-break: break-word; }
 
+    .bulk-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1rem; }
+    .btn {
+      padding: 0.3rem 0.75rem;
+      border: 1px solid #cbd5e1;
+      border-radius: 4px;
+      background: #fff;
+      font-size: 0.82rem;
+      color: #334155;
+      cursor: pointer;
+    }
+    .btn:hover { background: #f8fafc; }
+    .btn--danger { border-color: #fca5a5; color: #b91c1c; }
+    .btn--danger:hover { background: #fef2f2; }
+    .btn--quiet { border-color: #e2e8f0; color: #64748b; }
+    .retry-note { display: block; margin-top: 0.2rem; color: #94a3b8; font-size: 0.72rem; }
+
     .pagination { display: flex; gap: 1rem; align-items: center; margin-top: 1.5rem; color: #64748b; font-size: 0.9rem; }
     .empty-state { padding: 2rem; text-align: center; color: #94a3b8; }
   </style>
@@ -63,6 +79,23 @@
     without you having to do anything here.
   </p>
 
+  {% if total %}
+    <div class="bulk-actions">
+      {% if error_count %}
+        <form method="post" action="{% url 'library-folder-ignored-retry' folder.folder_id %}">
+          {% csrf_token %}
+          <input type="hidden" name="reason" value="{{ error_reason_code }}">
+          <button type="submit" class="btn">Retry all {{ error_count }} error{{ error_count|pluralize }}</button>
+        </form>
+      {% endif %}
+      <form method="post" action="{% url 'library-folder-ignored-retry' folder.folder_id %}"
+            onsubmit="return confirm('Examine all {{ total }} file(s) again? The next sync will be slow. No file is deleted either way.')">
+        {% csrf_token %}
+        <button type="submit" class="btn btn--danger">Retry everything ({{ total }})</button>
+      </form>
+    </div>
+  {% endif %}
+
   {% if reason_filters %}
     <div class="reason-filters">
       <a class="reason-filter {% if not active_reason %}reason-filter--active{% endif %}"
@@ -84,6 +117,7 @@
           <th>Why</th>
           <th>Details</th>
           <th>Noticed</th>
+          <th></th>
         </tr>
       </thead>
       <tbody>
@@ -97,6 +131,16 @@
             <td class="ignored-detail">{{ ignored.detail }}</td>
             <td>
               <time class="local-time" data-utc="{{ ignored.created_at|date:"c" }}">{{ ignored.created_at|date:"Y-m-d H:i" }}</time>
+            </td>
+            <td>
+              <form method="post" action="{% url 'library-ignored-retry' ignored.ignored_id %}">
+                {% csrf_token %}
+                <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                <button type="submit" class="btn {% if ignored.retry_is_a_no_op_until_the_file_changes %}btn--quiet{% endif %}">Retry</button>
+                {% if ignored.retry_is_a_no_op_until_the_file_changes %}
+                  <span class="retry-note">Only changes anything once the file itself has changed</span>
+                {% endif %}
+              </form>
             </td>
           </tr>
         {% endfor %}

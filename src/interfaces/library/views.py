@@ -10,6 +10,7 @@ from src.application.usecases.library import browse_filesystem as browse_filesys
 from src.application.usecases.library import dataclasses as library_dataclasses
 from src.application.usecases.library import get_folder_removal_preview as get_folder_removal_preview_uc
 from src.application.usecases.library import remove_library_folder as remove_library_folder_uc
+from src.application.usecases.library import retry_ignored_images as retry_ignored_images_uc
 from src.application.usecases.library import trigger_folder_sync as trigger_folder_sync_uc
 from src.application.usecases.library import update_library_folder_path as update_library_folder_path_uc
 from src.data import models
@@ -270,4 +271,35 @@ class LibraryFolderIgnoredImages(generic.View):
             "reason_filters": _reason_filters(counts=counts, active=reason),
             "active_reason": reason,
             "total": sum(counts.values()),
+            "error_count": counts.get(models.IgnoredImage.REASON_ERROR, 0),
+            "error_reason_code": models.IgnoredImage.REASON_ERROR,
         })
+
+
+class LibraryIgnoredImageRetry(generic.View):
+    """Forget one ignored file so the next sync examines it again.
+
+    :raises Http404: if no ignored-image record with the given ID exists.
+    """
+
+    def post(self, request: http.HttpRequest, ignored_id: int) -> http.HttpResponse:
+        try:
+            retry_ignored_images_uc.retry_ignored_image(ignored_id=ignored_id)
+        except retry_ignored_images_uc.IgnoredImageNotFound:
+            raise http.Http404
+        return shortcuts.redirect(request.POST.get("next") or urls.reverse("library-list"))
+
+
+class LibraryFolderIgnoredImagesRetry(generic.View):
+    """Forget what a folder has ignored, optionally only one reason.
+
+    :raises Http404: if no folder with the given ID exists.
+    """
+
+    def post(self, request: http.HttpRequest, folder_id: int) -> http.HttpResponse:
+        reason = request.POST.get("reason") or None
+        try:
+            retry_ignored_images_uc.retry_ignored_images(folder_id=folder_id, reason=reason)
+        except retry_ignored_images_uc.LibraryFolderNotFound:
+            raise http.Http404
+        return shortcuts.redirect(urls.reverse("library-folder-ignored", args=[folder_id]))
