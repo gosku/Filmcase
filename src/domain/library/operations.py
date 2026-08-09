@@ -1,3 +1,4 @@
+import datetime
 import os
 from pathlib import Path
 
@@ -125,6 +126,134 @@ def remove_library_folder(*, folder_id: int, delete_images: bool) -> int:
         )
 
     return removed
+
+
+def record_ignored_image(
+    *,
+    folder: models.LibraryFolder,
+    filepath: str,
+    reason: str,
+    detail: str,
+) -> models.IgnoredImage:
+    """
+    Remember that *filepath* could not be imported, so later syncs leave it alone.
+
+    Records the file's current size and modification time. A file whose
+    fingerprint still matches cannot have become importable, so the next sync can
+    pass over it for the cost of one stat rather than one exiftool process. A
+    file the user later fixes in place changes its fingerprint and is examined
+    again on its own.
+
+    Re-recording an existing entry replaces its fingerprint. That matters: a file
+    that changed, was examined again and failed again would otherwise keep its
+    stale fingerprint and be re-examined on every sync from then on.
+
+    The file itself is never touched, and no image leaves the gallery.
+
+    :raises OSError: If *filepath* cannot be stat'ed.
+    """
+    stat_result = os.stat(filepath)
+    file_size = stat_result.st_size
+    file_modified_at = datetime.datetime.fromtimestamp(
+        stat_result.st_mtime, tz=datetime.timezone.utc
+    )
+
+    existing = models.IgnoredImage.objects.filter(filepath=filepath).first()
+    if existing is not None:
+        existing.set_outcome(
+            reason=reason,
+            detail=detail,
+            file_size=file_size,
+            file_modified_at=file_modified_at,
+        )
+        ignored = existing
+    else:
+        ignored = models.IgnoredImage.create(
+            folder=folder,
+            filepath=filepath,
+            reason=reason,
+            detail=detail,
+            file_size=file_size,
+            file_modified_at=file_modified_at,
+        )
+
+    events.publish_event(
+        event_type=events.LIBRARY_IMAGE_IGNORED,
+        folder_id=folder.pk,
+        filepath=filepath,
+        reason=reason,
+    )
+    return ignored
+
+
+def forget_ignored_image(*, ignored_id: int) -> str:
+    """
+    Forget one ignored file, so the next sync examines it again.
+
+    Returns the path that was forgotten. Removes only the record: the file is
+    untouched and nothing enters the gallery until a sync imports it.
+
+    :raises IgnoredImageNotFound: If no record with *ignored_id* exists.
+    """
+    ignored = queries.get_ignored_image(ignored_id=ignored_id)
+    filepath = ignored.filepath
+    folder_id = ignored.folder_id
+    ignored.delete()
+
+    events.publish_event(
+        event_type=events.LIBRARY_IMAGE_IGNORE_REMOVED,
+        folder_id=folder_id,
+        filepath=filepath,
+    )
+    return filepath
+
+
+def forget_ignored_path(*, filepath: str) -> bool:
+    """
+    Forget *filepath* if it is currently ignored, and report whether it was.
+
+    Called when a file that could not be imported before succeeds, so that a
+    record which no longer describes reality does not linger and show an
+    imported photo as ignored.
+
+    Silent when the path was not ignored, because that is the ordinary case.
+    """
+    ignored = models.IgnoredImage.objects.filter(filepath=filepath).first()
+    if ignored is None:
+        return False
+
+    folder_id = ignored.folder_id
+    ignored.delete()
+    events.publish_event(
+        event_type=events.LIBRARY_IMAGE_IGNORE_REMOVED,
+        folder_id=folder_id,
+        filepath=filepath,
+    )
+    return True
+
+
+def forget_ignored_images(*, folder_id: int, reason: str | None = None) -> int:
+    """
+    Forget every ignored file under *folder_id*, or every one with *reason*.
+
+    Returns how many records were forgotten. The next sync examines all of them
+    again, which for a large set of permanently unimportable files means one slow
+    sync before they are recorded afresh.
+    """
+    ignored = models.IgnoredImage.objects.filter(folder_id=folder_id)
+    if reason is not None:
+        ignored = ignored.filter(reason=reason)
+
+    count, _ = ignored.delete()
+
+    if count:
+        events.publish_event(
+            event_type=events.LIBRARY_IMAGE_IGNORES_CLEARED,
+            folder_id=folder_id,
+            reason=reason or "",
+            count=count,
+        )
+    return count
 
 
 def prune_guard_trips(*, missing: int, total: int) -> bool:
