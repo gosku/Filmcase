@@ -1,5 +1,5 @@
 import pkgutil
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 
 import attrs
 from celery import Task
@@ -35,13 +35,7 @@ def enqueue_task(*, task_name: str, kwargs: Mapping[str, object], queue: str) ->
     :raises TaskNotFoundError: If *task_name* does not resolve to any Python object.
     :raises NotACeleryTaskError: If *task_name* resolves to something that is not a Celery task.
     """
-    try:
-        task = pkgutil.resolve_name(task_name)
-    except (AttributeError, ModuleNotFoundError, ValueError) as e:
-        raise TaskNotFoundError(task_name=task_name) from e
-
-    if not isinstance(task, Task):
-        raise NotACeleryTaskError(task_name=task_name)
+    task = _resolve_task(task_name=task_name)
 
     task.apply_async(kwargs=dict(kwargs), queue=queue)
 
@@ -50,6 +44,48 @@ def enqueue_task(*, task_name: str, kwargs: Mapping[str, object], queue: str) ->
         task_name=task_name,
         queue=queue,
     )
+
+
+def enqueue_tasks(*, task_name: str, kwargs_list: Sequence[Mapping[str, object]], queue: str) -> int:
+    """
+    Dispatch the same Celery task once per entry in *kwargs_list*, and report how
+    many were sent.
+
+    Resolves the task once rather than per message, and publishes one event
+    carrying the count rather than one per message. Dispatching happens before
+    the caller can return, so a large import pays this cost up front: doing the
+    per-message bookkeeping once keeps it off the critical path.
+
+    :raises TaskNotFoundError: If *task_name* does not resolve to any Python object.
+    :raises NotACeleryTaskError: If *task_name* resolves to something that is not a Celery task.
+    """
+    if not kwargs_list:
+        return 0
+
+    task = _resolve_task(task_name=task_name)
+
+    for kwargs in kwargs_list:
+        task.apply_async(kwargs=dict(kwargs), queue=queue)
+
+    events.publish_event(
+        event_type=events.TASK_ENQUEUED,
+        task_name=task_name,
+        queue=queue,
+        count=len(kwargs_list),
+    )
+    return len(kwargs_list)
+
+
+def _resolve_task(*, task_name: str) -> "Task[..., object]":
+    try:
+        task = pkgutil.resolve_name(task_name)
+    except (AttributeError, ModuleNotFoundError, ValueError) as e:
+        raise TaskNotFoundError(task_name=task_name) from e
+
+    if not isinstance(task, Task):
+        raise NotACeleryTaskError(task_name=task_name)
+
+    return task
 
 
 def is_celery_worker_available(*, timeout: float = 2.0) -> bool:
