@@ -1,3 +1,4 @@
+import os
 import shutil
 from pathlib import Path
 from unittest.mock import patch
@@ -11,6 +12,7 @@ from tests.factories import ImageFactory, LibraryFolderFactory, SyncRunFactory
 
 FIXTURES_DIR = Path(__file__).resolve().parent.parent.parent.parent / "fixtures" / "images"
 FUJIFILM_FIXTURE = FIXTURES_DIR / "XS107114.JPG"
+NON_FUJIFILM_FIXTURE = FIXTURES_DIR / "sub-folder" / "img_4968_dng_embedded.jpg"
 
 
 @pytest.mark.django_db
@@ -113,3 +115,90 @@ class TestSyncFolderGuards:
         sync_folder(folder_id=99999)
 
         assert models.SyncRun.objects.count() == 0
+
+
+@pytest.mark.django_db
+class TestSyncFolderDoesNotReExamineIgnoredImages:
+    """
+    The regression this guards: a file the sync cannot import leaves no catalog
+    entry, so before this it was rediscovered and re-read on every single sync.
+    """
+
+    @pytest.fixture(autouse=True)
+    def _lite_mode(self, settings):
+        settings.USE_ASYNC_TASKS = False
+
+    def _folder_with_a_non_fujifilm_file(self, tmp_path):
+        photo = tmp_path / NON_FUJIFILM_FIXTURE.name
+        shutil.copy(NON_FUJIFILM_FIXTURE, photo)
+        return LibraryFolderFactory(path=str(tmp_path)), photo
+
+    def test_the_second_sync_finds_nothing_to_do(self, tmp_path):
+        folder, _ = self._folder_with_a_non_fujifilm_file(tmp_path)
+
+        sync_folder(folder_id=folder.pk)
+        sync_folder(folder_id=folder.pk)
+
+        runs = list(models.SyncRun.objects.order_by("id"))
+        assert runs[0].total == 1
+        assert runs[0].skipped == 1
+        assert runs[1].total == 0
+        assert runs[1].skipped == 0
+
+    def test_it_stays_ignored_however_often_the_sync_runs(self, tmp_path):
+        folder, _ = self._folder_with_a_non_fujifilm_file(tmp_path)
+
+        for _ in range(4):
+            sync_folder(folder_id=folder.pk)
+
+        assert [r.total for r in models.SyncRun.objects.order_by("id")] == [1, 0, 0, 0]
+        assert models.IgnoredImage.objects.count() == 1
+
+    def test_a_file_that_changes_is_examined_again(self, tmp_path):
+        folder, photo = self._folder_with_a_non_fujifilm_file(tmp_path)
+        sync_folder(folder_id=folder.pk)
+
+        # A different file now occupies that path.
+        shutil.copy(FUJIFILM_FIXTURE, photo)
+        sync_folder(folder_id=folder.pk)
+
+        runs = list(models.SyncRun.objects.order_by("id"))
+        assert runs[1].total == 1
+        assert runs[1].processed == 1
+        assert models.Image.objects.count() == 1
+        assert models.IgnoredImage.objects.count() == 0
+
+    def test_a_file_whose_timestamp_alone_moves_is_examined_again(self, tmp_path):
+        folder, photo = self._folder_with_a_non_fujifilm_file(tmp_path)
+        sync_folder(folder_id=folder.pk)
+
+        later = photo.stat().st_mtime + 120
+        os.utime(photo, (later, later))
+        sync_folder(folder_id=folder.pk)
+
+        runs = list(models.SyncRun.objects.order_by("id"))
+        assert runs[1].total == 1
+        assert runs[1].skipped == 1
+        # Re-recorded with the new fingerprint, so it settles again rather than
+        # being re-examined for ever.
+        assert models.IgnoredImage.objects.count() == 1
+        sync_folder(folder_id=folder.pk)
+        assert models.SyncRun.objects.order_by("id").last().total == 0
+
+    def test_forgetting_the_record_brings_the_file_back(self, tmp_path):
+        folder, _ = self._folder_with_a_non_fujifilm_file(tmp_path)
+        sync_folder(folder_id=folder.pk)
+
+        models.IgnoredImage.objects.all().delete()
+        sync_folder(folder_id=folder.pk)
+
+        assert models.SyncRun.objects.order_by("id").last().total == 1
+
+    def test_an_importable_file_is_unaffected(self, tmp_path):
+        shutil.copy(FUJIFILM_FIXTURE, tmp_path / FUJIFILM_FIXTURE.name)
+        folder = LibraryFolderFactory(path=str(tmp_path))
+
+        sync_folder(folder_id=folder.pk)
+
+        assert models.Image.objects.count() == 1
+        assert models.IgnoredImage.objects.count() == 0
