@@ -5,7 +5,7 @@ from bs4 import BeautifulSoup
 
 from src.application.usecases.library.trigger_folder_sync import CeleryWorkerUnavailable
 from src.data import models
-from tests.factories import ImageFactory, LibraryFolderFactory
+from tests.factories import IgnoredImageFactory, ImageFactory, LibraryFolderFactory
 
 TRIGGER = "src.interfaces.library.views.trigger_folder_sync_uc.trigger_folder_sync"
 
@@ -318,3 +318,38 @@ class TestFilesystemBrowser:
         response = client.get(f"/library/browse/partial/?path={tmp_path}&folder_id=not-an-int")
 
         assert response.status_code == 400
+
+
+@pytest.mark.django_db
+class TestLibraryPageIgnoredCount:
+    def test_links_to_the_ignored_page_with_the_count(self, client):
+        folder = LibraryFolderFactory(path="/photos")
+        IgnoredImageFactory(folder=folder, filepath="/photos/a.jpg")
+        IgnoredImageFactory(folder=folder, filepath="/photos/b.jpg")
+
+        response = client.get("/library/")
+
+        content = response.content.decode()
+        assert "2 ignored" in content
+        assert f"/library/{folder.pk}/ignored/" in content
+
+    def test_shows_none_without_a_link_when_nothing_is_ignored(self, client):
+        folder = LibraryFolderFactory(path="/photos")
+
+        response = client.get("/library/")
+
+        content = response.content.decode()
+        assert f"/library/{folder.pk}/ignored/" not in content
+        assert "None" in content
+
+    def test_counts_each_folder_separately(self, client):
+        first = LibraryFolderFactory(path="/photos")
+        second = LibraryFolderFactory(path="/scans")
+        IgnoredImageFactory(folder=first, filepath="/photos/a.jpg")
+        IgnoredImageFactory(folder=second, filepath="/scans/a.jpg")
+        IgnoredImageFactory(folder=second, filepath="/scans/b.jpg")
+
+        content = client.get("/library/").content.decode()
+
+        assert "1 ignored" in content
+        assert "2 ignored" in content

@@ -21,6 +21,14 @@
       hx-swap="outerHTML"
     ></div>
   </td>
+  <td class="folder-ignored">
+    {% if folder.ignored_count %}
+      <a href="{% url 'library-folder-ignored' folder.folder_id %}"
+         title="Files this folder could not import. None of them has been deleted.">{{ folder.ignored_count }} ignored</a>
+    {% else %}
+      <span style="color: #ccc;">None</span>
+    {% endif %}
+  </td>
   <td class="folder-actions">
     <button
       class="btn-update"

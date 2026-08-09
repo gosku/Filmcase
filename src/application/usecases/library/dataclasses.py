@@ -10,6 +10,7 @@ class LibraryFolderData:
     created_at: datetime
     last_processed_at: datetime | None
     last_checked_at: datetime | None
+    ignored_count: int = 0
 
 
 @attrs.frozen

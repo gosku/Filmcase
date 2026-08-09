@@ -17,18 +17,27 @@ from src.data import models
 from src.domain.library import queries as domain_queries
 
 
-def _folder_data(folder: models.LibraryFolder) -> library_dataclasses.LibraryFolderData:
+def _folder_data(
+    folder: models.LibraryFolder,
+    ignored_count: int = 0,
+) -> library_dataclasses.LibraryFolderData:
     return library_dataclasses.LibraryFolderData(
         folder_id=folder.pk,
         path=folder.path,
         created_at=folder.created_at,
         last_processed_at=folder.last_processed_at,
         last_checked_at=folder.last_checked_at,
+        ignored_count=ignored_count,
     )
 
 
 def _list_all_folders() -> list[library_dataclasses.LibraryFolderData]:
-    return [_folder_data(f) for f in domain_queries.get_all_library_folders()]
+    # One aggregate for every folder, rather than a count query per row.
+    counts = domain_queries.get_ignored_counts_by_folder()
+    return [
+        _folder_data(folder, ignored_count=counts.get(folder.pk, 0))
+        for folder in domain_queries.get_all_library_folders()
+    ]
 
 
 def _sync_status(run: models.SyncRun) -> library_dataclasses.SyncRunData:
