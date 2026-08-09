@@ -7,7 +7,7 @@ import pytest
 from src.application.usecases.library.process_synced_image import process_synced_image
 from src.data import models
 from src.domain.images import events
-from tests.factories import SyncRunFactory
+from tests.factories import IgnoredImageFactory, LibraryFolderFactory, SyncRunFactory
 
 FIXTURES_DIR = Path(__file__).resolve().parent.parent.parent.parent / "fixtures" / "images"
 FUJIFILM_FIXTURE = FIXTURES_DIR / "XS107114.JPG"
@@ -106,3 +106,68 @@ class TestProcessSyncedImage:
     def test_returns_silently_when_run_missing(self):
         # No exception should escape when the run (and its folder) is already gone.
         process_synced_image(image_path="/whatever.jpg", sync_run_id=99999)
+
+
+@pytest.mark.django_db
+class TestProcessSyncedImageRemembersFailures:
+    def test_remembers_a_non_fujifilm_file(self, tmp_path):
+        photo = tmp_path / NON_FUJIFILM_FIXTURE.name
+        shutil.copy(NON_FUJIFILM_FIXTURE, photo)
+        folder = LibraryFolderFactory(path=str(tmp_path))
+        run = SyncRunFactory(folder=folder, state=models.SyncRun.STATE_PROCESSING, total=1)
+
+        process_synced_image(image_path=str(photo), sync_run_id=run.pk)
+
+        ignored = models.IgnoredImage.objects.get()
+        assert ignored.filepath == str(photo)
+        assert ignored.reason == models.IgnoredImage.REASON_NO_FILM_SIMULATION
+        assert ignored.folder_id == folder.pk
+        assert ignored.file_size == photo.stat().st_size
+
+    def test_remembers_an_unexpected_failure_with_its_message(self, tmp_path):
+        photo = tmp_path / FUJIFILM_FIXTURE.name
+        shutil.copy(FUJIFILM_FIXTURE, photo)
+        folder = LibraryFolderFactory(path=str(tmp_path))
+        run = SyncRunFactory(folder=folder, state=models.SyncRun.STATE_PROCESSING, total=1)
+
+        with patch(
+            "src.domain.images.operations.process_image",
+            side_effect=OSError("disk went away"),
+        ):
+            process_synced_image(image_path=str(photo), sync_run_id=run.pk)
+
+        ignored = models.IgnoredImage.objects.get()
+        assert ignored.reason == models.IgnoredImage.REASON_ERROR
+        assert ignored.detail == "OSError: disk went away"
+
+    def test_remembers_nothing_for_a_successful_import(self, tmp_path):
+        photo = tmp_path / FUJIFILM_FIXTURE.name
+        shutil.copy(FUJIFILM_FIXTURE, photo)
+        folder = LibraryFolderFactory(path=str(tmp_path))
+        run = SyncRunFactory(folder=folder, state=models.SyncRun.STATE_PROCESSING, total=1)
+
+        process_synced_image(image_path=str(photo), sync_run_id=run.pk)
+
+        assert models.IgnoredImage.objects.count() == 0
+
+    def test_a_file_that_vanished_does_not_break_the_run(self, tmp_path):
+        folder = LibraryFolderFactory(path=str(tmp_path))
+        run = SyncRunFactory(folder=folder, state=models.SyncRun.STATE_PROCESSING, total=1)
+
+        process_synced_image(image_path=str(tmp_path / "gone.jpg"), sync_run_id=run.pk)
+
+        run.refresh_from_db()
+        assert run.errors == 1
+        assert models.IgnoredImage.objects.count() == 0
+
+    def test_a_previously_ignored_file_that_imports_stops_being_ignored(self, tmp_path):
+        photo = tmp_path / FUJIFILM_FIXTURE.name
+        shutil.copy(FUJIFILM_FIXTURE, photo)
+        folder = LibraryFolderFactory(path=str(tmp_path))
+        run = SyncRunFactory(folder=folder, state=models.SyncRun.STATE_PROCESSING, total=1)
+        IgnoredImageFactory(folder=folder, filepath=str(photo))
+
+        process_synced_image(image_path=str(photo), sync_run_id=run.pk)
+
+        assert models.Image.objects.count() == 1
+        assert models.IgnoredImage.objects.count() == 0
