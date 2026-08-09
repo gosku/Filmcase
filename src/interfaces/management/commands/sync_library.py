@@ -3,9 +3,11 @@ from typing import Any
 from django.conf import settings
 from django.core.management.base import BaseCommand, CommandParser
 
+from src.application.usecases.library import retry_ignored_images as retry_ignored_images_usecase
 from src.application.usecases.library import sync_library as sync_library_usecase
 from src.application.usecases.library.sync_library import CeleryWorkerUnavailable
 from src.data import models
+from src.domain.library import queries as library_queries
 
 
 class Command(BaseCommand):
@@ -31,9 +33,21 @@ class Command(BaseCommand):
             action="store_true",
             help="Import only; never remove catalog entries for missing files.",
         )
+        parser.add_argument(
+            "--retry-failed",
+            action="store_true",
+            help=(
+                "Examine every previously skipped or failed file again, instead of leaving them"
+                " alone until they change. Slow on a library with many of them."
+            ),
+        )
 
     def handle(self, *args: object, **options: Any) -> None:
         prune_mode = _prune_mode_from(options=options)
+
+        if options["retry_failed"]:
+            forgotten = _forget_every_ignored_image()
+            self.stdout.write(f"Forgot {forgotten} previously skipped or failed file(s).")
 
         try:
             result = sync_library_usecase.sync_library(prune_mode=prune_mode)
@@ -106,6 +120,17 @@ class Command(BaseCommand):
                 " deleted. Re-run with --force-prune to remove them anyway."
             )
         )
+
+
+def _forget_every_ignored_image() -> int:
+    """
+    Forget what every registered folder has ignored, so the next scan looks at
+    all of it again.
+    """
+    return sum(
+        retry_ignored_images_usecase.retry_ignored_images(folder_id=folder.pk).forgotten
+        for folder in library_queries.get_all_library_folders()
+    )
 
 
 def _prune_mode_from(*, options: dict[str, Any]) -> str:

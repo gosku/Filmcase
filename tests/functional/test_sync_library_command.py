@@ -14,6 +14,7 @@ from tests.factories import LibraryFolderFactory
 
 FIXTURES_DIR = Path(__file__).resolve().parent.parent / "fixtures" / "images"
 FUJIFILM_FIXTURE = FIXTURES_DIR / "XS107114.JPG"
+NON_FUJIFILM_FIXTURE = FIXTURES_DIR / "sub-folder" / "img_4968_dng_embedded.jpg"
 
 
 @pytest.mark.django_db
@@ -146,6 +147,43 @@ class TestSyncLibraryCommandSafetyGuard:
         call_command("sync_library", "--force-prune")
 
         assert models.Image.objects.count() == 0
+
+
+@pytest.mark.django_db
+class TestSyncLibraryCommandRetryFailed:
+    @pytest.fixture(autouse=True)
+    def _lite_mode(self, settings):
+        settings.USE_ASYNC_TASKS = False
+
+    def _library_with_an_ignored_file(self, tmp_path):
+        photo = tmp_path / NON_FUJIFILM_FIXTURE.name
+        shutil.copy(NON_FUJIFILM_FIXTURE, photo)
+        LibraryFolderFactory(path=str(tmp_path))
+        call_command("sync_library")
+        return photo
+
+    def test_leaves_ignored_files_alone_without_the_flag(self, tmp_path, capsys):
+        self._library_with_an_ignored_file(tmp_path)
+
+        call_command("sync_library")
+
+        assert "0 new file(s) imported, 0 skipped" in capsys.readouterr().out
+
+    def test_examines_them_again_with_the_flag(self, tmp_path, capsys):
+        self._library_with_an_ignored_file(tmp_path)
+
+        call_command("sync_library", "--retry-failed")
+
+        captured = capsys.readouterr()
+        assert "Forgot 1 previously skipped or failed file(s)." in captured.out
+        assert "1 skipped (non-Fujifilm)" in captured.out
+
+    def test_re_records_the_file_it_examined_again(self, tmp_path):
+        self._library_with_an_ignored_file(tmp_path)
+
+        call_command("sync_library", "--retry-failed")
+
+        assert models.IgnoredImage.objects.count() == 1
 
 
 @pytest.mark.django_db
