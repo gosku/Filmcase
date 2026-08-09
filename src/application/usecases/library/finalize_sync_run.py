@@ -38,6 +38,22 @@ def finalize_sync_run(*, run: models.SyncRun) -> None:
         library_operations.complete_sync_run(run=run)
 
 
+def finalize_sync_run_by_id(*, sync_run_id: int) -> None:
+    """
+    Finish the run with *sync_run_id*, if it still exists.
+
+    The entry point for finalising from a worker, which can only be handed an
+    id. A run whose folder was removed while the work was queued is gone, and
+    there is nothing left to finish.
+    """
+    try:
+        run = library_queries.get_sync_run(run_id=sync_run_id)
+    except library_queries.SyncRunNotFound:
+        return
+
+    finalize_sync_run(run=run)
+
+
 def _prune_for_run(*, run: models.SyncRun) -> library_operations.PruneResult:
     if _another_folder_is_still_importing(folder_id=run.folder_id):
         # A file moved from this folder into one still importing has not been

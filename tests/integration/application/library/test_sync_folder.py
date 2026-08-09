@@ -13,6 +13,7 @@ from tests.factories import ImageFactory, LibraryFolderFactory, SyncRunFactory
 FIXTURES_DIR = Path(__file__).resolve().parent.parent.parent.parent / "fixtures" / "images"
 FUJIFILM_FIXTURE = FIXTURES_DIR / "XS107114.JPG"
 NON_FUJIFILM_FIXTURE = FIXTURES_DIR / "sub-folder" / "img_4968_dng_embedded.jpg"
+SECOND_FUJIFILM_FIXTURE = FIXTURES_DIR / "XS107209.jpg"
 
 
 @pytest.mark.django_db
@@ -82,12 +83,12 @@ class TestSyncFolderLiteMode:
 @pytest.mark.django_db
 class TestSyncFolderAsyncMode:
     @override_settings(USE_ASYNC_TASKS=True)
-    def test_enqueues_a_task_per_new_image_and_leaves_run_processing(self, tmp_path):
+    def test_enqueues_a_batch_of_new_images_and_leaves_run_processing(self, tmp_path):
         image_path = tmp_path / FUJIFILM_FIXTURE.name
         shutil.copy(FUJIFILM_FIXTURE, image_path)
         folder = LibraryFolderFactory(path=str(tmp_path))
 
-        with patch("src.application.usecases.library.sync_folder.workertasks.enqueue_task") as mock_enqueue:
+        with patch("src.application.usecases.library.sync_folder.workertasks.enqueue_tasks") as mock_enqueue:
             sync_folder(folder_id=folder.pk)
 
         run = models.SyncRun.objects.get(folder=folder)
@@ -95,8 +96,24 @@ class TestSyncFolderAsyncMode:
         assert run.total == 1
         mock_enqueue.assert_called_once()
         kwargs = mock_enqueue.call_args.kwargs
-        assert kwargs["task_name"] == "src.interfaces.tasks.sync_process_image_task"
-        assert kwargs["kwargs"] == {"image_path": str(image_path), "sync_run_id": run.pk}
+        assert kwargs["task_name"] == "src.interfaces.tasks.sync_process_image_batch_task"
+        assert kwargs["kwargs_list"] == [
+            {"image_paths": [str(image_path)], "sync_run_id": run.pk}
+        ]
+
+    def test_splits_new_images_into_batches(self, tmp_path, settings):
+        settings.SYNC_IMAGE_BATCH_SIZE = 2
+        for index, fixture in enumerate(
+            [FUJIFILM_FIXTURE, SECOND_FUJIFILM_FIXTURE, NON_FUJIFILM_FIXTURE]
+        ):
+            shutil.copy(fixture, tmp_path / f"{index}_{fixture.name}")
+        folder = LibraryFolderFactory(path=str(tmp_path))
+
+        with patch("src.application.usecases.library.sync_folder.workertasks.enqueue_tasks") as mock_enqueue:
+            sync_folder(folder_id=folder.pk)
+
+        batches = mock_enqueue.call_args.kwargs["kwargs_list"]
+        assert [len(b["image_paths"]) for b in batches] == [2, 1]
 
 
 @pytest.mark.django_db
@@ -202,3 +219,51 @@ class TestSyncFolderDoesNotReExamineIgnoredImages:
 
         assert models.Image.objects.count() == 1
         assert models.IgnoredImage.objects.count() == 0
+
+
+@pytest.mark.django_db
+class TestSyncFolderFinalisesInTheWorker:
+    """
+    A run with images is finished by whichever is handled last, in the worker.
+    A run with none must not be finished somewhere else, or the same work lands
+    in the worker or in the caller depending only on whether anything was new.
+    """
+
+    @pytest.fixture(autouse=True)
+    def _async_mode(self, settings):
+        settings.USE_ASYNC_TASKS = True
+
+    def test_hands_an_empty_run_to_the_worker(self, tmp_path):
+        folder = LibraryFolderFactory(path=str(tmp_path))
+
+        with patch("src.application.usecases.library.sync_folder.workertasks.enqueue_task") as enqueue:
+            sync_folder(folder_id=folder.pk)
+
+        run = models.SyncRun.objects.get(folder=folder)
+        enqueue.assert_called_once()
+        kwargs = enqueue.call_args.kwargs
+        assert kwargs["task_name"] == "src.interfaces.tasks.finalize_sync_run_task"
+        assert kwargs["kwargs"] == {"sync_run_id": run.pk}
+
+    def test_does_not_prune_in_the_caller(self, tmp_path):
+        folder = LibraryFolderFactory(path=str(tmp_path))
+        image = ImageFactory(filepath=str(tmp_path / "gone.jpg"))
+
+        with patch("src.application.usecases.library.sync_folder.workertasks.enqueue_task"):
+            sync_folder(folder_id=folder.pk)
+
+        run = models.SyncRun.objects.get(folder=folder)
+        assert run.state == models.SyncRun.STATE_PROCESSING
+        assert run.removed == 0
+        assert models.Image.objects.filter(pk=image.pk).exists()
+
+    def test_lite_mode_still_finalises_inline(self, tmp_path, settings):
+        settings.USE_ASYNC_TASKS = False
+        folder = LibraryFolderFactory(path=str(tmp_path))
+        image = ImageFactory(filepath=str(tmp_path / "gone.jpg"))
+
+        sync_folder(folder_id=folder.pk)
+
+        run = models.SyncRun.objects.get(folder=folder)
+        assert run.state == models.SyncRun.STATE_COMPLETED
+        assert not models.Image.objects.filter(pk=image.pk).exists()

@@ -11,7 +11,8 @@ from src.domain.library import operations as library_operations
 from src.domain.library import queries as library_queries
 from src.services import workertasks
 
-_SYNC_PROCESS_IMAGE_TASK = "src.interfaces.tasks.sync_process_image_task"
+_SYNC_PROCESS_IMAGE_BATCH_TASK = "src.interfaces.tasks.sync_process_image_batch_task"
+_FINALIZE_SYNC_RUN_TASK = "src.interfaces.tasks.finalize_sync_run_task"
 
 
 def sync_folder(*, folder_id: int, prune_mode: str = models.SyncRun.PRUNE_MODE_AUTO) -> None:
@@ -66,7 +67,7 @@ def sync_folder(*, folder_id: int, prune_mode: str = models.SyncRun.PRUNE_MODE_A
     if not new_paths:
         # Nothing new is exactly the case where photos were deleted, so this
         # branch still has to finalise (and therefore prune).
-        finalize_sync_run(run=run)
+        _finalize(run=run)
         return
 
     _dispatch(new_paths=new_paths, run=run)
@@ -110,12 +111,51 @@ def _drop_unchanged_ignored(*, folder_id: int, candidates: list[str]) -> list[st
 
 
 def _dispatch(*, new_paths: list[str], run: models.SyncRun) -> None:
-    for path in new_paths:
-        if settings.USE_ASYNC_TASKS:
-            workertasks.enqueue_task(
-                task_name=_SYNC_PROCESS_IMAGE_TASK,
-                kwargs={"image_path": path, "sync_run_id": run.pk},
-                queue=settings.PROCESS_IMAGE_QUEUE,
-            )
-        else:
+    """
+    Hand the new images to whoever will process them.
+
+    In async mode they go to the worker in batches. Dispatching is synchronous,
+    so the command that started the sync cannot return until the last message is
+    published: one message per file makes a large import block startup for as
+    long as publishing takes, which on tens of thousands of files is tens of
+    seconds before the server is even reachable.
+    """
+    if not settings.USE_ASYNC_TASKS:
+        for path in new_paths:
             process_synced_image(image_path=path, sync_run_id=run.pk)
+        return
+
+    workertasks.enqueue_tasks(
+        task_name=_SYNC_PROCESS_IMAGE_BATCH_TASK,
+        kwargs_list=[
+            {"image_paths": batch, "sync_run_id": run.pk}
+            for batch in _batched(new_paths, settings.SYNC_IMAGE_BATCH_SIZE)
+        ],
+        queue=settings.PROCESS_IMAGE_QUEUE,
+    )
+
+
+def _finalize(*, run: models.SyncRun) -> None:
+    """
+    Finish a run that had no images to process.
+
+    In async mode this goes to the worker, like every other part of a sync.
+    Doing it here instead would put a second full walk of the folder, and the
+    removals that follow it, inside whoever started the sync: the startup
+    command before the server is reachable, or a web request. It would also mean
+    the same work happened in the worker or in the caller depending only on
+    whether anything happened to be new.
+    """
+    if not settings.USE_ASYNC_TASKS:
+        finalize_sync_run(run=run)
+        return
+
+    workertasks.enqueue_task(
+        task_name=_FINALIZE_SYNC_RUN_TASK,
+        kwargs={"sync_run_id": run.pk},
+        queue=settings.PROCESS_IMAGE_QUEUE,
+    )
+
+
+def _batched(paths: list[str], size: int) -> list[list[str]]:
+    return [paths[start : start + size] for start in range(0, len(paths), size)]
