@@ -44,6 +44,22 @@ def finalize_sync_run(*, run: models.SyncRun) -> None:
         library_operations.complete_sync_run(run=run)
 
 
+def finalize_sync_run_by_id(*, sync_run_id: int) -> None:
+    """
+    Finish the run with *sync_run_id*, if it still exists.
+
+    The entry point for finalising from a worker, which can only be handed an
+    id. A run whose folder was removed while the work was queued is gone, and
+    there is nothing left to finish.
+    """
+    try:
+        run = library_queries.get_sync_run(run_id=sync_run_id)
+    except library_queries.SyncRunNotFound:
+        return
+
+    finalize_sync_run(run=run)
+
+
 def _is_deferred(*, result: library_operations.PruneResult) -> bool:
     return result.skipped_reason == models.SyncRun.SKIPPED_DEFERRED
 

@@ -129,6 +129,11 @@ CELERY_ACCEPT_CONTENT = ["json"]
 CELERY_TASK_SERIALIZER = "json"
 CELERY_RESULT_SERIALIZER = "json"
 PROCESS_IMAGE_QUEUE: str = env.str("PROCESS_IMAGE_QUEUE", default="process-image")  # Celery queue name for image-processing tasks
+
+# Library sync hands image processing to the worker in batches, so a large import costs one broker
+# message per batch rather than one per file. Larger batches make dispatch faster; smaller ones
+# spread the work more evenly across worker processes and lose less if a single batch dies.
+SYNC_IMAGE_BATCH_SIZE: int = env.int("SYNC_IMAGE_BATCH_SIZE", default=100)
 USE_ASYNC_TASKS: bool = env.bool("USE_ASYNC_TASKS", default=True)  # True: enqueue Celery tasks (full stack); False: run sequentially (SQLite / lite install)
 
 CELERY_TASK_QUEUES: tuple[Queue, ...] = (Queue(PROCESS_IMAGE_QUEUE),)
