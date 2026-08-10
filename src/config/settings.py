@@ -81,6 +81,12 @@ CAMERA_RETRY_BACKOFF_S:     float = env.float("CAMERA_RETRY_BACKOFF_S",     defa
 THUMBNAIL_CACHE_DIR = BASE_DIR / "thumbnail_cache"  # filesystem directory where generated thumbnails are cached
 RECIPE_CARDS_DIR: Path = Path(env.str("RECIPE_CARDS_DIR", default=str(BASE_DIR / "recipe_cards")))  # filesystem directory where generated recipe card images are stored
 
+# Thumbnail widths that are generated and cached, as a comma-separated list in the env file
+# (THUMBNAIL_WIDTHS=600,1200). A cache key is derived from the image path, so removing an image has
+# to clear every width: a later file reusing that path (Fujifilm filenames wrap around from
+# DSCF9999 to DSCF0001) would otherwise be served the previous image's thumbnail.
+THUMBNAIL_WIDTHS: tuple[int, ...] = tuple(env.list("THUMBNAIL_WIDTHS", subcast=int, default=[600]))
+
 
 TEMPLATES = [
     {
