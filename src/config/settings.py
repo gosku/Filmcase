@@ -87,6 +87,22 @@ RECIPE_CARDS_DIR: Path = Path(env.str("RECIPE_CARDS_DIR", default=str(BASE_DIR /
 # DSCF9999 to DSCF0001) would otherwise be served the previous image's thumbnail.
 THUMBNAIL_WIDTHS: tuple[int, ...] = tuple(env.list("THUMBNAIL_WIDTHS", subcast=int, default=[600]))
 
+# Library sync removes catalog entries whose files have disappeared. A sync that finds most of a
+# folder's images missing is far more likely to be an unmounted drive or an unreadable directory
+# than a real deletion, so a prune above this share of the folder's catalogued images can be
+# reported instead of applied.
+#
+# Shipped disabled, because the only way past a tripped guard is
+# `sync_library --force-prune` and the web interface offers no equivalent. A guard that fires
+# during a path change from the Library page leaves the gallery stale with no way to resolve it
+# from the page that caused it. Until forcing a sync is reachable from the interface, an
+# unexplained stale gallery is the worse failure: nothing is deleted from disk either way.
+#
+# To enable, set both to real thresholds, e.g. 0.5 and 20. Both must be exceeded before the guard
+# engages, so ordinary small cleanups are applied without a warning.
+LIBRARY_PRUNE_GUARD_FRACTION: float = env.float("LIBRARY_PRUNE_GUARD_FRACTION", default=1.0)
+LIBRARY_PRUNE_GUARD_MIN_IMAGES: int = env.int("LIBRARY_PRUNE_GUARD_MIN_IMAGES", default=9999999)
+
 
 TEMPLATES = [
     {
