@@ -100,7 +100,7 @@ class TestProcessImageDeduplicates:
         legacy.refresh_from_db()
         assert legacy.content_hash == queries.compute_content_hash(image_path=FIXTURE_IMAGE)
 
-    def test_exif_bridge_matches_a_moved_legacy_image_without_changing_its_path(self, tmp_path):
+    def test_exif_bridge_matches_a_moved_legacy_image_and_relocates_it(self, tmp_path):
         exif = FujifilmExifFactory(
             internal_serial_number=FIXTURE_SERIAL,
             image_count=FIXTURE_IMAGE_COUNT,
@@ -119,9 +119,9 @@ class TestProcessImageDeduplicates:
         assert result.pk == legacy.pk
         assert models.Image.objects.count() == 1
         legacy.refresh_from_db()
-        # The existing record's filepath is left untouched — the moved copy is
-        # not created as a duplicate, but it also does not relocate the record.
-        assert legacy.filepath == "/old/location/XS107114.JPG"
+        # The record follows its file: its old path no longer exists, so leaving
+        # it behind would strand the record where nothing can be served from.
+        assert legacy.filepath == new_path
         assert legacy.content_hash == queries.compute_content_hash(image_path=new_path)
 
     def test_exif_bridge_does_not_merge_an_original_with_its_edited_copy(self, tmp_path):
