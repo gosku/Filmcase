@@ -32,6 +32,7 @@ class PruneWarning:
     uncovered_found: int
     total: int
     reason: str
+    sample_paths: tuple[str, ...]
 
 
 @attrs.frozen
@@ -158,6 +159,7 @@ def _sync_inline(
                         uncovered_found=result.uncovered_found,
                         total=result.total,
                         reason=result.skipped_reason,
+                        sample_paths=result.sample_paths,
                     )
                 )
 
