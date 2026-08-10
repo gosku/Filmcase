@@ -12,8 +12,21 @@
     {% elif status.is_processing %}
       <span class="sync-status__label">Processing {{ status.handled }}/{{ status.total }}</span>
       <progress class="sync-status__bar" value="{{ status.percent }}" max="100"></progress>
+    {% elif status.is_pruning %}
+      <span class="sync-status__label">Removing missing images…</span>
     {% elif status.is_completed %}
-      <span class="sync-status__label sync-status__label--done">Imported {{ status.processed }}{% if status.skipped %}, skipped {{ status.skipped }}{% endif %}{% if status.errors %}, {{ status.errors }} error{{ status.errors|pluralize }}{% endif %}</span>
+      <span class="sync-status__label sync-status__label--done">Imported {{ status.processed }}{% if status.skipped %}, skipped {{ status.skipped }}{% endif %}{% if status.removed %}, removed {{ status.removed }}{% if status.uncovered_found %} ({{ status.uncovered_found }} no longer in this folder){% endif %}{% endif %}{% if status.errors %}, {{ status.errors }} error{{ status.errors|pluralize }}{% endif %}</span>
+      {% if status.prune_skipped_by_guard %}
+        <span
+          class="sync-status__label sync-status__label--warning"
+          title="More than half of this folder's images looked missing, which usually means a drive is not mounted rather than that the photos were deleted. Nothing was removed. Run 'sync_library --force-prune' to remove them anyway."
+        >Skipped removing {{ status.missing_found }} missing image{{ status.missing_found|pluralize }}</span>
+      {% endif %}
+    {% elif status.folder_is_missing %}
+      <span
+        class="sync-status__label sync-status__label--warning"
+        title="Reconnect the drive and sync again, or remove the folder from the library."
+      >Folder not found on disk. Nothing was removed from the gallery.</span>
     {% elif status.is_failed %}
       <span class="sync-status__label sync-status__label--error">Sync failed</span>
     {% elif status.is_interrupted %}

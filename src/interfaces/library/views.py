@@ -38,12 +38,18 @@ def _sync_status(run: models.SyncRun) -> library_dataclasses.SyncRunData:
         errors=run.errors,
         handled=handled,
         percent=percent,
+        removed=run.removed,
+        missing_found=run.missing_found,
+        uncovered_found=run.uncovered_found,
         is_active=run.state in models.SyncRun.ACTIVE_STATES,
         is_scanning=run.state == models.SyncRun.STATE_SCANNING,
         is_processing=run.state == models.SyncRun.STATE_PROCESSING,
+        is_pruning=run.state == models.SyncRun.STATE_PRUNING,
         is_completed=run.state == models.SyncRun.STATE_COMPLETED,
         is_failed=run.state == models.SyncRun.STATE_FAILED,
         is_interrupted=run.state == models.SyncRun.STATE_INTERRUPTED,
+        folder_is_missing=run.failure_reason == models.SyncRun.FAILED_FOLDER_MISSING,
+        prune_skipped_by_guard=run.prune_skipped == models.SyncRun.SKIPPED_GUARD,
     )
 
 
