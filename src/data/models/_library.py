@@ -8,6 +8,11 @@ _PATH_MAX_LEN = 1024
 
 class LibraryFolder(models.Model):
     path = models.CharField(max_length=_PATH_MAX_LEN)
+    # Where this folder pointed before its path last changed, empty once the sync
+    # has cleared up whatever the old path left behind. Narrowing a folder strands
+    # every image outside the new path: no folder covers them, so without this
+    # nothing could ever find them again.
+    previous_path = models.CharField(max_length=_PATH_MAX_LEN, blank=True, default="")
     created_at = models.DateTimeField(default=timezone.now)
     updated_at = models.DateTimeField(auto_now=True)
     last_processed_at = models.DateTimeField(null=True, blank=True)
@@ -32,6 +37,14 @@ class LibraryFolder(models.Model):
     def set_path(self, *, path: str) -> None:
         self.path = path
         self.save(update_fields=["path", "updated_at"])
+
+    def set_previous_path(self, *, path: str) -> None:
+        self.previous_path = path
+        self.save(update_fields=["previous_path", "updated_at"])
+
+    def clear_previous_path(self) -> None:
+        self.previous_path = ""
+        self.save(update_fields=["previous_path", "updated_at"])
 
     def set_last_processed_at(self, *, value: datetime) -> None:
         self.last_processed_at = value
