@@ -37,6 +37,7 @@ SKIP_REASON_INVALID_RECIPE_DATA = "invalid_recipe_data"
 # entry was removed; neither involves deleting the file from disk.
 REMOVE_REASON_FILE_MISSING = "file_missing"
 REMOVE_REASON_FOLDER_REMOVED = "folder_removed"
+REMOVE_REASON_NO_LONGER_IN_LIBRARY = "no_longer_in_library"
 
 
 def publish_event(*, event_type: str, **kwargs: object) -> None:

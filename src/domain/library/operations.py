@@ -10,7 +10,7 @@ from src.data import models
 from src.domain.images import events as image_events
 from src.domain.images import operations as image_operations
 from src.domain.images import queries as image_queries
-from src.domain.library import events
+from src.domain.library import events, queries
 from src.domain.library.queries import FolderNotFound, LibraryFolderNotFound
 
 # How many missing paths a prune reports back for a dry run, so the caller can
@@ -34,6 +34,21 @@ class SyncAlreadyInProgress(Exception):
     """
 
     folder_id: int
+
+
+@attrs.frozen
+class UncoveredResult:
+    """
+    Outcome of clearing up what a folder's previous path left behind.
+
+    ``skipped_reason`` is empty when the clean-up ran; otherwise it carries the
+    SyncRun.SKIPPED_* code explaining why nothing was removed.
+    """
+
+    uncovered_found: int
+    removed: int
+    total: int
+    skipped_reason: str
 
 
 @attrs.frozen
@@ -142,6 +157,102 @@ def update_library_folder_path(*, folder_id: int, path: str) -> models.LibraryFo
         path=folder.path,
     )
     return folder
+
+
+def remove_images_no_longer_covered(
+    *,
+    folder: models.LibraryFolder,
+    mode: str,
+) -> UncoveredResult:
+    """
+    Remove catalog entries the folder's previous path holds and no registered
+    folder covers any more.
+
+    Removes catalog entries only: no image file is ever deleted from disk.
+
+    Narrowing a folder, or repointing it somewhere unrelated, leaves whatever sat
+    outside the new path belonging to nothing. No folder's prune can see those
+    images, so without this they stay in the gallery for good, even once their
+    files are deleted.
+
+    Runs after a sync rather than when the path changes, because repointing a
+    folder that moved on disk relies on the sync recognising the files and
+    relocating their records. By the time this runs, anything that moved has
+    followed its file into the new path and is no longer a candidate.
+
+    The previous path is cleared only when the removal actually ran, so a guarded
+    or dry run is retried on the next sync rather than forgotten.
+    """
+    if not folder.previous_path:
+        return UncoveredResult(uncovered_found=0, removed=0, total=0, skipped_reason="")
+
+    if mode == models.SyncRun.PRUNE_MODE_OFF:
+        return UncoveredResult(
+            uncovered_found=0,
+            removed=0,
+            total=0,
+            skipped_reason=models.SyncRun.SKIPPED_OFF,
+        )
+
+    image_ids = queries.get_image_ids_no_longer_covered(folder_path=folder.previous_path)
+    total = len(image_queries.get_image_paths_under_folder(folder_path=folder.previous_path))
+
+    if mode == models.SyncRun.PRUNE_MODE_AUTO and prune_guard_trips(
+        missing=len(image_ids), total=total
+    ):
+        events.publish_event(
+            event_type=events.LIBRARY_UNCOVERED_IMAGES_SKIPPED,
+            folder_id=folder.pk,
+            previous_path=folder.previous_path,
+            uncovered_found=len(image_ids),
+            total=total,
+            reason=models.SyncRun.SKIPPED_GUARD,
+        )
+        return UncoveredResult(
+            uncovered_found=len(image_ids),
+            removed=0,
+            total=total,
+            skipped_reason=models.SyncRun.SKIPPED_GUARD,
+        )
+
+    if mode == models.SyncRun.PRUNE_MODE_DRY_RUN:
+        events.publish_event(
+            event_type=events.LIBRARY_UNCOVERED_IMAGES_SKIPPED,
+            folder_id=folder.pk,
+            previous_path=folder.previous_path,
+            uncovered_found=len(image_ids),
+            total=total,
+            reason=models.SyncRun.SKIPPED_DRY_RUN,
+        )
+        return UncoveredResult(
+            uncovered_found=len(image_ids),
+            removed=0,
+            total=total,
+            skipped_reason=models.SyncRun.SKIPPED_DRY_RUN,
+        )
+
+    removed = 0
+    for image in models.Image.objects.filter(pk__in=image_ids):
+        image_operations.remove_image(
+            image=image,
+            reason=image_events.REMOVE_REASON_NO_LONGER_IN_LIBRARY,
+        )
+        removed += 1
+
+    folder.clear_previous_path()
+
+    events.publish_event(
+        event_type=events.LIBRARY_UNCOVERED_IMAGES_REMOVED,
+        folder_id=folder.pk,
+        uncovered_found=len(image_ids),
+        removed=removed,
+    )
+    return UncoveredResult(
+        uncovered_found=len(image_ids),
+        removed=removed,
+        total=total,
+        skipped_reason="",
+    )
 
 
 def prune_guard_trips(*, missing: int, total: int) -> bool:

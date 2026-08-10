@@ -15,6 +15,8 @@ LIBRARY_SYNC_RUN_INTERRUPTED = "library.sync.run.interrupted"
 LIBRARY_SYNC_PRUNE_STARTED = "library.sync.prune.started"
 LIBRARY_SYNC_PRUNE_COMPLETED = "library.sync.prune.completed"
 LIBRARY_SYNC_PRUNE_SKIPPED = "library.sync.prune.skipped"
+LIBRARY_UNCOVERED_IMAGES_REMOVED = "library.images.uncovered.removed"
+LIBRARY_UNCOVERED_IMAGES_SKIPPED = "library.images.uncovered.skipped"
 
 
 def publish_event(*, event_type: str, **kwargs: object) -> None:
