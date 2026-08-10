@@ -103,7 +103,9 @@ def update_library_folder_path(*, folder_id: int, path: str) -> models.LibraryFo
     """
     Update the path of the library folder with *folder_id*.
 
-    Normalizes the new path before storing it.
+    Normalizes the new path before storing it, and remembers where the folder
+    pointed before, so the next sync can clear up whatever the old path holds and
+    no folder covers any more.
 
     :raises LibraryFolderNotFound: If no folder with *folder_id* exists.
     :raises FolderNotFound: If the normalized path does not exist on disk
@@ -120,11 +122,19 @@ def update_library_folder_path(*, folder_id: int, path: str) -> models.LibraryFo
     if not Path(normalized).is_dir():
         raise FolderNotFound(path=normalized)
 
+    old_path = folder.path
+
     try:
         with transaction.atomic():
             folder.set_path(path=normalized)
     except IntegrityError:
         raise FolderAlreadyInLibrary(path=normalized)
+
+    # Only when empty, so two changes before a sync keep the original territory:
+    # /photos -> /photos/2024 -> /photos/2024/january has to remember /photos,
+    # which is the widest and the one actually holding the stranded images.
+    if not folder.previous_path and old_path != normalized:
+        folder.set_previous_path(path=old_path)
 
     events.publish_event(
         event_type=events.LIBRARY_FOLDER_PATH_UPDATED,

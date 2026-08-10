@@ -95,6 +95,56 @@ class TestUpdateLibraryFolderPath:
         folder.refresh_from_db()
         assert folder.path == str(new_dir)
 
+    def test_remembers_where_the_folder_pointed_before(self, tmp_path):
+        old_dir = tmp_path / "photos"
+        new_dir = old_dir / "2024"
+        new_dir.mkdir(parents=True)
+        folder = LibraryFolderFactory(path=str(old_dir))
+
+        update_library_folder_path(folder_id=folder.pk, path=str(new_dir))
+
+        folder.refresh_from_db()
+        assert folder.previous_path == str(old_dir)
+
+    def test_a_second_change_keeps_the_original_territory(self, tmp_path):
+        # /photos -> /photos/2024 -> /photos/2024/january must still remember
+        # /photos, which is where the stranded images actually are.
+        original = tmp_path / "photos"
+        middle = original / "2024"
+        innermost = middle / "january"
+        innermost.mkdir(parents=True)
+        folder = LibraryFolderFactory(path=str(original))
+
+        update_library_folder_path(folder_id=folder.pk, path=str(middle))
+        update_library_folder_path(folder_id=folder.pk, path=str(innermost))
+
+        folder.refresh_from_db()
+        assert folder.previous_path == str(original)
+
+    def test_records_afresh_once_the_previous_path_has_been_cleared(self, tmp_path):
+        first = tmp_path / "a"
+        second = tmp_path / "b"
+        third = tmp_path / "c"
+        for d in (first, second, third):
+            d.mkdir()
+        folder = LibraryFolderFactory(path=str(first))
+
+        update_library_folder_path(folder_id=folder.pk, path=str(second))
+        folder.refresh_from_db()
+        folder.clear_previous_path()
+        update_library_folder_path(folder_id=folder.pk, path=str(third))
+
+        folder.refresh_from_db()
+        assert folder.previous_path == str(second)
+
+    def test_remembers_nothing_when_the_path_is_unchanged(self, tmp_path):
+        folder = LibraryFolderFactory(path=str(tmp_path))
+
+        update_library_folder_path(folder_id=folder.pk, path=str(tmp_path))
+
+        folder.refresh_from_db()
+        assert folder.previous_path == ""
+
     def test_publishes_folder_path_updated_event(self, tmp_path, captured_logs):
         old_dir = tmp_path / "old"
         new_dir = tmp_path / "new"
