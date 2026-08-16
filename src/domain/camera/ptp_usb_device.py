@@ -38,12 +38,6 @@ if TYPE_CHECKING:
     pass
 
 # ---------------------------------------------------------------------------
-# Fujifilm USB identity
-# ---------------------------------------------------------------------------
-
-_FUJIFILM_VENDOR_ID = 0x04CB   # all Fujifilm cameras share this vendor ID
-
-# ---------------------------------------------------------------------------
 # PTP/USB packet types (PIMA 15740:2000 §5.3.1)
 # ---------------------------------------------------------------------------
 
@@ -285,7 +279,7 @@ class PTPUSBDevice:
             ptp_device.CameraConnectionError: If no camera is found, USB access is
                                    denied, or the PTP session cannot be opened.
         """
-        self._dev = usb.core.find(idVendor=_FUJIFILM_VENDOR_ID)
+        self._dev = usb.core.find(idVendor=ptp_device.FUJIFILM_VENDOR_ID)
         if self._dev is None:
             raise ptp_device.CameraConnectionError(
                 "No Fujifilm camera found via USB.\n"

@@ -1,0 +1,32 @@
+# Reference for the photo directory mounts. `./setup.sh docker` writes a real override for
+# you from the directories you name, so copy this only if you would rather configure it by
+# hand:
+#
+#   cp docker-compose.override.yml.example docker-compose.override.yml
+#
+# Compose reads docker-compose.override.yml automatically on top of docker-compose.yml, and
+# it is gitignored, so your paths stay out of the repository.
+#
+# Mount each directory at the same path it has on the host. Filmcase stores absolute paths
+# in the database, so mounting /srv/photos at /srv/photos means the path you type on the
+# Library page is the path the container sees, and stored folders survive a move between a
+# Docker and a native install.
+#
+# Read-only is deliberate: Filmcase never writes to your originals.
+#
+# Both services need the same mounts. The worker does the importing, so a directory the web
+# service can see but the worker cannot would fail at sync time rather than when adding it.
+#
+# Named volumes from docker-compose.yml do not need repeating here: compose merges volumes
+# by target path rather than replacing the list.
+
+services:
+  web:
+    volumes:
+      - /srv/photos:/srv/photos:ro
+      # - /home/youruser/Pictures:/home/youruser/Pictures:ro
+
+  celery_worker:
+    volumes:
+      - /srv/photos:/srv/photos:ro
+      # - /home/youruser/Pictures:/home/youruser/Pictures:ro

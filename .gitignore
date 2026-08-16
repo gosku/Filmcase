@@ -21,6 +21,10 @@ db.sqlite3
 db.sqlite3-journal
 src/config/env
 
+# Docker Compose reads this for the signing key, database password and host address.
+# .env.example is the tracked template.
+.env
+
 # Logs
 logs/
 
@@ -53,3 +57,6 @@ recipe_cards/
 
 # Investigation notes
 investigation/
+
+# Local compose overrides (photo directory paths). The .example file is tracked.
+docker-compose.override.yml

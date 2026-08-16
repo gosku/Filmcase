@@ -1,3 +1,4 @@
+import attrs
 import structlog
 
 from django import http
@@ -102,3 +103,34 @@ class PushRecipeToCamera(generic.View):
         if is_htmx:
             return shortcuts.render(request, "recipes/_push_result_partial.html", {"success": True, "message": f"Recipe saved to {slot}"})
         return http.JsonResponse({"message": f"Recipe saved in {slot}"})
+
+
+@attrs.frozen
+class _DiagnosticsContext:
+    vendor_id: int
+    vendor_id_label: str
+
+    @classmethod
+    def build(cls) -> "_DiagnosticsContext":
+        return cls(
+            vendor_id=ptp_device.FUJIFILM_VENDOR_ID,
+            vendor_id_label=f"0x{ptp_device.FUJIFILM_VENDOR_ID:04X}",
+        )
+
+
+class CameraDiagnostics(generic.View):
+    """
+    Report whether this browser can reach a camera over WebUSB from this origin.
+
+    Every check runs in the browser, because the answer depends on where the page was
+    loaded from rather than on anything the server can determine: WebUSB is gated on a
+    secure context, so it is available over HTTPS and on localhost, and absent over plain
+    HTTP to a LAN address no matter which machine the camera is plugged into.
+    """
+
+    def get(self, request: http.HttpRequest) -> http.HttpResponse:
+        return shortcuts.render(
+            request,
+            "camera/diagnostics.html",
+            {"diagnostics": _DiagnosticsContext.build(), "active_section": "camera"},
+        )

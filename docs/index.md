@@ -4,6 +4,7 @@
 
 - [Web Interface](web_interface.md) — library folder management, image gallery, image detail, recipe explorer, recipe detail, and recipe graphs
 - [Management Commands](management_commands.md) — syncing the library, importing images, bulk rating, thumbnails, camera inspection, recipe comparison
+- [Running in Docker](docker.md) — the containerised full stack, HTTPS with a self-signed certificate, mounting photo directories, and what camera access can and cannot do in a container
 
 ## Reference
 
