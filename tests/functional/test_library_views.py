@@ -5,7 +5,7 @@ from bs4 import BeautifulSoup
 
 from src.application.usecases.library.trigger_folder_sync import CeleryWorkerUnavailable
 from src.data import models
-from tests.factories import LibraryFolderFactory
+from tests.factories import IgnoredImageFactory, ImageFactory, LibraryFolderFactory
 
 TRIGGER = "src.interfaces.library.views.trigger_folder_sync_uc.trigger_folder_sync"
 
@@ -127,6 +127,66 @@ class TestLibraryFolderRemove:
     def test_returns_404_for_unknown_folder_id(self, client):
         response = client.post("/library/99999/delete/")
         assert response.status_code == 404
+
+    def test_keeps_the_images_by_default(self, client):
+        folder = LibraryFolderFactory(path="/photos")
+        image = ImageFactory(filepath="/photos/DSCF0001.JPG")
+
+        client.post(f"/library/{folder.pk}/delete/")
+
+        assert models.Image.objects.filter(pk=image.pk).exists()
+
+    def test_removes_the_images_when_asked_to(self, client):
+        folder = LibraryFolderFactory(path="/photos")
+        image = ImageFactory(filepath="/photos/DSCF0001.JPG")
+
+        client.post(f"/library/{folder.pk}/delete/", {"delete_images": "on"})
+
+        assert not models.Image.objects.filter(pk=image.pk).exists()
+
+
+@pytest.mark.django_db
+class TestLibraryFolderRemoveConfirm:
+    def test_shows_how_many_images_would_leave_the_gallery(self, client):
+        folder = LibraryFolderFactory(path="/photos")
+        ImageFactory(filepath="/photos/DSCF0001.JPG")
+        ImageFactory(filepath="/photos/2024/DSCF0002.JPG")
+
+        response = client.get(f"/library/{folder.pk}/confirm-delete/")
+
+        content = response.content.decode()
+        assert response.status_code == 200
+        assert "2" in content
+        assert "Remove folder and its 2 images from the gallery" in content
+
+    def test_says_the_files_stay_on_disk(self, client):
+        folder = LibraryFolderFactory(path="/photos")
+        ImageFactory(filepath="/photos/DSCF0001.JPG")
+
+        response = client.get(f"/library/{folder.pk}/confirm-delete/")
+
+        assert "Your photo files are never deleted" in response.content.decode()
+
+    def test_offers_only_the_folder_when_nothing_would_leave_the_gallery(self, client):
+        folder = LibraryFolderFactory(path="/photos")
+
+        response = client.get(f"/library/{folder.pk}/confirm-delete/")
+
+        content = response.content.decode()
+        assert "No image in the gallery comes only from this folder" in content
+        assert "delete_images" not in content
+
+    def test_reports_nothing_removable_for_a_folder_nested_in_another(self, client):
+        LibraryFolderFactory(path="/photos")
+        inner = LibraryFolderFactory(path="/photos/2024")
+        ImageFactory(filepath="/photos/2024/DSCF0001.JPG")
+
+        response = client.get(f"/library/{inner.pk}/confirm-delete/")
+
+        assert "No image in the gallery comes only from this folder" in response.content.decode()
+
+    def test_returns_404_for_unknown_folder_id(self, client):
+        assert client.get("/library/99999/confirm-delete/").status_code == 404
 
 
 @pytest.mark.django_db
@@ -258,3 +318,38 @@ class TestFilesystemBrowser:
         response = client.get(f"/library/browse/partial/?path={tmp_path}&folder_id=not-an-int")
 
         assert response.status_code == 400
+
+
+@pytest.mark.django_db
+class TestLibraryPageIgnoredCount:
+    def test_links_to_the_ignored_page_with_the_count(self, client):
+        folder = LibraryFolderFactory(path="/photos")
+        IgnoredImageFactory(folder=folder, filepath="/photos/a.jpg")
+        IgnoredImageFactory(folder=folder, filepath="/photos/b.jpg")
+
+        response = client.get("/library/")
+
+        content = response.content.decode()
+        assert "2 ignored" in content
+        assert f"/library/{folder.pk}/ignored/" in content
+
+    def test_shows_none_without_a_link_when_nothing_is_ignored(self, client):
+        folder = LibraryFolderFactory(path="/photos")
+
+        response = client.get("/library/")
+
+        content = response.content.decode()
+        assert f"/library/{folder.pk}/ignored/" not in content
+        assert "None" in content
+
+    def test_counts_each_folder_separately(self, client):
+        first = LibraryFolderFactory(path="/photos")
+        second = LibraryFolderFactory(path="/scans")
+        IgnoredImageFactory(folder=first, filepath="/photos/a.jpg")
+        IgnoredImageFactory(folder=second, filepath="/scans/a.jpg")
+        IgnoredImageFactory(folder=second, filepath="/scans/b.jpg")
+
+        content = client.get("/library/").content.decode()
+
+        assert "1 ignored" in content
+        assert "2 ignored" in content

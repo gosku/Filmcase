@@ -134,6 +134,22 @@
 
     .btn-remove:hover { background: #fef2f2; }
 
+    /* Sync status */
+    .sync-status__label--done { color: #16a34a; }
+    .sync-status__label--error { color: #dc2626; }
+
+    /* A folder missing from disk, or a prune the guard stopped, needs to stand
+       out without reading as a failure: nothing is broken and nothing was lost. */
+    .sync-status__label--warning {
+      display: inline-block;
+      color: #92400e;
+      background: #fef3c7;
+      border: 1px solid #fcd34d;
+      border-radius: 4px;
+      padding: 0.1rem 0.4rem;
+      cursor: help;
+    }
+
     /* Browser modal */
     .browser-overlay {
       position: fixed;
@@ -212,6 +228,7 @@
           <th>Path</th>
           <th>Last Synced</th>
           <th>Last Checked</th>
+          <th>Ignored</th>
           <th>Sync</th>
           <th></th>
         </tr>
@@ -248,6 +265,13 @@
 
   function closeBrowserModal() {
     document.getElementById('browser-modal').hidden = true;
+  }
+
+  // Reuses the same modal shell as the folder browser: the confirmation is just
+  // another partial rendered into it.
+  function openRemoveFolderModal(url) {
+    htmx.ajax('GET', url, {target: '#browser-modal-content'});
+    document.getElementById('browser-modal').hidden = false;
   }
 
   document.getElementById('browser-modal').addEventListener('click', function (e) {

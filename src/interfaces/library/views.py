@@ -1,28 +1,43 @@
+import os
+
 from django import http, shortcuts, urls
+from django.conf import settings
+from django.core import paginator as django_paginator
 from django.views import generic
 
 from src.application.usecases.library import add_library_folder as add_library_folder_uc
 from src.application.usecases.library import browse_filesystem as browse_filesystem_uc
 from src.application.usecases.library import dataclasses as library_dataclasses
+from src.application.usecases.library import get_folder_removal_preview as get_folder_removal_preview_uc
 from src.application.usecases.library import remove_library_folder as remove_library_folder_uc
+from src.application.usecases.library import retry_ignored_images as retry_ignored_images_uc
 from src.application.usecases.library import trigger_folder_sync as trigger_folder_sync_uc
 from src.application.usecases.library import update_library_folder_path as update_library_folder_path_uc
 from src.data import models
 from src.domain.library import queries as domain_queries
 
 
-def _folder_data(folder: models.LibraryFolder) -> library_dataclasses.LibraryFolderData:
+def _folder_data(
+    folder: models.LibraryFolder,
+    ignored_count: int = 0,
+) -> library_dataclasses.LibraryFolderData:
     return library_dataclasses.LibraryFolderData(
         folder_id=folder.pk,
         path=folder.path,
         created_at=folder.created_at,
         last_processed_at=folder.last_processed_at,
         last_checked_at=folder.last_checked_at,
+        ignored_count=ignored_count,
     )
 
 
 def _list_all_folders() -> list[library_dataclasses.LibraryFolderData]:
-    return [_folder_data(f) for f in domain_queries.get_all_library_folders()]
+    # One aggregate for every folder, rather than a count query per row.
+    counts = domain_queries.get_ignored_counts_by_folder()
+    return [
+        _folder_data(folder, ignored_count=counts.get(folder.pk, 0))
+        for folder in domain_queries.get_all_library_folders()
+    ]
 
 
 def _sync_status(run: models.SyncRun) -> library_dataclasses.SyncRunData:
@@ -37,12 +52,18 @@ def _sync_status(run: models.SyncRun) -> library_dataclasses.SyncRunData:
         errors=run.errors,
         handled=handled,
         percent=percent,
+        removed=run.removed,
+        missing_found=run.missing_found,
+        uncovered_found=run.uncovered_found,
         is_active=run.state in models.SyncRun.ACTIVE_STATES,
         is_scanning=run.state == models.SyncRun.STATE_SCANNING,
         is_processing=run.state == models.SyncRun.STATE_PROCESSING,
+        is_pruning=run.state == models.SyncRun.STATE_PRUNING,
         is_completed=run.state == models.SyncRun.STATE_COMPLETED,
         is_failed=run.state == models.SyncRun.STATE_FAILED,
         is_interrupted=run.state == models.SyncRun.STATE_INTERRUPTED,
+        folder_is_missing=run.failure_reason == models.SyncRun.FAILED_FOLDER_MISSING,
+        prune_skipped_by_guard=run.prune_skipped == models.SyncRun.SKIPPED_GUARD,
     )
 
 
@@ -83,15 +104,35 @@ class LibraryFolderAdd(generic.View):
         return shortcuts.redirect(urls.reverse("library-list"))
 
 
+class LibraryFolderRemoveConfirm(generic.View):
+    """Show what removing a folder would cost before anything happens.
+
+    :raises Http404: if no folder with the given ID exists.
+    """
+
+    def get(self, request: http.HttpRequest, folder_id: int) -> http.HttpResponse:
+        try:
+            preview = get_folder_removal_preview_uc.get_folder_removal_preview(folder_id=folder_id)
+        except get_folder_removal_preview_uc.LibraryFolderNotFound:
+            raise http.Http404
+        return shortcuts.render(request, "library/partials/remove_folder_confirm.html", {
+            "preview": preview,
+        })
+
+
 class LibraryFolderRemove(generic.View):
-    """Remove a folder from the image library.
+    """Remove a folder from the image library, optionally with its images.
 
     :raises Http404: if no folder with the given ID exists.
     """
 
     def post(self, request: http.HttpRequest, folder_id: int) -> http.HttpResponse:
+        delete_images = request.POST.get("delete_images") == "on"
         try:
-            remove_library_folder_uc.remove_library_folder(folder_id=folder_id)
+            remove_library_folder_uc.remove_library_folder(
+                folder_id=folder_id,
+                delete_images=delete_images,
+            )
         except remove_library_folder_uc.LibraryFolderNotFound:
             raise http.Http404
         return shortcuts.redirect(urls.reverse("library-list"))
@@ -177,3 +218,98 @@ class FilesystemBrowser(generic.View):
             "action_url": action_url,
             "folder_id": folder_id,
         })
+
+
+_IGNORED_REASON_LABELS = {
+    models.IgnoredImage.REASON_NO_FILM_SIMULATION: "Not a Fujifilm photo",
+    models.IgnoredImage.REASON_INVALID_RECIPE_DATA: "Recipe could not be read",
+    models.IgnoredImage.REASON_ERROR: "Failed with an error",
+}
+# Only an error is worth retrying by hand. The other two are verdicts on the
+# file's own contents, so an unchanged file gets the same verdict again.
+_RETRY_CHANGES_SOMETHING = {models.IgnoredImage.REASON_ERROR}
+
+
+def _ignored_image_data(ignored: models.IgnoredImage) -> library_dataclasses.IgnoredImageData:
+    return library_dataclasses.IgnoredImageData(
+        ignored_id=ignored.pk,
+        filepath=ignored.filepath,
+        filename=os.path.basename(ignored.filepath),
+        reason_label=_IGNORED_REASON_LABELS.get(ignored.reason, ignored.reason),
+        detail=ignored.detail,
+        created_at=ignored.created_at,
+        retry_is_a_no_op_until_the_file_changes=ignored.reason not in _RETRY_CHANGES_SOMETHING,
+    )
+
+
+def _reason_filters(*, counts: dict[str, int], active: str | None) -> list[library_dataclasses.IgnoredReasonFilter]:
+    return [
+        library_dataclasses.IgnoredReasonFilter(
+            code=code,
+            label=label,
+            count=counts.get(code, 0),
+            is_active=active == code,
+        )
+        for code, label in _IGNORED_REASON_LABELS.items()
+        if counts.get(code, 0)
+    ]
+
+
+class LibraryFolderIgnoredImages(generic.View):
+    """List the files this folder's syncs could not import.
+
+    :raises Http404: if no folder with the given ID exists.
+    """
+
+    def get(self, request: http.HttpRequest, folder_id: int) -> http.HttpResponse:
+        try:
+            folder = domain_queries.get_library_folder(folder_id=folder_id)
+        except domain_queries.LibraryFolderNotFound:
+            raise http.Http404
+
+        reason = request.GET.get("reason") or None
+        ignored = domain_queries.get_ignored_images(folder_id=folder_id, reason=reason)
+        counts = domain_queries.count_ignored_images_by_reason(folder_id=folder_id)
+        page_obj = django_paginator.Paginator(ignored, settings.GALLERY_PAGE_SIZE).get_page(
+            request.GET.get("page", 1)
+        )
+
+        return shortcuts.render(request, "library/ignored_images.html", {
+            "folder": _folder_data(folder),
+            "ignored_images": [_ignored_image_data(i) for i in page_obj],
+            "page_obj": page_obj,
+            "reason_filters": _reason_filters(counts=counts, active=reason),
+            "active_reason": reason,
+            "total": sum(counts.values()),
+            "error_count": counts.get(models.IgnoredImage.REASON_ERROR, 0),
+            "error_reason_code": models.IgnoredImage.REASON_ERROR,
+        })
+
+
+class LibraryIgnoredImageRetry(generic.View):
+    """Forget one ignored file so the next sync examines it again.
+
+    :raises Http404: if no ignored-image record with the given ID exists.
+    """
+
+    def post(self, request: http.HttpRequest, ignored_id: int) -> http.HttpResponse:
+        try:
+            retry_ignored_images_uc.retry_ignored_image(ignored_id=ignored_id)
+        except retry_ignored_images_uc.IgnoredImageNotFound:
+            raise http.Http404
+        return shortcuts.redirect(request.POST.get("next") or urls.reverse("library-list"))
+
+
+class LibraryFolderIgnoredImagesRetry(generic.View):
+    """Forget what a folder has ignored, optionally only one reason.
+
+    :raises Http404: if no folder with the given ID exists.
+    """
+
+    def post(self, request: http.HttpRequest, folder_id: int) -> http.HttpResponse:
+        reason = request.POST.get("reason") or None
+        try:
+            retry_ignored_images_uc.retry_ignored_images(folder_id=folder_id, reason=reason)
+        except retry_ignored_images_uc.LibraryFolderNotFound:
+            raise http.Http404
+        return shortcuts.redirect(urls.reverse("library-folder-ignored", args=[folder_id]))

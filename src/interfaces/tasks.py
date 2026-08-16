@@ -4,6 +4,7 @@ from typing import Any
 from celery import shared_task
 from django.conf import settings
 
+from src.application.usecases.library.finalize_sync_run import finalize_sync_run_by_id
 from src.application.usecases.library.process_synced_image import process_synced_image
 from src.domain.images import events, operations
 from src.domain.images.thumbnails import operations as thumbnail_operations
@@ -46,14 +47,45 @@ def process_image_task(self: Any, /, *, image_path: str, **kwargs: object) -> st
     return f"Processed {recipe.filename}"
 
 
-@shared_task(name="library.sync_process_image", bind=True, queue=settings.PROCESS_IMAGE_QUEUE)
-def sync_process_image_task(self: Any, /, *, image_path: str, sync_run_id: int, **kwargs: object) -> str:
+@shared_task(name="library.sync_process_image_batch", bind=True, queue=settings.PROCESS_IMAGE_QUEUE)
+def sync_process_image_batch_task(
+    self: Any,
+    /,
+    *,
+    image_paths: list[str],
+    sync_run_id: int,
+    **kwargs: object,
+) -> str:
     """
-    Celery task that processes a single image for a library sync run and reports
-    progress against the run.
+    Celery task that processes a batch of images for a library sync run and
+    reports progress against the run.
+
+    A batch rather than a single image because dispatch is synchronous: the
+    command that starts a sync cannot return until every message is published, so
+    one message per file makes a large import block startup for as long as it
+    takes to publish them all.
+
+    Each image is still handled one at a time and accounted for individually, so
+    progress, ignore records and run completion behave exactly as they would have
+    per message.
     """
-    process_synced_image(image_path=image_path, sync_run_id=sync_run_id)
-    return f"Processed {image_path} for sync run {sync_run_id}"
+    for image_path in image_paths:
+        process_synced_image(image_path=image_path, sync_run_id=sync_run_id)
+    return f"Processed {len(image_paths)} image(s) for sync run {sync_run_id}"
+
+
+@shared_task(name="library.finalize_sync_run", bind=True, queue=settings.PROCESS_IMAGE_QUEUE)
+def finalize_sync_run_task(self: Any, /, *, sync_run_id: int, **kwargs: object) -> str:
+    """
+    Celery task that finishes a sync run that had no images to process.
+
+    A run with images is finished by whichever of them is handled last, so this
+    exists for the case with none: photos were only deleted. Without it that work
+    would run wherever the sync was started, which for a startup sync means
+    walking the whole tree again before the server is reachable.
+    """
+    finalize_sync_run_by_id(sync_run_id=sync_run_id)
+    return f"Finalized sync run {sync_run_id}"
 
 
 @shared_task(name="domain.generate_thumbnail", bind=True, queue=settings.PROCESS_IMAGE_QUEUE)

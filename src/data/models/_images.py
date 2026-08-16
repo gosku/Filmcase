@@ -196,6 +196,11 @@ class Image(models.Model):
         self.content_hash = content_hash
         self.save(update_fields=["content_hash"])
 
+    def set_location(self, *, filepath: str, filename: str) -> None:
+        self.filepath = filepath
+        self.filename = filename
+        self.save(update_fields=["filepath", "filename"])
+
     def set_as_favorite(self) -> None:
         self.is_favorite = True
         self.save(update_fields=["is_favorite"])

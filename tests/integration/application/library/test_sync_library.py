@@ -32,6 +32,9 @@ class TestSyncLibraryEmptyLibrary:
             new_files_found=0,
             skipped_non_fujifilm=0,
             missing_folders=(),
+            images_removed=0,
+            images_uncovered=0,
+            prune_warnings=(),
         )
 
 

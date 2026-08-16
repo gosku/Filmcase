@@ -1,5 +1,6 @@
 from pathlib import Path
 
+from django import conf
 from PIL import Image as PILImage
 
 from src.domain.images.thumbnails import queries as thumbnail_queries
@@ -16,6 +17,28 @@ _ORIENTATION_TO_TRANSPOSE = {
     7: PILImage.Transpose.TRANSVERSE,
     8: PILImage.Transpose.ROTATE_90,
 }
+
+
+def delete_cached_thumbnails(*, original_path: Path) -> int:
+    """
+    Remove every cached thumbnail generated for *original_path*.
+
+    Cache keys are derived from the image path, so a path that is later reused by
+    a different file would otherwise be served the previous image's thumbnail.
+    Fujifilm filenames wrap around, which makes that a real possibility.
+
+    Returns how many cache files were removed. A cache file that was never
+    generated, or that another process removed first, is not an error.
+    """
+    removed = 0
+    for width in conf.settings.THUMBNAIL_WIDTHS:
+        cache_path = thumbnail_queries.thumbnail_cache_path(original_path=original_path, width=width)
+        try:
+            cache_path.unlink()
+        except OSError:
+            continue
+        removed += 1
+    return removed
 
 
 def generate_thumbnail(*, original_path: Path, width: int) -> Path:

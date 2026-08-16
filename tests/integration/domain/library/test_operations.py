@@ -1,5 +1,4 @@
 import pytest
-from django.utils import timezone
 
 from src.data import models
 from src.domain.library import events
@@ -7,6 +6,7 @@ from src.domain.library.operations import (
     FolderAlreadyInLibrary,
     SyncAlreadyInProgress,
     add_library_folder,
+    begin_pruning,
     complete_sync_run,
     fail_sync_run,
     interrupt_active_sync_runs,
@@ -15,7 +15,7 @@ from src.domain.library.operations import (
     update_library_folder_path,
 )
 from src.domain.library.queries import FolderNotFound, LibraryFolderNotFound
-from tests.factories import LibraryFolderFactory, SyncRunFactory
+from tests.factories import ImageFactory, LibraryFolderFactory, SyncRunFactory
 
 
 @pytest.mark.django_db
@@ -62,12 +62,12 @@ class TestAddLibraryFolder:
 class TestRemoveLibraryFolder:
     def test_deletes_library_folder_row(self, tmp_path):
         folder = LibraryFolderFactory(path=str(tmp_path))
-        remove_library_folder(folder_id=folder.pk)
+        remove_library_folder(folder_id=folder.pk, delete_images=False)
         assert not models.LibraryFolder.objects.filter(pk=folder.pk).exists()
 
     def test_publishes_folder_removed_event(self, tmp_path, captured_logs):
         folder = LibraryFolderFactory(path=str(tmp_path))
-        remove_library_folder(folder_id=folder.pk)
+        remove_library_folder(folder_id=folder.pk, delete_images=False)
 
         matching = [e for e in captured_logs if e.get("event_type") == events.LIBRARY_FOLDER_REMOVED]
         assert len(matching) == 1
@@ -76,8 +76,70 @@ class TestRemoveLibraryFolder:
 
     def test_raises_library_folder_not_found_for_unknown_id(self):
         with pytest.raises(LibraryFolderNotFound) as exc_info:
-            remove_library_folder(folder_id=99999)
+            remove_library_folder(folder_id=99999, delete_images=False)
         assert exc_info.value.folder_id == 99999
+
+    def test_keeps_the_images_when_only_the_folder_is_removed(self, tmp_path):
+        folder = LibraryFolderFactory(path=str(tmp_path))
+        image = ImageFactory(filepath=str(tmp_path / "DSCF0001.JPG"))
+
+        removed = remove_library_folder(folder_id=folder.pk, delete_images=False)
+
+        assert removed == 0
+        assert models.Image.objects.filter(pk=image.pk).exists()
+
+    def test_removes_the_images_when_asked_to(self, tmp_path):
+        folder = LibraryFolderFactory(path=str(tmp_path))
+        image = ImageFactory(filepath=str(tmp_path / "DSCF0001.JPG"))
+
+        removed = remove_library_folder(folder_id=folder.pk, delete_images=True)
+
+        assert removed == 1
+        assert not models.Image.objects.filter(pk=image.pk).exists()
+
+    def test_never_deletes_the_image_files(self, tmp_path):
+        folder = LibraryFolderFactory(path=str(tmp_path))
+        photo = tmp_path / "DSCF0001.JPG"
+        photo.write_bytes(b"\xff\xd8")
+        ImageFactory(filepath=str(photo))
+
+        remove_library_folder(folder_id=folder.pk, delete_images=True)
+
+        assert photo.exists()
+
+    def test_keeps_images_a_second_registered_folder_still_covers(self, tmp_path):
+        outer = LibraryFolderFactory(path=str(tmp_path))
+        inner_dir = tmp_path / "2024"
+        LibraryFolderFactory(path=str(inner_dir))
+        shared = ImageFactory(filepath=str(inner_dir / "DSCF0001.JPG"))
+        only_outer = ImageFactory(filepath=str(tmp_path / "DSCF0002.JPG"))
+
+        removed = remove_library_folder(folder_id=outer.pk, delete_images=True)
+
+        assert removed == 1
+        assert models.Image.objects.filter(pk=shared.pk).exists()
+        assert not models.Image.objects.filter(pk=only_outer.pk).exists()
+
+    def test_publishes_folder_images_removed_when_images_go(self, tmp_path, captured_logs):
+        folder = LibraryFolderFactory(path=str(tmp_path))
+        ImageFactory(filepath=str(tmp_path / "DSCF0001.JPG"))
+
+        remove_library_folder(folder_id=folder.pk, delete_images=True)
+
+        matching = [
+            e for e in captured_logs if e.get("event_type") == events.LIBRARY_FOLDER_IMAGES_REMOVED
+        ]
+        assert len(matching) == 1
+        assert matching[0]["removed"] == 1
+
+    def test_publishes_no_images_removed_event_when_none_go(self, tmp_path, captured_logs):
+        folder = LibraryFolderFactory(path=str(tmp_path))
+
+        remove_library_folder(folder_id=folder.pk, delete_images=True)
+
+        assert [
+            e for e in captured_logs if e.get("event_type") == events.LIBRARY_FOLDER_IMAGES_REMOVED
+        ] == []
 
 
 @pytest.mark.django_db
@@ -95,17 +157,55 @@ class TestUpdateLibraryFolderPath:
         folder.refresh_from_db()
         assert folder.path == str(new_dir)
 
-    def test_resets_last_checked_at_so_new_tree_is_fully_rescanned(self, tmp_path):
-        old_dir = tmp_path / "old"
-        new_dir = tmp_path / "new"
-        old_dir.mkdir()
-        new_dir.mkdir()
+    def test_remembers_where_the_folder_pointed_before(self, tmp_path):
+        old_dir = tmp_path / "photos"
+        new_dir = old_dir / "2024"
+        new_dir.mkdir(parents=True)
+        folder = LibraryFolderFactory(path=str(old_dir))
 
-        folder = LibraryFolderFactory(path=str(old_dir), last_checked_at=timezone.now())
         update_library_folder_path(folder_id=folder.pk, path=str(new_dir))
 
         folder.refresh_from_db()
-        assert folder.last_checked_at is None
+        assert folder.previous_path == str(old_dir)
+
+    def test_a_second_change_keeps_the_original_territory(self, tmp_path):
+        # /photos -> /photos/2024 -> /photos/2024/january must still remember
+        # /photos, which is where the stranded images actually are.
+        original = tmp_path / "photos"
+        middle = original / "2024"
+        innermost = middle / "january"
+        innermost.mkdir(parents=True)
+        folder = LibraryFolderFactory(path=str(original))
+
+        update_library_folder_path(folder_id=folder.pk, path=str(middle))
+        update_library_folder_path(folder_id=folder.pk, path=str(innermost))
+
+        folder.refresh_from_db()
+        assert folder.previous_path == str(original)
+
+    def test_records_afresh_once_the_previous_path_has_been_cleared(self, tmp_path):
+        first = tmp_path / "a"
+        second = tmp_path / "b"
+        third = tmp_path / "c"
+        for d in (first, second, third):
+            d.mkdir()
+        folder = LibraryFolderFactory(path=str(first))
+
+        update_library_folder_path(folder_id=folder.pk, path=str(second))
+        folder.refresh_from_db()
+        folder.clear_previous_path()
+        update_library_folder_path(folder_id=folder.pk, path=str(third))
+
+        folder.refresh_from_db()
+        assert folder.previous_path == str(second)
+
+    def test_remembers_nothing_when_the_path_is_unchanged(self, tmp_path):
+        folder = LibraryFolderFactory(path=str(tmp_path))
+
+        update_library_folder_path(folder_id=folder.pk, path=str(tmp_path))
+
+        folder.refresh_from_db()
+        assert folder.previous_path == ""
 
     def test_publishes_folder_path_updated_event(self, tmp_path, captured_logs):
         old_dir = tmp_path / "old"
@@ -216,23 +316,79 @@ class TestCompleteSyncRun:
         matching = [e for e in captured_logs if e.get("event_type") == events.LIBRARY_SYNC_RUN_COMPLETED]
         assert matching == []
 
+    def test_transitions_a_pruning_run_to_completed(self):
+        run = SyncRunFactory(state=models.SyncRun.STATE_PRUNING, total=1)
+
+        assert complete_sync_run(run=run) is True
+
+        run.refresh_from_db()
+        assert run.state == models.SyncRun.STATE_COMPLETED
+
+
+@pytest.mark.django_db
+class TestBeginPruning:
+    def test_transitions_a_processing_run_to_pruning(self):
+        run = SyncRunFactory(state=models.SyncRun.STATE_PROCESSING, total=1)
+
+        assert begin_pruning(run=run) is True
+
+        run.refresh_from_db()
+        assert run.state == models.SyncRun.STATE_PRUNING
+        assert run.finished_at is None
+
+    def test_leaves_the_folder_locked_against_a_second_sync_while_pruning(self):
+        run = SyncRunFactory(state=models.SyncRun.STATE_PROCESSING, total=1)
+
+        begin_pruning(run=run)
+
+        run.refresh_from_db()
+        assert run.state in models.SyncRun.ACTIVE_STATES
+
+    def test_only_the_first_caller_wins(self):
+        run = SyncRunFactory(state=models.SyncRun.STATE_PROCESSING, total=1)
+        contender = models.SyncRun.objects.get(pk=run.pk)
+
+        assert begin_pruning(run=run) is True
+        assert begin_pruning(run=contender) is False
+
+    def test_does_not_start_from_a_failed_run(self):
+        run = SyncRunFactory(state=models.SyncRun.STATE_FAILED, total=1)
+
+        assert begin_pruning(run=run) is False
+
+    def test_publishes_prune_started_only_for_the_winner(self, captured_logs):
+        run = SyncRunFactory(state=models.SyncRun.STATE_PROCESSING, total=1)
+        contender = models.SyncRun.objects.get(pk=run.pk)
+
+        begin_pruning(run=run)
+        begin_pruning(run=contender)
+
+        matching = [e for e in captured_logs if e.get("event_type") == events.LIBRARY_SYNC_PRUNE_STARTED]
+        assert len(matching) == 1
+        assert matching[0]["run_id"] == run.pk
+
 
 @pytest.mark.django_db
 class TestFailSyncRun:
     def test_marks_run_failed_with_message(self):
         run = SyncRunFactory(state=models.SyncRun.STATE_SCANNING)
 
-        fail_sync_run(run=run, message="folder no longer exists")
+        fail_sync_run(
+            run=run,
+            reason=models.SyncRun.FAILED_FOLDER_MISSING,
+            message="folder no longer exists",
+        )
 
         run.refresh_from_db()
         assert run.state == models.SyncRun.STATE_FAILED
+        assert run.failure_reason == models.SyncRun.FAILED_FOLDER_MISSING
         assert run.error_message == "folder no longer exists"
         assert run.finished_at is not None
 
     def test_publishes_sync_run_failed_event(self, captured_logs):
         run = SyncRunFactory(state=models.SyncRun.STATE_SCANNING)
 
-        fail_sync_run(run=run, message="boom")
+        fail_sync_run(run=run, reason=models.SyncRun.FAILED_FOLDER_MISSING, message="boom")
 
         matching = [e for e in captured_logs if e.get("event_type") == events.LIBRARY_SYNC_RUN_FAILED]
         assert len(matching) == 1

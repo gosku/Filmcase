@@ -1,3 +1,4 @@
+from ._ignored_image import IgnoredImage
 from ._images import FujifilmExif, Image, ImageQuerySet
 from ._library import LibraryFolder
 from ._recipes import (
@@ -14,6 +15,7 @@ __all__ = [
     "RECIPE_FIELDS",
     "FujifilmExif",
     "FujifilmRecipe",
+    "IgnoredImage",
     "Image",
     "ImageQuerySet",
     "LibraryFolder",

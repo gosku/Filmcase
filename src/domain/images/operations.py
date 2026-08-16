@@ -1,5 +1,6 @@
 import os
 from collections.abc import Sequence
+from pathlib import Path
 
 import attrs
 from django import conf
@@ -8,6 +9,7 @@ from django.db import transaction
 from src.data import models
 from src.domain.images import events, queries
 from src.domain.images.queries import NoFilmSimulationError as NoFilmSimulationError
+from src.domain.images.thumbnails import operations as thumbnail_operations
 from src.domain.recipes import operations as recipe_operations
 
 
@@ -110,6 +112,77 @@ def toggle_image_favorite(*, image_id: int) -> bool:
     return image.is_favorite
 
 
+def relocate_image(*, image: models.Image, new_path: str) -> bool:
+    """
+    Point *image* at *new_path* when the file it recorded has disappeared.
+
+    An import that matches an existing record by content hash is either a move or
+    a copy, and the two are told apart by the old file: if it is gone, the same
+    bytes have simply been renamed or moved and the record must follow so that
+    its rating, favourite flag and album membership survive. If the old file is
+    still there, this is a second copy of the same photo and the record is left
+    where it is.
+
+    Never touches either file on disk. Returns True if the record was moved.
+    """
+    if new_path == image.filepath:
+        return False
+    if os.path.lexists(image.filepath):
+        return False
+
+    # filepath is unique. A legacy record already sitting at the new path would
+    # collide, and raising inside the caller's transaction would poison it, so
+    # check first rather than catching IntegrityError.
+    if models.Image.objects.filter(filepath=new_path).exclude(pk=image.pk).exists():
+        return False
+
+    old_path = image.filepath
+    image.set_location(filepath=new_path, filename=os.path.basename(new_path))
+    events.publish_event(
+        event_type=events.IMAGE_FILE_RELOCATED,
+        image_id=image.pk,
+        old_filepath=old_path,
+        new_filepath=new_path,
+    )
+    return True
+
+
+@transaction.atomic(durable=True)
+def remove_image(*, image: models.Image, reason: str) -> None:
+    """
+    Remove *image* from the catalog because its file is gone or its library
+    folder was removed.
+
+    Removes the catalog entry only: the image file on disk is never touched.
+
+    Recipe-card and cover-image references are set to null by the schema and are
+    deliberately not repointed. A card is a self-contained rendered JPEG that
+    outlives its source image, and a recipe with no explicit cover already falls
+    back to its most-used image. The image's FujifilmExif row is deleted if this
+    leaves it orphaned. The FujifilmRecipe is never touched, because recipes are
+    shared and worth keeping even with no images left.
+    """
+    image_id = image.pk
+    filepath = image.filepath
+    exif_id = image.fujifilm_exif_id
+
+    image.delete()
+
+    if exif_id is not None and not models.Image.objects.filter(fujifilm_exif_id=exif_id).exists():
+        models.FujifilmExif.objects.filter(pk=exif_id).delete()
+
+    # Durable, so the row is committed before the cache files go: a rollback must
+    # never leave a record pointing at thumbnails that have been unlinked.
+    thumbnail_operations.delete_cached_thumbnails(original_path=Path(filepath))
+
+    events.publish_event(
+        event_type=events.IMAGE_REMOVED,
+        image_id=image_id,
+        filepath=filepath,
+        reason=reason,
+    )
+
+
 @transaction.atomic()
 def process_image(*, image_path: str) -> models.Image:
     """
@@ -118,8 +191,11 @@ def process_image(*, image_path: str) -> models.Image:
     Images are deduplicated by a SHA-256 hash of their file bytes: the same
     photo stored under several paths resolves to a single record. A legacy
     record imported before hashing existed is matched by its filepath (or, if
-    the file has moved, by its EXIF identity) and has its hash backfilled. An
-    already-hashed record is left untouched.
+    the file has moved, by its EXIF identity) and has its hash backfilled.
+
+    A matched record keeps its EXIF, recipe and user data, but follows its file:
+    if the path it recorded no longer exists, the file has been renamed or moved
+    and the record is repointed at *image_path*. See relocate_image.
 
     A FujifilmExif record is looked up or created for the image's EXIF field
     combination and linked via the recipe FK.
@@ -169,11 +245,15 @@ def process_image(*, image_path: str) -> models.Image:
     else:
         image = existing
         created = False
-        # A row found by its hash is already complete; never override it. An
-        # un-hashed legacy row only gets its content hash backfilled — the data
-        # we did not store before. Its filepath is left untouched.
+        # A row found by its hash is already complete; never override its EXIF or
+        # recipe. An un-hashed legacy row only gets its content hash backfilled,
+        # the data we did not store before.
         if existing.content_hash == "":
             existing.set_content_hash(content_hash=content_hash)
+        # The path is the exception: a record whose file has moved follows it, so
+        # a rename or a move keeps the same row rather than stranding it on a
+        # path that no longer exists.
+        relocate_image(image=existing, new_path=image_path)
 
     events.publish_event(
         event_type=events.RECIPE_IMAGE_CREATED if created else events.RECIPE_IMAGE_UPDATED,

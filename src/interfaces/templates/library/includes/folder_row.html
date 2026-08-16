@@ -21,18 +21,22 @@
       hx-swap="outerHTML"
     ></div>
   </td>
+  <td class="folder-ignored">
+    {% if folder.ignored_count %}
+      <a href="{% url 'library-folder-ignored' folder.folder_id %}"
+         title="Files this folder could not import. None of them has been deleted.">{{ folder.ignored_count }} ignored</a>
+    {% else %}
+      <span style="color: #ccc;">None</span>
+    {% endif %}
+  </td>
   <td class="folder-actions">
     <button
       class="btn-update"
       onclick="openBrowserModal({{ folder.folder_id }}, '{{ folder.path|escapejs }}')"
     >Update Path</button>
-    <form method="post" action="{% url 'library-folder-delete' folder.folder_id %}" style="display: inline;">
-      {% csrf_token %}
-      <button
-        type="submit"
-        class="btn-remove"
-        onclick="return confirm('Remove this folder from the library?')"
-      >Remove</button>
-    </form>
+    <button
+      class="btn-remove"
+      onclick="openRemoveFolderModal('{% url 'library-folder-confirm-delete' folder.folder_id %}')"
+    >Remove</button>
   </td>
 </tr>

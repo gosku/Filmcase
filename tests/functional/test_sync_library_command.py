@@ -4,14 +4,17 @@ from unittest.mock import patch
 
 import pytest
 from django.core.management import call_command
+from django.core.management.base import CommandError
 from django.test import override_settings
 
 from src.application.usecases.library.sync_library import CeleryWorkerUnavailable
 from src.data import models
+from src.domain.library.operations import update_library_folder_path
 from tests.factories import LibraryFolderFactory
 
 FIXTURES_DIR = Path(__file__).resolve().parent.parent / "fixtures" / "images"
 FUJIFILM_FIXTURE = FIXTURES_DIR / "XS107114.JPG"
+NON_FUJIFILM_FIXTURE = FIXTURES_DIR / "sub-folder" / "img_4968_dng_embedded.jpg"
 
 
 @pytest.mark.django_db
@@ -59,3 +62,149 @@ class TestSyncLibraryCommand:
 
         captured = capsys.readouterr()
         assert "No Celery worker is reachable" in captured.out
+
+
+@pytest.mark.django_db
+class TestSyncLibraryCommandRemovesMissingImages:
+    @pytest.fixture(autouse=True)
+    def _lite_mode(self, settings):
+        settings.USE_ASYNC_TASKS = False
+
+    def _library_with_a_deleted_photo(self, tmp_path):
+        photo = tmp_path / FUJIFILM_FIXTURE.name
+        shutil.copy(FUJIFILM_FIXTURE, photo)
+        folder = LibraryFolderFactory(path=str(tmp_path))
+        call_command("sync_library")
+        photo.unlink()
+        return folder
+
+    def test_reports_how_many_images_left_the_gallery(self, tmp_path, capsys):
+        self._library_with_a_deleted_photo(tmp_path)
+
+        call_command("sync_library")
+
+        assert "1 image(s) removed from the gallery" in capsys.readouterr().out
+        assert models.Image.objects.count() == 0
+
+    def test_dry_run_reports_without_removing_anything(self, tmp_path, capsys):
+        self._library_with_a_deleted_photo(tmp_path)
+
+        call_command("sync_library", "--dry-run-prune")
+
+        captured = capsys.readouterr()
+        assert "Would remove 1 of 1 image(s)" in captured.out
+        assert FUJIFILM_FIXTURE.name in captured.out
+        assert models.Image.objects.count() == 1
+
+    def test_no_prune_removes_nothing(self, tmp_path, capsys):
+        self._library_with_a_deleted_photo(tmp_path)
+
+        call_command("sync_library", "--no-prune")
+
+        assert models.Image.objects.count() == 1
+
+    def test_rejects_conflicting_prune_flags(self, tmp_path):
+        with pytest.raises(CommandError):
+            call_command("sync_library", "--no-prune", "--force-prune")
+
+    def test_says_nothing_was_removed_when_a_folder_is_missing(self, tmp_path, capsys):
+        LibraryFolderFactory(path=str(tmp_path / "does_not_exist"))
+
+        call_command("sync_library")
+
+        assert "Nothing was removed from the gallery" in capsys.readouterr().out
+
+
+@pytest.mark.django_db
+class TestSyncLibraryCommandSafetyGuard:
+    @pytest.fixture(autouse=True)
+    def _strict_guard(self, settings):
+        settings.USE_ASYNC_TASKS = False
+        settings.LIBRARY_PRUNE_GUARD_FRACTION = 0.5
+        settings.LIBRARY_PRUNE_GUARD_MIN_IMAGES = 1
+
+    def _library_emptied_on_disk(self, tmp_path):
+        for fixture in (FUJIFILM_FIXTURE, FIXTURES_DIR / "XS107209.jpg", FIXTURES_DIR / "XS107336.jpg"):
+            shutil.copy(fixture, tmp_path / fixture.name)
+        LibraryFolderFactory(path=str(tmp_path))
+        call_command("sync_library")
+        for photo in tmp_path.iterdir():
+            photo.unlink()
+
+    def test_warns_and_removes_nothing_when_the_guard_trips(self, tmp_path, capsys):
+        self._library_emptied_on_disk(tmp_path)
+
+        call_command("sync_library")
+
+        captured = capsys.readouterr()
+        assert "Skipped removing 3 of 3 image(s)" in captured.out
+        assert "--force-prune" in captured.out
+        assert models.Image.objects.count() == 3
+
+    def test_force_prune_overrides_the_guard(self, tmp_path, capsys):
+        self._library_emptied_on_disk(tmp_path)
+
+        call_command("sync_library", "--force-prune")
+
+        assert models.Image.objects.count() == 0
+
+
+@pytest.mark.django_db
+class TestSyncLibraryCommandRetryFailed:
+    @pytest.fixture(autouse=True)
+    def _lite_mode(self, settings):
+        settings.USE_ASYNC_TASKS = False
+
+    def _library_with_an_ignored_file(self, tmp_path):
+        photo = tmp_path / NON_FUJIFILM_FIXTURE.name
+        shutil.copy(NON_FUJIFILM_FIXTURE, photo)
+        LibraryFolderFactory(path=str(tmp_path))
+        call_command("sync_library")
+        return photo
+
+    def test_leaves_ignored_files_alone_without_the_flag(self, tmp_path, capsys):
+        self._library_with_an_ignored_file(tmp_path)
+
+        call_command("sync_library")
+
+        assert "0 new file(s) imported, 0 skipped" in capsys.readouterr().out
+
+    def test_examines_them_again_with_the_flag(self, tmp_path, capsys):
+        self._library_with_an_ignored_file(tmp_path)
+
+        call_command("sync_library", "--retry-failed")
+
+        captured = capsys.readouterr()
+        assert "Forgot 1 previously skipped or failed file(s)." in captured.out
+        assert "1 skipped (non-Fujifilm)" in captured.out
+
+    def test_re_records_the_file_it_examined_again(self, tmp_path):
+        self._library_with_an_ignored_file(tmp_path)
+
+        call_command("sync_library", "--retry-failed")
+
+        assert models.IgnoredImage.objects.count() == 1
+
+
+@pytest.mark.django_db
+class TestSyncLibraryCommandReportsPathChangeRemovals:
+    @pytest.fixture(autouse=True)
+    def _lite_mode(self, settings):
+        settings.USE_ASYNC_TASKS = False
+        settings.LIBRARY_PRUNE_GUARD_MIN_IMAGES = 1000
+
+    def test_explains_removals_caused_by_a_narrowed_folder(self, tmp_path, capsys):
+        inner = tmp_path / "2024"
+        inner.mkdir()
+        shutil.copy(FUJIFILM_FIXTURE, tmp_path / FUJIFILM_FIXTURE.name)
+        shutil.copy(FIXTURES_DIR / "XS107209.jpg", inner / "keep.jpg")
+        folder = LibraryFolderFactory(path=str(tmp_path))
+        call_command("sync_library")
+
+        update_library_folder_path(folder_id=folder.pk, path=str(inner))
+        call_command("sync_library")
+
+        captured = capsys.readouterr()
+        assert "1 image(s) removed from the gallery" in captured.out
+        assert "no longer inside any library folder" in captured.out
+        assert "Their files are untouched." in captured.out

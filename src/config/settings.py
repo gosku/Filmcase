@@ -81,6 +81,28 @@ CAMERA_RETRY_BACKOFF_S:     float = env.float("CAMERA_RETRY_BACKOFF_S",     defa
 THUMBNAIL_CACHE_DIR = BASE_DIR / "thumbnail_cache"  # filesystem directory where generated thumbnails are cached
 RECIPE_CARDS_DIR: Path = Path(env.str("RECIPE_CARDS_DIR", default=str(BASE_DIR / "recipe_cards")))  # filesystem directory where generated recipe card images are stored
 
+# Thumbnail widths that are generated and cached, as a comma-separated list in the env file
+# (THUMBNAIL_WIDTHS=600,1200). A cache key is derived from the image path, so removing an image has
+# to clear every width: a later file reusing that path (Fujifilm filenames wrap around from
+# DSCF9999 to DSCF0001) would otherwise be served the previous image's thumbnail.
+THUMBNAIL_WIDTHS: tuple[int, ...] = tuple(env.list("THUMBNAIL_WIDTHS", subcast=int, default=[600]))
+
+# Library sync removes catalog entries whose files have disappeared. A sync that finds most of a
+# folder's images missing is far more likely to be an unmounted drive or an unreadable directory
+# than a real deletion, so a prune above this share of the folder's catalogued images can be
+# reported instead of applied.
+#
+# Shipped disabled, because the only way past a tripped guard is
+# `sync_library --force-prune` and the web interface offers no equivalent. A guard that fires
+# during a path change from the Library page leaves the gallery stale with no way to resolve it
+# from the page that caused it. Until forcing a sync is reachable from the interface, an
+# unexplained stale gallery is the worse failure: nothing is deleted from disk either way.
+#
+# To enable, set both to real thresholds, e.g. 0.5 and 20. Both must be exceeded before the guard
+# engages, so ordinary small cleanups are applied without a warning.
+LIBRARY_PRUNE_GUARD_FRACTION: float = env.float("LIBRARY_PRUNE_GUARD_FRACTION", default=1.0)
+LIBRARY_PRUNE_GUARD_MIN_IMAGES: int = env.int("LIBRARY_PRUNE_GUARD_MIN_IMAGES", default=9999999)
+
 
 TEMPLATES = [
     {
@@ -107,6 +129,11 @@ CELERY_ACCEPT_CONTENT = ["json"]
 CELERY_TASK_SERIALIZER = "json"
 CELERY_RESULT_SERIALIZER = "json"
 PROCESS_IMAGE_QUEUE: str = env.str("PROCESS_IMAGE_QUEUE", default="process-image")  # Celery queue name for image-processing tasks
+
+# Library sync hands image processing to the worker in batches, so a large import costs one broker
+# message per batch rather than one per file. Larger batches make dispatch faster; smaller ones
+# spread the work more evenly across worker processes and lose less if a single batch dies.
+SYNC_IMAGE_BATCH_SIZE: int = env.int("SYNC_IMAGE_BATCH_SIZE", default=100)
 USE_ASYNC_TASKS: bool = env.bool("USE_ASYNC_TASKS", default=True)  # True: enqueue Celery tasks (full stack); False: run sequentially (SQLite / lite install)
 
 CELERY_TASK_QUEUES: tuple[Queue, ...] = (Queue(PROCESS_IMAGE_QUEUE),)
