@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Camera Diagnostics</title>
+  <link rel="stylesheet" href="/static/css/brand.css">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { display: flex; flex-direction: column; font-family: sans-serif; min-height: 100vh; background: var(--color-bg-page); }
+
+    .main-content { flex: 1; padding: 2rem; max-width: 820px; }
+
+    .page-title { font-size: 1.25rem; font-weight: 700; color: var(--color-text-primary); margin-bottom: 0.35rem; }
+    .page-intro { font-size: 0.875rem; color: #6b7280; line-height: 1.5; margin-bottom: 1.75rem; }
+
+    .section-title { font-size: 0.95rem; font-weight: 600; color: var(--color-text-primary); margin: 1.75rem 0 0.75rem; }
+
+    .check-list { list-style: none; border: 1px solid var(--color-border); border-radius: 6px; overflow: hidden; }
+
+    .check {
+      display: flex;
+      align-items: baseline;
+      gap: 0.75rem;
+      padding: 0.7rem 1rem;
+      background: var(--color-bg-surface);
+      border-bottom: 1px solid var(--color-border);
+      font-size: 0.875rem;
+    }
+
+    .check:last-child { border-bottom: none; }
+
+    .check__label { flex: 0 0 13rem; color: var(--color-text-primary); font-weight: 500; }
+    .check__value { flex: 1; color: #4b5563; font-family: ui-monospace, monospace; font-size: 0.8125rem; word-break: break-all; }
+
+    .pill {
+      flex: 0 0 auto;
+      padding: 0.1rem 0.5rem;
+      border-radius: 999px;
+      font-size: 0.6875rem;
+      font-weight: 700;
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+    }
+
+    .pill--pass    { background: #dcfce7; color: #15803d; }
+    .pill--fail    { background: #fee2e2; color: #b91c1c; }
+    .pill--waiting { background: #f3f4f6; color: #6b7280; }
+    .pill--warn    { background: #fef3c7; color: #b45309; }
+
+    .probe-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      margin-top: 1rem;
+      padding: 0.45rem 1rem;
+      background: var(--color-accent);
+      color: #fff;
+      border: none;
+      border-radius: 5px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .probe-btn:hover:enabled { background: var(--color-accent-dark); }
+    .probe-btn:disabled { background: #d1d5db; cursor: not-allowed; }
+
+    .note {
+      padding: 0.8rem 1rem;
+      margin-top: 1.5rem;
+      background: #fffbeb;
+      border: 1px solid #fde68a;
+      border-radius: 6px;
+      color: #92400e;
+      font-size: 0.8125rem;
+      line-height: 1.55;
+    }
+
+    .note--blocked { background: #fef2f2; border-color: #fecaca; color: #b91c1c; }
+    .note p + p { margin-top: 0.5rem; }
+    .note code { font-family: ui-monospace, monospace; font-size: 0.78125rem; }
+  </style>
+</head>
+<body>
+  {% include "_top_nav.html" %}
+
+  <main class="main-content">
+    <h1 class="page-title">Camera diagnostics</h1>
+    <p class="page-intro">
+      Whether this browser can talk to a camera over USB depends on the address this page was
+      loaded from, not on which machine the camera is plugged into. Browsers only expose USB to
+      a <strong>secure context</strong>: an HTTPS origin, or localhost. Plain HTTP to a LAN
+      address never qualifies, even when the camera is on the same desk.
+    </p>
+
+    <h2 class="section-title">This page</h2>
+    <ul class="check-list">
+      <li class="check">
+        <span class="check__label">Origin</span>
+        <span class="check__value" id="check-origin">…</span>
+        <span class="pill pill--waiting" id="pill-origin">checking</span>
+      </li>
+      <li class="check">
+        <span class="check__label">Secure context</span>
+        <span class="check__value" id="check-secure">…</span>
+        <span class="pill pill--waiting" id="pill-secure">checking</span>
+      </li>
+      <li class="check">
+        <span class="check__label">WebUSB available</span>
+        <span class="check__value" id="check-webusb">…</span>
+        <span class="pill pill--waiting" id="pill-webusb">checking</span>
+      </li>
+    </ul>
+
+    <div id="environment-note"></div>
+
+    <h2 class="section-title">Camera</h2>
+    <p class="page-intro" style="margin-bottom: 0.75rem;">
+      Picking a device needs a click, so this cannot run automatically. Connect the camera by
+      USB, set it to PC Connection or RAW CONV. mode, then run the probe and choose it from the
+      browser's picker.
+    </p>
+
+    <ul class="check-list">
+      <li class="check">
+        <span class="check__label">Device selected</span>
+        <span class="check__value" id="check-device">not run</span>
+        <span class="pill pill--waiting" id="pill-device">waiting</span>
+      </li>
+      <li class="check">
+        <span class="check__label">Opened</span>
+        <span class="check__value" id="check-open">not run</span>
+        <span class="pill pill--waiting" id="pill-open">waiting</span>
+      </li>
+      <li class="check">
+        <span class="check__label">Bulk endpoints</span>
+        <span class="check__value" id="check-endpoints">not run</span>
+        <span class="pill pill--waiting" id="pill-endpoints">waiting</span>
+      </li>
+      <li class="check">
+        <span class="check__label">Interface claimed</span>
+        <span class="check__value" id="check-claim">not run</span>
+        <span class="pill pill--waiting" id="pill-claim">waiting</span>
+      </li>
+    </ul>
+
+    <button class="probe-btn" id="probe-btn" type="button" disabled>Probe camera</button>
+    <button class="probe-btn" id="probe-all-btn" type="button" disabled
+            style="background: transparent; color: var(--color-accent); border: 1px solid var(--color-border);">
+      Probe without vendor filter
+    </button>
+
+    <div class="note">
+      <p>
+        <strong>If claiming fails, something else already holds the camera.</strong> On Linux
+        that is usually <code>gvfs-gphoto2-volume-monitor</code>, which mounts PTP cameras the
+        moment they are plugged in. On macOS it is Photos, and on Windows the device is claimed
+        as MTP. The browser cannot evict any of them, so the fix is on the host and is the same
+        one the server-side path needs: see <code>docs/camera_usb_access.md</code>.
+      </p>
+      <p>
+        Selecting a device also needs permission on the raw USB node. On Linux that normally
+        arrives with libgphoto2, whose udev rules give every still-image class device to the
+        <code>plugdev</code> group. Installing libgphoto2 for its rules while disabling its
+        automount is the combination that works.
+      </p>
+      <p>
+        Filtering by vendor <code>{{ diagnostics.vendor_id_label }}</code> hides non-Fujifilm
+        devices from the picker. If the camera does not appear, run the unfiltered probe to see
+        whether the browser can see it at all.
+      </p>
+    </div>
+  </main>
+
+  <script>
+    (function () {
+      "use strict";
+
+      const FUJIFILM_VENDOR_ID = {{ diagnostics.vendor_id }};
+
+      function setCheck(name, value, state) {
+        document.getElementById("check-" + name).textContent = value;
+        const pill = document.getElementById("pill-" + name);
+        pill.className = "pill pill--" + state;
+        pill.textContent = state === "pass" ? "pass"
+                         : state === "fail" ? "fail"
+                         : state === "warn" ? "partial"
+                         : "waiting";
+      }
+
+      function showEnvironmentNote(html, blocked) {
+        const container = document.getElementById("environment-note");
+        container.innerHTML =
+          '<div class="note' + (blocked ? " note--blocked" : "") + '">' + html + "</div>";
+      }
+
+      // The environment checks are all synchronous reads, so they run on load. The probe
+      // itself needs a user gesture: requestDevice() throws without one.
+      const secure = window.isSecureContext;
+      const hasWebUsb = "usb" in navigator;
+
+      setCheck("origin", window.location.origin, "pass");
+      setCheck("secure", secure ? "true" : "false", secure ? "pass" : "fail");
+      setCheck("webusb", hasWebUsb ? "navigator.usb present" : "navigator.usb missing",
+               hasWebUsb ? "pass" : "fail");
+
+      if (!secure) {
+        showEnvironmentNote(
+          "<p><strong>This origin is not a secure context, so USB access is unavailable.</strong> " +
+          "Reach Filmcase over HTTPS, or over <code>http://localhost</code> when it runs on this " +
+          "machine. A self-signed certificate is enough: the browser checks the scheme, not " +
+          "whether the certificate is trusted, so accepting the warning once is sufficient.</p>" +
+          "<p>Private addresses such as <code>http://192.168.x.x</code> are never trusted, and no " +
+          "browser flag worth shipping changes that.</p>",
+          true
+        );
+      } else if (!hasWebUsb) {
+        showEnvironmentNote(
+          "<p><strong>This origin is secure, but the browser has no WebUSB support.</strong> " +
+          "WebUSB is Chromium-only: Chrome, Edge, Opera and Brave have it, Firefox and Safari " +
+          "do not. Try the same address in a Chromium browser.</p>",
+          true
+        );
+      } else {
+        document.getElementById("probe-btn").disabled = false;
+        document.getElementById("probe-all-btn").disabled = false;
+      }
+
+      // Mirrors _claim_interface in ptp_usb_device.py: PTP needs one bulk endpoint in each
+      // direction, and the interface that carries them is the one worth claiming.
+      function findBulkInterface(device) {
+        const configuration = device.configuration;
+        if (!configuration) {
+          return null;
+        }
+        for (const iface of configuration.interfaces) {
+          for (const alternate of iface.alternates) {
+            const directions = alternate.endpoints
+              .filter(function (e) { return e.type === "bulk"; })
+              .map(function (e) { return e.direction; });
+            if (directions.includes("in") && directions.includes("out")) {
+              return { number: iface.interfaceNumber, endpoints: alternate.endpoints.length };
+            }
+          }
+        }
+        return null;
+      }
+
+      async function probe(filtered) {
+        ["device", "open", "endpoints", "claim"].forEach(function (name) {
+          setCheck(name, "not run", "waiting");
+        });
+
+        let device;
+        try {
+          const options = filtered
+            ? { filters: [{ vendorId: FUJIFILM_VENDOR_ID }] }
+            : { filters: [] };
+          device = await navigator.usb.requestDevice(options);
+        } catch (error) {
+          const cancelled = error.name === "NotFoundError";
+          setCheck("device", cancelled ? "no device chosen" : error.name + ": " + error.message,
+                   cancelled ? "waiting" : "fail");
+          return;
+        }
+
+        const vendor = "0x" + device.vendorId.toString(16).toUpperCase().padStart(4, "0");
+        const product = "0x" + device.productId.toString(16).toUpperCase().padStart(4, "0");
+        const name = [device.manufacturerName, device.productName].filter(Boolean).join(" ");
+        setCheck("device", (name || "unnamed device") + "  vendor " + vendor + " product " + product,
+                 device.vendorId === FUJIFILM_VENDOR_ID ? "pass" : "warn");
+
+        try {
+          await device.open();
+          if (device.configuration === null) {
+            await device.selectConfiguration(1);
+          }
+          setCheck("open", "configuration " + device.configuration.configurationValue, "pass");
+        } catch (error) {
+          setCheck("open", error.name + ": " + error.message, "fail");
+          return;
+        }
+
+        const target = findBulkInterface(device);
+        if (target === null) {
+          setCheck("endpoints", "no interface exposes bulk in and out", "fail");
+          await device.close();
+          return;
+        }
+        setCheck("endpoints",
+                 "interface " + target.number + ", " + target.endpoints + " endpoints", "pass");
+
+        try {
+          await device.claimInterface(target.number);
+          setCheck("claim", "claimed interface " + target.number, "pass");
+          await device.releaseInterface(target.number);
+        } catch (error) {
+          setCheck("claim", error.name + ": " + error.message, "fail");
+        } finally {
+          await device.close();
+        }
+      }
+
+      document.getElementById("probe-btn")
+        .addEventListener("click", function () { probe(true); });
+      document.getElementById("probe-all-btn")
+        .addEventListener("click", function () { probe(false); });
+    })();
+  </script>
+</body>
+</html>
