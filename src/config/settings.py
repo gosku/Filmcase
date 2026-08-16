@@ -20,6 +20,22 @@ DEBUG: bool = env.bool("DEBUG", default=True)
 
 ALLOWED_HOSTS = ["*"]
 
+# The address the app is reached at. It has to match what users type, because it is written
+# into the container's self-signed certificate as a subjectAltName and reused below as the
+# trusted CSRF origin. A native install on the default runserver never leaves localhost, so
+# that is the default.
+FILMCASE_HOST: str = env.str("FILMCASE_HOST", default="localhost")
+FILMCASE_HTTPS_PORT: int = env.int("FILMCASE_HTTPS_PORT", default=8443)
+
+# Django rejects unsafe-method requests whose Origin is not listed here, and an HTTPS origin
+# never matches by accident: reaching the app on any address other than FILMCASE_HOST fails
+# every POST. Derived so there is one knob rather than two, and overridable outright for
+# installs reachable under several names.
+CSRF_TRUSTED_ORIGINS: list[str] = env.list(
+    "CSRF_TRUSTED_ORIGINS",
+    default=[f"https://{FILMCASE_HOST}:{FILMCASE_HTTPS_PORT}"],
+)
+
 INSTALLED_APPS = [
     "django.contrib.contenttypes",
     "django.contrib.auth",
