@@ -11,6 +11,12 @@ from __future__ import annotations
 
 from typing import Protocol, runtime_checkable
 
+# All Fujifilm cameras share this USB vendor ID.  It lives here rather than in a concrete
+# transport because callers that never open a USB connection still need it: the browser-side
+# camera diagnostics filter their device picker by vendor, and importing a private name out of
+# ptp_usb_device would couple the interface layer to one particular transport.
+FUJIFILM_VENDOR_ID = 0x04CB
+
 
 class CameraConnectionError(Exception):
     """
