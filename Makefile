@@ -10,17 +10,20 @@ ENV_FILE := src/config/env
 # (e.g. `start` calling `run`); they name the same directory and only add noise.
 MAKEFLAGS += --no-print-directory
 
-.PHONY: setup-lite setup-full env env-lite update start run worker test help
+.PHONY: setup-lite setup-full setup-docker docker-up docker-down docker-logs docker-update env env-lite update start run worker test help
 
 ##
 ## Installation modes:
 ##
-##   setup-lite  — SQLite, sequential processing. No OS services required.
-##                 Simpler setup, slower import. Best for personal use.
+##   setup-lite   — SQLite, sequential processing. No OS services required.
+##                  Simpler setup, slower import. Best for personal use.
 ##
-##   setup-full  — PostgreSQL + Celery. Run ./setup.sh first to install OS
-##                 dependencies (PostgreSQL, RabbitMQ). Parallel processing.
-##                 Best for development and large collections.
+##   setup-full   — PostgreSQL + Celery. Run ./setup.sh first to install OS
+##                  dependencies (PostgreSQL, RabbitMQ). Parallel processing.
+##                  Best for development and large collections.
+##
+##   setup-docker — Everything in containers, served over HTTPS. Installs
+##                  nothing on the host. Best for a NAS or an always-on box.
 ##
 
 ## setup-lite  — install lite stack (SQLite, no broker/worker required)
@@ -36,6 +39,32 @@ setup-full: $(VENV)/.deps-installed env
 	@$(PYTHON) manage.py migrate
 	@echo ""
 	@echo "Done. Start the Celery worker with 'make worker', then run 'make start' to sync your library and start the server."
+
+## setup-docker  — configure the containerised install (writes .env and the compose override)
+setup-docker:
+	@./setup.sh docker
+
+## docker-up     — build and start the container stack
+docker-up:
+	@docker compose up -d --build
+
+## docker-down   — stop the container stack, keeping all volumes
+docker-down:
+	@docker compose down
+
+## docker-logs   — follow the web server log
+docker-logs:
+	@docker compose logs -f web
+
+## docker-update — pull latest changes, rebuild the image and restart
+docker-update:
+	@echo "[update] Pulling latest changes..."
+	@git pull origin main
+	@echo "[update] Rebuilding and restarting..."
+	@docker compose up -d --build
+	@echo ""
+	@echo "Done. The rebuild installed any new dependencies, and migrations were applied"
+	@echo "as the web container started."
 
 ## env         — generate src/config/env from settings defaults (skips if already exists)
 env:
@@ -89,6 +118,11 @@ $(VENV)/bin/activate:
 
 ## update      — pull latest changes, install new dependencies, and run migrations
 update:
+	@if [ ! -x "$(PYTHON)" ]; then \
+		echo "[update] No virtualenv found at $(VENV)/."; \
+		echo "[update] A Docker install has no virtualenv: use 'make docker-update' instead."; \
+		exit 1; \
+	fi
 	@echo "[update] Pulling latest changes..."
 	@git pull origin main
 	@echo "[update] Installing dependencies..."
