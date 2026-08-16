@@ -29,15 +29,17 @@ Read more about it in our [documentation index](docs/index.md).
 
 ## Installation
 
-Two installation modes are available depending on your needs:
+Three installation modes are available depending on your needs:
 
-|                            | Lite (user-only)              | Full (developer)               |
-| -------------------------- | ----------------------------- | ------------------------------ |
-| **Database**               | SQLite (file, no server)      | PostgreSQL                     |
-| **Broker / worker**        | None                          | RabbitMQ + Celery              |
-| **Image processing**       | Sequential (one at a time)    | Parallel (N workers)           |
-| **OS services to install** | None                          | PostgreSQL, RabbitMQ           |
-| **Best for**               | Personal use, small libraries | Development, large collections |
+|                            | Lite (user-only)              | Full (developer)               | Docker (any server)             |
+| -------------------------- | ----------------------------- | ------------------------------ | ------------------------------- |
+| **Database**               | SQLite (file, no server)      | PostgreSQL                     | PostgreSQL (container)          |
+| **Broker / worker**        | None                          | RabbitMQ + Celery              | RabbitMQ + Celery (containers)  |
+| **Image processing**       | Sequential (one at a time)    | Parallel (N workers)           | Parallel (N workers)            |
+| **OS services to install** | None                          | PostgreSQL, RabbitMQ           | Docker only                     |
+| **Served over**            | HTTP on localhost             | HTTP on localhost              | HTTPS, self-signed certificate  |
+| **Push recipes to camera** | Yes                           | Yes                            | Only with USB passthrough       |
+| **Best for**               | Personal use, small libraries | Development, large collections | Always-on servers, remote access |
 
 ### Lite install (recommended for personal use)
 
@@ -92,13 +94,56 @@ worker before enqueuing tasks and skips the sync if none is found.
 
 ---
 
+### Docker install (any always-on server)
+
+Runs the full stack in containers, with nothing to install on the host but Docker itself.
+
+```bash
+./setup.sh docker
+```
+
+That asks for the address you will browse to, the photo directories to import, and how many
+processes to run, filling in your LAN address and user id as defaults. It generates the
+signing key and database password itself, writes `.env` and `docker-compose.override.yml`,
+and offers to build and start. Nothing is installed on the host and no file needs editing.
+
+Re-run it whenever you want to change an answer: existing values come back as the defaults,
+and the generated secrets are preserved.
+
+Then open `https://<FILMCASE_HOST>:8443/` and accept the certificate warning once.
+
+Two things behave differently from a native install:
+
+- **It is served over HTTPS with a self-signed certificate**, so every browser shows a
+  warning the first time. That is the cost of not owning a domain, and it buys a secure
+  context, which browsers require before exposing USB and other capabilities.
+- **Pushing recipes to a camera does not work on a NAS yet**, because the camera is
+  plugged into your desk rather than into the server. On a desktop you can pass the USB
+  bus through to the container today. Moving the transport into the browser over WebUSB
+  would lift the restriction entirely, and that work is under way: the diagnostics page at
+  `/camera/diagnostics/` reports whether your browser can reach the camera.
+
+Full details, including how to swap in a trusted certificate, are in
+[docs/docker.md](docs/docker.md).
+
+> **Filmcase has no authentication.** Anyone who can reach the port has full access,
+> including the Library page that browses the filesystem. Do not expose it to the internet.
+
+---
+
 ## Updating
 
 To pull the latest changes, install any new dependencies, and apply pending migrations in one step:
 
 ```bash
-make update
+make update          # lite and full installs
+make docker-update   # Docker install
 ```
+
+The Docker variant rebuilds the image and restarts instead of touching a virtualenv. It
+builds before it replaces anything, so a failed build leaves the running stack untouched.
+Avoid running it while a library sync is in progress: see
+[docs/docker.md](docs/docker.md#updating).
 
 ---
 
