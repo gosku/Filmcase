@@ -39,15 +39,16 @@ tracked as a reference if you would rather write them by hand.
 
 Compose reads `.env` from the same directory. `.env.example` is the template.
 
-| Variable                | Default              | Purpose                                                        |
-| ----------------------- | -------------------- | -------------------------------------------------------------- |
-| `FILMCASE_HOST`         | `localhost`          | Address you type in the browser. Goes into the certificate SAN and the trusted CSRF origin. |
-| `FILMCASE_HTTPS_PORT`   | `8443`               | Published port.                                                |
-| `PUID` / `PGID`         | `1000` / `1000`      | Account that owns the volumes and runs the app.                |
-| `FILMCASE_WEB_WORKERS`  | `3`                  | gunicorn processes.                                            |
-| `FILMCASE_WORKER_CONCURRENCY` | `8`            | Celery processes. Each loads Django and Pillow, so keep it near the core count on a server that is running other things. |
-| `FILMCASE_SECRET_KEY`   | insecure dev default | Django signing key. Generate one before exposing the app.      |
-| `FILMCASE_DB_PASSWORD`  | `fujifilm_recipes`   | PostgreSQL password, reachable only inside the compose network. Changing it after first start locks the app out of the existing volume. |
+| Variable                      | Default              | Purpose                                                                                                                                 |
+| ----------------------------- | -------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `FILMCASE_HOST`               | `localhost`          | Address you type in the browser. Goes into the certificate SAN and the trusted CSRF origin.                                             |
+| `FILMCASE_HTTPS_PORT`         | `8443`               | Published port.                                                                                                                         |
+| `PUID` / `PGID`               | `1000` / `1000`      | Account that owns the volumes and runs the app.                                                                                         |
+| `FILMCASE_WEB_WORKERS`        | `2`                  | gunicorn processes.                                                                                                                     |
+| `FILMCASE_WEB_THREADS`        | `4`                  | Threads per gunicorn process. Simultaneous requests is workers times threads.                                                           |
+| `FILMCASE_WORKER_CONCURRENCY` | `8`                  | Photos processed at once. This is Celery's `--concurrency`, the pool inside one worker, not a count of workers. Each process loads Django and Pillow, so keep it near the core count on a server running other things. |
+| `FILMCASE_SECRET_KEY`         | insecure dev default | Django signing key. Generate one before exposing the app.                                                                               |
+| `FILMCASE_DB_PASSWORD`        | `fujifilm_recipes`   | PostgreSQL password, reachable only inside the compose network. Changing it after first start locks the app out of the existing volume. |
 
 `FILMCASE_HOST` must match what you actually type. It is written into the certificate as a
 `subjectAltName` and reused to derive `CSRF_TRUSTED_ORIGINS`, so reaching the app on any
@@ -94,15 +95,15 @@ hands it to gunicorn. Your browser will show a full-page warning the first time,
 lines of "Your connection is not private". Accept it once per browser and the app works
 normally afterwards.
 
-**Why not plain HTTP?** Browsers gate powerful APIs behind a *secure context*, and the
+**Why not plain HTTP?** Browsers gate powerful APIs behind a _secure context_, and the
 check is on the origin's scheme, not on whether the certificate chains to a trusted
 authority. So:
 
-| Origin                        | Secure context | Powerful APIs |
-| ----------------------------- | -------------- | ------------- |
-| `http://localhost:8443`       | yes            | available     |
-| `https://192.168.1.10:8443` with a self-signed certificate | yes, after accepting the warning | available |
-| `http://192.168.1.10:8443`    | no             | unavailable   |
+| Origin                                                     | Secure context                   | Powerful APIs |
+| ---------------------------------------------------------- | -------------------------------- | ------------- |
+| `http://localhost:8443`                                    | yes                              | available     |
+| `https://192.168.1.10:8443` with a self-signed certificate | yes, after accepting the warning | available     |
+| `http://192.168.1.10:8443`                                 | no                               | unavailable   |
 
 A self-signed certificate is therefore enough. Private IP addresses are never treated as
 trustworthy on their own, and that has not changed despite a
