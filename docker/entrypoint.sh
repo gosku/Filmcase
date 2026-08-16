@@ -22,13 +22,27 @@ KEY_FILE="$CERT_DIR/filmcase.key"
 log() { echo "[entrypoint] $*"; }
 
 # Docker creates named volumes owned by root, so ownership is fixed here while still root,
-# before dropping to the account that actually runs the app. Only the directories are
-# chowned, never their contents: a populated thumbnail cache can hold tens of thousands of
-# files and a recursive chown on every boot would cost minutes for no benefit.
+# before dropping to the account that actually runs the app.
+#
+# The small directories are always chowned recursively. They hold a handful of files, and
+# changing PUID between runs otherwise leaves a root-owned events.jsonl or key file that the
+# app can no longer open, which kills it at startup before anything is logged.
+#
+# The bulk directories are only chowned recursively when the directory itself has the wrong
+# owner, which is the boot after a PUID change. A populated thumbnail cache can hold tens of
+# thousands of files, and paying for that walk on every boot would cost minutes for nothing.
 prepare_directories() {
-    for dir in "$CERT_DIR" /app/thumbnail_cache /app/recipe_cards /app/logs; do
+    for dir in "$CERT_DIR" /app/logs; do
         mkdir -p "$dir"
-        chown "$PUID:$PGID" "$dir"
+        chown -R "$PUID:$PGID" "$dir"
+    done
+
+    for dir in /app/thumbnail_cache /app/recipe_cards; do
+        mkdir -p "$dir"
+        if [ "$(stat -c '%u:%g' "$dir" 2>/dev/null)" != "$PUID:$PGID" ]; then
+            log "Fixing ownership of $dir for $PUID:$PGID"
+            chown -R "$PUID:$PGID" "$dir"
+        fi
     done
 }
 
