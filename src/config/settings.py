@@ -170,6 +170,9 @@ LOGGING = {
             "()": structlog.stdlib.ProcessorFormatter,
             "processor": structlog.processors.JSONRenderer(),
         },
+        "traceback": {
+            "format": "[%(asctime)s] %(levelname)s %(name)s: %(message)s",
+        },
     },
     "handlers": {
         "file": {
@@ -181,6 +184,12 @@ LOGGING = {
             "class": "logging.StreamHandler",
             "formatter": "console",
         },
+        # Plain stdlib formatting rather than the structlog renderer, so an exception's
+        # traceback reaches the container log verbatim.
+        "traceback_console": {
+            "class": "logging.StreamHandler",
+            "formatter": "traceback",
+        },
     },
     "loggers": {
         "events": {
@@ -191,6 +200,15 @@ LOGGING = {
         "camera.events": {
             "handlers": ["file", "console"],
             "level": "INFO",
+            "propagate": False,
+        },
+        # Django's own default sends unhandled view exceptions to a console handler gated on
+        # DEBUG, and to mail_admins, which needs email configured. With DEBUG off and no
+        # ADMINS, as in the container, a 500 is logged nowhere at all and the browser shows
+        # only Django's stock error page. Route it somewhere it can actually be read.
+        "django.request": {
+            "handlers": ["file", "traceback_console"],
+            "level": "ERROR",
             "propagate": False,
         },
     },
