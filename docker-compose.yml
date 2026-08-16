@@ -1,0 +1,101 @@
+# Filmcase, full stack: PostgreSQL and RabbitMQ alongside the web server and a Celery
+# worker. Full mode rather than lite because compose supplies the two services that make a
+# manual full install awkward, and because the sequential SQLite path still aborts a whole
+# sync run on a single unreadable recipe.
+#
+# Copy .env.example to .env and edit it before the first `docker compose up -d`.
+
+x-filmcase-env: &filmcase-env
+  FILMCASE_ENV_FILE: /dev/null
+  DJANGO_SETTINGS_MODULE: src.config.settings
+  DEBUG: "False"
+  SECRET_KEY: ${FILMCASE_SECRET_KEY:-django-insecure-filmcase-dev-key}
+  FILMCASE_HOST: ${FILMCASE_HOST:-localhost}
+  FILMCASE_HTTPS_PORT: ${FILMCASE_HTTPS_PORT:-8443}
+  PUID: ${PUID:-1000}
+  PGID: ${PGID:-1000}
+  DB_ENGINE: django.db.backends.postgresql
+  DB_NAME: fujifilm_recipes
+  DB_USER: fujifilm_recipes
+  DB_PASSWORD: ${FILMCASE_DB_PASSWORD:-fujifilm_recipes}
+  DB_HOST: db
+  DB_PORT: "5432"
+  CELERY_BROKER_URL: amqp://guest:guest@rabbitmq:5672//
+  USE_ASYNC_TASKS: "True"
+
+x-filmcase-volumes: &filmcase-volumes
+  - certs:/certs
+  - thumbnail_cache:/app/thumbnail_cache
+  - recipe_cards:/app/recipe_cards
+  - logs:/app/logs
+  # Photo directories are deliberately absent. Compose overrides can only add mounts, never
+  # remove one, so a placeholder path here would be mounted on every install and Docker
+  # would create it, root-owned and empty, on hosts that do not have it.
+  #
+  # Copy docker-compose.override.yml.example to docker-compose.override.yml and list your
+  # own directories there. Compose reads that file automatically.
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: fujifilm_recipes
+      POSTGRES_USER: fujifilm_recipes
+      POSTGRES_PASSWORD: ${FILMCASE_DB_PASSWORD:-fujifilm_recipes}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fujifilm_recipes"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  rabbitmq:
+    image: rabbitmq:4-alpine
+    restart: unless-stopped
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  web:
+    build: .
+    image: filmcase:latest
+    restart: unless-stopped
+    command: ["web"]
+    environment: *filmcase-env
+    volumes: *filmcase-volumes
+    ports:
+      - "${FILMCASE_HTTPS_PORT:-8443}:${FILMCASE_HTTPS_PORT:-8443}"
+    depends_on:
+      db:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+  celery_worker:
+    build: .
+    image: filmcase:latest
+    restart: unless-stopped
+    command: ["worker"]
+    environment: *filmcase-env
+    volumes: *filmcase-volumes
+    depends_on:
+      db:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      web:
+        condition: service_started
+
+volumes:
+  postgres_data:
+  rabbitmq_data:
+  certs:
+  thumbnail_cache:
+  recipe_cards:
+  logs:

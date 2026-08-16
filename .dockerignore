@@ -1,0 +1,30 @@
+# Keep the build context small, and keep local state out of the image. src/config/env
+# matters most: it is the developer's personal, gitignored configuration, and baking it in
+# would silently override every environment variable the container is given.
+.git/
+.venv/
+venv/
+
+src/config/env
+db.sqlite3
+db.sqlite3-journal
+
+logs/
+thumbnail_cache/
+recipe_cards/
+investigation/
+
+# The developer's own photo collection, gitignored and referenced by no application code.
+# Left in the context it dominates the image: 3.8 GB of a 4.4 GB build here.
+assets/
+
+__pycache__/
+*.pyc
+.pytest_cache/
+.mypy_cache/
+.import_linter_cache/
+.coverage
+htmlcov/
+
+.claude/
+.github/
