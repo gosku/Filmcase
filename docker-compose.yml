@@ -14,6 +14,14 @@ x-filmcase-env: &filmcase-env
   FILMCASE_HTTPS_PORT: ${FILMCASE_HTTPS_PORT:-8443}
   PUID: ${PUID:-1000}
   PGID: ${PGID:-1000}
+  # Every value the container needs has to be named here. Compose reads .env only to
+  # interpolate ${...} into this file; it does not forward the file's contents into the
+  # containers. A tuning value written to .env but absent from this block is silently
+  # ignored, and the entrypoint quietly uses its own default instead.
+  FILMCASE_WEB_WORKERS: ${FILMCASE_WEB_WORKERS:-2}
+  FILMCASE_WEB_THREADS: ${FILMCASE_WEB_THREADS:-4}
+  FILMCASE_WORKER_CONCURRENCY: ${FILMCASE_WORKER_CONCURRENCY:-8}
+  SYNC_IMAGE_BATCH_SIZE: ${SYNC_IMAGE_BATCH_SIZE:-100}
   DB_ENGINE: django.db.backends.postgresql
   DB_NAME: fujifilm_recipes
   DB_USER: fujifilm_recipes
