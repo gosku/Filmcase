@@ -9,6 +9,9 @@ from src.application.usecases.library.process_synced_image import process_synced
 from src.domain.images import events, operations
 from src.domain.images.thumbnails import operations as thumbnail_operations
 from src.domain.recipes import validation as recipe_validation
+from src.services import workertasks
+
+_SYNC_PROCESS_IMAGE_TASK = "src.interfaces.tasks.sync_process_image_task"
 
 
 @shared_task(name="domain.process_image", bind=True, queue=settings.PROCESS_IMAGE_QUEUE)
@@ -47,6 +50,64 @@ def process_image_task(self: Any, /, *, image_path: str, **kwargs: object) -> st
     return f"Processed {recipe.filename}"
 
 
+@shared_task(name="library.sync_process_image", bind=True, queue=settings.PROCESS_IMAGE_QUEUE)
+def sync_process_image_task(
+    self: Any,
+    /,
+    *,
+    image_path: str,
+    sync_run_id: int,
+    **kwargs: object,
+) -> str:
+    """
+    Celery task that processes one image for a library sync run and reports
+    progress against the run.
+
+    One image per message is what makes a sync parallel: any free worker can take
+    any image, a slow file delays only itself, and a failure retries one file
+    rather than a hundred.
+    """
+    process_synced_image(image_path=image_path, sync_run_id=sync_run_id)
+    return f"Processed {image_path} for sync run {sync_run_id}"
+
+
+def _dispatch_image_batch(*, image_paths: list[str], sync_run_id: int) -> str:
+    workertasks.enqueue_tasks(
+        task_name=_SYNC_PROCESS_IMAGE_TASK,
+        kwargs_list=[
+            {"image_path": image_path, "sync_run_id": sync_run_id}
+            for image_path in image_paths
+        ],
+        queue=settings.PROCESS_IMAGE_QUEUE,
+    )
+    return f"Dispatched {len(image_paths)} image(s) for sync run {sync_run_id}"
+
+
+@shared_task(name="library.sync_dispatch_image_batch", bind=True, queue=settings.PROCESS_IMAGE_QUEUE)
+def sync_dispatch_image_batch_task(
+    self: Any,
+    /,
+    *,
+    image_paths: list[str],
+    sync_run_id: int,
+    **kwargs: object,
+) -> str:
+    """
+    Celery task that publishes one per-image task for each path in its batch.
+
+    Dispatch happens in two levels because publishing is synchronous: whoever
+    starts a sync cannot return until the last message is out, so publishing one
+    message per file there would block startup on a large import. Batching the
+    first level keeps that cheap, and doing the second level here spreads the
+    publishing across workers instead of concentrating it in the starter.
+
+    The batch is a unit of dispatch only. It is deliberately not a unit of work:
+    processing a batch inside one task would cap parallelism at the number of
+    batches and leave a larger worker pool idle.
+    """
+    return _dispatch_image_batch(image_paths=image_paths, sync_run_id=sync_run_id)
+
+
 @shared_task(name="library.sync_process_image_batch", bind=True, queue=settings.PROCESS_IMAGE_QUEUE)
 def sync_process_image_batch_task(
     self: Any,
@@ -57,21 +118,13 @@ def sync_process_image_batch_task(
     **kwargs: object,
 ) -> str:
     """
-    Celery task that processes a batch of images for a library sync run and
-    reports progress against the run.
+    Retained under its old name so messages published before the fan-out change
+    still resolve to a task, rather than failing the run they belong to.
 
-    A batch rather than a single image because dispatch is synchronous: the
-    command that starts a sync cannot return until every message is published, so
-    one message per file makes a large import block startup for as long as it
-    takes to publish them all.
-
-    Each image is still handled one at a time and accounted for individually, so
-    progress, ignore records and run completion behave exactly as they would have
-    per message.
+    It dispatches rather than processes, so an in-flight batch ends up handled the
+    same way as a new one. Safe to delete once no such messages can remain.
     """
-    for image_path in image_paths:
-        process_synced_image(image_path=image_path, sync_run_id=sync_run_id)
-    return f"Processed {len(image_paths)} image(s) for sync run {sync_run_id}"
+    return _dispatch_image_batch(image_paths=image_paths, sync_run_id=sync_run_id)
 
 
 @shared_task(name="library.finalize_sync_run", bind=True, queue=settings.PROCESS_IMAGE_QUEUE)
