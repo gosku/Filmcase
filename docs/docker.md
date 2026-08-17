@@ -47,6 +47,7 @@ Compose reads `.env` from the same directory. `.env.example` is the template.
 | `FILMCASE_WEB_WORKERS`        | `2`                  | gunicorn processes.                                                                                                                     |
 | `FILMCASE_WEB_THREADS`        | `4`                  | Threads per gunicorn process. Simultaneous requests is workers times threads.                                                           |
 | `FILMCASE_WORKER_CONCURRENCY` | `8`                  | Photos processed at once. This is Celery's `--concurrency`, the pool inside one worker, not a count of workers. Each process loads Django and Pillow, so keep it near the core count on a server running other things. |
+| `SYNC_IMAGE_BATCH_SIZE`       | `100`                | Images per Celery message. Parallelism is capped at total images divided by this, so on a large pool lower it or most workers sit idle.                    |
 | `FILMCASE_SECRET_KEY`         | insecure dev default | Django signing key. Generate one before exposing the app.                                                                               |
 | `FILMCASE_DB_PASSWORD`        | `fujifilm_recipes`   | PostgreSQL password, reachable only inside the compose network. Changing it after first start locks the app out of the existing volume. |
 
