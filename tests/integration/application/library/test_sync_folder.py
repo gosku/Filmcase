@@ -96,7 +96,7 @@ class TestSyncFolderAsyncMode:
         assert run.total == 1
         mock_enqueue.assert_called_once()
         kwargs = mock_enqueue.call_args.kwargs
-        assert kwargs["task_name"] == "src.interfaces.tasks.sync_process_image_batch_task"
+        assert kwargs["task_name"] == "src.interfaces.tasks.sync_dispatch_image_batch_task"
         assert kwargs["kwargs_list"] == [
             {"image_paths": [str(image_path)], "sync_run_id": run.pk}
         ]

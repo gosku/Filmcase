@@ -11,7 +11,7 @@ from src.domain.library import operations as library_operations
 from src.domain.library import queries as library_queries
 from src.services import workertasks
 
-_SYNC_PROCESS_IMAGE_BATCH_TASK = "src.interfaces.tasks.sync_process_image_batch_task"
+_SYNC_DISPATCH_IMAGE_BATCH_TASK = "src.interfaces.tasks.sync_dispatch_image_batch_task"
 _FINALIZE_SYNC_RUN_TASK = "src.interfaces.tasks.finalize_sync_run_task"
 
 
@@ -114,11 +114,16 @@ def _dispatch(*, new_paths: list[str], run: models.SyncRun) -> None:
     """
     Hand the new images to whoever will process them.
 
-    In async mode they go to the worker in batches. Dispatching is synchronous,
-    so the command that started the sync cannot return until the last message is
-    published: one message per file makes a large import block startup for as
+    In async mode they go to the worker in batches, and each batch is expanded
+    into one message per image by the worker that picks it up. Dispatching is
+    synchronous, so the command that started the sync cannot return until the last
+    message is published: one message per file here would block startup for as
     long as publishing takes, which on tens of thousands of files is tens of
     seconds before the server is even reachable.
+
+    Batching only the first level keeps that cost down without making a batch a
+    unit of work, which would cap parallelism at the number of batches however
+    many workers were free.
     """
     if not settings.USE_ASYNC_TASKS:
         for path in new_paths:
@@ -126,7 +131,7 @@ def _dispatch(*, new_paths: list[str], run: models.SyncRun) -> None:
         return
 
     workertasks.enqueue_tasks(
-        task_name=_SYNC_PROCESS_IMAGE_BATCH_TASK,
+        task_name=_SYNC_DISPATCH_IMAGE_BATCH_TASK,
         kwargs_list=[
             {"image_paths": batch, "sync_run_id": run.pk}
             for batch in _batched(new_paths, settings.SYNC_IMAGE_BATCH_SIZE)
