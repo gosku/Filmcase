@@ -103,11 +103,17 @@ case "${1:-web}" in
         fi
 
         log "Starting gunicorn on https://$FILMCASE_HOST:$FILMCASE_HTTPS_PORT/"
+        # --threads matters more than --workers here. gunicorn's default sync worker serves
+        # exactly one request at a time, so a single worker without threads is markedly less
+        # concurrent than the threaded runserver a native install runs, and any slow request
+        # stalls the whole site. Passing --threads switches gunicorn to its gthread worker,
+        # restoring the model Django is already run under everywhere else.
         run_as_app_user gunicorn src.config.wsgi:application \
             --bind "0.0.0.0:$FILMCASE_HTTPS_PORT" \
             --certfile "$CERT_FILE" \
             --keyfile "$KEY_FILE" \
-            --workers "${FILMCASE_WEB_WORKERS:-3}" \
+            --workers "${FILMCASE_WEB_WORKERS:-2}" \
+            --threads "${FILMCASE_WEB_THREADS:-4}" \
             --timeout "${FILMCASE_WEB_TIMEOUT:-120}" \
             --access-logfile -
         ;;
