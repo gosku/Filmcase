@@ -135,6 +135,7 @@ TEMPLATES = [
         "OPTIONS": {
             "context_processors": [
                 "django.template.context_processors.request",
+                "src.interfaces.camera.context_processors.camera_transport",
             ],
         },
     },
