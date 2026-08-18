@@ -7,6 +7,7 @@
   <script src="https://unpkg.com/htmx.org@2.0.4" integrity="sha384-HGfztofotfshcF7+8n44JQL2oJmowVChPTg48S+jvZoztPfvwD79OC/LTtG6dMp+" crossorigin="anonymous"></script>
   <script src="/static/js/multi-select.js"></script>
   <link rel="stylesheet" href="/static/css/brand.css">
+  <link rel="stylesheet" href="/static/css/slot-card.css">
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { display: flex; flex-direction: column; font-family: sans-serif; height: 100vh; overflow: hidden; }
@@ -418,65 +419,6 @@
     #recipe-detail-overlay .detail-overlay {
       height: 100%;
     }
-
-    #slot-overlay {
-      position: fixed;
-      inset: 0;
-      z-index: 200;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      background: rgba(0,0,0,0.6);
-    }
-
-    #slot-overlay[hidden] { display: none; }
-
-    .slot-card {
-      background: #fff;
-      border-radius: 16px;
-      padding: 2rem;
-      width: 580px;
-      box-shadow: 0 4px 24px rgba(0,0,0,0.2);
-      position: relative;
-      font-family: sans-serif;
-      min-height: 120px;
-      overflow: hidden;
-    }
-
-    .slot-card--loading {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-
-    .slot-spinner {
-      width: 2rem;
-      height: 2rem;
-      border: 3px solid #e0e0e0;
-      border-top-color: var(--color-accent);
-      border-radius: 50%;
-      animation: slot-spin 0.7s linear infinite;
-    }
-
-    .slot-push-loading {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      min-height: 220px;
-      padding: 2rem;
-    }
-
-    .slot-spinner-large {
-      width: 80px;
-      height: 80px;
-      border: 6px solid #e0e0e0;
-      border-top-color: var(--color-accent);
-      border-radius: 50%;
-      animation: slot-spin 0.7s linear infinite;
-    }
-
-    @keyframes slot-spin { to { transform: rotate(360deg); } }
 
     .import-overlay {
       position: fixed;

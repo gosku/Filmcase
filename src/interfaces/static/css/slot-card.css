@@ -1,0 +1,287 @@
+/* ------------------------------------ */
+/* Camera slot card                     */
+/* ------------------------------------ */
+
+/* The overlay shown by "Send to camera": the slot picker, the push result, and
+   the spinners between them. These rules were previously inlined in four places
+   (recipe_detail.html, recipes_explorer.html, _select_slot_partial.html and
+   _push_result_partial.html). They live here because the partials are not
+   fetched at all when the camera is driven from the browser, so markup rendered
+   client-side would otherwise arrive unstyled. */
+
+/* Overlay and spinners
+   ===================================== */
+
+#slot-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 200;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, .6);
+}
+
+#slot-overlay[hidden] {
+    display: none;
+}
+
+.slot-card {
+    position: relative;
+    width: 580px;
+    min-height: 120px;
+    padding: 2rem;
+    overflow: hidden;
+    font-family: sans-serif;
+    background: #ffffff;
+    border-radius: 16px;
+    box-shadow: 0 4px 24px rgba(0, 0, 0, .2);
+}
+
+.slot-card--loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.slot-spinner {
+    width: 2rem;
+    height: 2rem;
+    border: 3px solid #e0e0e0;
+    border-top-color: var(--color-accent);
+    border-radius: 50%;
+    animation: slot-spin .7s linear infinite;
+}
+
+.slot-push-loading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 220px;
+    padding: 2rem;
+}
+
+.slot-spinner-large {
+    width: 80px;
+    height: 80px;
+    border: 6px solid #e0e0e0;
+    border-top-color: var(--color-accent);
+    border-radius: 50%;
+    animation: slot-spin .7s linear infinite;
+}
+
+@keyframes slot-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* Card header
+   ===================================== */
+
+.slot-card-header {
+    position: relative;
+    margin: -2rem -2rem 1.25rem -2rem;
+    padding: 1.1rem 1.5rem;
+    text-align: center;
+    background: #1e1e1e;
+    border-radius: 14px 14px 0 0;
+}
+
+.slot-card-close {
+    position: absolute;
+    top: .75rem;
+    right: .75rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.75rem;
+    height: 1.75rem;
+    font-size: .85rem;
+    color: rgba(255, 255, 255, .65);
+    background: rgba(255, 255, 255, .1);
+    border: none;
+    border-radius: 50%;
+    cursor: pointer;
+    transition: background .15s;
+}
+
+.slot-card-close:hover {
+    background: rgba(255, 255, 255, .2);
+}
+
+.slot-card .card-title {
+    margin-bottom: .3rem;
+    font-size: .7rem;
+    font-weight: 600;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, .45);
+}
+
+.slot-card .recipe-name {
+    font-size: 1rem;
+    font-weight: 700;
+    color: #ffffff;
+}
+
+/* Slot rows
+   ===================================== */
+
+.slot-card .slot-row {
+    display: flex;
+    align-items: center;
+    gap: .875rem;
+    width: 100%;
+    padding: .8rem .5rem;
+    text-align: left;
+    background: transparent;
+    border: none;
+    border-bottom: 1px solid #f0f0f0;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background .12s;
+}
+
+.slot-card .slot-row:last-child {
+    border-bottom: none;
+}
+
+.slot-card .slot-row:hover {
+    background: var(--color-accent-light);
+}
+
+.slot-card .slot-badge {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 2.25rem;
+    height: 2.25rem;
+    font-size: .7rem;
+    font-weight: 700;
+    letter-spacing: .02em;
+    color: #ffffff;
+    background: #222222;
+    border-radius: 6px;
+}
+
+.slot-card .slot-info {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    align-items: flex-start;
+    min-width: 0;
+}
+
+.slot-card .slot-name {
+    max-width: 100%;
+    overflow: hidden;
+    font-size: .9rem;
+    font-weight: 500;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    color: #222222;
+}
+
+.slot-card .slot-film-tag {
+    margin-top: .2rem;
+    padding: .15rem .4rem;
+    font-size: .68rem;
+    font-weight: 500;
+    letter-spacing: .02em;
+    color: var(--color-accent);
+    background: var(--color-accent-light);
+    border-radius: 3px;
+}
+
+.slot-card .slot-chevron {
+    flex-shrink: 0;
+    font-size: 1.2rem;
+    line-height: 1;
+    color: #cccccc;
+}
+
+.slot-error {
+    padding: 1.25rem 0;
+    font-size: .9rem;
+    text-align: center;
+    color: #dc2626;
+}
+
+/* Push result
+   ===================================== */
+
+.push-result-center {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 220px;
+    padding: 2rem;
+    text-align: center;
+}
+
+.push-check-svg {
+    width: 80px;
+    height: 80px;
+    margin-bottom: 1.25rem;
+}
+
+.push-check-circle {
+    stroke: var(--color-accent);
+    stroke-width: 2;
+    stroke-dasharray: 166;
+    stroke-dashoffset: 166;
+    stroke-miterlimit: 10;
+    animation: push-stroke .6s cubic-bezier(.65, 0, .45, 1) forwards;
+}
+
+.push-check-mark {
+    stroke: var(--color-accent);
+    stroke-width: 3;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    stroke-dasharray: 48;
+    stroke-dashoffset: 48;
+    animation: push-stroke .3s cubic-bezier(.65, 0, .45, 1) .6s forwards;
+}
+
+@keyframes push-stroke {
+    100% {
+        stroke-dashoffset: 0;
+    }
+}
+
+.push-result-message {
+    font-size: 1.3rem;
+    font-weight: 700;
+    color: #222222;
+}
+
+.push-result-err-message {
+    margin-bottom: 1.5rem;
+    font-size: 1rem;
+    line-height: 1.5;
+    color: #dc2626;
+}
+
+.push-retry-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: .75rem 1.5rem;
+    font-size: .95rem;
+    font-weight: 600;
+    color: var(--color-accent);
+    background: #ffffff;
+    border: 1.5px solid var(--color-accent);
+    border-radius: 12px;
+    cursor: pointer;
+    transition: background .15s;
+}
+
+.push-retry-btn:hover {
+    background: var(--color-accent-light);
+}
