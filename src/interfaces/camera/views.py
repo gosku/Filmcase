@@ -10,6 +10,7 @@ from src.application.usecases.camera import push_recipe as push_recipe_uc
 from src.data import models
 from src.domain.camera import ptp_device
 from src.domain.camera import queries as camera_queries
+from src.domain.recipes import queries as recipe_queries
 
 _SLOT_TO_INDEX = {"C1": 1, "C2": 2, "C3": 3, "C4": 4, "C5": 5, "C6": 6, "C7": 7}
 
@@ -129,6 +130,40 @@ class CameraClientConfig(generic.View):
         # The timing settings are tuning values an operator may change between
         # requests, and a stale copy would have the browser writing on delays the
         # server no longer uses.
+        response["Cache-Control"] = "no-store"
+        return response
+
+
+class RecipeCameraPayload(generic.View):
+    """
+    Serve a recipe in the shape the camera write path expects.
+
+    The body is FujifilmRecipeData one field for one key, built by the same
+    recipe_from_db() the server-side push calls. That shared call is the point:
+    it applies normalization once, so a recipe that reaches the camera through
+    the browser has passed through exactly the same domain code as one that
+    reaches it through the server.
+
+    :raises Http404: if no recipe with the given ID exists, or the recipe has no name.
+    """
+
+    recipe: models.FujifilmRecipe
+
+    def setup(self, request: http.HttpRequest, *args: object, **kwargs: object) -> None:
+        super().setup(request, *args, **kwargs)
+        self.recipe = shortcuts.get_object_or_404(models.FujifilmRecipe, pk=kwargs["recipe_id"])
+
+    def dispatch(self, request: http.HttpRequest, *args: object, **kwargs: object) -> http.HttpResponseBase:
+        # Mirrors SelectSlot: an unnamed recipe cannot be written to a slot, so
+        # there is nothing useful to hand the client.
+        if not self.recipe.name:
+            raise http.Http404
+        return super().dispatch(request, *args, **kwargs)
+
+    def get(self, request: http.HttpRequest, recipe_id: int) -> http.HttpResponse:
+        recipe_data = recipe_queries.recipe_from_db(recipe=self.recipe)
+        response = http.JsonResponse(attrs.asdict(recipe_data))
+        # A recipe edited in another tab should not be pushed from a stale copy.
         response["Cache-Control"] = "no-store"
         return response
 
