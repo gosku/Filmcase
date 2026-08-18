@@ -285,6 +285,55 @@ def custom_slot_count(camera_name: str) -> int:
 
 
 # ---------------------------------------------------------------------------
+# Client configuration
+# ---------------------------------------------------------------------------
+
+@attrs.frozen
+class ClientCameraSettings:
+    """
+    The camera settings a client needs to drive the camera itself.
+
+    Field names are the Django setting names verbatim, uppercase and all.  That
+    is deliberate: the browser runs a port of the same push sequence, and a
+    reader comparing the two should be able to grep either side for
+    CAMERA_PRE_WRITE_DELAY_S and land on both halves of the timing contract.
+
+    The set of fields is also the definition of what "shared with the client"
+    means.  A test asserts it covers every CAMERA_* setting, so a new camera
+    setting cannot be introduced without deciding whether the client needs it.
+    """
+    CAMERA_TRANSPORT: str
+    CAMERA_VERIFY_WRITES: bool
+    CAMERA_POST_READ_DELAY_S: float
+    CAMERA_PRE_WRITE_DELAY_S: float
+    CAMERA_POST_WRITE_DELAY_S: float
+    CAMERA_POST_CURSOR_DELAY_S: float
+    CAMERA_INTER_SLOT_DELAY_S: float
+    CAMERA_MAX_RETRIES: int
+    CAMERA_RETRY_BACKOFF_S: float
+
+
+def client_camera_settings() -> ClientCameraSettings:
+    """
+    Collect the camera settings that both transports have to agree on.
+
+    Settings are read here rather than at import time, so a test that overrides
+    one, or a restart with a different environment, takes effect.
+    """
+    return ClientCameraSettings(
+        CAMERA_TRANSPORT=_settings.CAMERA_TRANSPORT,
+        CAMERA_VERIFY_WRITES=_settings.CAMERA_VERIFY_WRITES,
+        CAMERA_POST_READ_DELAY_S=_settings.CAMERA_POST_READ_DELAY_S,
+        CAMERA_PRE_WRITE_DELAY_S=_settings.CAMERA_PRE_WRITE_DELAY_S,
+        CAMERA_POST_WRITE_DELAY_S=_settings.CAMERA_POST_WRITE_DELAY_S,
+        CAMERA_POST_CURSOR_DELAY_S=_settings.CAMERA_POST_CURSOR_DELAY_S,
+        CAMERA_INTER_SLOT_DELAY_S=_settings.CAMERA_INTER_SLOT_DELAY_S,
+        CAMERA_MAX_RETRIES=_settings.CAMERA_MAX_RETRIES,
+        CAMERA_RETRY_BACKOFF_S=_settings.CAMERA_RETRY_BACKOFF_S,
+    )
+
+
+# ---------------------------------------------------------------------------
 # Recipe → PTP value conversion
 # ---------------------------------------------------------------------------
 
