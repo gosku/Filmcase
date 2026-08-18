@@ -8,11 +8,18 @@ from django.views import generic
 from src.application.usecases.camera import get_camera_slots as get_camera_slots_uc
 from src.application.usecases.camera import push_recipe as push_recipe_uc
 from src.data import models
+from src.domain.camera import device_config
 from src.domain.camera import ptp_device
 from src.domain.camera import queries as camera_queries
 from src.domain.recipes import queries as recipe_queries
 
 _SLOT_TO_INDEX = {"C1": 1, "C2": 2, "C3": 3, "C4": 4, "C5": 5, "C6": 6, "C7": 7}
+
+# Shown when a request reaches a server-side camera view while the browser owns
+# the transport.  400 rather than 503: the server is healthy and behaving as
+# configured, and repeating the request unchanged will never succeed, which is
+# what 503 would wrongly promise.
+_WRONG_TRANSPORT_ERROR = "Filmcase is configured to talk to the camera from your browser."
 
 
 class SelectSlot(generic.View):
@@ -29,6 +36,16 @@ class SelectSlot(generic.View):
         self.recipe = shortcuts.get_object_or_404(models.FujifilmRecipe, pk=kwargs["recipe_id"])
 
     def dispatch(self, request: http.HttpRequest, *args: object, **kwargs: object) -> http.HttpResponseBase:
+        if device_config.is_browser_transport():
+            # A stale page or a bookmarked URL should not make a headless server
+            # reach for a camera that is plugged into someone else's desk.
+            if request.headers.get("HX-Request"):
+                return shortcuts.render(
+                    request,
+                    "recipes/_select_slot_partial.html",
+                    {"recipe": self.recipe, "slots": [], "error": _WRONG_TRANSPORT_ERROR},
+                )
+            return http.JsonResponse({"error": _WRONG_TRANSPORT_ERROR}, status=400)
         if not self.recipe.name:
             raise http.Http404
         return super().dispatch(request, *args, **kwargs)
@@ -71,6 +88,18 @@ class PushRecipeToCamera(generic.View):
         self.slot_index = _SLOT_TO_INDEX.get(str(kwargs["slot"]))
 
     def dispatch(self, request: http.HttpRequest, *args: object, **kwargs: object) -> http.HttpResponseBase:
+        if device_config.is_browser_transport():
+            if request.headers.get("HX-Request"):
+                return shortcuts.render(
+                    request,
+                    "recipes/_push_result_partial.html",
+                    {
+                        "error": _WRONG_TRANSPORT_ERROR,
+                        "recipe_id": kwargs["recipe_id"],
+                        "slot": kwargs["slot"],
+                    },
+                )
+            return http.JsonResponse({"error": _WRONG_TRANSPORT_ERROR}, status=400)
         if self.slot_index is None:
             raise http.Http404
         return super().dispatch(request, *args, **kwargs)

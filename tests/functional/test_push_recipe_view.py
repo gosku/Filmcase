@@ -272,3 +272,40 @@ class TestPushRecipeToCameraViewHtmx:
         soup = BeautifulSoup(response.content, "html.parser")
         assert soup.find(class_="push-result-err-message") is not None
         assert "unexpected error" in soup.get_text().lower()
+
+
+@pytest.mark.django_db
+class TestPushRecipeToCameraInBrowserTransport:
+    def test_declines_with_400_when_the_browser_owns_the_transport(self, client, settings):
+        settings.CAMERA_TRANSPORT = "browser"
+        recipe = _recipe()
+
+        response = client.post(f"/recipes/{recipe.id}/push/C1/")
+
+        assert response.status_code == 400
+        assert "from your browser" in response.json()["error"]
+
+    def test_htmx_gets_the_error_partial_with_a_working_retry_target(self, client, settings):
+        settings.CAMERA_TRANSPORT = "browser"
+        recipe = _recipe()
+
+        response = client.post(
+            f"/recipes/{recipe.id}/push/C2/", headers={"HX-Request": "true"}
+        )
+
+        assert response.status_code == 200
+        soup = BeautifulSoup(response.content, "html.parser")
+        retry = soup.select_one(".push-retry-btn")
+        assert retry is not None
+        assert retry["hx-post"] == f"/recipes/{recipe.id}/push/C2/"
+
+    def test_never_touches_the_camera(self, client, settings):
+        settings.CAMERA_TRANSPORT = "browser"
+
+        def _explode():
+            raise AssertionError("the camera must not be touched in browser mode")
+
+        settings.PTP_DEVICE = _explode
+        recipe = _recipe()
+
+        assert client.post(f"/recipes/{recipe.id}/push/C1/").status_code == 400
