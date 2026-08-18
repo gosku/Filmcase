@@ -75,6 +75,13 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 PTP_DEVICE: str = env.str("PTP_DEVICE", default="src.domain.camera.ptp_usb_device.PTPUSBDevice")  # dotted import path to the PTP device implementation; swap for a stub/mock in tests
 
+# Which machine the camera is plugged into. "server" talks to it from the Django process
+# over PyUSB, so the camera must be attached to whatever runs Filmcase. "browser" talks to
+# it from the user's own machine over WebUSB, which is what makes a headless install (a NAS,
+# a container on another host) usable. WebUSB needs a secure context, so browser mode only
+# works over HTTPS or localhost, and only on Chromium browsers.
+CAMERA_TRANSPORT: str = env.str("CAMERA_TRANSPORT", default="server")  # "server": camera attached to the Filmcase host (PyUSB); "browser": camera attached to the user's machine (WebUSB)
+
 STATIC_FILES_DIR = BASE_DIR / "src/interfaces/static"  # directory served at /static/
 GALLERY_PAGE_SIZE: int = env.int("GALLERY_PAGE_SIZE", default=24)  # number of images shown per page in the gallery view
 RECIPE_EXPLORER_PAGE_SIZE: int = env.int("RECIPE_EXPLORER_PAGE_SIZE", default=24)  # number of recipes shown per page in the recipe explorer
