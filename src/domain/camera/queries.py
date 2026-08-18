@@ -11,6 +11,7 @@ object into a RecipePTPValues consumed by operations.push_recipe().
 from __future__ import annotations
 
 import time
+from collections.abc import Mapping
 
 import attrs
 
@@ -41,6 +42,13 @@ _CCE_TO_PTP: dict[str, int] = {v: k for k, v in constants.CUSTOM_SLOT_CCE_PTP.it
 _CFX_TO_PTP: dict[str, int] = {v: k for k, v in constants.CUSTOM_SLOT_CFX_PTP.items()}
 _NR_TO_PTP: dict[int, int] = {v: k for k, v in constants.CUSTOM_SLOT_NR_DECODE.items()}
 _DR_PRIORITY_TO_PTP: dict[str, int] = {v: k for k, v in constants.CUSTOM_SLOT_DR_PRIORITY_DECODE.items()}
+
+# What to write for GrainEffect when roughness is Off, whatever the size.  The
+# camera normalises it to 6 (Off+Small) or 7 (Off+Large), retaining the size it
+# last remembered (confirmed X-S10, 2026-03-26).  _GRAIN_TO_PTP does hold an
+# ("Off", ...) entry, but that is the inverse of the read table and writing it
+# would set a size the recipe never asked for.
+GRAIN_OFF_SENTINEL = 1
 
 
 # ---------------------------------------------------------------------------
@@ -333,9 +341,120 @@ def client_camera_settings() -> ClientCameraSettings:
     )
 
 
+@attrs.frozen
+class ClientCameraEncodings:
+    """
+    The property codes and value tables needed to write a recipe to a slot.
+
+    These describe the hardware rather than the installation: no deployment
+    changes them, and they only move when someone reverse-engineers another
+    camera body.  They are served to the client rather than duplicated there,
+    so the browser holds no copy of its own and a table gained here reaches it
+    on the next request.
+
+    Only the write path is covered.  Read-side decode tables stay on the server,
+    which is the only side that reads a slot back.
+    """
+    vendor_id: int
+    prop_ping: int
+    prop_slot_cursor: int
+    prop_slot_name: int
+    recipe_name_max_len: int
+    custom_slot_codes: Mapping[str, int]
+    write_order: tuple[str, ...]
+    film_simulation_to_ptp: Mapping[str, int]
+    white_balance_to_ptp: Mapping[str, int]
+    drange_mode_to_ptp: Mapping[str, int]
+    dr_priority_to_ptp: Mapping[str, int]
+    # Nested rather than tuple-keyed: the Python table is keyed by
+    # (roughness, size), which has no JSON equivalent, and nesting avoids
+    # inventing a join-key convention the client would have to parse.
+    #
+    # Its "Off" entry is a read-side artefact and must not be used to write.
+    # Use grain_off_sentinel for that; see its comment.
+    grain_to_ptp: Mapping[str, Mapping[str, int]]
+    # What to write for any Off roughness, regardless of size.  The camera
+    # normalises it to 6 (Off+Small) or 7 (Off+Large), keeping whichever size it
+    # last remembered, which is why the value written and the value read back
+    # never match and why verification skips this property.
+    grain_off_sentinel: int
+    cce_to_ptp: Mapping[str, int]
+    cfx_to_ptp: Mapping[str, int]
+    # Keyed by the domain value (-4..+4), not by the PTP value.  JSON turns
+    # those keys into strings, so a client inverting or indexing this table has
+    # to convert them back before writing.
+    nr_to_ptp: Mapping[int, int]
+    camera_custom_slot_counts: Mapping[str, int]
+
+
+def _nested_grain_table() -> dict[str, dict[str, int]]:
+    nested: dict[str, dict[str, int]] = {}
+    for (roughness, size), ptp_value in _GRAIN_TO_PTP.items():
+        nested.setdefault(roughness, {})[size] = ptp_value
+    return nested
+
+
+def client_camera_encodings() -> ClientCameraEncodings:
+    """
+    Collect the PTP codes and value tables a client needs to write a recipe.
+    """
+    return ClientCameraEncodings(
+        vendor_id=ptp_device.FUJIFILM_VENDOR_ID,
+        prop_ping=constants.PROP_PING,
+        prop_slot_cursor=constants.PROP_SLOT_CURSOR,
+        prop_slot_name=constants.PROP_SLOT_NAME,
+        recipe_name_max_len=image_dataclasses.RECIPE_NAME_MAX_LEN,
+        custom_slot_codes=constants.CUSTOM_SLOT_CODES,
+        write_order=WRITE_ORDER,
+        film_simulation_to_ptp=constants.FILM_SIMULATION_TO_PTP,
+        white_balance_to_ptp=constants.WHITE_BALANCE_TO_PTP,
+        drange_mode_to_ptp=constants.DRANGE_MODE_TO_PTP,
+        dr_priority_to_ptp=_DR_PRIORITY_TO_PTP,
+        grain_to_ptp=_nested_grain_table(),
+        grain_off_sentinel=GRAIN_OFF_SENTINEL,
+        cce_to_ptp=_CCE_TO_PTP,
+        cfx_to_ptp=_CFX_TO_PTP,
+        nr_to_ptp=_NR_TO_PTP,
+        camera_custom_slot_counts=constants.CAMERA_CUSTOM_SLOT_COUNTS,
+    )
+
+
 # ---------------------------------------------------------------------------
 # Recipe → PTP value conversion
 # ---------------------------------------------------------------------------
+
+# The order recipe properties are written to a custom slot, by RecipePTPValues
+# attribute name.
+#
+# This is not cosmetic.  WhiteBalanceColorTemperature must be written before
+# WhiteBalanceRed and WhiteBalanceBlue, or the camera resets both shifts to 0
+# when it applies the colour temperature.  See
+# docs/investigation/wb_shift_reset_on_kelvin.md.
+#
+# Module level rather than inline in items() because the browser transport runs
+# the same sequence and is served this list, so both sides order their writes
+# from one definition.
+WRITE_ORDER: tuple[str, ...] = (
+    "FilmSimulation",
+    "WhiteBalance",
+    "WhiteBalanceColorTemperature",  # must precede Red/Blue
+    "WhiteBalanceRed",
+    "WhiteBalanceBlue",
+    "DRangePriority",
+    "DRangeMode",
+    "GrainEffect",
+    "ColorEffect",
+    "ColorFx",
+    "ColorMode",
+    "Sharpness",
+    "HighLightTone",
+    "ShadowTone",
+    "HighIsoNoiseReduction",
+    "Definition",
+    "MonochromaticColorWarmCool",
+    "MonochromaticColorMagentaGreen",
+)
+
 
 @attrs.frozen
 class RecipePTPValues:
@@ -374,34 +493,12 @@ class RecipePTPValues:
         """
         Return (ptp_code, value) pairs for all properties that are set.
 
-        Write order matters: WhiteBalanceColorTemperature must be written
-        before WhiteBalanceRed/WhiteBalanceBlue; otherwise the camera resets
-        the shift values to 0 when the colour temperature is applied.
+        The order is WRITE_ORDER; see its comment for why it matters.
         """
         codes = constants.CUSTOM_SLOT_CODES
-        _WRITE_ORDER = [
-            "FilmSimulation",
-            "WhiteBalance",
-            "WhiteBalanceColorTemperature",  # must precede Red/Blue
-            "WhiteBalanceRed",
-            "WhiteBalanceBlue",
-            "DRangePriority",
-            "DRangeMode",
-            "GrainEffect",
-            "ColorEffect",
-            "ColorFx",
-            "ColorMode",
-            "Sharpness",
-            "HighLightTone",
-            "ShadowTone",
-            "HighIsoNoiseReduction",
-            "Definition",
-            "MonochromaticColorWarmCool",
-            "MonochromaticColorMagentaGreen",
-        ]
         return [
             (codes[name], getattr(self, name))
-            for name in _WRITE_ORDER
+            for name in WRITE_ORDER
             if getattr(self, name) is not None
         ]
 
@@ -441,10 +538,8 @@ def recipe_to_ptp_values(recipe: image_dataclasses.FujifilmRecipeData) -> Recipe
         dr_mode = constants.DRANGE_MODE_TO_PTP.get(recipe.dynamic_range) if recipe.dynamic_range is not None and recipe.dynamic_range != "" else None
 
     # --- Grain effect (always written) ---
-    # Write 1 for any Off roughness; camera normalises to 6 (Off+Small) or
-    # 7 (Off+Large), retaining the last remembered size (X-S10 confirmed 2026-03-26).
     if recipe.grain_roughness == "Off":
-        grain: int = 1
+        grain: int = GRAIN_OFF_SENTINEL
     else:
         assert recipe.grain_size is not None  # guaranteed by validate_recipe_for_camera
         grain = _GRAIN_TO_PTP[(recipe.grain_roughness, recipe.grain_size)]
