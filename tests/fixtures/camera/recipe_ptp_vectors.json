@@ -1,0 +1,1254 @@
+{
+  "comment": "Golden vectors shared by the Python and JavaScript implementations of recipe -> PTP value conversion. Both suites assert against this file, so the two ports cannot drift apart silently. Regenerate with tests/fixtures/camera/generate_recipe_ptp_vectors.py, deliberately, never to make a failing test pass: a diff here means the wire format changed.",
+  "encodings": {
+    "vendor_id": 1227,
+    "prop_ping": 53283,
+    "prop_slot_cursor": 53644,
+    "prop_slot_name": 53645,
+    "recipe_name_max_len": 25,
+    "custom_slot_codes": {
+      "FilmSimulation": 53650,
+      "WhiteBalance": 53657,
+      "WhiteBalanceColorTemperature": 53660,
+      "WhiteBalanceRed": 53658,
+      "WhiteBalanceBlue": 53659,
+      "DRangeMode": 53648,
+      "GrainEffect": 53653,
+      "ColorEffect": 53654,
+      "ColorFx": 53655,
+      "ColorMode": 53663,
+      "Sharpness": 53664,
+      "HighLightTone": 53661,
+      "ShadowTone": 53662,
+      "HighIsoNoiseReduction": 53665,
+      "Definition": 53666,
+      "MonochromaticColorWarmCool": 53651,
+      "MonochromaticColorMagentaGreen": 53652,
+      "DRangePriority": 53649
+    },
+    "write_order": [
+      "FilmSimulation",
+      "WhiteBalance",
+      "WhiteBalanceColorTemperature",
+      "WhiteBalanceRed",
+      "WhiteBalanceBlue",
+      "DRangePriority",
+      "DRangeMode",
+      "GrainEffect",
+      "ColorEffect",
+      "ColorFx",
+      "ColorMode",
+      "Sharpness",
+      "HighLightTone",
+      "ShadowTone",
+      "HighIsoNoiseReduction",
+      "Definition",
+      "MonochromaticColorWarmCool",
+      "MonochromaticColorMagentaGreen"
+    ],
+    "film_simulation_to_ptp": {
+      "Provia": 1,
+      "Velvia": 2,
+      "Astia": 3,
+      "Pro Neg. Hi": 4,
+      "Pro Neg. Std": 5,
+      "Monochrome STD": 6,
+      "Monochrome Yellow": 7,
+      "Monochrome Red": 8,
+      "Monochrome Green": 9,
+      "Sepia": 10,
+      "Classic Chrome": 11,
+      "Acros STD": 12,
+      "Acros Yellow": 13,
+      "Acros Red": 14,
+      "Acros Green": 15,
+      "Eterna": 16,
+      "Classic Negative": 17,
+      "Eterna Bleach Bypass": 18,
+      "Nostalgic Negative": 19,
+      "Reala Ace": 20
+    },
+    "white_balance_to_ptp": {
+      "Auto": 2,
+      "Auto (white priority)": 32800,
+      "Auto (ambience priority)": 32801,
+      "Daylight": 4,
+      "Incandescent": 6,
+      "Fluorescent 1": 32769,
+      "Fluorescent 2": 32770,
+      "Fluorescent 3": 32771,
+      "Shade": 32774,
+      "Kelvin": 32775,
+      "Underwater": 8,
+      "Custom 1": 32776,
+      "Custom 2": 32777,
+      "Custom 3": 32778
+    },
+    "drange_mode_to_ptp": {
+      "DR-Auto": 65535,
+      "DR100": 100,
+      "DR200": 200,
+      "DR400": 400
+    },
+    "dr_priority_to_ptp": {
+      "Off": 0,
+      "Weak": 1,
+      "Strong": 2,
+      "Auto": 32768
+    },
+    "grain_to_ptp": {
+      "Off": {
+        "Off": 7
+      },
+      "Weak": {
+        "Small": 2,
+        "Large": 4
+      },
+      "Strong": {
+        "Small": 3,
+        "Large": 5
+      }
+    },
+    "grain_off_sentinel": 1,
+    "cce_to_ptp": {
+      "Off": 1,
+      "Weak": 2,
+      "Strong": 3
+    },
+    "cfx_to_ptp": {
+      "Off": 1,
+      "Weak": 2,
+      "Strong": 3
+    },
+    "nr_to_ptp": {
+      "4": 20480,
+      "3": 24576,
+      "2": 0,
+      "1": 4096,
+      "0": 8192,
+      "-1": 12288,
+      "-2": 16384,
+      "-3": 28672,
+      "-4": 32768
+    },
+    "camera_custom_slot_counts": {
+      "X-T3": 7,
+      "X-T4": 7,
+      "X-T5": 7,
+      "X-T30": 7,
+      "X-T30 II": 7,
+      "X-T30 III": 7,
+      "X-T50": 7,
+      "X-H1": 7,
+      "X-H2": 7,
+      "X-H2S": 7,
+      "X100T": 7,
+      "X100V": 7,
+      "X100VI": 7,
+      "X-Pro1": 7,
+      "X-Pro2": 7,
+      "X-Pro3": 7,
+      "X-E2": 7,
+      "X-E2S": 7,
+      "X-E3": 7,
+      "X-E4": 7,
+      "X-E5": 7,
+      "X-T1": 7,
+      "X-T2": 7,
+      "X-T10": 7,
+      "X-T20": 7,
+      "GFX 50R": 7,
+      "X70": 7,
+      "GFX100 II": 6,
+      "GFX100S": 6,
+      "GFX100SII": 6,
+      "GFX50S II": 6,
+      "GFX 50S": 6,
+      "X-S20": 4,
+      "X-S10": 4,
+      "X100S": 3,
+      "X100": 3,
+      "X-E1": 3,
+      "X-T100": 0,
+      "X-T200": 0,
+      "X-M1": 0,
+      "X10": 0,
+      "X20": 0,
+      "X30": 0,
+      "XF1": 0,
+      "XF10": 0,
+      "XQ1": 0,
+      "XQ2": 0
+    }
+  },
+  "vectors": [
+    {
+      "name": "named_white_balance",
+      "why": "An everyday recipe with a named white balance and no Kelvin value.",
+      "recipe": {
+        "film_simulation": "Classic Chrome",
+        "d_range_priority": "Off",
+        "grain_roughness": "Weak",
+        "color_chrome_effect": "Strong",
+        "color_chrome_fx_blue": "Weak",
+        "white_balance": "Daylight",
+        "white_balance_red": 0,
+        "white_balance_blue": 0,
+        "sharpness": "0",
+        "high_iso_nr": "0",
+        "clarity": "0",
+        "dynamic_range": "DR200",
+        "grain_size": "Small",
+        "highlight": "0",
+        "shadow": "0",
+        "color": "0",
+        "monochromatic_color_warm_cool": null,
+        "monochromatic_color_magenta_green": null,
+        "name": "Base Recipe",
+        "sensors": [],
+        "description": ""
+      },
+      "expected_items": [
+        [
+          53650,
+          11
+        ],
+        [
+          53657,
+          4
+        ],
+        [
+          53658,
+          0
+        ],
+        [
+          53659,
+          0
+        ],
+        [
+          53649,
+          0
+        ],
+        [
+          53648,
+          200
+        ],
+        [
+          53653,
+          2
+        ],
+        [
+          53654,
+          3
+        ],
+        [
+          53655,
+          2
+        ],
+        [
+          53663,
+          0
+        ],
+        [
+          53664,
+          0
+        ],
+        [
+          53661,
+          0
+        ],
+        [
+          53662,
+          0
+        ],
+        [
+          53665,
+          8192
+        ],
+        [
+          53666,
+          0
+        ]
+      ]
+    },
+    {
+      "name": "kelvin_white_balance_with_shifts",
+      "why": "Kelvin WB with red and blue shifts. Pins the ordering rule: WhiteBalanceColorTemperature must be written before the two shifts, or the camera zeroes them when the temperature lands.",
+      "recipe": {
+        "film_simulation": "Classic Chrome",
+        "d_range_priority": "Off",
+        "grain_roughness": "Weak",
+        "color_chrome_effect": "Strong",
+        "color_chrome_fx_blue": "Weak",
+        "white_balance": "6500K",
+        "white_balance_red": -2,
+        "white_balance_blue": 3,
+        "sharpness": "0",
+        "high_iso_nr": "0",
+        "clarity": "0",
+        "dynamic_range": "DR200",
+        "grain_size": "Small",
+        "highlight": "0",
+        "shadow": "0",
+        "color": "0",
+        "monochromatic_color_warm_cool": null,
+        "monochromatic_color_magenta_green": null,
+        "name": "Base Recipe",
+        "sensors": [],
+        "description": ""
+      },
+      "expected_items": [
+        [
+          53650,
+          11
+        ],
+        [
+          53657,
+          32775
+        ],
+        [
+          53660,
+          6500
+        ],
+        [
+          53658,
+          -2
+        ],
+        [
+          53659,
+          3
+        ],
+        [
+          53649,
+          0
+        ],
+        [
+          53648,
+          200
+        ],
+        [
+          53653,
+          2
+        ],
+        [
+          53654,
+          3
+        ],
+        [
+          53655,
+          2
+        ],
+        [
+          53663,
+          0
+        ],
+        [
+          53664,
+          0
+        ],
+        [
+          53661,
+          0
+        ],
+        [
+          53662,
+          0
+        ],
+        [
+          53665,
+          8192
+        ],
+        [
+          53666,
+          0
+        ]
+      ]
+    },
+    {
+      "name": "grain_off_uses_the_sentinel",
+      "why": "Grain Off is written as the sentinel, not as the value the read table would invert to, because the camera picks the size it last remembered.",
+      "recipe": {
+        "film_simulation": "Classic Chrome",
+        "d_range_priority": "Off",
+        "grain_roughness": "Off",
+        "color_chrome_effect": "Strong",
+        "color_chrome_fx_blue": "Weak",
+        "white_balance": "Daylight",
+        "white_balance_red": 0,
+        "white_balance_blue": 0,
+        "sharpness": "0",
+        "high_iso_nr": "0",
+        "clarity": "0",
+        "dynamic_range": "DR200",
+        "grain_size": null,
+        "highlight": "0",
+        "shadow": "0",
+        "color": "0",
+        "monochromatic_color_warm_cool": null,
+        "monochromatic_color_magenta_green": null,
+        "name": "Base Recipe",
+        "sensors": [],
+        "description": ""
+      },
+      "expected_items": [
+        [
+          53650,
+          11
+        ],
+        [
+          53657,
+          4
+        ],
+        [
+          53658,
+          0
+        ],
+        [
+          53659,
+          0
+        ],
+        [
+          53649,
+          0
+        ],
+        [
+          53648,
+          200
+        ],
+        [
+          53653,
+          1
+        ],
+        [
+          53654,
+          3
+        ],
+        [
+          53655,
+          2
+        ],
+        [
+          53663,
+          0
+        ],
+        [
+          53664,
+          0
+        ],
+        [
+          53661,
+          0
+        ],
+        [
+          53662,
+          0
+        ],
+        [
+          53665,
+          8192
+        ],
+        [
+          53666,
+          0
+        ]
+      ]
+    },
+    {
+      "name": "grain_strong_large",
+      "why": "The other end of the grain table.",
+      "recipe": {
+        "film_simulation": "Classic Chrome",
+        "d_range_priority": "Off",
+        "grain_roughness": "Strong",
+        "color_chrome_effect": "Strong",
+        "color_chrome_fx_blue": "Weak",
+        "white_balance": "Daylight",
+        "white_balance_red": 0,
+        "white_balance_blue": 0,
+        "sharpness": "0",
+        "high_iso_nr": "0",
+        "clarity": "0",
+        "dynamic_range": "DR200",
+        "grain_size": "Large",
+        "highlight": "0",
+        "shadow": "0",
+        "color": "0",
+        "monochromatic_color_warm_cool": null,
+        "monochromatic_color_magenta_green": null,
+        "name": "Base Recipe",
+        "sensors": [],
+        "description": ""
+      },
+      "expected_items": [
+        [
+          53650,
+          11
+        ],
+        [
+          53657,
+          4
+        ],
+        [
+          53658,
+          0
+        ],
+        [
+          53659,
+          0
+        ],
+        [
+          53649,
+          0
+        ],
+        [
+          53648,
+          200
+        ],
+        [
+          53653,
+          5
+        ],
+        [
+          53654,
+          3
+        ],
+        [
+          53655,
+          2
+        ],
+        [
+          53663,
+          0
+        ],
+        [
+          53664,
+          0
+        ],
+        [
+          53661,
+          0
+        ],
+        [
+          53662,
+          0
+        ],
+        [
+          53665,
+          8192
+        ],
+        [
+          53666,
+          0
+        ]
+      ]
+    },
+    {
+      "name": "drange_priority_suppresses_drange_mode",
+      "why": "With D-Range Priority active the camera owns the tone curve, so DRangeMode, HighLightTone and ShadowTone are not written at all.",
+      "recipe": {
+        "film_simulation": "Classic Chrome",
+        "d_range_priority": "Strong",
+        "grain_roughness": "Weak",
+        "color_chrome_effect": "Strong",
+        "color_chrome_fx_blue": "Weak",
+        "white_balance": "Daylight",
+        "white_balance_red": 0,
+        "white_balance_blue": 0,
+        "sharpness": "0",
+        "high_iso_nr": "0",
+        "clarity": "0",
+        "dynamic_range": null,
+        "grain_size": "Small",
+        "highlight": null,
+        "shadow": null,
+        "color": "0",
+        "monochromatic_color_warm_cool": null,
+        "monochromatic_color_magenta_green": null,
+        "name": "Base Recipe",
+        "sensors": [],
+        "description": ""
+      },
+      "expected_items": [
+        [
+          53650,
+          11
+        ],
+        [
+          53657,
+          4
+        ],
+        [
+          53658,
+          0
+        ],
+        [
+          53659,
+          0
+        ],
+        [
+          53649,
+          2
+        ],
+        [
+          53653,
+          2
+        ],
+        [
+          53654,
+          3
+        ],
+        [
+          53655,
+          2
+        ],
+        [
+          53663,
+          0
+        ],
+        [
+          53664,
+          0
+        ],
+        [
+          53665,
+          8192
+        ],
+        [
+          53666,
+          0
+        ]
+      ]
+    },
+    {
+      "name": "drange_mode_written_when_priority_off",
+      "why": "With priority off, DRangeMode carries the dynamic range.",
+      "recipe": {
+        "film_simulation": "Classic Chrome",
+        "d_range_priority": "Off",
+        "grain_roughness": "Weak",
+        "color_chrome_effect": "Strong",
+        "color_chrome_fx_blue": "Weak",
+        "white_balance": "Daylight",
+        "white_balance_red": 0,
+        "white_balance_blue": 0,
+        "sharpness": "0",
+        "high_iso_nr": "0",
+        "clarity": "0",
+        "dynamic_range": "DR400",
+        "grain_size": "Small",
+        "highlight": "0",
+        "shadow": "0",
+        "color": "0",
+        "monochromatic_color_warm_cool": null,
+        "monochromatic_color_magenta_green": null,
+        "name": "Base Recipe",
+        "sensors": [],
+        "description": ""
+      },
+      "expected_items": [
+        [
+          53650,
+          11
+        ],
+        [
+          53657,
+          4
+        ],
+        [
+          53658,
+          0
+        ],
+        [
+          53659,
+          0
+        ],
+        [
+          53649,
+          0
+        ],
+        [
+          53648,
+          400
+        ],
+        [
+          53653,
+          2
+        ],
+        [
+          53654,
+          3
+        ],
+        [
+          53655,
+          2
+        ],
+        [
+          53663,
+          0
+        ],
+        [
+          53664,
+          0
+        ],
+        [
+          53661,
+          0
+        ],
+        [
+          53662,
+          0
+        ],
+        [
+          53665,
+          8192
+        ],
+        [
+          53666,
+          0
+        ]
+      ]
+    },
+    {
+      "name": "monochrome_swaps_colour_for_toning",
+      "why": "A monochrome simulation drops ColorMode and gains the two toning axes.",
+      "recipe": {
+        "film_simulation": "Acros STD",
+        "d_range_priority": "Off",
+        "grain_roughness": "Weak",
+        "color_chrome_effect": "Strong",
+        "color_chrome_fx_blue": "Weak",
+        "white_balance": "Daylight",
+        "white_balance_red": 0,
+        "white_balance_blue": 0,
+        "sharpness": "0",
+        "high_iso_nr": "0",
+        "clarity": "0",
+        "dynamic_range": "DR200",
+        "grain_size": "Small",
+        "highlight": "0",
+        "shadow": "0",
+        "color": null,
+        "monochromatic_color_warm_cool": "+3",
+        "monochromatic_color_magenta_green": "-2",
+        "name": "Base Recipe",
+        "sensors": [],
+        "description": ""
+      },
+      "expected_items": [
+        [
+          53650,
+          12
+        ],
+        [
+          53657,
+          4
+        ],
+        [
+          53658,
+          0
+        ],
+        [
+          53659,
+          0
+        ],
+        [
+          53649,
+          0
+        ],
+        [
+          53648,
+          200
+        ],
+        [
+          53653,
+          2
+        ],
+        [
+          53654,
+          3
+        ],
+        [
+          53655,
+          2
+        ],
+        [
+          53664,
+          0
+        ],
+        [
+          53661,
+          0
+        ],
+        [
+          53662,
+          0
+        ],
+        [
+          53665,
+          8192
+        ],
+        [
+          53666,
+          0
+        ],
+        [
+          53651,
+          30
+        ],
+        [
+          53652,
+          -20
+        ]
+      ]
+    },
+    {
+      "name": "half_step_tone_curves",
+      "why": "Highlight and shadow allow half steps, so they scale with round() rather than truncation.",
+      "recipe": {
+        "film_simulation": "Classic Chrome",
+        "d_range_priority": "Off",
+        "grain_roughness": "Weak",
+        "color_chrome_effect": "Strong",
+        "color_chrome_fx_blue": "Weak",
+        "white_balance": "Daylight",
+        "white_balance_red": 0,
+        "white_balance_blue": 0,
+        "sharpness": "0",
+        "high_iso_nr": "0",
+        "clarity": "0",
+        "dynamic_range": "DR200",
+        "grain_size": "Small",
+        "highlight": "+1.5",
+        "shadow": "-1.5",
+        "color": "0",
+        "monochromatic_color_warm_cool": null,
+        "monochromatic_color_magenta_green": null,
+        "name": "Base Recipe",
+        "sensors": [],
+        "description": ""
+      },
+      "expected_items": [
+        [
+          53650,
+          11
+        ],
+        [
+          53657,
+          4
+        ],
+        [
+          53658,
+          0
+        ],
+        [
+          53659,
+          0
+        ],
+        [
+          53649,
+          0
+        ],
+        [
+          53648,
+          200
+        ],
+        [
+          53653,
+          2
+        ],
+        [
+          53654,
+          3
+        ],
+        [
+          53655,
+          2
+        ],
+        [
+          53663,
+          0
+        ],
+        [
+          53664,
+          0
+        ],
+        [
+          53661,
+          15
+        ],
+        [
+          53662,
+          -15
+        ],
+        [
+          53665,
+          8192
+        ],
+        [
+          53666,
+          0
+        ]
+      ]
+    },
+    {
+      "name": "noise_reduction_maximum",
+      "why": "The NR table is non-linear; this is its top entry.",
+      "recipe": {
+        "film_simulation": "Classic Chrome",
+        "d_range_priority": "Off",
+        "grain_roughness": "Weak",
+        "color_chrome_effect": "Strong",
+        "color_chrome_fx_blue": "Weak",
+        "white_balance": "Daylight",
+        "white_balance_red": 0,
+        "white_balance_blue": 0,
+        "sharpness": "0",
+        "high_iso_nr": "+4",
+        "clarity": "0",
+        "dynamic_range": "DR200",
+        "grain_size": "Small",
+        "highlight": "0",
+        "shadow": "0",
+        "color": "0",
+        "monochromatic_color_warm_cool": null,
+        "monochromatic_color_magenta_green": null,
+        "name": "Base Recipe",
+        "sensors": [],
+        "description": ""
+      },
+      "expected_items": [
+        [
+          53650,
+          11
+        ],
+        [
+          53657,
+          4
+        ],
+        [
+          53658,
+          0
+        ],
+        [
+          53659,
+          0
+        ],
+        [
+          53649,
+          0
+        ],
+        [
+          53648,
+          200
+        ],
+        [
+          53653,
+          2
+        ],
+        [
+          53654,
+          3
+        ],
+        [
+          53655,
+          2
+        ],
+        [
+          53663,
+          0
+        ],
+        [
+          53664,
+          0
+        ],
+        [
+          53661,
+          0
+        ],
+        [
+          53662,
+          0
+        ],
+        [
+          53665,
+          20480
+        ],
+        [
+          53666,
+          0
+        ]
+      ]
+    },
+    {
+      "name": "noise_reduction_minimum",
+      "why": "The NR table is non-linear; this is its bottom entry.",
+      "recipe": {
+        "film_simulation": "Classic Chrome",
+        "d_range_priority": "Off",
+        "grain_roughness": "Weak",
+        "color_chrome_effect": "Strong",
+        "color_chrome_fx_blue": "Weak",
+        "white_balance": "Daylight",
+        "white_balance_red": 0,
+        "white_balance_blue": 0,
+        "sharpness": "0",
+        "high_iso_nr": "-4",
+        "clarity": "0",
+        "dynamic_range": "DR200",
+        "grain_size": "Small",
+        "highlight": "0",
+        "shadow": "0",
+        "color": "0",
+        "monochromatic_color_warm_cool": null,
+        "monochromatic_color_magenta_green": null,
+        "name": "Base Recipe",
+        "sensors": [],
+        "description": ""
+      },
+      "expected_items": [
+        [
+          53650,
+          11
+        ],
+        [
+          53657,
+          4
+        ],
+        [
+          53658,
+          0
+        ],
+        [
+          53659,
+          0
+        ],
+        [
+          53649,
+          0
+        ],
+        [
+          53648,
+          200
+        ],
+        [
+          53653,
+          2
+        ],
+        [
+          53654,
+          3
+        ],
+        [
+          53655,
+          2
+        ],
+        [
+          53663,
+          0
+        ],
+        [
+          53664,
+          0
+        ],
+        [
+          53661,
+          0
+        ],
+        [
+          53662,
+          0
+        ],
+        [
+          53665,
+          32768
+        ],
+        [
+          53666,
+          0
+        ]
+      ]
+    },
+    {
+      "name": "negative_scaled_fields",
+      "why": "Negative values go on the wire as int32 two's complement and read back masked to 16 bits.",
+      "recipe": {
+        "film_simulation": "Classic Chrome",
+        "d_range_priority": "Off",
+        "grain_roughness": "Weak",
+        "color_chrome_effect": "Strong",
+        "color_chrome_fx_blue": "Weak",
+        "white_balance": "Daylight",
+        "white_balance_red": 0,
+        "white_balance_blue": 0,
+        "sharpness": "-4",
+        "high_iso_nr": "0",
+        "clarity": "-5",
+        "dynamic_range": "DR200",
+        "grain_size": "Small",
+        "highlight": "-2",
+        "shadow": "0",
+        "color": "-4",
+        "monochromatic_color_warm_cool": null,
+        "monochromatic_color_magenta_green": null,
+        "name": "Base Recipe",
+        "sensors": [],
+        "description": ""
+      },
+      "expected_items": [
+        [
+          53650,
+          11
+        ],
+        [
+          53657,
+          4
+        ],
+        [
+          53658,
+          0
+        ],
+        [
+          53659,
+          0
+        ],
+        [
+          53649,
+          0
+        ],
+        [
+          53648,
+          200
+        ],
+        [
+          53653,
+          2
+        ],
+        [
+          53654,
+          3
+        ],
+        [
+          53655,
+          2
+        ],
+        [
+          53663,
+          -40
+        ],
+        [
+          53664,
+          -40
+        ],
+        [
+          53661,
+          -20
+        ],
+        [
+          53662,
+          0
+        ],
+        [
+          53665,
+          8192
+        ],
+        [
+          53666,
+          -50
+        ]
+      ]
+    },
+    {
+      "name": "extremes_of_the_shift_range",
+      "why": "White balance shifts pass through unscaled.",
+      "recipe": {
+        "film_simulation": "Classic Chrome",
+        "d_range_priority": "Off",
+        "grain_roughness": "Weak",
+        "color_chrome_effect": "Strong",
+        "color_chrome_fx_blue": "Weak",
+        "white_balance": "2500K",
+        "white_balance_red": -9,
+        "white_balance_blue": 9,
+        "sharpness": "0",
+        "high_iso_nr": "0",
+        "clarity": "0",
+        "dynamic_range": "DR200",
+        "grain_size": "Small",
+        "highlight": "0",
+        "shadow": "0",
+        "color": "0",
+        "monochromatic_color_warm_cool": null,
+        "monochromatic_color_magenta_green": null,
+        "name": "Base Recipe",
+        "sensors": [],
+        "description": ""
+      },
+      "expected_items": [
+        [
+          53650,
+          11
+        ],
+        [
+          53657,
+          32775
+        ],
+        [
+          53660,
+          2500
+        ],
+        [
+          53658,
+          -9
+        ],
+        [
+          53659,
+          9
+        ],
+        [
+          53649,
+          0
+        ],
+        [
+          53648,
+          200
+        ],
+        [
+          53653,
+          2
+        ],
+        [
+          53654,
+          3
+        ],
+        [
+          53655,
+          2
+        ],
+        [
+          53663,
+          0
+        ],
+        [
+          53664,
+          0
+        ],
+        [
+          53661,
+          0
+        ],
+        [
+          53662,
+          0
+        ],
+        [
+          53665,
+          8192
+        ],
+        [
+          53666,
+          0
+        ]
+      ]
+    }
+  ]
+}
