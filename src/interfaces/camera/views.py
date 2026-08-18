@@ -9,6 +9,7 @@ from src.application.usecases.camera import get_camera_slots as get_camera_slots
 from src.application.usecases.camera import push_recipe as push_recipe_uc
 from src.data import models
 from src.domain.camera import ptp_device
+from src.domain.camera import queries as camera_queries
 
 _SLOT_TO_INDEX = {"C1": 1, "C2": 2, "C3": 3, "C4": 4, "C5": 5, "C6": 6, "C7": 7}
 
@@ -103,6 +104,33 @@ class PushRecipeToCamera(generic.View):
         if is_htmx:
             return shortcuts.render(request, "recipes/_push_result_partial.html", {"success": True, "message": f"Recipe saved to {slot}"})
         return http.JsonResponse({"message": f"Recipe saved in {slot}"})
+
+
+class CameraClientConfig(generic.View):
+    """
+    Serve the camera configuration a browser needs to drive the camera itself.
+
+    Both halves come from the domain layer so that the two transports run on one
+    configuration: the settings decide timing and retry behaviour, and the
+    encodings decide what gets written. Neither is duplicated in the JavaScript,
+    which is what keeps a table added on the server from needing a second edit
+    on the client.
+
+    Served rather than embedded in the page because it is recipe-independent and
+    wanted by more than one page, and read once at page load.
+    """
+
+    def get(self, request: http.HttpRequest) -> http.HttpResponse:
+        payload = {
+            "settings": attrs.asdict(camera_queries.client_camera_settings()),
+            "encodings": attrs.asdict(camera_queries.client_camera_encodings()),
+        }
+        response = http.JsonResponse(payload)
+        # The timing settings are tuning values an operator may change between
+        # requests, and a stale copy would have the browser writing on delays the
+        # server no longer uses.
+        response["Cache-Control"] = "no-store"
+        return response
 
 
 @attrs.frozen
