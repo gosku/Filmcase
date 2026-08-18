@@ -1,0 +1,181 @@
+{
+  "comment": "Golden bytes shared by the Python and JavaScript PTP transports. Both suites build the same inputs and assert the same hex, so the two cannot frame packets differently without a test failing. Regenerate with tests/fixtures/camera/generate_ptp_vectors.py, deliberately: a diff here means the wire format changed.",
+  "command_packets": [
+    {
+      "name": "open_session",
+      "code": 4098,
+      "tx_id": 1,
+      "params": [
+        1
+      ],
+      "hex": "10000000010002100100000001000000"
+    },
+    {
+      "name": "close_session",
+      "code": 4099,
+      "tx_id": 7,
+      "params": [],
+      "hex": "0c0000000100031007000000"
+    },
+    {
+      "name": "get_device_info",
+      "code": 4097,
+      "tx_id": 1,
+      "params": [],
+      "hex": "0c0000000100011001000000"
+    },
+    {
+      "name": "get_slot_name",
+      "code": 4117,
+      "tx_id": 2,
+      "params": [
+        53645
+      ],
+      "hex": "1000000001001510020000008dd10000"
+    },
+    {
+      "name": "set_film_simulation",
+      "code": 4118,
+      "tx_id": 3,
+      "params": [
+        53650
+      ],
+      "hex": "10000000010016100300000092d10000"
+    },
+    {
+      "name": "large_transaction_id",
+      "code": 4117,
+      "tx_id": 4294967280,
+      "params": [
+        53283
+      ],
+      "hex": "1000000001001510f0ffffff23d00000"
+    }
+  ],
+  "data_packets": [
+    {
+      "name": "int32_zero",
+      "code": 4118,
+      "tx_id": 4,
+      "payload_hex": "00000000",
+      "hex": "10000000020016100400000000000000"
+    },
+    {
+      "name": "int32_positive",
+      "code": 4118,
+      "tx_id": 5,
+      "payload_hex": "28000000",
+      "hex": "10000000020016100500000028000000"
+    },
+    {
+      "name": "int32_negative",
+      "code": 4118,
+      "tx_id": 6,
+      "payload_hex": "d8ffffff",
+      "hex": "100000000200161006000000d8ffffff"
+    },
+    {
+      "name": "uint16_slot_cursor",
+      "code": 4118,
+      "tx_id": 8,
+      "payload_hex": "0400",
+      "hex": "0e00000002001610080000000400"
+    },
+    {
+      "name": "empty_payload",
+      "code": 4118,
+      "tx_id": 9,
+      "payload_hex": "",
+      "hex": "0c0000000200161009000000"
+    }
+  ],
+  "ptp_strings": [
+    {
+      "name": "empty",
+      "value": "",
+      "hex": "00"
+    },
+    {
+      "name": "single_char",
+      "value": "A",
+      "hex": "0241000000"
+    },
+    {
+      "name": "recipe_name",
+      "value": "Kodak Portra",
+      "hex": "0d4b006f00640061006b00200050006f0072007400720061000000"
+    },
+    {
+      "name": "max_length_ascii",
+      "value": "XXXXXXXXXXXXXXXXXXXXXXXXX",
+      "hex": "1a58005800580058005800580058005800580058005800580058005800580058005800580058005800580058005800580058000000"
+    },
+    {
+      "name": "with_spaces_and_digits",
+      "value": "Provia 400 v2",
+      "hex": "0e500072006f0076006900610020003400300030002000760032000000"
+    }
+  ],
+  "responses": [
+    {
+      "name": "ok_no_params",
+      "hex": "0c0000000300012001000000",
+      "expected_code": 8193,
+      "expected_params": []
+    },
+    {
+      "name": "session_already_open",
+      "hex": "0c00000003001e2001000000",
+      "expected_code": 8222,
+      "expected_params": []
+    },
+    {
+      "name": "operation_not_supported",
+      "hex": "0c0000000300052002000000",
+      "expected_code": 8197,
+      "expected_params": []
+    },
+    {
+      "name": "access_denied",
+      "hex": "0c00000003001c2003000000",
+      "expected_code": 8220,
+      "expected_params": []
+    },
+    {
+      "name": "with_params",
+      "hex": "1400000003000120040000000100000002000000",
+      "expected_code": 8193,
+      "expected_params": [
+        1,
+        2
+      ]
+    }
+  ],
+  "device_info": [
+    {
+      "name": "x_s10",
+      "hex": "95000000020001100100000064000600000064000f660075006a006900660069006c006d002e0063006f002e006a0070000000000003000000011002100310010000000240040000008cd18dd192d199d10000000001000000013809460055004a004900460049004c004d0000000658002d0053003100300000000531002e00300030000000074100420043003100320033000000",
+      "expected_model": "X-S10",
+      "expected_supported_props": [
+        53644,
+        53645,
+        53650,
+        53657
+      ]
+    },
+    {
+      "name": "no_supported_props",
+      "hex": "8b000000020001100100000064000600000064000f660075006a006900660069006c006d002e0063006f002e006a0070000000000003000000011002100310010000000240000000000000000001000000013809460055004a004900460049004c004d0000000558002d005400340000000531002e00300030000000074100420043003100320033000000",
+      "expected_model": "X-T4",
+      "expected_supported_props": []
+    },
+    {
+      "name": "empty_model",
+      "hex": "83000000020001100100000064000600000064000f660075006a006900660069006c006d002e0063006f002e006a00700000000000030000000110021003100100000002400100000023d00000000001000000013809460055004a004900460049004c004d000000000531002e00300030000000074100420043003100320033000000",
+      "expected_model": "",
+      "expected_supported_props": [
+        53283
+      ]
+    }
+  ]
+}
