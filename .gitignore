@@ -60,3 +60,7 @@ investigation/
 
 # Local compose overrides (photo directory paths). The .example file is tracked.
 docker-compose.override.yml
+
+# Node is only used to run the browser-side tests; there are no dependencies, but a
+# stray install should never be committed or baked into the image.
+node_modules/

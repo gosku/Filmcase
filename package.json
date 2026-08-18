@@ -1,0 +1,13 @@
+{
+  "name": "filmcase",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Test runner for the browser-side camera code. Filmcase is a Django application; this file exists only so Node can run the JavaScript unit tests.",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "test": "node --test tests/js/"
+  }
+}

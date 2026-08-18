@@ -10,7 +10,7 @@ ENV_FILE := src/config/env
 # (e.g. `start` calling `run`); they name the same directory and only add noise.
 MAKEFLAGS += --no-print-directory
 
-.PHONY: setup-lite setup-full setup-docker docker-up docker-down docker-logs docker-update env env-lite update start run worker test help
+.PHONY: setup-lite setup-full setup-docker docker-up docker-down docker-logs docker-update env env-lite update start run worker test test-js help
 
 ##
 ## Installation modes:
@@ -160,6 +160,10 @@ worker:
 ## test        — run the test suite
 test:
 	$(PYTEST)
+
+## test-js     — run the browser-side camera tests (needs Node 20+)
+test-js:
+	node --test tests/js/
 
 ## help        — list available targets
 help:
