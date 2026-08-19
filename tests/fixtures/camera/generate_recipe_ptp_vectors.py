@@ -29,6 +29,7 @@ django.setup()
 import attrs  # noqa: E402
 
 from src.domain.camera import queries as camera_queries  # noqa: E402
+from src.domain.camera import validation as camera_validation  # noqa: E402
 from src.domain.images import dataclasses as image_dataclasses  # noqa: E402
 from src.domain.recipes import normalization  # noqa: E402
 
@@ -130,6 +131,77 @@ CASES: list[tuple[str, str, dict[str, object]]] = [
 ]
 
 
+# Cases for the accept/reject table both validators must agree on. Only the
+# overrides are listed; each is applied to BASE. The point is the fields a port
+# is most likely to get wrong: "1.5" where an integer is required, an empty
+# string where a decimal is, and the grain rules, which cannot be read off the
+# encoding table.
+VALIDATION_CASES: list[tuple[str, dict[str, object]]] = [
+    ("baseline", {}),
+    ("blank_name", {"name": ""}),
+    ("whitespace_name", {"name": "   "}),
+    ("unknown_film_simulation", {"film_simulation": "Velvia 100F"}),
+    ("kelvin_white_balance", {"white_balance": "6500K"}),
+    ("kelvin_without_the_k", {"white_balance": "6500"}),
+    ("non_numeric_kelvin", {"white_balance": "warmK"}),
+    ("unknown_white_balance", {"white_balance": "Tungsten"}),
+    ("dynamic_range_absent", {"dynamic_range": None}),
+    ("dynamic_range_empty", {"dynamic_range": ""}),
+    ("dynamic_range_na", {"dynamic_range": "N/A"}),
+    ("dynamic_range_unknown", {"dynamic_range": "DR800"}),
+    ("drange_priority_empty", {"d_range_priority": ""}),
+    ("drange_priority_na", {"d_range_priority": "N/A"}),
+    ("drange_priority_unknown", {"d_range_priority": "Maximum"}),
+    ("grain_off_without_size", {"grain_roughness": "Off", "grain_size": None}),
+    ("grain_off_size_off", {"grain_roughness": "Off", "grain_size": "Off"}),
+    ("grain_off_size_large", {"grain_roughness": "Off", "grain_size": "Large"}),
+    ("grain_on_without_size", {"grain_roughness": "Weak", "grain_size": None}),
+    ("grain_on_empty_size", {"grain_roughness": "Weak", "grain_size": ""}),
+    ("grain_on_size_off", {"grain_roughness": "Strong", "grain_size": "Off"}),
+    ("grain_unknown_roughness", {"grain_roughness": "Heavy", "grain_size": "Large"}),
+    ("colour_chrome_empty", {"color_chrome_effect": ""}),
+    ("colour_chrome_na", {"color_chrome_effect": "N/A"}),
+    ("colour_chrome_unknown", {"color_chrome_effect": "Vivid"}),
+    ("colour_chrome_fx_unknown", {"color_chrome_fx_blue": "Vivid"}),
+    ("noise_reduction_top", {"high_iso_nr": "4"}),
+    ("noise_reduction_bottom", {"high_iso_nr": "-4"}),
+    ("noise_reduction_off_table", {"high_iso_nr": "5"}),
+    ("noise_reduction_half_step", {"high_iso_nr": "1.5"}),
+    ("noise_reduction_empty", {"high_iso_nr": ""}),
+    ("noise_reduction_na", {"high_iso_nr": "N/A"}),
+    ("colour_half_step", {"color": "1.5"}),
+    ("colour_text", {"color": "high"}),
+    ("colour_signed", {"color": "+2"}),
+    ("colour_empty", {"color": ""}),
+    ("colour_na", {"color": "N/A"}),
+    ("sharpness_half_step", {"sharpness": "1.5"}),
+    ("clarity_half_step", {"clarity": "-2.5"}),
+    ("clarity_surrounded_by_spaces", {"clarity": " 2 "}),
+    ("highlight_half_step", {"highlight": "+1.5"}),
+    ("highlight_text", {"highlight": "bright"}),
+    ("highlight_empty", {"highlight": ""}),
+    ("highlight_absent", {"highlight": None}),
+    ("shadow_half_step", {"shadow": "-1.5"}),
+    ("mono_warm_cool", {"monochromatic_color_warm_cool": "+3"}),
+    ("mono_magenta_green_text", {"monochromatic_color_magenta_green": "green"}),
+]
+
+
+def _validation_outcome(fields: dict[str, object]) -> str:
+    """Return "ok" or "reject:<field>" for one case."""
+    # The attrs name validator is bypassed so both sides exercise the same
+    # function: the browser receives plain JSON and has no constructor checks,
+    # so validate_recipe_for_camera is the only thing standing between a bad
+    # name and the camera there.
+    recipe = image_dataclasses.FujifilmRecipeData(**{**fields, "name": "placeholder"})
+    object.__setattr__(recipe, "name", fields["name"])
+    try:
+        camera_validation.validate_recipe_for_camera(recipe)
+    except camera_validation.RecipeValidationError as error:
+        return f"reject:{error.field}"
+    return "ok"
+
+
 def build() -> dict[str, object]:
     vectors = []
     for name, why, overrides in CASES:
@@ -159,6 +231,14 @@ def build() -> dict[str, object]:
             json.dumps(attrs.asdict(camera_queries.client_camera_encodings()))
         ),
         "vectors": vectors,
+        "validation_vectors": [
+            {
+                "name": name,
+                "overrides": json.loads(json.dumps(overrides)),
+                "expected": _validation_outcome({**BASE, **overrides}),
+            }
+            for name, overrides in VALIDATION_CASES
+        ],
     }
 
 

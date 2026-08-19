@@ -20,12 +20,15 @@ import pathlib
 import pytest
 
 from src.domain.camera import queries as camera_queries
+from src.domain.camera import validation
 from src.domain.images import dataclasses as image_dataclasses
 
 VECTORS_PATH = pathlib.Path(__file__).parents[3] / "fixtures" / "camera" / "recipe_ptp_vectors.json"
 
 _FIXTURE = json.loads(VECTORS_PATH.read_text())
 _VECTORS = _FIXTURE["vectors"]
+# The recipe every validation vector starts from, before its overrides.
+_BASE_RECIPE = next(v for v in _VECTORS if v["name"] == "named_white_balance")["recipe"]
 
 
 def _recipe_from_vector(vector: dict) -> image_dataclasses.FujifilmRecipeData:
@@ -140,3 +143,54 @@ class TestVectorsFixtureShape:
         written = {code for v in _VECTORS for code, _ in v["expected_items"]}
 
         assert written <= known
+
+
+_VALIDATION_VECTORS = _FIXTURE["validation_vectors"]
+
+
+class TestValidationVectors:
+    """
+    The accept/reject table both validators must agree on.
+
+    The JavaScript asserts the same list. Python's int() rejects "1.5" while
+    JavaScript's parseInt returns 1, so without this a lenient port would accept
+    a half step for an integer field and have it silently truncated on the way
+    to the camera.
+    """
+
+    @pytest.mark.parametrize(
+        "vector", _VALIDATION_VECTORS, ids=[v["name"] for v in _VALIDATION_VECTORS]
+    )
+    def test_outcome_matches_the_frozen_expectation(self, vector) -> None:
+        fields = {**_BASE_RECIPE, **vector["overrides"]}
+        fields["sensors"] = tuple(fields.get("sensors") or ())
+        # The attrs name validator is bypassed so this exercises the same
+        # function the browser does: it receives plain JSON and has no
+        # constructor checks, so validate_recipe_for_camera is all that stands
+        # between a bad name and the camera there.
+        recipe = image_dataclasses.FujifilmRecipeData(**{**fields, "name": "placeholder"})
+        object.__setattr__(recipe, "name", fields["name"])
+
+        try:
+            validation.validate_recipe_for_camera(recipe)
+            outcome = "ok"
+        except validation.RecipeValidationError as error:
+            outcome = f"reject:{error.field}"
+
+        assert outcome == vector["expected"]
+
+    def test_covers_both_outcomes(self) -> None:
+        outcomes = {v["expected"] for v in _VALIDATION_VECTORS}
+
+        assert "ok" in outcomes
+        assert any(o.startswith("reject:") for o in outcomes)
+
+    def test_covers_the_half_step_hazard(self) -> None:
+        # The single case most likely to diverge between the two languages.
+        half_steps = [
+            v for v in _VALIDATION_VECTORS
+            if v["overrides"].get("color") == "1.5"
+        ]
+
+        assert half_steps, "no vector feeds a half step to an integer field"
+        assert half_steps[0]["expected"] == "reject:color"

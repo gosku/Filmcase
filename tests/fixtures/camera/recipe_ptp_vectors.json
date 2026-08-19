@@ -1250,5 +1250,341 @@
         ]
       ]
     }
+  ],
+  "validation_vectors": [
+    {
+      "name": "baseline",
+      "overrides": {},
+      "expected": "ok"
+    },
+    {
+      "name": "blank_name",
+      "overrides": {
+        "name": ""
+      },
+      "expected": "reject:name"
+    },
+    {
+      "name": "whitespace_name",
+      "overrides": {
+        "name": "   "
+      },
+      "expected": "reject:name"
+    },
+    {
+      "name": "unknown_film_simulation",
+      "overrides": {
+        "film_simulation": "Velvia 100F"
+      },
+      "expected": "reject:film_simulation"
+    },
+    {
+      "name": "kelvin_white_balance",
+      "overrides": {
+        "white_balance": "6500K"
+      },
+      "expected": "ok"
+    },
+    {
+      "name": "kelvin_without_the_k",
+      "overrides": {
+        "white_balance": "6500"
+      },
+      "expected": "reject:white_balance"
+    },
+    {
+      "name": "non_numeric_kelvin",
+      "overrides": {
+        "white_balance": "warmK"
+      },
+      "expected": "reject:white_balance"
+    },
+    {
+      "name": "unknown_white_balance",
+      "overrides": {
+        "white_balance": "Tungsten"
+      },
+      "expected": "reject:white_balance"
+    },
+    {
+      "name": "dynamic_range_absent",
+      "overrides": {
+        "dynamic_range": null
+      },
+      "expected": "ok"
+    },
+    {
+      "name": "dynamic_range_empty",
+      "overrides": {
+        "dynamic_range": ""
+      },
+      "expected": "ok"
+    },
+    {
+      "name": "dynamic_range_na",
+      "overrides": {
+        "dynamic_range": "N/A"
+      },
+      "expected": "reject:dynamic_range"
+    },
+    {
+      "name": "dynamic_range_unknown",
+      "overrides": {
+        "dynamic_range": "DR800"
+      },
+      "expected": "reject:dynamic_range"
+    },
+    {
+      "name": "drange_priority_empty",
+      "overrides": {
+        "d_range_priority": ""
+      },
+      "expected": "ok"
+    },
+    {
+      "name": "drange_priority_na",
+      "overrides": {
+        "d_range_priority": "N/A"
+      },
+      "expected": "ok"
+    },
+    {
+      "name": "drange_priority_unknown",
+      "overrides": {
+        "d_range_priority": "Maximum"
+      },
+      "expected": "reject:d_range_priority"
+    },
+    {
+      "name": "grain_off_without_size",
+      "overrides": {
+        "grain_roughness": "Off",
+        "grain_size": null
+      },
+      "expected": "ok"
+    },
+    {
+      "name": "grain_off_size_off",
+      "overrides": {
+        "grain_roughness": "Off",
+        "grain_size": "Off"
+      },
+      "expected": "ok"
+    },
+    {
+      "name": "grain_off_size_large",
+      "overrides": {
+        "grain_roughness": "Off",
+        "grain_size": "Large"
+      },
+      "expected": "ok"
+    },
+    {
+      "name": "grain_on_without_size",
+      "overrides": {
+        "grain_roughness": "Weak",
+        "grain_size": null
+      },
+      "expected": "reject:grain_roughness"
+    },
+    {
+      "name": "grain_on_empty_size",
+      "overrides": {
+        "grain_roughness": "Weak",
+        "grain_size": ""
+      },
+      "expected": "reject:grain_roughness"
+    },
+    {
+      "name": "grain_on_size_off",
+      "overrides": {
+        "grain_roughness": "Strong",
+        "grain_size": "Off"
+      },
+      "expected": "reject:grain_roughness"
+    },
+    {
+      "name": "grain_unknown_roughness",
+      "overrides": {
+        "grain_roughness": "Heavy",
+        "grain_size": "Large"
+      },
+      "expected": "reject:grain_roughness"
+    },
+    {
+      "name": "colour_chrome_empty",
+      "overrides": {
+        "color_chrome_effect": ""
+      },
+      "expected": "ok"
+    },
+    {
+      "name": "colour_chrome_na",
+      "overrides": {
+        "color_chrome_effect": "N/A"
+      },
+      "expected": "ok"
+    },
+    {
+      "name": "colour_chrome_unknown",
+      "overrides": {
+        "color_chrome_effect": "Vivid"
+      },
+      "expected": "reject:color_chrome_effect"
+    },
+    {
+      "name": "colour_chrome_fx_unknown",
+      "overrides": {
+        "color_chrome_fx_blue": "Vivid"
+      },
+      "expected": "reject:color_chrome_fx_blue"
+    },
+    {
+      "name": "noise_reduction_top",
+      "overrides": {
+        "high_iso_nr": "4"
+      },
+      "expected": "ok"
+    },
+    {
+      "name": "noise_reduction_bottom",
+      "overrides": {
+        "high_iso_nr": "-4"
+      },
+      "expected": "ok"
+    },
+    {
+      "name": "noise_reduction_off_table",
+      "overrides": {
+        "high_iso_nr": "5"
+      },
+      "expected": "reject:high_iso_nr"
+    },
+    {
+      "name": "noise_reduction_half_step",
+      "overrides": {
+        "high_iso_nr": "1.5"
+      },
+      "expected": "reject:high_iso_nr"
+    },
+    {
+      "name": "noise_reduction_empty",
+      "overrides": {
+        "high_iso_nr": ""
+      },
+      "expected": "ok"
+    },
+    {
+      "name": "noise_reduction_na",
+      "overrides": {
+        "high_iso_nr": "N/A"
+      },
+      "expected": "ok"
+    },
+    {
+      "name": "colour_half_step",
+      "overrides": {
+        "color": "1.5"
+      },
+      "expected": "reject:color"
+    },
+    {
+      "name": "colour_text",
+      "overrides": {
+        "color": "high"
+      },
+      "expected": "reject:color"
+    },
+    {
+      "name": "colour_signed",
+      "overrides": {
+        "color": "+2"
+      },
+      "expected": "ok"
+    },
+    {
+      "name": "colour_empty",
+      "overrides": {
+        "color": ""
+      },
+      "expected": "ok"
+    },
+    {
+      "name": "colour_na",
+      "overrides": {
+        "color": "N/A"
+      },
+      "expected": "ok"
+    },
+    {
+      "name": "sharpness_half_step",
+      "overrides": {
+        "sharpness": "1.5"
+      },
+      "expected": "reject:sharpness"
+    },
+    {
+      "name": "clarity_half_step",
+      "overrides": {
+        "clarity": "-2.5"
+      },
+      "expected": "reject:clarity"
+    },
+    {
+      "name": "clarity_surrounded_by_spaces",
+      "overrides": {
+        "clarity": " 2 "
+      },
+      "expected": "ok"
+    },
+    {
+      "name": "highlight_half_step",
+      "overrides": {
+        "highlight": "+1.5"
+      },
+      "expected": "ok"
+    },
+    {
+      "name": "highlight_text",
+      "overrides": {
+        "highlight": "bright"
+      },
+      "expected": "reject:highlight"
+    },
+    {
+      "name": "highlight_empty",
+      "overrides": {
+        "highlight": ""
+      },
+      "expected": "ok"
+    },
+    {
+      "name": "highlight_absent",
+      "overrides": {
+        "highlight": null
+      },
+      "expected": "ok"
+    },
+    {
+      "name": "shadow_half_step",
+      "overrides": {
+        "shadow": "-1.5"
+      },
+      "expected": "ok"
+    },
+    {
+      "name": "mono_warm_cool",
+      "overrides": {
+        "monochromatic_color_warm_cool": "+3"
+      },
+      "expected": "ok"
+    },
+    {
+      "name": "mono_magenta_green_text",
+      "overrides": {
+        "monochromatic_color_magenta_green": "green"
+      },
+      "expected": "reject:monochromatic_color_magenta_green"
+    }
   ]
 }
