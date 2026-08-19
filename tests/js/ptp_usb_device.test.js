@@ -7,6 +7,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
 import { FakeUSBDevice } from "./fakes/usb_device.js";
+import { makeConfig } from "./fakes/config.js";
 import { CameraConnectionError } from "../../src/interfaces/static/js/camera/vendor/ptp_device.js";
 import {
   ClientPTPUSBDevice,
@@ -16,6 +17,7 @@ import {
   _OC_OPEN_SESSION,
   _PTP_DATA,
   _PTP_RESPONSE,
+  _RC_OK,
   _RC_SESSION_ALREADY,
   _commandPacket,
   _findBulkInterface,
@@ -27,7 +29,9 @@ function makeDevice(options = {}) {
   const usbDevice = new FakeUSBDevice(options);
   const device = new ClientPTPUSBDevice({
     usbDevice,
-    config: {},
+    // A real config: connecting needs none of it, but the read retry loop
+    // refuses to guess a missing timing setting, which is the point of it.
+    config: makeConfig(),
     sleep: noSleep,
     // Short enough that the timeout tests cost milliseconds. At the real five
     // seconds each they would dominate the suite and stop it being run.
@@ -326,24 +330,56 @@ describe("ClientPTPUSBDevice._recvData", () => {
     await device.connect();
 
     await device._send(_commandPacket(_OC_GET_DEVICE_PROP_VALUE, device._nextTx(), 0xd023));
-    const raw = await device._recvData();
+    const { data, response } = await device._recvData();
 
-    assert.ok(raw.length > 12, "expected a header plus a payload");
+    assert.ok(data.length > 12, "expected a header plus a payload");
+    assert.equal(response, null, "a response should still be waiting");
     await device._recvResponse();
   });
 
-  it("survives a camera that skips the data phase", async () => {
-    // Some cameras answer a property read with a response where the data
-    // container belongs. Reading on regardless is what would leave the browser
-    // waiting for a container that is never coming.
+  it("hands back the response when the camera skips the data phase", async () => {
+    // The bug this replaced: _recvData returned the response container and left
+    // the caller to read for a response that had already arrived. Nothing
+    // further was on the wire, so that read waited out the entire timeout.
     const { device } = makeDevice({ noDataPhaseOn: [0xd023] });
     await device.connect();
 
     await device._send(_commandPacket(_OC_GET_DEVICE_PROP_VALUE, device._nextTx(), 0xd023));
-    const raw = await device._recvData();
+    const { data, response } = await device._recvData();
 
-    const view = new DataView(raw.buffer, raw.byteOffset, raw.byteLength);
-    assert.equal(view.getUint16(4, true), _PTP_RESPONSE);
+    assert.notEqual(response, null, "the response was consumed and not reported");
+    assert.equal(response.code, _RC_OK);
+    // No value came back, so none is reported. Passing the response container
+    // off as data would decode its parameters as a value.
+    assert.equal(data.length, 0);
+  });
+
+  it("retries rather than reporting a value the camera never sent", async () => {
+    // Observed on an X-S10: the camera acknowledges the read and sends no
+    // value. An empty payload decodes to 0, a legitimate value for most of
+    // these properties, so reporting it would put a real-looking setting on
+    // screen and write it to a slot on a push.
+    const { device } = makeDevice({
+      noDataPhaseOn: [0xd192],
+      noDataPhaseTimes: 1,
+      intValues: { 0xd192: 13 },
+    });
+    await device.connect();
+
+    assert.equal(await device.getPropertyInt(0xd192), 13);
+  });
+
+  it("gives up quickly when the camera never sends a value", async () => {
+    const { device } = makeDevice({ noDataPhaseOn: [0xd192] });
+    await device.connect();
+
+    const started = Date.now();
+    await assert.rejects(
+      () => device.getPropertyInt(0xd192),
+      (error) => error instanceof CameraConnectionError && /no value/.test(error.message)
+    );
+
+    assert.ok(Date.now() - started < 500, "it stalled instead of failing");
   });
 
   it("reports the error when a skipped data phase carries a failure", async () => {
@@ -367,9 +403,9 @@ describe("ClientPTPUSBDevice._recvData", () => {
     await device.connect();
 
     await device._send(_commandPacket(_OC_GET_DEVICE_PROP_VALUE, device._nextTx(), 0xd023));
-    const raw = await device._recvData();
+    const { data } = await device._recvData();
 
-    const view = new DataView(raw.buffer, raw.byteOffset, raw.byteLength);
+    const view = new DataView(data.buffer, data.byteOffset, data.byteLength);
     assert.equal(view.getUint16(4, true), _PTP_DATA);
     await device._recvResponse();
   });

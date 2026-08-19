@@ -23,7 +23,14 @@
  * invariant where the session is opened rather than relying on call discipline.
  */
 
-import { CameraConnectionError, formatCode } from "./ptp_device.js";
+import { CameraConnectionError, formatCode, formatRc } from "./ptp_device.js";
+import {
+  PTP_READ_FAILED,
+  PTP_READ_SUCCEEDED,
+  PTP_WRITE_FAILED,
+  PTP_WRITE_SUCCEEDED,
+  publishEvent,
+} from "./events.js";
 
 // ---------------------------------------------------------------------------
 // PTP/USB packet types (PIMA 15740:2000 5.3.1)
@@ -132,6 +139,18 @@ export function _parseResponse(raw) {
     params.push(view.getUint32(_HEADER_BYTES + i * 4, true));
   }
   return { code, params };
+}
+
+/**
+ * The container type of a packet, or null if it is too short to have one.
+ *
+ * @param {Uint8Array} raw
+ * @returns {number|null}
+ */
+export function _containerType(raw) {
+  if (raw.length < _HEADER_BYTES) return null;
+  const view = new DataView(raw.buffer, raw.byteOffset, raw.byteLength);
+  return view.getUint16(4, true);
 }
 
 // ---------------------------------------------------------------------------
@@ -544,20 +563,21 @@ export class ClientPTPUSBDevice {
    */
   async _recvData() {
     const raw = await this._read(_READ_BUFFER, "data");
-    // Some cameras skip the data phase for properties with no value.
-    if (raw.length >= _HEADER_BYTES) {
-      const view = new DataView(raw.buffer, raw.byteOffset, raw.byteLength);
-      if (view.getUint16(4, true) === _PTP_RESPONSE) {
-        const { code } = _parseResponse(raw);
-        if (code !== _RC_OK) {
-          throw new CameraConnectionError(
-            `PTP error ${formatCode(code)} (no data phase)`
-          );
-        }
-        return raw; // returned as-is; the caller's _recvResponse re-reads
+    const type = raw.length >= _HEADER_BYTES ? _containerType(raw) : null;
+
+    if (type === _PTP_RESPONSE) {
+      // The camera answered without a data phase, so its response is already
+      // in hand and there is nothing further on the wire. Reading for one
+      // anyway waits out the entire timeout; returning it says so instead.
+      const { code, params } = _parseResponse(raw);
+      if (code !== _RC_OK) {
+        throw new CameraConnectionError(
+          `PTP error ${formatCode(code)} (no data phase)`
+        );
       }
+      return { data: new Uint8Array(0), response: { code, params } };
     }
-    return raw;
+    return { data: raw, response: null };
   }
 
   /**
@@ -620,7 +640,10 @@ export class ClientPTPUSBDevice {
   async _fetchCameraName() {
     try {
       await this._send(_commandPacket(_OC_GET_DEVICE_INFO, this._nextTx()));
-      const data = await this._recvData();
+      const { data, response } = await this._recvData();
+      if (response !== null) {
+        throw new CameraConnectionError("Camera sent no device info");
+      }
       const { code } = await this._recvResponse();
       if (code !== _RC_OK) {
         return "";
@@ -631,3 +654,266 @@ export class ClientPTPUSBDevice {
     }
   }
 }
+
+// ---------------------------------------------------------------------------
+// Property accessors
+// ---------------------------------------------------------------------------
+
+/**
+ * Read one of the timing or retry settings, refusing to guess.
+ *
+ * A missing key means the served config and this code have diverged. Defaulting
+ * would paper over that and leave the browser writing on timings the server
+ * never chose, which is the exact failure the shared config exists to prevent.
+ *
+ * @param {object} config
+ * @param {string} name
+ * @returns {number|boolean}
+ */
+function _setting(config, name) {
+  const settings = config && config.settings;
+  if (!settings || !(name in settings)) {
+    throw new CameraConnectionError(
+      `Camera setting ${name} missing from the client config; the server and ` +
+        "the browser are out of step."
+    );
+  }
+  return settings[name];
+}
+
+Object.assign(ClientPTPUSBDevice.prototype, {
+  /**
+   * Read 0xD023 (GrainEffect, doubling as a liveness register).
+   *
+   * @returns {Promise<number>} 0 if alive, -1 if not.
+   */
+  async ping() {
+    try {
+      await this.getPropertyInt(this._config.encodings.prop_ping);
+      return 0;
+    } catch (error) {
+      if (error instanceof CameraConnectionError) return -1;
+      throw error;
+    }
+  },
+
+  /**
+   * Read a property as a signed 32-bit integer.
+   *
+   * @param {number} code
+   * @returns {Promise<number>}
+   */
+  async getPropertyInt(code) {
+    let data;
+    try {
+      data = await this._getPropWithRetry(code);
+    } catch (error) {
+      publishEvent({
+        eventType: PTP_READ_FAILED,
+        prop: formatCode(code),
+        error: String(error.message ?? error),
+      });
+      throw error;
+    }
+    await this._sleep(_setting(this._config, "CAMERA_POST_READ_DELAY_S"));
+
+    // The value follows the 12-byte container header. Most Fuji recipe
+    // properties are uint16, but the payload is read as int32 when four bytes
+    // are there, which is what makes negatives come back correctly.
+    const payload = data.subarray(_HEADER_BYTES);
+    const view = new DataView(payload.buffer, payload.byteOffset, payload.byteLength);
+    let value;
+    if (payload.length >= 4) {
+      value = view.getInt32(0, true);
+    } else if (payload.length >= 2) {
+      value = view.getUint16(0, true);
+    } else if (payload.length >= 1) {
+      value = payload[0];
+    } else {
+      value = 0;
+    }
+
+    publishEvent({ eventType: PTP_READ_SUCCEEDED, prop: formatCode(code), value });
+    return value;
+  },
+
+  /**
+   * Read a property whose value is a signed 16-bit integer.
+   *
+   * The camera zero-extends int16 values into a four-byte payload, so a raw
+   * read of -10 comes back as 65526. Reinterpreting the low sixteen bits is
+   * what makes white balance shifts and tone curves read correctly.
+   *
+   * @param {number} code
+   * @returns {Promise<number>}
+   */
+  async getPropertyInt16(code) {
+    const raw = await this.getPropertyInt(code);
+    const v = raw & 0xffff;
+    return v >= 32768 ? v - 65536 : v;
+  },
+
+  /**
+   * Read a property as a PTP string.
+   *
+   * @param {number} code
+   * @returns {Promise<string>}
+   */
+  async getPropertyString(code) {
+    let data;
+    try {
+      data = await this._getPropWithRetry(code);
+    } catch (error) {
+      publishEvent({
+        eventType: PTP_READ_FAILED,
+        prop: formatCode(code),
+        error: String(error.message ?? error),
+      });
+      throw error;
+    }
+    await this._sleep(_setting(this._config, "CAMERA_POST_READ_DELAY_S"));
+    const { value } = _decodePtpString(data, _HEADER_BYTES);
+    publishEvent({ eventType: PTP_READ_SUCCEEDED, prop: formatCode(code), value });
+    return value;
+  },
+
+  /**
+   * Write a 32-bit signed integer property.
+   *
+   * @param {number} code
+   * @param {number} value
+   * @returns {Promise<number>} 0 on success, otherwise the camera's response code.
+   */
+  async setPropertyInt(code, value) {
+    const payload = new Uint8Array(4);
+    new DataView(payload.buffer).setInt32(0, value, true);
+    return this._setProp(code, payload);
+  },
+
+  /**
+   * Write a uint16 property. Used for the slot cursor.
+   *
+   * @param {number} code
+   * @param {number} value
+   * @returns {Promise<number>}
+   */
+  async setPropertyUint16(code, value) {
+    const payload = new Uint8Array(2);
+    new DataView(payload.buffer).setUint16(0, value & 0xffff, true);
+    return this._setProp(code, payload);
+  },
+
+  /**
+   * Write a PTP string property. Used for the slot name.
+   *
+   * @param {number} code
+   * @param {string} value
+   * @returns {Promise<number>}
+   */
+  async setPropertyString(code, value) {
+    return this._setProp(code, _encodePtpString(value));
+  },
+
+  /**
+   * List the property codes GetDeviceInfo reports.
+   *
+   * Returns [] on any failure, because callers treat it as optional: it is a
+   * diagnostic, not something the push path depends on.
+   *
+   * @returns {Promise<number[]>}
+   */
+  async supportedProperties() {
+    try {
+      await this._send(_commandPacket(_OC_GET_DEVICE_INFO, this._nextTx()));
+      const { data, response } = await this._recvData();
+      if (response !== null) {
+        return [];
+      }
+      const { code } = await this._recvResponse();
+      if (code !== _RC_OK) {
+        return [];
+      }
+      return _parseDeviceInfoSupportedProps(data);
+    } catch {
+      return [];
+    }
+  },
+
+  /**
+   * Send GetDevicePropValue and return the raw data, retrying transport failures.
+   *
+   * Reads only. Writes are deliberately not retried at this level: a rejected
+   * write is a decision the camera made, and repeating it would not change the
+   * answer. Retrying writes is the operations layer's job, and only for
+   * transport failures.
+   *
+   * @param {number} code
+   * @returns {Promise<Uint8Array>}
+   */
+  async _getPropWithRetry(code) {
+    const maxAttempts = _setting(this._config, "CAMERA_MAX_RETRIES");
+    const backoff = _setting(this._config, "CAMERA_RETRY_BACKOFF_S");
+    let lastError = new CameraConnectionError("No retries attempted");
+    for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+      if (attempt > 0) {
+        await this._sleep(backoff * 2 ** (attempt - 1));
+      }
+      try {
+        await this._send(
+          _commandPacket(_OC_GET_DEVICE_PROP_VALUE, this._nextTx(), code)
+        );
+        const { data, response } = await this._recvData();
+        if (response !== null) {
+          // Acknowledged with no value attached. That is not an answer and
+          // must not be reported as one: an empty payload decodes to 0, a
+          // legitimate value for most of these properties, so it would show as
+          // a real setting and be written to a slot on a push.
+          //
+          // Retrying is what recovers. The server reaches the same outcome by
+          // accident: it reads for a response that has already arrived, waits
+          // out the full timeout, and its retry loop then asks again. This
+          // takes the same decision in milliseconds.
+          throw new CameraConnectionError(
+            `Camera answered ${formatCode(code)} with no value ` +
+              `(rc=${formatRc(response.code)})`
+          );
+        }
+        const { code: rc } = await this._recvResponse();
+        this._checkRc(rc, `GetDevicePropValue(${formatCode(code)})`);
+        return data;
+      } catch (error) {
+        if (!(error instanceof CameraConnectionError)) throw error;
+        lastError = error;
+      }
+    }
+    throw lastError;
+  },
+
+  /**
+   * Write a property and return the camera's response code.
+   *
+   * Returns rather than throws, mirroring the Python. A non-zero rc means the
+   * camera considered the request and refused it, which is a different thing
+   * from the transport failing, and only the caller knows whether to give up.
+   *
+   * @param {number} code
+   * @param {Uint8Array} payload
+   * @returns {Promise<number>} 0 on success, otherwise the response code.
+   */
+  async _setProp(code, payload) {
+    const tx = this._nextTx();
+    await this._send(_commandPacket(_OC_SET_DEVICE_PROP_VALUE, tx, code));
+    await this._send(_dataPacket(_OC_SET_DEVICE_PROP_VALUE, tx, payload));
+    const { code: rc } = await this._recvResponse();
+    if (rc === _RC_OK) {
+      publishEvent({ eventType: PTP_WRITE_SUCCEEDED, prop: formatCode(code) });
+      return 0;
+    }
+    publishEvent({
+      eventType: PTP_WRITE_FAILED,
+      prop: formatCode(code),
+      rc: formatCode(rc),
+    });
+    return rc;
+  },
+});

@@ -93,6 +93,8 @@ export class FakeUSBDevice {
    * @param {number[]} [options.stallOn] Operation codes whose next transfer stalls.
    * @param {number[]} [options.hangOn] Operation codes whose read never resolves.
    * @param {number[]} [options.noDataPhaseOn] Codes answered with a response and no data.
+   * @param {number} [options.noDataPhaseTimes] How many such replies before the code
+   *   behaves, modelling a camera that drops a value once and answers on the retry.
    * @param {Record<number, number>} [options.intValues] Property code to int value.
    * @param {Record<number, string>} [options.stringValues] Property code to string value.
    * @param {Record<number, number>} [options.setRejectionCodes] Property code to rc.
@@ -100,12 +102,14 @@ export class FakeUSBDevice {
    * @param {string} [options.deviceInfoHex]
    * @param {object} [options.configuration] A configuration descriptor to expose.
    * @param {Error} [options.failOpenWith] Thrown from open(), like a busy interface.
+   * @param {number} [options.failTransferInTimes] Fail this many reads, then behave.
    */
   constructor({
     stallOn = [],
     hangOn = [],
     noDataPhaseOn = [],
     noDataPhaseRc = _RC_OK,
+    noDataPhaseTimes = Infinity,
     intValues = {},
     stringValues = {},
     setRejectionCodes = {},
@@ -113,6 +117,7 @@ export class FakeUSBDevice {
     deviceInfoHex = X_S10_DEVICE_INFO_HEX,
     configuration = undefined,
     failOpenWith = null,
+    failTransferInTimes = 0,
   } = {}) {
     this.vendorId = 0x04cb;
     this.productId = 0x02e5;
@@ -125,12 +130,16 @@ export class FakeUSBDevice {
     this._hangOn = new Set(hangOn);
     this._noDataPhaseOn = new Set(noDataPhaseOn);
     this._noDataPhaseRc = noDataPhaseRc;
+    this._noDataPhaseLeft = noDataPhaseTimes;
     this._intValues = { ...intValues };
     this._stringValues = { ...stringValues };
     this._setRejectionCodes = { ...setRejectionCodes };
     this._openSessionRc = openSessionRc;
     this._deviceInfo = fromHex(deviceInfoHex);
     this._failOpenWith = failOpenWith;
+    // Transport failures the retry loops are expected to ride out. Distinct
+    // from hangOn: this fails fast, so a retry can genuinely succeed.
+    this._failTransferInTimes = failTransferInTimes;
 
     this._queue = [];
     this._pendingSet = null;
@@ -195,6 +204,10 @@ export class FakeUSBDevice {
   }
 
   async transferIn(endpointNumber, length) {
+    if (this._failTransferInTimes > 0) {
+      this._failTransferInTimes -= 1;
+      throw Object.assign(new Error("transfer failed"), { name: "NetworkError" });
+    }
     if (this._hangPending) {
       // Never resolves, which is the whole point: WebUSB gives no timeout and
       // a pending transfer cannot be cancelled.
@@ -238,9 +251,11 @@ export class FakeUSBDevice {
       return;
     }
     if (code === _OC_GET_DEVICE_PROP_VALUE) {
-      if (this._noDataPhaseOn.has(param)) {
+      if (this._noDataPhaseOn.has(param) && this._noDataPhaseLeft > 0) {
+        this._noDataPhaseLeft -= 1;
         // The camera answers with a response where a data container belongs.
-        this._queue.push(container(_PTP_RESPONSE, this._noDataPhaseRc, txId));
+        // One container only: the camera acknowledged the read and sent no
+        // value, so there is nothing further on the wire.
         this._queue.push(container(_PTP_RESPONSE, this._noDataPhaseRc, txId));
         return;
       }
@@ -284,6 +299,18 @@ export class FakeUSBDevice {
     }
     const value = code in this._intValues ? this._intValues[code] : 0;
     return container(_PTP_DATA, _OC_GET_DEVICE_PROP_VALUE, txId, int32Payload(value));
+  }
+
+  /**
+   * Fail the next `count` reads with a transport error, then behave.
+   *
+   * Called after connect() so the failures land on the operation under test
+   * rather than being eaten by the session handshake.
+   *
+   * @param {number} count
+   */
+  failNextReads(count) {
+    this._failTransferInTimes = count;
   }
 
   // --- assertions helpers -------------------------------------------------
