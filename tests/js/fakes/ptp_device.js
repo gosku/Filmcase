@@ -12,6 +12,13 @@
  * One knob has no Python counterpart: setFailuresBeforeSuccess, for a property
  * that fails a few times and then works. The Python fake raises for a code
  * forever, which cannot express the case the retry loops exist for.
+ *
+ * Every operation also yields once and refuses to overlap with another. PTP is
+ * one transaction at a time: a second command sent before the first has had its
+ * response interleaves containers on the wire and corrupts both. Nothing in the
+ * Python needs this because its calls block, but here a single missing await
+ * would produce exactly that, so the fake makes it a loud failure rather than
+ * something only a real camera would notice.
  */
 
 import { CameraConnectionError } from "../../../src/interfaces/static/js/camera/vendor/ptp_device.js";
@@ -70,6 +77,31 @@ export class FakePTPDevice {
     this.reads = [];
     /** Lifecycle calls, so a test can assert the device was released. */
     this.calls = [];
+
+    this._inFlight = false;
+  }
+
+  /**
+   * Run one device operation, refusing to overlap with another.
+   *
+   * The yield is what makes overlap detectable: without it a caller that
+   * forgot an await would still run to completion before the next started,
+   * and the test would pass while the real transport corrupted itself.
+   */
+  async _oneAtATime(fn) {
+    if (this._inFlight) {
+      throw new Error(
+        "FakePTPDevice: overlapping device calls. PTP is one transaction at a " +
+          "time, so a missing await here corrupts the wire on real hardware."
+      );
+    }
+    this._inFlight = true;
+    try {
+      await Promise.resolve();
+      return fn();
+    } finally {
+      this._inFlight = false;
+    }
   }
 
   get cameraName() {
@@ -97,6 +129,11 @@ export class FakePTPDevice {
   }
 
   async getPropertyInt(code) {
+    return this._oneAtATime(() => this._readInt(code));
+  }
+
+  /** The read itself, unguarded, so subclasses can reuse it. */
+  _readInt(code) {
     this.reads.push(code);
     this._checkGet(code, true);
     if (code in this._intReadOverrides) return this._intReadOverrides[code];
@@ -104,12 +141,17 @@ export class FakePTPDevice {
   }
 
   async getPropertyInt16(code) {
-    const raw = await this.getPropertyInt(code);
+    const raw = await this._oneAtATime(() => this._readInt(code));
     const v = raw & 0xffff;
     return v >= 32768 ? v - 65536 : v;
   }
 
   async getPropertyString(code) {
+    return this._oneAtATime(() => this._readString(code));
+  }
+
+  /** The read itself, unguarded, so subclasses can reuse it. */
+  _readString(code) {
     this.reads.push(code);
     this._checkGet(code, false);
     if (code in this._strReadOverrides) return this._strReadOverrides[code];
@@ -117,6 +159,14 @@ export class FakePTPDevice {
   }
 
   // --- writes -------------------------------------------------------------
+
+  /** The write itself, unguarded, so subclasses can reuse it. */
+  _write(code, value, store, transform) {
+    this._beforeSet(code, value);
+    if (code in this._setRejectionCodes) return this._setRejectionCodes[code];
+    this[store][code] = transform(value);
+    return 0;
+  }
 
   _beforeSet(code, value) {
     this.writes.push([code, value]);
@@ -128,24 +178,15 @@ export class FakePTPDevice {
   }
 
   async setPropertyInt(code, value) {
-    this._beforeSet(code, value);
-    if (code in this._setRejectionCodes) return this._setRejectionCodes[code];
-    this._intStore[code] = value;
-    return 0;
+    return this._oneAtATime(() => this._write(code, value, "_intStore", (v) => v));
   }
 
   async setPropertyUint16(code, value) {
-    this._beforeSet(code, value);
-    if (code in this._setRejectionCodes) return this._setRejectionCodes[code];
-    this._intStore[code] = value & 0xffff;
-    return 0;
+    return this._oneAtATime(() => this._write(code, value, "_intStore", (v) => v & 0xffff));
   }
 
   async setPropertyString(code, value) {
-    this._beforeSet(code, value);
-    if (code in this._setRejectionCodes) return this._setRejectionCodes[code];
-    this._strStore[code] = value;
-    return 0;
+    return this._oneAtATime(() => this._write(code, value, "_strStore", (v) => v));
   }
 
   async supportedProperties() {

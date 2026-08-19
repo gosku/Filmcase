@@ -1,23 +1,30 @@
 /**
- * A minimal client config for tests that only need timings and a few codes.
+ * A client config for tests.
  *
- * Deliberately hand-written and short. The full encodings tables travel with
- * the golden vectors, next to the expectations they were frozen against; tests
- * of the transport, the retry loops and the use cases need none of that, and a
- * 300-line dump here would obscure the handful of values that actually matter.
+ * The settings are hand-written and short, because the delays are what a test
+ * usually wants to change and a handful of named numbers is easier to reason
+ * about than a served payload.
+ *
+ * The encodings are not hand-written. They come from the shared golden vectors,
+ * so tests convert with the same tables the Python generated rather than with a
+ * hand-made subset that could quietly disagree. An earlier version of this file
+ * did keep a subset, and it was missing the film simulation table, which showed
+ * up as a null dereference three commits later rather than as a wrong value.
  */
 
-/** Property codes, matching src/data/camera/constants.py. */
-export const PROP_PING = 0xd023;
-export const PROP_SLOT_CURSOR = 0xd18c;
-export const PROP_SLOT_NAME = 0xd18d;
-export const PROP_FILM_SIMULATION = 0xd192;
+import { ENCODINGS } from "./vectors.js";
+
+/** Property codes worth naming, matching src/data/camera/constants.py. */
+export const PROP_PING = ENCODINGS.prop_ping;
+export const PROP_SLOT_CURSOR = ENCODINGS.prop_slot_cursor;
+export const PROP_SLOT_NAME = ENCODINGS.prop_slot_name;
+export const PROP_FILM_SIMULATION = ENCODINGS.custom_slot_codes.FilmSimulation;
 
 /**
- * @param {object} [overrides] Settings to change, by their Django names.
+ * @param {object} [settingOverrides] Settings to change, by their Django names.
  * @returns {object}
  */
-export function makeConfig(overrides = {}) {
+export function makeConfig(settingOverrides = {}) {
   return {
     settings: {
       CAMERA_TRANSPORT: "browser",
@@ -32,19 +39,8 @@ export function makeConfig(overrides = {}) {
       CAMERA_INTER_SLOT_DELAY_S: 0,
       CAMERA_MAX_RETRIES: 3,
       CAMERA_RETRY_BACKOFF_S: 0.15,
-      ...overrides,
+      ...settingOverrides,
     },
-    encodings: {
-      vendor_id: 0x04cb,
-      prop_ping: PROP_PING,
-      prop_slot_cursor: PROP_SLOT_CURSOR,
-      prop_slot_name: PROP_SLOT_NAME,
-      recipe_name_max_len: 25,
-      custom_slot_codes: {
-        FilmSimulation: PROP_FILM_SIMULATION,
-        GrainEffect: 0xd195,
-      },
-      camera_custom_slot_counts: { "X-S10": 4, "X-T4": 7 },
-    },
+    encodings: ENCODINGS,
   };
 }
