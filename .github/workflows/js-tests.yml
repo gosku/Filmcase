@@ -25,4 +25,4 @@ jobs:
       # command a developer runs, and so the job does not depend on npm being
       # present at all. package.json still carries the script for convenience.
       - name: Run tests
-        run: node --test tests/js/
+        run: node --test "tests/js/**/*.test.js"

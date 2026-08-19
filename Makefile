@@ -161,9 +161,9 @@ worker:
 test:
 	$(PYTEST)
 
-## test-js     — run the browser-side camera tests (needs Node 20+)
+## test-js     — run the browser-side camera tests (needs Node 22+)
 test-js:
-	node --test tests/js/
+	node --test "tests/js/**/*.test.js"
 
 ## help        — list available targets
 help:

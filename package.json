@@ -5,9 +5,9 @@
   "description": "Test runner for the browser-side camera code. Filmcase is a Django application; this file exists only so Node can run the JavaScript unit tests.",
   "type": "module",
   "engines": {
-    "node": ">=20"
+    "node": ">=22"
   },
   "scripts": {
-    "test": "node --test tests/js/"
+    "test": "node --test \"tests/js/**/*.test.js\""
   }
 }

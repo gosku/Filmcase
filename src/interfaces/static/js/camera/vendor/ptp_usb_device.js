@@ -5,10 +5,25 @@
  * can be read side by side: the leading underscores are kept even though they
  * mean nothing here, and snake_case becomes camelCase and nothing else.
  *
- * This file currently holds the packet helpers. The transport class follows.
+ * Two things differ from the Python, both forced by the platform.
+ *
+ *   - the device is handed in rather than found. usb.core.find() has no browser
+ *     equivalent that a transport could call: navigator.usb.requestDevice()
+ *     shows UI and needs a live user gesture, so choosing the camera belongs to
+ *     the click handler and this class receives the result.
+ *
+ *   - every transfer is wrapped in a timeout. PyUSB passes one to libusb;
+ *     WebUSB has no timeout parameter and accepts no AbortSignal, so racing a
+ *     timer is the only option. Without it a camera that stops answering hangs
+ *     the tab for good.
+ * *
+ * The transaction id also resets in connect() rather than only in the
+ * constructor. That is not a behavioural difference in practice, since callers
+ * build a fresh instance per push on both sides; it states the per-session
+ * invariant where the session is opened rather than relying on call discipline.
  */
 
-import { CameraConnectionError } from "./ptp_device.js";
+import { CameraConnectionError, formatCode } from "./ptp_device.js";
 
 // ---------------------------------------------------------------------------
 // PTP/USB packet types (PIMA 15740:2000 5.3.1)
@@ -281,4 +296,338 @@ export function _parseDeviceInfoSupportedProps(data) {
     props.push(view.getUint16(off + i * 2, true));
   }
   return props;
+}
+
+// ---------------------------------------------------------------------------
+// Endpoint discovery
+// ---------------------------------------------------------------------------
+
+/**
+ * Find the interface carrying a bulk endpoint in each direction.
+ *
+ * PTP needs exactly that pair, and the interface that has both is the one worth
+ * claiming. Searching rather than assuming interface 0 is a deliberate
+ * improvement on the Python, which hardcodes (0, 0); the browser hands us the
+ * full descriptor, so there is no reason to guess.
+ *
+ * @param {USBDevice} device An opened device with a selected configuration.
+ * @returns {{interfaceNumber: number, inEndpoint: number, outEndpoint: number}|null}
+ */
+export function _findBulkInterface(device) {
+  const configuration = device.configuration;
+  if (!configuration) {
+    return null;
+  }
+  for (const iface of configuration.interfaces) {
+    for (const alternate of iface.alternates) {
+      const bulk = alternate.endpoints.filter((e) => e.type === "bulk");
+      const inEndpoint = bulk.find((e) => e.direction === "in");
+      const outEndpoint = bulk.find((e) => e.direction === "out");
+      if (inEndpoint && outEndpoint) {
+        return {
+          interfaceNumber: iface.interfaceNumber,
+          inEndpoint: inEndpoint.endpointNumber,
+          outEndpoint: outEndpoint.endpointNumber,
+        };
+      }
+    }
+  }
+  return null;
+}
+
+// ---------------------------------------------------------------------------
+// ClientPTPUSBDevice
+// ---------------------------------------------------------------------------
+
+/** Resolve after `seconds`. Replaced in tests so delays cost nothing. */
+function _realSleep(seconds) {
+  return new Promise((resolve) => setTimeout(resolve, seconds * 1000));
+}
+
+export class ClientPTPUSBDevice {
+  /**
+   * @param {object} options
+   * @param {USBDevice} options.usbDevice A device the user has already granted.
+   * @param {object} options.config The client config, as served by the server.
+   * @param {(seconds: number) => Promise<void>} [options.sleep]
+   * @param {number} [options.timeoutMs] How long a transfer may take. Injected
+   *   so tests can shrink it; a suite that waits out real five-second timeouts
+   *   stops being run.
+   */
+  constructor({ usbDevice, config, sleep = _realSleep, timeoutMs = _USB_TIMEOUT_MS }) {
+    this._usbDevice = usbDevice;
+    this._config = config;
+    this._sleep = sleep;
+    this._timeoutMs = timeoutMs;
+    this._inEndpoint = null;
+    this._outEndpoint = null;
+    this._interfaceNumber = null;
+    this._txId = 1;
+    this._cameraName = "";
+  }
+
+  get cameraName() {
+    return this._cameraName;
+  }
+
+  // ------------------------------------------------------------------
+  // CameraDevice contract
+  // ------------------------------------------------------------------
+
+  /**
+   * Open the device, claim its PTP interface, start a session and read the
+   * model name.
+   *
+   * @returns {Promise<void>}
+   */
+  async connect() {
+    if (!this._usbDevice) {
+      throw new CameraConnectionError("No camera was selected.");
+    }
+    try {
+      await this._usbDevice.open();
+      if (this._usbDevice.configuration === null) {
+        await this._usbDevice.selectConfiguration(1);
+      }
+    } catch (error) {
+      throw new CameraConnectionError(
+        `Could not open the camera: ${error}. On Linux this is usually a udev ` +
+          "rule, or another program holding the device."
+      );
+    }
+    await this._claimInterface();
+    this._txId = 1;
+    await this._openSession();
+    this._cameraName = await this._fetchCameraName();
+  }
+
+  /**
+   * Close the session and release the device. Never throws.
+   *
+   * @returns {Promise<void>}
+   */
+  async disconnect() {
+    const device = this._usbDevice;
+    if (!device) {
+      return;
+    }
+    try {
+      await this._send(_commandPacket(_OC_CLOSE_SESSION, this._nextTx()));
+      await this._recvResponse();
+    } catch {
+      // The camera may already be gone; there is nothing useful to do.
+    }
+    try {
+      if (this._interfaceNumber !== null) {
+        await device.releaseInterface(this._interfaceNumber);
+      }
+    } catch {
+      // Ignore: releasing a device that vanished is not a failure.
+    }
+    try {
+      await device.close();
+    } catch {
+      // Ignore, as above.
+    }
+    this._usbDevice = null;
+    this._inEndpoint = null;
+    this._outEndpoint = null;
+    this._interfaceNumber = null;
+  }
+
+  // ------------------------------------------------------------------
+  // Internals
+  // ------------------------------------------------------------------
+
+  _nextTx() {
+    const tx = this._txId;
+    this._txId += 1;
+    return tx;
+  }
+
+  /**
+   * Race a transfer against the timeout PyUSB would have applied.
+   *
+   * @template T
+   * @param {Promise<T>} transfer
+   * @param {string} what Named in the error, so a failure says which phase.
+   * @returns {Promise<T>}
+   */
+  async _withTimeout(transfer, what) {
+    let timer;
+    const expiry = new Promise((_, reject) => {
+      timer = setTimeout(() => {
+        reject(
+          new CameraConnectionError(
+            `USB ${what} timed out after ${this._timeoutMs} ms; the camera stopped responding.`
+          )
+        );
+      }, this._timeoutMs);
+    });
+    try {
+      return await Promise.race([transfer, expiry]);
+    } finally {
+      // Without this the pending timer keeps the process alive, which turns a
+      // passing test suite into one that never exits.
+      clearTimeout(timer);
+    }
+  }
+
+  _assertConnected() {
+    if (!this._usbDevice) {
+      throw new CameraConnectionError("The camera is not connected.");
+    }
+  }
+
+  /**
+   * @param {Uint8Array} packet
+   * @returns {Promise<void>}
+   */
+  async _send(packet) {
+    this._assertConnected();
+    let result;
+    try {
+      result = await this._withTimeout(
+        this._usbDevice.transferOut(this._outEndpoint, packet),
+        "write"
+      );
+    } catch (error) {
+      if (error instanceof CameraConnectionError) throw error;
+      throw new CameraConnectionError(`USB write failed: ${error}`);
+    }
+    if (result.status !== "ok") {
+      await this._clearHalt("out", this._outEndpoint);
+      throw new CameraConnectionError(`USB write failed: endpoint ${result.status}`);
+    }
+  }
+
+  /**
+   * Read a container from the camera.
+   *
+   * @param {number} length
+   * @param {string} what
+   * @returns {Promise<Uint8Array>}
+   */
+  async _read(length, what) {
+    this._assertConnected();
+    let result;
+    try {
+      result = await this._withTimeout(
+        this._usbDevice.transferIn(this._inEndpoint, length),
+        `read (${what})`
+      );
+    } catch (error) {
+      if (error instanceof CameraConnectionError) throw error;
+      throw new CameraConnectionError(`USB read (${what}) failed: ${error}`);
+    }
+    if (result.status !== "ok") {
+      await this._clearHalt("in", this._inEndpoint);
+      throw new CameraConnectionError(`USB read (${what}) failed: endpoint ${result.status}`);
+    }
+    const data = result.data;
+    return new Uint8Array(data.buffer, data.byteOffset, data.byteLength);
+  }
+
+  async _clearHalt(direction, endpoint) {
+    try {
+      await this._usbDevice.clearHalt(direction, endpoint);
+    } catch {
+      // Best effort: if the halt cannot be cleared the caller is going to
+      // reconnect anyway, and the original failure is the useful one.
+    }
+  }
+
+  /**
+   * Receive a data container from the camera (may be empty).
+   *
+   * @returns {Promise<Uint8Array>}
+   */
+  async _recvData() {
+    const raw = await this._read(_READ_BUFFER, "data");
+    // Some cameras skip the data phase for properties with no value.
+    if (raw.length >= _HEADER_BYTES) {
+      const view = new DataView(raw.buffer, raw.byteOffset, raw.byteLength);
+      if (view.getUint16(4, true) === _PTP_RESPONSE) {
+        const { code } = _parseResponse(raw);
+        if (code !== _RC_OK) {
+          throw new CameraConnectionError(
+            `PTP error ${formatCode(code)} (no data phase)`
+          );
+        }
+        return raw; // returned as-is; the caller's _recvResponse re-reads
+      }
+    }
+    return raw;
+  }
+
+  /**
+   * @returns {Promise<{code: number, params: number[]}>}
+   */
+  async _recvResponse() {
+    const raw = await this._read(64, "response");
+    return _parseResponse(raw);
+  }
+
+  /**
+   * @param {number} code
+   * @param {string} context
+   */
+  _checkRc(code, context) {
+    if (code === _RC_OK) {
+      return;
+    }
+    throw new CameraConnectionError(`PTP error ${formatCode(code)} during ${context}`);
+  }
+
+  async _claimInterface() {
+    const target = _findBulkInterface(this._usbDevice);
+    if (target === null) {
+      throw new CameraConnectionError(
+        "Could not find PTP bulk USB endpoints on this device. " +
+          "Is the camera in a PTP-compatible USB mode?"
+      );
+    }
+    try {
+      await this._usbDevice.claimInterface(target.interfaceNumber);
+    } catch (error) {
+      throw new CameraConnectionError(
+        `Could not claim the camera's USB interface: ${error}. ` +
+          "Another program may be holding it."
+      );
+    }
+    this._interfaceNumber = target.interfaceNumber;
+    this._inEndpoint = target.inEndpoint;
+    this._outEndpoint = target.outEndpoint;
+  }
+
+  async _openSession() {
+    await this._send(_commandPacket(_OC_OPEN_SESSION, this._nextTx(), _SESSION_ID));
+    const { code } = await this._recvResponse();
+    if (code !== _RC_OK && code !== _RC_SESSION_ALREADY) {
+      throw new CameraConnectionError(
+        `PTP OpenSession failed with code ${formatCode(code)}. ` +
+          "The camera may be in the wrong USB mode."
+      );
+    }
+  }
+
+  /**
+   * Read the camera model via GetDeviceInfo. Returns "" if anything goes wrong,
+   * because the model is only used to decide how many slots to offer.
+   *
+   * @returns {Promise<string>}
+   */
+  async _fetchCameraName() {
+    try {
+      await this._send(_commandPacket(_OC_GET_DEVICE_INFO, this._nextTx()));
+      const data = await this._recvData();
+      const { code } = await this._recvResponse();
+      if (code !== _RC_OK) {
+        return "";
+      }
+      return _parseDeviceInfoModel(data);
+    } catch {
+      return "";
+    }
+  }
 }
