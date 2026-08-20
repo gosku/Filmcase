@@ -37,12 +37,29 @@ runner:
 
 ```bash
 make test-js
-# or directly:
-node --test "tests/js/**/*.test.js"
 ```
 
-It needs Node 22 or newer and has no dependencies: there is no bundler, no
-`npm install`, and the browser loads the same files the tests import.
+**Node is a contributor requirement, not an install requirement.** Filmcase
+serves that code as plain static files with no build step, so nobody running the
+app needs Node. You only need it to run these tests, and only if you touch the
+browser-side camera code.
+
+The version lives in `.nvmrc`, which CI reads too, so the two cannot drift apart.
+Install it whichever way suits you:
+
+```bash
+nvm install                 # reads .nvmrc, no sudo, per-user
+# or
+sudo apt install nodejs     # Ubuntu's, which may be older than .nvmrc asks for
+```
+
+If Node is missing or too old, `make test-js` says so and stops. That check earns
+its place: the test runner only accepts a glob from 22 onwards, and on an older
+Node the failure looks like a missing module rather than a version problem.
+
+There are no dependencies. No bundler, no `npm install`, no `node_modules`, and
+the browser loads the same files the tests import. `npm test` works if you have
+npm, but nothing requires it.
 
 Four fixtures in `tests/fixtures/camera/` are asserted by *both* suites, covering
 the PTP wire format, the recipe conversion, the validation outcomes and the push
