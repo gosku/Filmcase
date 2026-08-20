@@ -829,6 +829,7 @@
   {% include "recipes/partials/recipe_detail.html" %}
 </div>
 <div id="slot-overlay" hidden></div>
+{% if camera_push_from_browser %}{% include "recipes/includes/camera_client_templates.html" %}{% endif %}
 
 <script>
   window.closeRecipeDetail = function () {

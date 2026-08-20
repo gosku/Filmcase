@@ -1,0 +1,79 @@
+{% comment %}
+Markup for the browser-driven camera push.
+
+Included only when the browser owns the transport. In that mode the server never
+renders the slot picker or the result card, because it never talks to the
+camera, so the shapes it would have rendered live here as inert templates and
+the client clones them.
+
+They are templates rather than strings inside the JavaScript so the markup stays
+described in one language and keeps matching slot-card.css, which is what both
+paths are styled by. A class renamed in the stylesheet breaks both together
+rather than only the path nobody tested.
+
+Every block mirrors the equivalent server-rendered partial:
+  camera-slot-card      -> recipes/_select_slot_partial.html
+  camera-push-success   -> recipes/_push_result_partial.html, success branch
+  camera-push-error     -> recipes/_push_result_partial.html, error branch
+{% endcomment %}
+
+<template id="camera-slot-card-template">
+  <div id="slot-card" class="slot-card">
+    <div class="slot-card-header">
+      <button class="slot-card-close" onclick="closeSlotOverlay()" title="Close">&#x2715;</button>
+      <p class="card-title">Push to camera</p>
+      <p class="recipe-name" data-recipe-name></p>
+    </div>
+    <div data-slot-rows></div>
+  </div>
+</template>
+
+<template id="camera-slot-row-template">
+  <button type="button" class="slot-row" data-slot-index>
+    <span class="slot-badge" data-slot-label></span>
+    <span class="slot-info">
+      <span class="slot-name" data-slot-name></span>
+      <span class="slot-film-tag" data-slot-film-sim hidden></span>
+    </span>
+    <span class="slot-chevron">&rsaquo;</span>
+  </button>
+</template>
+
+<template id="camera-push-success-template">
+  <button class="slot-card-close" onclick="closeSlotOverlay()" title="Close">&#x2715;</button>
+  <div class="push-result-center">
+    <svg class="push-check-svg" viewBox="0 0 52 52">
+      <circle class="push-check-circle" cx="26" cy="26" r="25" fill="none"/>
+      <path class="push-check-mark" fill="none" d="M14.1 27.2l7.1 7.2 16.7-16.8"/>
+    </svg>
+    <p class="push-result-message" data-push-message></p>
+  </div>
+</template>
+
+<template id="camera-push-error-template">
+  <button class="slot-card-close" onclick="closeSlotOverlay()" title="Close">&#x2715;</button>
+  <div class="push-result-center">
+    <p class="push-result-err-message" data-push-error></p>
+    <button class="push-retry-btn" data-push-retry></button>
+  </div>
+</template>
+
+<template id="camera-unavailable-template">
+  {% comment %}
+  Shown when the setting says the browser drives the camera but the browser
+  cannot. That is a different failure from a camera being unplugged, and the
+  distinction matters: no amount of reconnecting fixes an insecure origin.
+  {% endcomment %}
+  <div class="slot-card">
+    <div class="slot-card-header">
+      <button class="slot-card-close" onclick="closeSlotOverlay()" title="Close">&#x2715;</button>
+      <p class="card-title">Push to camera</p>
+      <p class="recipe-name">Not available here</p>
+    </div>
+    <p class="slot-error" data-unavailable-reason></p>
+    <p class="slot-error">
+      <a href="{% url 'camera-diagnostics' %}">Run the camera diagnostics</a>
+      to see what this browser can do.
+    </p>
+  </div>
+</template>

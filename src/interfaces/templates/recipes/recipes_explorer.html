@@ -992,6 +992,7 @@
 
 <div id="recipe-detail-overlay" hidden></div>
 <div id="slot-overlay" hidden></div>
+{% if camera_push_from_browser %}{% include "recipes/includes/camera_client_templates.html" %}{% endif %}
 
 <script>
   // Recipe detail overlay logic.
