@@ -17,6 +17,12 @@ Every block mirrors the equivalent server-rendered partial:
   camera-push-error     -> recipes/_push_result_partial.html, error branch
 {% endcomment %}
 
+{% comment %}
+Where the client fetches its configuration. Present only in browser mode, so
+send_to_camera.js uses its absence to stay out of the way entirely.
+{% endcomment %}
+<div id="camera-client-config" data-url="{% url 'camera-client-config' %}" hidden></div>
+
 <template id="camera-slot-card-template">
   <div id="slot-card" class="slot-card">
     <div class="slot-card-header">

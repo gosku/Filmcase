@@ -889,10 +889,21 @@
 
       <div class="action-group">
         {% if recipe.name %}
-          <button class="action-btn action-btn--primary send-to-camera-btn"
-                  hx-get="{% url 'select-push-slot' recipe_id=recipe.id %}"
-                  hx-target="#slot-overlay"
-                  hx-swap="innerHTML">Send to camera</button>
+          {% if camera_push_from_browser %}
+            {% comment %}
+              The camera is on the user's machine, so the browser drives it and
+              the server is never asked to open USB.
+            {% endcomment %}
+            <button class="action-btn action-btn--primary send-to-camera-btn"
+                    data-camera-push
+                    data-payload-url="{% url 'recipe-camera-payload' recipe_id=recipe.id %}"
+                    >Send to camera</button>
+          {% else %}
+            <button class="action-btn action-btn--primary send-to-camera-btn"
+                    hx-get="{% url 'select-push-slot' recipe_id=recipe.id %}"
+                    hx-target="#slot-overlay"
+                    hx-swap="innerHTML">Send to camera</button>
+          {% endif %}
         {% else %}
           <button class="action-btn action-btn--disabled" disabled title="Name the recipe first for sending it to camera.">Send to camera</button>
         {% endif %}

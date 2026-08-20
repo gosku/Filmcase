@@ -146,3 +146,39 @@ class TestCameraClientTemplates:
 
         assert card.select_one("[data-unavailable-reason]") is not None
         assert card.find("a", href="/camera/diagnostics/") is not None
+
+    def test_only_the_standalone_templates_carry_a_card(self, client, settings):
+        # The contract send_to_camera.js depends on, worth stating because
+        # getting it wrong is invisible until a failure happens at the wrong
+        # moment.
+        #
+        # The result and error templates are swapped INTO an existing .slot-card,
+        # exactly as HTMX does on the server-rendered path, so a card of their
+        # own would nest one inside another. The consequence is that a failure
+        # before the picker renders has no card to swap into, and the client has
+        # to make one; without that the message floats on the backdrop with no
+        # background behind it.
+        settings.CAMERA_TRANSPORT = "browser"
+        _recipe(name="Cards")
+
+        soup = _soup(client, "/recipes/")
+
+        for template_id in ["camera-slot-card-template", "camera-unavailable-template"]:
+            element = soup.find("template", id=template_id)
+            assert element.select_one(".slot-card") is not None, template_id
+
+        for template_id in ["camera-push-success-template", "camera-push-error-template"]:
+            element = soup.find("template", id=template_id)
+            assert element.select_one(".slot-card") is None, template_id
+
+    def test_the_card_shell_can_stand_in_for_a_picker_that_never_rendered(self, client, settings):
+        # ensureCard() clones this shell when a camera lookup fails, so it needs
+        # a header the client can label and a body it can replace wholesale.
+        settings.CAMERA_TRANSPORT = "browser"
+        _recipe(name="Shell")
+
+        card = _soup(client, "/recipes/").find("template", id="camera-slot-card-template")
+
+        assert card.select_one("#slot-card") is not None
+        assert card.select_one("[data-recipe-name]") is not None
+        assert card.select_one(".slot-card-close") is not None

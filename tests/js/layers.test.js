@@ -79,14 +79,12 @@ describe("the browser-side layering contract", () => {
     assert.deepEqual(strays, []);
   });
 
-  it("has at least one module in each layer that is in use", () => {
-    // interfaces is absent until the button wiring lands, and this list grows
-    // to include it then. Everything below it exists now, and a layer quietly
-    // emptying is worth failing over: the per-module checks would simply have
-    // fewer entries and say nothing.
+  it("has at least one module in each layer", () => {
+    // A layer quietly emptying is worth failing over: the per-module checks
+    // would simply have fewer entries and say nothing.
     const populated = new Set(MODULES.map((path) => LAYERS[layerOf(path)]));
 
-    for (const layer of ["application", "domain", "vendor"]) {
+    for (const layer of LAYERS) {
       assert.ok(populated.has(layer), `nothing in the ${layer} layer`);
     }
   });

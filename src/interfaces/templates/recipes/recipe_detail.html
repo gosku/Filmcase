@@ -7,6 +7,7 @@
   <script src="https://unpkg.com/htmx.org@2.0.4" integrity="sha384-HGfztofotfshcF7+8n44JQL2oJmowVChPTg48S+jvZoztPfvwD79OC/LTtG6dMp+" crossorigin="anonymous"></script>
   <script src="/static/js/multi-select.js"></script>
   <script src="/static/js/slot-overlay.js"></script>
+  {% if camera_push_from_browser %}<script type="module" src="/static/js/camera/interfaces/send_to_camera.js"></script>{% endif %}
   <link rel="stylesheet" href="/static/css/brand.css">
   <link rel="stylesheet" href="/static/css/slot-card.css">
   <style>

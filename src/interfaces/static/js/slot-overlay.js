@@ -36,6 +36,34 @@ window.SlotOverlay = (function () {
     return Boolean(overlay) && !overlay.hidden;
   }
 
+  /**
+   * Show a node in the overlay, replacing whatever was there.
+   *
+   * Used by the browser-driven push, which builds its own card rather than
+   * receiving one from the server. The spinners below are exposed for the same
+   * reason: both paths should look identical while the camera is thinking.
+   */
+  function show(node) {
+    var overlay = element();
+    if (!overlay) return;
+    overlay.replaceChildren(node);
+    overlay.hidden = false;
+  }
+
+  /** The small spinner, shown while the slot list is being read. */
+  function showSpinner() {
+    var overlay = element();
+    if (!overlay) return;
+    overlay.innerHTML = SPINNER_HTML;
+    overlay.hidden = false;
+  }
+
+  /** The large spinner, shown inside the card while a recipe is written. */
+  function showPushSpinner() {
+    var card = document.getElementById("slot-card");
+    if (card) card.innerHTML = PUSH_LOADING_HTML;
+  }
+
   function bind() {
     // Showing the spinner on beforeRequest rather than afterSwap matters: the
     // camera can take a couple of seconds to answer, and without it the click
@@ -71,7 +99,13 @@ window.SlotOverlay = (function () {
     bind();
   }
 
-  return {close: close, isOpen: isOpen};
+  return {
+    close: close,
+    isOpen: isOpen,
+    show: show,
+    showSpinner: showSpinner,
+    showPushSpinner: showPushSpinner,
+  };
 })();
 
 window.closeSlotOverlay = window.SlotOverlay.close;
