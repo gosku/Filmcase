@@ -4,6 +4,7 @@
 
 - [Web Interface](web_interface.md) — library folder management, image gallery, image detail, recipe explorer, recipe detail, and recipe graphs
 - [Management Commands](management_commands.md) — syncing the library, importing images, bulk rating, thumbnails, camera inspection, recipe comparison
+- [Pushing Recipes from the Browser](camera_webusb.md) — driving the camera from your own machine over WebUSB, for installs where Filmcase runs somewhere you do not sit
 - [Running in Docker](docker.md) — the containerised full stack, HTTPS with a self-signed certificate, mounting photo directories, and what camera access can and cannot do in a container
 
 ## Reference
@@ -21,7 +22,7 @@
 
 ## Troubleshooting
 
-- [Camera USB Access on Linux](camera_usb_access.md) — fixing "Resource busy" errors and udev setup
+- [Camera USB Access on Linux](camera_usb_access.md) — fixing "Resource busy" errors and udev setup, for both the server-side and browser-side transports
 
 ## Architecture
 
@@ -40,3 +41,4 @@
 - [ADR 013 — Library Sync Removes Missing Images](ADRs/013-library-sync-removes-missing-images.md) — removing catalog entries whose files are gone, telling a move apart from a deletion, and the guard against a mass wipe (supersedes ADR 010's add-only sync and mtime gating, and ADR 011's removal and rescan decisions)
 - [ADR 014 — Remembering Images That Cannot Be Imported](ADRs/014-remembering-images-that-cannot-be-imported.md) — recording files the sync cannot import so they are not re-examined on every run, and batching worker dispatch so a large import does not block startup
 - [ADR 015 — Cleaning Up After a Folder Path Change](ADRs/015-cleaning-up-after-a-folder-path-change.md) — removing images stranded outside a library folder when its path narrows, without breaking the relocation a moved folder depends on
+- [ADR 016 — Client-side Camera Transport](ADRs/016-client-side-camera-transport.md) — moving the PTP transport into the browser over WebUSB so a headless install can still push recipes, and how the two implementations are kept from diverging (extends ADR 001)

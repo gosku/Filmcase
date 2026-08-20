@@ -30,6 +30,28 @@ make test
 pytest
 ```
 
+### JavaScript tests
+
+The browser-side camera code has its own suite, run by Node's built-in test
+runner:
+
+```bash
+make test-js
+# or directly:
+node --test "tests/js/**/*.test.js"
+```
+
+It needs Node 22 or newer and has no dependencies: there is no bundler, no
+`npm install`, and the browser loads the same files the tests import.
+
+Four fixtures in `tests/fixtures/camera/` are asserted by *both* suites, covering
+the PTP wire format, the recipe conversion, the validation outcomes and the push
+sequence. They exist because the write path is implemented twice, and a change to
+one side that the other does not follow would otherwise be silent. If you change
+the Python write path, expect the JavaScript suite to fail; regenerate the
+fixture with its `generate_*.py` script only once you are sure the new values are
+the ones you meant to send.
+
 ### Import linter
 
 The project enforces a **layered architecture** through [import-linter](https://import-linter.readthedocs.io/). The layers and the direction dependencies must flow are defined in `setup.cfg`:
