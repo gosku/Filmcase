@@ -25,11 +25,21 @@
 
 import { CameraConnectionError, formatCode, formatRc } from "./ptp_device.js";
 import {
+  PTP_CONTAINER,
   PTP_READ_FAILED,
+  PTP_READ_RETRY,
   PTP_READ_SUCCEEDED,
+  PTP_RECEIVED,
+  PTP_SENT,
+  PTP_TX_MISMATCH,
   PTP_WRITE_FAILED,
   PTP_WRITE_SUCCEEDED,
+  SESSION_CLOSED,
+  SESSION_FAILED,
+  SESSION_OPENED,
+  SESSION_STEP,
   publishEvent,
+  publishTrace,
 } from "./events.js";
 
 // ---------------------------------------------------------------------------
@@ -151,6 +161,37 @@ export function _containerType(raw) {
   if (raw.length < _HEADER_BYTES) return null;
   const view = new DataView(raw.buffer, raw.byteOffset, raw.byteLength);
   return view.getUint16(4, true);
+}
+
+/**
+ * The transaction id a container belongs to, or null if it is too short.
+ *
+ * @param {Uint8Array} raw
+ * @returns {number|null}
+ */
+export function _containerTxId(raw) {
+  if (raw.length < _HEADER_BYTES) return null;
+  const view = new DataView(raw.buffer, raw.byteOffset, raw.byteLength);
+  return view.getUint32(8, true);
+}
+
+/**
+ * The operation or response code a container carries.
+ *
+ * @param {Uint8Array} raw
+ * @returns {number}
+ */
+export function _containerOpCode(raw) {
+  const view = new DataView(raw.buffer, raw.byteOffset, raw.byteLength);
+  return view.getUint16(6, true);
+}
+
+/** A container type as a word, for logs a person has to read. */
+export function _containerName(type) {
+  if (type === _PTP_COMMAND) return "command";
+  if (type === _PTP_DATA) return "data";
+  if (type === _PTP_RESPONSE) return "response";
+  return type === null ? "truncated" : `unknown(${type})`;
 }
 
 // ---------------------------------------------------------------------------
@@ -358,6 +399,11 @@ export function _findBulkInterface(device) {
 // ClientPTPUSBDevice
 // ---------------------------------------------------------------------------
 
+/** Milliseconds since page load, for timing transfers. */
+function _now() {
+  return typeof performance !== "undefined" ? performance.now() : Date.now();
+}
+
 /** Resolve after `seconds`. Replaced in tests so delays cost nothing. */
 function _realSleep(seconds) {
   return new Promise((resolve) => setTimeout(resolve, seconds * 1000));
@@ -403,10 +449,13 @@ export class ClientPTPUSBDevice {
     if (!this._usbDevice) {
       throw new CameraConnectionError("No camera was selected.");
     }
+    const startedAt = _now();
     try {
-      await this._usbDevice.open();
+      await this._step("open", () => this._usbDevice.open());
       if (this._usbDevice.configuration === null) {
-        await this._usbDevice.selectConfiguration(1);
+        await this._step("selectConfiguration", () =>
+          this._usbDevice.selectConfiguration(1)
+        );
       }
     } catch (error) {
       throw new CameraConnectionError(
@@ -414,10 +463,41 @@ export class ClientPTPUSBDevice {
           "rule, or another program holding the device."
       );
     }
-    await this._claimInterface();
+    await this._step("claimInterface", () => this._claimInterface());
     this._txId = 1;
-    await this._openSession();
-    this._cameraName = await this._fetchCameraName();
+    await this._step("openSession", () => this._openSession());
+    this._cameraName = await this._step("getDeviceInfo", () => this._fetchCameraName());
+    publishEvent({
+      eventType: SESSION_OPENED,
+      camera: this._cameraName || "(model not reported)",
+      durationMs: Math.round(_now() - startedAt),
+    });
+  }
+
+  /**
+   * Run one step of the session handshake, recording it either way.
+   *
+   * Connecting was the one part of a push that wrote nothing down, so a failure
+   * to open, claim or start a session left no trace at all: the console showed
+   * the reads from the previous successful attempt and nothing from the failed
+   * one. The step name is what says whether the device would not open, would
+   * not be claimed, or would not start a session, and those have entirely
+   * different causes.
+   */
+  async _step(name, fn) {
+    publishEvent({ eventType: SESSION_STEP, step: name });
+    const startedAt = _now();
+    try {
+      return await fn();
+    } catch (error) {
+      publishEvent({
+        eventType: SESSION_FAILED,
+        step: name,
+        error: `${error?.name ?? "Error"}: ${error?.message ?? error}`,
+        durationMs: Math.round(_now() - startedAt),
+      });
+      throw error;
+    }
   }
 
   /**
@@ -452,6 +532,7 @@ export class ClientPTPUSBDevice {
     this._inEndpoint = null;
     this._outEndpoint = null;
     this._interfaceNumber = null;
+    publishEvent({ eventType: SESSION_CLOSED });
   }
 
   // ------------------------------------------------------------------
@@ -461,7 +542,39 @@ export class ClientPTPUSBDevice {
   _nextTx() {
     const tx = this._txId;
     this._txId += 1;
+    this._currentTx = tx;
     return tx;
+  }
+
+  /**
+   * Warn if a container belongs to an earlier transaction than the one in hand.
+   *
+   * A timeout leaves a request unanswered. If the camera were merely late
+   * rather than having dropped the request, its reply would arrive during the
+   * next exchange and every container after that would be one behind, which on
+   * the write path means confirming a property the camera refused.
+   *
+   * The evidence says the camera drops requests and no stale reply exists. This
+   * checks that rather than assuming it: it costs a comparison, and if the
+   * assumption is ever wrong it says so instead of quietly returning the wrong
+   * value.
+   */
+  _checkTxId(raw, phase) {
+    const txId = _containerTxId(raw);
+    if (txId === null || this._currentTx === undefined) return;
+    if (txId !== this._currentTx) {
+      publishEvent({
+        eventType: PTP_TX_MISMATCH,
+        phase,
+        expected: this._currentTx,
+        received: txId,
+      });
+      console.warn(
+        `Camera replied about transaction ${txId} while ${this._currentTx} was ` +
+          "in flight. A reply arrived late and the stream is out of step; the " +
+          "value just read belongs to an earlier request."
+      );
+    }
   }
 
   /**
@@ -504,6 +617,14 @@ export class ClientPTPUSBDevice {
    */
   async _send(packet) {
     this._assertConnected();
+    publishTrace({
+      eventType: PTP_SENT,
+      container: _containerName(_containerType(packet)),
+      op: formatCode(_containerOpCode(packet)),
+      txId: _containerTxId(packet),
+      bytes: packet.length,
+    });
+    const startedAt = _now();
     let result;
     try {
       result = await this._withTimeout(
@@ -518,6 +639,11 @@ export class ClientPTPUSBDevice {
       await this._clearHalt("out", this._outEndpoint);
       throw new CameraConnectionError(`USB write failed: endpoint ${result.status}`);
     }
+    publishTrace({
+      eventType: PTP_RECEIVED,
+      phase: "write ack",
+      durationMs: Math.round(_now() - startedAt),
+    });
   }
 
   /**
@@ -529,6 +655,7 @@ export class ClientPTPUSBDevice {
    */
   async _read(length, what) {
     this._assertConnected();
+    const startedAt = _now();
     let result;
     try {
       result = await this._withTimeout(
@@ -544,7 +671,17 @@ export class ClientPTPUSBDevice {
       throw new CameraConnectionError(`USB read (${what}) failed: endpoint ${result.status}`);
     }
     const data = result.data;
-    return new Uint8Array(data.buffer, data.byteOffset, data.byteLength);
+    const raw = new Uint8Array(data.buffer, data.byteOffset, data.byteLength);
+    publishTrace({
+      eventType: PTP_RECEIVED,
+      phase: what,
+      container: _containerName(_containerType(raw)),
+      op: raw.length >= _HEADER_BYTES ? formatCode(_containerOpCode(raw)) : null,
+      txId: _containerTxId(raw),
+      bytes: raw.length,
+      durationMs: Math.round(_now() - startedAt),
+    });
+    return raw;
   }
 
   async _clearHalt(direction, endpoint) {
@@ -564,6 +701,17 @@ export class ClientPTPUSBDevice {
   async _recvData() {
     const raw = await this._read(_READ_BUFFER, "data");
     const type = raw.length >= _HEADER_BYTES ? _containerType(raw) : null;
+    // What the camera actually sent, which a stalled read leaves no evidence
+    // of. Cheap, and it tells a short reply from a missing one without anyone
+    // having to guess.
+    publishEvent({
+      eventType: PTP_CONTAINER,
+      phase: "data",
+      bytes: raw.length,
+      container: _containerName(type),
+      txId: _containerTxId(raw),
+    });
+    this._checkTxId(raw, "data");
 
     if (type === _PTP_RESPONSE) {
       // The camera answered without a data phase, so its response is already
@@ -585,7 +733,16 @@ export class ClientPTPUSBDevice {
    */
   async _recvResponse() {
     const raw = await this._read(64, "response");
-    return _parseResponse(raw);
+    this._checkTxId(raw, "response");
+    const parsed = _parseResponse(raw);
+    publishEvent({
+      eventType: PTP_CONTAINER,
+      phase: "response",
+      rc: formatCode(parsed.code),
+      txId: _containerTxId(raw),
+      bytes: raw.length,
+    });
+    return parsed;
   }
 
   /**
@@ -648,8 +805,21 @@ export class ClientPTPUSBDevice {
       if (code !== _RC_OK) {
         return "";
       }
-      return _parseDeviceInfoModel(data);
-    } catch {
+      const model = _parseDeviceInfoModel(data);
+      if (!model) {
+        publishEvent({
+          eventType: SESSION_FAILED,
+          step: "getDeviceInfo",
+          error: "the camera's device info carried no model name",
+        });
+      }
+      return model;
+    } catch (error) {
+      publishEvent({
+        eventType: SESSION_FAILED,
+        step: "getDeviceInfo",
+        error: `${error?.name ?? "Error"}: ${error?.message ?? error}`,
+      });
       return "";
     }
   }
@@ -883,6 +1053,15 @@ Object.assign(ClientPTPUSBDevice.prototype, {
         return data;
       } catch (error) {
         if (!(error instanceof CameraConnectionError)) throw error;
+        // Published per attempt, so a read that eventually succeeds still shows
+        // that the camera needed asking twice. Recording only the final failure
+        // made a flaky camera look like a healthy one.
+        publishEvent({
+          eventType: PTP_READ_RETRY,
+          prop: formatCode(code),
+          attempt: `${attempt + 1}/${maxAttempts}`,
+          error: error.message,
+        });
         lastError = error;
       }
     }

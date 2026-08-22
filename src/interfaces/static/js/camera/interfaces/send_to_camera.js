@@ -130,8 +130,18 @@ function showSuccess(message) {
  * window is measured in seconds.
  */
 async function chooseDevice(vendorId) {
-  if (grantedDevice) return grantedDevice;
+  if (grantedDevice) {
+    console.debug("camera.device.remembered", {
+      product: grantedDevice.productName,
+      serial: grantedDevice.serialNumber,
+    });
+    return grantedDevice;
+  }
   const device = await navigator.usb.requestDevice({ filters: [{ vendorId }] });
+  console.debug("camera.device.picked", {
+    product: device.productName,
+    serial: device.serialNumber,
+  });
   grantedDevice = device;
   return device;
 }
@@ -193,8 +203,16 @@ function describe(error, slotLabel) {
     // fiddling with the camera.
     return `This recipe can't be written to the camera: ${error.field} is not valid.`;
   }
-  if (error instanceof CameraConnectionError) return NO_CAMERA;
-  if (error instanceof CameraWriteError) return REJECTED;
+  if (error instanceof CameraConnectionError) {
+    // The card says something a user can act on, which loses the detail. Log
+    // the original so the console still says which phase failed and why.
+    console.error("Camera connection failed", error.message);
+    return NO_CAMERA;
+  }
+  if (error instanceof CameraWriteError) {
+    console.error("Camera refused a write", error.message);
+    return REJECTED;
+  }
   if (error && error.name === "NotFoundError") return null; // picker cancelled
   if (error && error.name === "SecurityError") return unavailableReason() ?? UNEXPECTED;
   console.error("Unexpected error pushing to the camera", error);

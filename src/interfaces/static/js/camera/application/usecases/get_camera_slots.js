@@ -17,6 +17,12 @@
 import { CameraConnectionError } from "../../vendor/ptp_device.js";
 import { customSlotCount, makeSlotState } from "../../domain/queries.js";
 import { setCursorWithRetry } from "../../domain/operations.js";
+import {
+  SLOT_PROGRESS,
+  SLOT_RETRY,
+  publishEvent,
+  publishTrace,
+} from "../../vendor/events.js";
 
 /**
  * Call `fn` until it succeeds, retrying only transport failures.
@@ -29,7 +35,7 @@ import { setCursorWithRetry } from "../../domain/operations.js";
  * @param {{config: object, sleep: (seconds: number) => Promise<void>}} runtime
  * @returns {Promise<T>}
  */
-async function _retry(fn, { config, sleep }) {
+async function _retry(fn, { config, sleep }, what) {
   const maxRetries = config.settings.CAMERA_MAX_RETRIES;
   const backoff = config.settings.CAMERA_RETRY_BACKOFF_S;
   let lastError = new CameraConnectionError("no retries attempted");
@@ -41,6 +47,16 @@ async function _retry(fn, { config, sleep }) {
       return await fn();
     } catch (error) {
       if (!(error instanceof CameraConnectionError)) throw error;
+      // This loop swallowed its attempts, which made the slot listing look like
+      // it gave up first time when it had in fact tried three times. Of the
+      // three retry loops it is the only one wrapping a whole slot operation,
+      // so its attempts are the ones worth seeing.
+      publishEvent({
+        eventType: SLOT_RETRY,
+        operation: what,
+        attempt: `${attempt}/${maxRetries}`,
+        error: error.message,
+      });
       lastError = error;
     }
   }
@@ -65,8 +81,10 @@ export async function getCameraSlots(device, runtime) {
   const nameCode = encodings.prop_slot_name;
   const filmSimCode = encodings.custom_slot_codes.FilmSimulation;
 
+  publishTrace({ eventType: SLOT_PROGRESS, camera: device.cameraName, slots: slotCount });
   const states = [];
   for (let index = 1; index <= slotCount; index += 1) {
+    publishTrace({ eventType: SLOT_PROGRESS, slot: `C${index}`, of: slotCount });
     if (index > 1) {
       await sleep(config.settings.CAMERA_INTER_SLOT_DELAY_S);
     }
@@ -76,8 +94,16 @@ export async function getCameraSlots(device, runtime) {
     // it looks like a correct answer.
     await sleep(config.settings.CAMERA_POST_CURSOR_DELAY_S);
 
-    const name = await _retry(() => device.getPropertyString(nameCode), runtime);
-    const filmSimPtp = await _retry(() => device.getPropertyInt(filmSimCode), runtime);
+    const name = await _retry(
+      () => device.getPropertyString(nameCode),
+      runtime,
+      `C${index} name`
+    );
+    const filmSimPtp = await _retry(
+      () => device.getPropertyInt(filmSimCode),
+      runtime,
+      `C${index} film simulation`
+    );
 
     states.push(makeSlotState({ index, name, filmSimPtp }, encodings));
   }
