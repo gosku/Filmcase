@@ -158,3 +158,39 @@ class TestSelectSlotViewHtmx:
         assert response.status_code == 200
         soup = BeautifulSoup(response.content, "html.parser")
         assert "Unexpected error happened" in soup.get_text()
+
+
+@pytest.mark.django_db
+class TestSelectSlotViewInBrowserTransport:
+    def test_declines_with_400_when_the_browser_owns_the_transport(self, client, settings):
+        settings.CAMERA_TRANSPORT = "browser"
+        recipe = _recipe(name="Browser Mode")
+
+        response = client.get(f"/recipes/{recipe.id}/push/")
+
+        assert response.status_code == 400
+        assert "from your browser" in response.json()["error"]
+
+    def test_htmx_gets_the_error_partial_so_the_overlay_can_show_it(self, client, settings):
+        settings.CAMERA_TRANSPORT = "browser"
+        recipe = _recipe(name="Browser Mode")
+
+        response = client.get(f"/recipes/{recipe.id}/push/", headers={"HX-Request": "true"})
+
+        # 200 so HTMX swaps the message in, matching how this view already
+        # reports a camera connection failure.
+        assert response.status_code == 200
+        assert "from your browser" in response.content.decode()
+
+    def test_never_touches_the_camera(self, client, settings):
+        # The point of the guard: a headless server must not open USB looking
+        # for a camera that is plugged into someone else's machine.
+        settings.CAMERA_TRANSPORT = "browser"
+
+        def _explode():
+            raise AssertionError("the camera must not be touched in browser mode")
+
+        settings.PTP_DEVICE = _explode
+        recipe = _recipe(name="Browser Mode")
+
+        assert client.get(f"/recipes/{recipe.id}/push/").status_code == 400

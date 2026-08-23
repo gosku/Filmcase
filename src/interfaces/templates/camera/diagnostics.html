@@ -143,6 +143,11 @@
         <span class="check__value" id="check-claim">not run</span>
         <span class="pill pill--waiting" id="pill-claim">waiting</span>
       </li>
+      <li class="check">
+        <span class="check__label">PTP session</span>
+        <span class="check__value" id="check-session">not run</span>
+        <span class="pill pill--waiting" id="pill-session">waiting</span>
+      </li>
     </ul>
 
     <button class="probe-btn" id="probe-btn" type="button" disabled>Probe camera</button>
@@ -173,11 +178,24 @@
     </div>
   </main>
 
-  <script>
+  <script type="module">
+    import {
+      ClientPTPUSBDevice,
+      _findBulkInterface,
+    } from "/static/js/camera/vendor/ptp_usb_device.js";
+
     (function () {
       "use strict";
 
       const FUJIFILM_VENDOR_ID = {{ diagnostics.vendor_id }};
+
+      // Fetched on load, not on click: requestDevice() needs a live user
+      // gesture, and awaiting anything before it can spend the activation.
+      let clientConfig = null;
+      fetch("{% url 'camera-client-config' %}")
+        .then((response) => response.json())
+        .then((config) => { clientConfig = config; })
+        .catch(() => { clientConfig = null; });
 
       function setCheck(name, value, state) {
         document.getElementById("check-" + name).textContent = value;
@@ -227,28 +245,9 @@
         document.getElementById("probe-all-btn").disabled = false;
       }
 
-      // Mirrors _claim_interface in ptp_usb_device.py: PTP needs one bulk endpoint in each
-      // direction, and the interface that carries them is the one worth claiming.
-      function findBulkInterface(device) {
-        const configuration = device.configuration;
-        if (!configuration) {
-          return null;
-        }
-        for (const iface of configuration.interfaces) {
-          for (const alternate of iface.alternates) {
-            const directions = alternate.endpoints
-              .filter(function (e) { return e.type === "bulk"; })
-              .map(function (e) { return e.direction; });
-            if (directions.includes("in") && directions.includes("out")) {
-              return { number: iface.interfaceNumber, endpoints: alternate.endpoints.length };
-            }
-          }
-        }
-        return null;
-      }
 
       async function probe(filtered) {
-        ["device", "open", "endpoints", "claim"].forEach(function (name) {
+        ["device", "open", "endpoints", "claim", "session"].forEach(function (name) {
           setCheck(name, "not run", "waiting");
         });
 
@@ -282,24 +281,62 @@
           return;
         }
 
-        const target = findBulkInterface(device);
+        // Imported from the transport rather than reimplemented here: this page
+        // used to carry its own copy, and two versions of endpoint discovery is
+        // exactly the drift this port is trying to avoid.
+        const target = _findBulkInterface(device);
         if (target === null) {
           setCheck("endpoints", "no interface exposes bulk in and out", "fail");
           await device.close();
           return;
         }
         setCheck("endpoints",
-                 "interface " + target.number + ", " + target.endpoints + " endpoints", "pass");
+                 "interface " + target.interfaceNumber + ", in " + target.inEndpoint +
+                 ", out " + target.outEndpoint, "pass");
 
         try {
-          await device.claimInterface(target.number);
-          setCheck("claim", "claimed interface " + target.number, "pass");
-          await device.releaseInterface(target.number);
+          await device.claimInterface(target.interfaceNumber);
+          setCheck("claim", "claimed interface " + target.interfaceNumber, "pass");
+          await device.releaseInterface(target.interfaceNumber);
         } catch (error) {
           setCheck("claim", error.name + ": " + error.message, "fail");
-        } finally {
           await device.close();
+          return;
         }
+        await device.close();
+
+        await probeSession(device);
+      }
+
+      // The step that actually exercises the transport the push path uses:
+      // OpenSession, then GetDeviceInfo for the model name. Everything above
+      // only proves the browser can reach the device; this proves the camera
+      // will hold a PTP conversation.
+      async function probeSession(usbDevice) {
+        if (clientConfig === null) {
+          setCheck("session", "client config could not be loaded", "fail");
+          return;
+        }
+        const ptp = new ClientPTPUSBDevice({ usbDevice, config: clientConfig });
+        try {
+          await ptp.connect();
+        } catch (error) {
+          setCheck("session", error.message, "fail");
+          await ptp.disconnect();
+          return;
+        }
+        const name = ptp.cameraName;
+        const slots = clientConfig.encodings.camera_custom_slot_counts[name];
+        if (!name) {
+          // A session opened but the model did not parse. Worth distinguishing:
+          // the transport works, and only the slot count is unknown.
+          setCheck("session", "session opened, model name not reported", "warn");
+        } else if (slots === undefined) {
+          setCheck("session", name + " (no custom slots known for this model)", "warn");
+        } else {
+          setCheck("session", name + ", " + slots + " custom slots", "pass");
+        }
+        await ptp.disconnect();
       }
 
       document.getElementById("probe-btn")

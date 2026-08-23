@@ -7,6 +7,13 @@ When you connect a camera, Linux recognises it as a PTP/MTP device and GNOME's
 interface.  When this app then tries to open the same interface it gets
 `[Errno 16] Resource busy`.
 
+This page is written for the server-side transport, where the Django process
+opens the device.  Everything on it applies equally when `CAMERA_TRANSPORT` is
+`browser`: the browser needs the same permission on the same device, and loses
+to the same daemon.  Substitute "your browser" for "this app" throughout.  See
+[Pushing Recipes from the Browser](camera_webusb.md) for what browser mode adds
+on top, which is a secure context and a Chromium browser.
+
 There are two things to fix:
 
 1. **Permissions** — your user account must be allowed to open the raw USB device

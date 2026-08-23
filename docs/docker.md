@@ -134,32 +134,44 @@ docker compose up -d
 
 ## Camera access
 
-Pushing a recipe to a camera reads the camera over USB from **the machine running the
-server**. In a container that has consequences worth being explicit about:
+Which machine holds the USB cable is a setting: `CAMERA_TRANSPORT`, either `browser` or
+`server`. **For a Docker install, `browser` is the default and almost always the one you
+want**, because it is the only transport that works no matter where the container runs.
 
-- **On a remote server: pushing recipes does not work yet.** The camera is on your desk and
-  the server is elsewhere, and no amount of configuration bridges that. Moving the transport
-  into the browser over WebUSB would remove the restriction entirely, since the browser runs
-  on the machine the camera is plugged into. That work is under way.
-- **On a desktop: it can work**, if you pass the USB bus through to the container. Add to
-  the `web` service:
+- **`browser` (the default).** The page drives the camera over WebUSB from the machine you
+  browse from, so the cable stays with you. It is the only option that works when the
+  container runs on a remote server or a NAS, where the camera is on your desk and no
+  container configuration can bridge the gap, and it is also the only one that works under
+  Docker Desktop on macOS or Windows, where the container runs inside a VM that host USB
+  never reaches. It needs the HTTPS port rather than plain HTTP to an IP, and a Chromium
+  browser. See [camera_webusb.md](camera_webusb.md). To set it explicitly:
+
+  ```
+  CAMERA_TRANSPORT=browser
+  ```
+
+- **`server`, only on a local Linux desktop.** Native Linux Docker can map the host USB bus
+  into the container, so the Django process drives the camera over pyUSB directly. This is
+  the one case where `server` works in a container. Add to the `web` service:
 
   ```yaml
   devices:
     - /dev/bus/usb:/dev/bus/usb
   ```
 
-  and see [camera_usb_access.md](camera_usb_access.md) for the udev rules the host still
-  needs.
+  set `CAMERA_TRANSPORT=server`, and see [camera_usb_access.md](camera_usb_access.md) for the
+  udev rules the host still needs. It does not work under Docker Desktop, nor against a
+  remote host.
 
-The image ships `libusb` for that second case. It is unused on a remote server.
+The image ships `libusb` for that second case. It is unused in browser mode.
 
 ### Checking what your browser can do
 
 `https://<FILMCASE_HOST>:8443/camera/diagnostics/` reports whether the page is a secure
 context, whether the browser exposes WebUSB, and whether it can select, open and claim the
-camera. Useful for confirming the certificate is doing its job, and for testing whether a
-browser-side transport is viable on your setup.
+camera, and whether it can open a PTP session and read the model name. Run it before
+switching `CAMERA_TRANSPORT` to `browser`: it answers in one click whether this address and
+this browser can drive the camera at all.
 
 WebUSB is Chromium-only. Firefox and Safari do not implement it.
 

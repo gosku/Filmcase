@@ -75,6 +75,13 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 PTP_DEVICE: str = env.str("PTP_DEVICE", default="src.domain.camera.ptp_usb_device.PTPUSBDevice")  # dotted import path to the PTP device implementation; swap for a stub/mock in tests
 
+# Which machine the camera is plugged into. "server" talks to it from the Django process
+# over PyUSB, so the camera must be attached to whatever runs Filmcase. "browser" talks to
+# it from the user's own machine over WebUSB, which is what makes a headless install (a NAS,
+# a container on another host) usable. WebUSB needs a secure context, so browser mode only
+# works over HTTPS or localhost, and only on Chromium browsers.
+CAMERA_TRANSPORT: str = env.str("CAMERA_TRANSPORT", default="server")  # "server": camera attached to the Filmcase host (PyUSB); "browser": camera attached to the user's machine (WebUSB)
+
 STATIC_FILES_DIR = BASE_DIR / "src/interfaces/static"  # directory served at /static/
 GALLERY_PAGE_SIZE: int = env.int("GALLERY_PAGE_SIZE", default=24)  # number of images shown per page in the gallery view
 RECIPE_EXPLORER_PAGE_SIZE: int = env.int("RECIPE_EXPLORER_PAGE_SIZE", default=24)  # number of recipes shown per page in the recipe explorer
@@ -93,6 +100,7 @@ CAMERA_POST_CURSOR_DELAY_S: float = env.float("CAMERA_POST_CURSOR_DELAY_S", defa
 CAMERA_INTER_SLOT_DELAY_S:  float = env.float("CAMERA_INTER_SLOT_DELAY_S",  default=0.05)   # pause between slot cursor changes
 CAMERA_MAX_RETRIES:         int   = env.int(  "CAMERA_MAX_RETRIES",          default=3)      # attempts per operation before giving up
 CAMERA_RETRY_BACKOFF_S:     float = env.float("CAMERA_RETRY_BACKOFF_S",     default=0.15)   # base back-off; doubles each retry (0.15 s, 0.30 s, …)
+CAMERA_USB_TIMEOUT_MS:      int   = env.int(  "CAMERA_USB_TIMEOUT_MS",      default=1500)   # how long one USB transfer may take before the camera is treated as unresponsive
 
 THUMBNAIL_CACHE_DIR = BASE_DIR / "thumbnail_cache"  # filesystem directory where generated thumbnails are cached
 RECIPE_CARDS_DIR: Path = Path(env.str("RECIPE_CARDS_DIR", default=str(BASE_DIR / "recipe_cards")))  # filesystem directory where generated recipe card images are stored
@@ -128,6 +136,7 @@ TEMPLATES = [
         "OPTIONS": {
             "context_processors": [
                 "django.template.context_processors.request",
+                "src.interfaces.camera.context_processors.camera_transport",
             ],
         },
     },

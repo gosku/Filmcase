@@ -66,7 +66,7 @@ _RC_SESSION_ALREADY     = 0x201E  # treat as OK
 # Timeout / buffer constants
 # ---------------------------------------------------------------------------
 
-_USB_TIMEOUT_MS  = 5_000     # 5 s — camera can be slow to respond
+_USB_TIMEOUT_MS  = _settings.CAMERA_USB_TIMEOUT_MS  # per transfer, before the camera is treated as unresponsive
 _READ_BUFFER     = 65_536    # max data to read in one call
 _SESSION_ID      = 1
 # Re-exported under legacy names so existing test imports keep working.

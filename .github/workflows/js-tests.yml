@@ -1,0 +1,30 @@
+name: JavaScript tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  js-tests:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          # Read from .nvmrc rather than pinned here, so CI and a contributor's
+          # machine cannot drift apart. Changing the version is one edit.
+          node-version-file: .nvmrc
+
+      # No install step: the browser-side camera code has no dependencies and
+      # the tests run on Node's built-in runner, so there is nothing to fetch.
+      #
+      # Invoked directly rather than through `npm test` so CI runs the same
+      # command a developer runs, and so the job does not depend on npm being
+      # present at all. package.json still carries the script for convenience.
+      - name: Run tests
+        run: node --test "tests/js/**/*.test.js"

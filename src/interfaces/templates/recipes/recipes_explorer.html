@@ -6,7 +6,10 @@
   <title>Recipes</title>
   <script src="https://unpkg.com/htmx.org@2.0.4" integrity="sha384-HGfztofotfshcF7+8n44JQL2oJmowVChPTg48S+jvZoztPfvwD79OC/LTtG6dMp+" crossorigin="anonymous"></script>
   <script src="/static/js/multi-select.js"></script>
+  <script src="/static/js/slot-overlay.js"></script>
+  {% if camera_push_from_browser %}<script type="module" src="/static/js/camera/interfaces/send_to_camera.js"></script>{% endif %}
   <link rel="stylesheet" href="/static/css/brand.css">
+  <link rel="stylesheet" href="/static/css/slot-card.css">
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { display: flex; flex-direction: column; font-family: sans-serif; height: 100vh; overflow: hidden; }
@@ -372,65 +375,6 @@
     #recipe-detail-overlay .detail-overlay {
       height: 100%;
     }
-
-    #slot-overlay {
-      position: fixed;
-      inset: 0;
-      z-index: 200;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      background: rgba(0,0,0,0.6);
-    }
-
-    #slot-overlay[hidden] { display: none; }
-
-    .slot-card {
-      background: #fff;
-      border-radius: 16px;
-      padding: 2rem;
-      width: 580px;
-      box-shadow: 0 4px 24px rgba(0,0,0,0.2);
-      position: relative;
-      font-family: sans-serif;
-      min-height: 120px;
-      overflow: hidden;
-    }
-
-    .slot-card--loading {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-
-    .slot-spinner {
-      width: 2rem;
-      height: 2rem;
-      border: 3px solid #e0e0e0;
-      border-top-color: var(--color-accent);
-      border-radius: 50%;
-      animation: slot-spin 0.7s linear infinite;
-    }
-
-    .slot-push-loading {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      min-height: 220px;
-      padding: 2rem;
-    }
-
-    .slot-spinner-large {
-      width: 80px;
-      height: 80px;
-      border: 6px solid #e0e0e0;
-      border-top-color: var(--color-accent);
-      border-radius: 50%;
-      animation: slot-spin 0.7s linear infinite;
-    }
-
-    @keyframes slot-spin { to { transform: rotate(360deg); } }
 
     /* ── Import modal overlay ───────────────────────────────────────── */
     .import-overlay {
@@ -1049,26 +993,20 @@
 
 <div id="recipe-detail-overlay" hidden></div>
 <div id="slot-overlay" hidden></div>
+{% if camera_push_from_browser %}{% include "recipes/includes/camera_client_templates.html" %}{% endif %}
 
 <script>
   // Recipe detail overlay logic.
 
-  function closeSlotOverlay() {
-    document.getElementById('slot-overlay').hidden = true;
-  }
-
   function closeRecipeDetail() {
     document.getElementById('recipe-detail-overlay').hidden = true;
-    document.getElementById('slot-overlay').hidden = true;
+    SlotOverlay.close();
     document.querySelector('.recipe-gallery-scroll').style.overflow = '';
     var params = new URLSearchParams(window.location.search);
     history.replaceState(null, '', '/recipes/' + (params.toString() ? '?' + params.toString() : ''));
   }
 
   window._recipeDetailClose = closeRecipeDetail;
-
-  var _slotSpinnerHTML = '<div class="slot-card slot-card--loading"><div class="slot-spinner"></div></div>';
-  var _slotPushLoadingHTML = '<div class="slot-push-loading"><div class="slot-spinner-large"></div></div>';
 
   document.body.addEventListener('htmx:beforeHistoryUpdate', function (e) {
     if (e.detail.target && e.detail.target.id === 'recipe-detail-overlay') {
@@ -1079,36 +1017,18 @@
     }
   });
 
-  document.body.addEventListener('htmx:beforeRequest', function (e) {
-    if (e.detail.target && e.detail.target.id === 'slot-overlay') {
-      var overlay = document.getElementById('slot-overlay');
-      overlay.innerHTML = _slotSpinnerHTML;
-      overlay.hidden = false;
-    }
-    if (e.detail.target && e.detail.target.id === 'slot-card') {
-      e.detail.target.innerHTML = _slotPushLoadingHTML;
-    }
-  });
-
   document.body.addEventListener('htmx:afterSwap', function (e) {
     if (e.detail.target.id === 'recipe-detail-overlay') {
       e.detail.target.hidden = false;
       document.querySelector('.recipe-gallery-scroll').style.overflow = 'hidden';
-    } else if (e.detail.target.id === 'slot-overlay') {
-      e.detail.target.hidden = false;
     }
-  });
-
-  document.getElementById('slot-overlay').addEventListener('click', function (e) {
-    if (e.target === this) closeSlotOverlay();
   });
 
   document.addEventListener('keydown', function (e) {
     if (e.key !== 'Escape') return;
     var cardOverlay = document.getElementById('card-overlay');
     if (cardOverlay && !cardOverlay.hidden) return;
-    var slotOverlay = document.getElementById('slot-overlay');
-    if (slotOverlay && !slotOverlay.hidden) { closeSlotOverlay(); return; }
+    if (SlotOverlay.isOpen()) { SlotOverlay.close(); return; }
     var detailOverlay = document.getElementById('recipe-detail-overlay');
     if (detailOverlay && !detailOverlay.hidden) closeRecipeDetail();
   });

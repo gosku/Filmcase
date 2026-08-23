@@ -38,7 +38,7 @@ Three installation modes are available depending on your needs:
 | **Image processing**       | Sequential (one at a time)    | Parallel (N workers)           | Parallel (N workers)            |
 | **OS services to install** | None                          | PostgreSQL, RabbitMQ           | Docker only                     |
 | **Served over**            | HTTP on localhost             | HTTP on localhost              | HTTPS, self-signed certificate  |
-| **Push recipes to camera** | Yes                           | Yes                            | Only with USB passthrough       |
+| **Push recipes to camera** | Yes                           | Yes                            | Yes, over WebUSB (Chromium)     |
 | **Best for**               | Personal use, small libraries | Development, large collections | Always-on servers, remote access |
 
 ### Lite install (recommended for personal use)
@@ -107,8 +107,10 @@ processes to run, filling in your LAN address and user id as defaults. It genera
 signing key and database password itself, writes `.env` and `docker-compose.override.yml`,
 and offers to build and start. Nothing is installed on the host and no file needs editing.
 
-Re-run it whenever you want to change an answer: existing values come back as the defaults,
-and the generated secrets are preserved.
+Re-run `./setup.sh docker` any time you want to change a setup option (the address, ports,
+process counts, or photo directories): your previous choices come back as the prompt
+defaults, and the generated signing key and database password are kept rather than
+regenerated.
 
 Then open `https://<FILMCASE_HOST>:8443/` and accept the certificate warning once.
 
@@ -117,17 +119,20 @@ Two things behave differently from a native install:
 - **It is served over HTTPS with a self-signed certificate**, so every browser shows a
   warning the first time. That is the cost of not owning a domain, and it buys a secure
   context, which browsers require before exposing USB and other capabilities.
-- **Pushing recipes to a camera does not work on a NAS yet**, because the camera is
-  plugged into your desk rather than into the server. On a desktop you can pass the USB
-  bus through to the container today. Moving the transport into the browser over WebUSB
-  would lift the restriction entirely, and that work is under way: the diagnostics page at
-  `/camera/diagnostics/` reports whether your browser can reach the camera.
+- **Pushing recipes to a camera runs from your browser over WebUSB**, the default for a
+  Docker install, so it works even on a headless NAS; it needs a Chromium browser, and
+  `/camera/diagnostics/` reports whether yours can reach the camera.
 
 Full details, including how to swap in a trusted certificate, are in
 [docs/docker.md](docs/docker.md).
 
 > **Filmcase has no authentication.** Anyone who can reach the port has full access,
 > including the Library page that browses the filesystem. Do not expose it to the internet.
+
+### Installing by hand
+
+Prefer to install the dependencies and set up the project yourself, without the setup
+script? See [docs/manual_install.md](docs/manual_install.md).
 
 ---
 
@@ -144,116 +149,6 @@ The Docker variant rebuilds the image and restarts instead of touching a virtual
 builds before it replaces anything, so a failed build leaves the running stack untouched.
 Avoid running it while a library sync is in progress: see
 [docs/docker.md](docs/docker.md#updating).
-
----
-
-### Manual setup
-
-Follow the steps below if you prefer to install dependencies individually.
-
-#### Python & pip
-
-Python 3.11+ is required.
-
-- **macOS:** `brew install python`
-- **Ubuntu:** `sudo apt install python3 python3-pip python3-venv`
-
-#### libusb (for camera USB communication)
-
-- **macOS:** `brew install libusb`
-- **Ubuntu:** `sudo apt install libusb-1.0-0`
-
-#### PostgreSQL (full install only)
-
-- **macOS:**
-
-  ```bash
-  brew install postgresql@16
-  brew services start postgresql@16
-  ```
-
-  Then create the database and user:
-
-  ```bash
-  psql postgres
-  ```
-
-  ```sql
-  CREATE USER fujifilm_recipes WITH PASSWORD 'fujifilm_recipes';
-  CREATE DATABASE fujifilm_recipes OWNER fujifilm_recipes;
-  \q
-  ```
-
-- **Ubuntu:**
-  ```bash
-  sudo apt install postgresql postgresql-contrib
-  sudo systemctl start postgresql
-  sudo -u postgres psql
-  ```
-  ```sql
-  CREATE USER fujifilm_recipes WITH PASSWORD 'fujifilm_recipes';
-  CREATE DATABASE fujifilm_recipes OWNER fujifilm_recipes;
-  \q
-  ```
-
-#### exiftool (required for image processing with `process_images`)
-
-- **macOS:** `brew install exiftool`
-- **Ubuntu:** `sudo apt install libimage-exiftool-perl`
-
-#### RabbitMQ (full install only)
-
-- **macOS:** `brew install rabbitmq && brew services start rabbitmq`
-- **Ubuntu:** `sudo apt install rabbitmq-server && sudo systemctl start rabbitmq-server`
-
----
-
-### Project setup (manual)
-
-1. **Clone the repository:**
-
-   ```bash
-   git clone <repo-url>
-   cd filmcase
-   ```
-
-2. **Create and activate a virtual environment:**
-
-   ```bash
-   python -m venv .venv
-   source .venv/bin/activate
-   ```
-
-3. **Install dependencies:**
-
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-4. **Generate the settings file** — choose one:
-
-   ```bash
-   make env       # full stack defaults (PostgreSQL, Celery)
-   make env-lite  # SQLite, sequential processing
-   ```
-
-5. **Apply migrations:**
-   ```bash
-   python manage.py migrate
-   ```
-
----
-
-## Adding your images
-
-Register your photo folders in the **Library** and Filmcase imports them for you. Open
-[http://localhost:8000/library/](http://localhost:8000/library/), click **Add Folder**, and
-pick a directory. The images are imported straight away (in the background in lite mode, via
-the Celery worker in full mode), and the folder is re-scanned on every `make start`, so new
-photos are picked up automatically.
-
-In full install mode, start the Celery worker first (`make worker`) so the import has
-somewhere to run.
 
 ---
 
@@ -274,33 +169,12 @@ If you only want to start the server without running a sync first, use `make run
 
 ## How to use
 
-### Browse your catalog
+Filmcase does far more than fits here: browsing and filtering your catalog, rating images,
+managing library folders, pushing recipes to your camera, exploring recipe graphs, and more.
+Two documents cover it in full:
 
-Visit `/images/` to see all processed images. Use the filter controls to narrow results by recipe, film simulation, white balance, and more.
-
-### Add new images
-
-Drop new files into a registered library folder and they are imported on the next `make start`. Adding a folder, or updating its path on the Library page, triggers an immediate sync of that folder. Already-known images are left as-is, and images without Fujifilm EXIF data are skipped.
-
-### Rate images
-
-Open any image in the detail view and click a star to assign a rating (0–`IMAGE_MAX_RATING`,
-default 5). Use the ✕ button to clear it back to 0. Enable **Rating first** in the gallery
-sidebar to sort by rating descending.
-
-To rate a whole folder at once from the command line:
-
-```bash
-python manage.py rate_images /path/to/folder --rating=3
-```
-
-### Push a recipe to your camera
-
-Connect your Fujifilm camera in PTP mode, then open any image in the detail view. Name its
-recipe if it doesn't have one yet, and use the "Send to camera" button to write it to one
-of the custom slots (C1–C7).
-
-For full information on available functionality, see [docs/web_interface.md](docs/web_interface.md) and [docs/management_commands.md](docs/management_commands.md).
+- [docs/web_interface.md](docs/web_interface.md) for everything you can do from the web app.
+- [docs/management_commands.md](docs/management_commands.md) for the command-line tools.
 
 ---
 

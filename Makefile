@@ -10,7 +10,7 @@ ENV_FILE := src/config/env
 # (e.g. `start` calling `run`); they name the same directory and only add noise.
 MAKEFLAGS += --no-print-directory
 
-.PHONY: setup-lite setup-full setup-docker docker-up docker-down docker-logs docker-update env env-lite update start run worker test help
+.PHONY: setup-lite setup-full setup-docker docker-up docker-down docker-logs docker-update env env-lite update start run worker test test-js help
 
 ##
 ## Installation modes:
@@ -160,6 +160,34 @@ worker:
 ## test        — run the test suite
 test:
 	$(PYTEST)
+
+## test-js     — run the browser-side camera tests (needs Node, see .nvmrc)
+test-js:
+	@command -v node >/dev/null 2>&1 || { \
+		echo ""; \
+		echo "Node is not installed. It is needed only to run the browser-side"; \
+		echo "camera tests, not to run Filmcase."; \
+		echo ""; \
+		echo "  nvm install        # reads .nvmrc, no sudo"; \
+		echo "  sudo apt install nodejs   # may be older than .nvmrc asks for"; \
+		echo ""; \
+		echo "See docs/contributing.md."; \
+		echo ""; \
+		exit 1; \
+	}
+	@REQUIRED=$$(cat .nvmrc); \
+	ACTUAL=$$(node -p "process.versions.node.split('.')[0]"); \
+	if [ "$$ACTUAL" -lt "$$REQUIRED" ]; then \
+		echo ""; \
+		echo "Node $$ACTUAL is too old: the tests are run with $$REQUIRED (.nvmrc)."; \
+		echo "The test runner does not accept a glob before 22, so this would look"; \
+		echo "like a missing module rather than a version problem."; \
+		echo ""; \
+		echo "  nvm install        # reads .nvmrc"; \
+		echo ""; \
+		exit 1; \
+	fi
+	node --test "tests/js/**/*.test.js"
 
 ## help        — list available targets
 help:

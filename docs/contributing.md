@@ -30,6 +30,45 @@ make test
 pytest
 ```
 
+### JavaScript tests
+
+The browser-side camera code has its own suite, run by Node's built-in test
+runner:
+
+```bash
+make test-js
+```
+
+**Node is a contributor requirement, not an install requirement.** Filmcase
+serves that code as plain static files with no build step, so nobody running the
+app needs Node. You only need it to run these tests, and only if you touch the
+browser-side camera code.
+
+The version lives in `.nvmrc`, which CI reads too, so the two cannot drift apart.
+Install it whichever way suits you:
+
+```bash
+nvm install                 # reads .nvmrc, no sudo, per-user
+# or
+sudo apt install nodejs     # Ubuntu's, which may be older than .nvmrc asks for
+```
+
+If Node is missing or too old, `make test-js` says so and stops. That check earns
+its place: the test runner only accepts a glob from 22 onwards, and on an older
+Node the failure looks like a missing module rather than a version problem.
+
+There are no dependencies. No bundler, no `npm install`, no `node_modules`, and
+the browser loads the same files the tests import. `npm test` works if you have
+npm, but nothing requires it.
+
+Four fixtures in `tests/fixtures/camera/` are asserted by *both* suites, covering
+the PTP wire format, the recipe conversion, the validation outcomes and the push
+sequence. They exist because the write path is implemented twice, and a change to
+one side that the other does not follow would otherwise be silent. If you change
+the Python write path, expect the JavaScript suite to fail; regenerate the
+fixture with its `generate_*.py` script only once you are sure the new values are
+the ones you meant to send.
+
 ### Import linter
 
 The project enforces a **layered architecture** through [import-linter](https://import-linter.readthedocs.io/). The layers and the direction dependencies must flow are defined in `setup.cfg`:
