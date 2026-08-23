@@ -94,7 +94,8 @@ export class FakeUSBDevice {
    * @param {number[]} [options.hangOn] Operation codes whose read never resolves.
    * @param {number[]} [options.noDataPhaseOn] Codes answered with a response and no data.
    * @param {number} [options.noDataPhaseTimes] How many such replies before the code
-   *   behaves, modelling a camera that drops a value once and answers on the retry.
+   *   behaves normally. Infinite by default; set it to model a camera that drops a
+   *   value once and answers on the retry, which is what real hardware does.
    * @param {Record<number, number>} [options.intValues] Property code to int value.
    * @param {Record<number, string>} [options.stringValues] Property code to string value.
    * @param {Record<number, number>} [options.setRejectionCodes] Property code to rc.
@@ -103,6 +104,9 @@ export class FakeUSBDevice {
    * @param {object} [options.configuration] A configuration descriptor to expose.
    * @param {Error} [options.failOpenWith] Thrown from open(), like a busy interface.
    * @param {number} [options.failTransferInTimes] Fail this many reads, then behave.
+   * @param {number} [options.wedgeAfterReads] After this many reads, stop completing
+   *   them entirely while still accepting writes. Models the observed X-S10 stall,
+   *   where a timed-out transfer leaves the IN endpoint blocked for good.
    */
   constructor({
     stallOn = [],
@@ -118,6 +122,7 @@ export class FakeUSBDevice {
     configuration = undefined,
     failOpenWith = null,
     failTransferInTimes = 0,
+    wedgeAfterReads = Infinity,
   } = {}) {
     this.vendorId = 0x04cb;
     this.productId = 0x02e5;
@@ -140,6 +145,9 @@ export class FakeUSBDevice {
     // Transport failures the retry loops are expected to ride out. Distinct
     // from hangOn: this fails fast, so a retry can genuinely succeed.
     this._failTransferInTimes = failTransferInTimes;
+    this._readsUntilWedge = wedgeAfterReads;
+    this._wedged = false;
+    this._busyFor = 0;
 
     this._queue = [];
     this._pendingSet = null;
@@ -161,6 +169,12 @@ export class FakeUSBDevice {
   async close() {
     this.calls.push("close");
     this.opened = false;
+    // Closing rejects every pending transfer, which is the one thing that is
+    // certain to free a wedged endpoint.
+    this._wedged = false;
+    this._readsUntilWedge = this.wedgeAgainAfter ?? Infinity;
+    this._queue.length = 0;
+    this._pendingSet = null;
   }
 
   async selectConfiguration(value) {
@@ -182,6 +196,50 @@ export class FakeUSBDevice {
     this.calls.push(`clearHalt(${direction},${endpointNumber})`);
   }
 
+  /**
+   * Endpoint 0. The point of modelling it is that it keeps working when the
+   * bulk IN endpoint is wedged, which is the only reason cancelling is possible
+   * at all.
+   */
+  async controlTransferOut(setup, data) {
+    this.calls.push(`controlTransferOut(0x${setup.request.toString(16)})`);
+    if (setup.request === 0x66) {
+      // Device Reset clears the camera's PTP state, which is the thing a USB
+      // reopen leaves untouched: the session, and any transaction wedged in it.
+      this._sessionOpen = false;
+      this._wedged = false;
+      this._readsUntilWedge = this.wedgeAgainAfter ?? Infinity;
+      this._queue.length = 0;
+      this._pendingSet = null;
+      this._stuckOnWrite = false;
+      this._busyFor = this.resetLeavesBusyFor ?? 0;
+    }
+    if (setup.request === 0x64) {
+      // Cancel: the camera abandons the transaction and the endpoint frees.
+      // Whether real hardware honours this is the open question; the fake
+      // models the protocol's promise so the recovery logic can be tested.
+      if (!this.cancelIsIgnored) {
+        this._wedged = false;
+        this._readsUntilWedge = this.wedgeAgainAfter ?? Infinity;
+        // The camera abandons what it was about to say, so nothing stale is
+        // left for the next request to collect.
+        this._queue.length = 0;
+        this._pendingSet = null;
+      }
+      this._busyFor = this.cancelLeavesBusyFor ?? 0;
+    }
+    return { bytesWritten: data ? data.length : 0, status: "ok" };
+  }
+
+  async controlTransferIn(setup, length) {
+    this.calls.push(`controlTransferIn(0x${setup.request.toString(16)})`);
+    const data = new DataView(new ArrayBuffer(4));
+    data.setUint16(0, 4, true);
+    // 0x2019 is Device Busy; anything else means ready.
+    data.setUint16(2, this._busyFor-- > 0 ? 0x2019 : 0x2001, true);
+    return { status: "ok", data };
+  }
+
   // --- transfers ---------------------------------------------------------
 
   async transferOut(endpointNumber, data) {
@@ -195,6 +253,20 @@ export class FakeUSBDevice {
     if (this._stallOn.has(code)) {
       return { bytesWritten: 0, status: "stall" };
     }
+    if (this.stallsOnCursorValue !== undefined && type === _PTP_DATA) {
+      const value = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength).getUint16(12, true);
+      if (
+        code === _OC_SET_DEVICE_PROP_VALUE &&
+        value === this.stallsOnCursorValue &&
+        (this.stallsOnCursorTimes ?? Infinity) > (this._cursorStalls ?? 0)
+      ) {
+        this._cursorStalls = (this._cursorStalls ?? 0) + 1;
+        // Accepted on the wire and never answered, and it stays that way until
+        // the PTP stack is reset. A USB reopen does not clear it.
+        this._stuckOnWrite = true;
+        return { bytesWritten: bytes.length, status: "ok" };
+      }
+    }
     if (type === _PTP_COMMAND) {
       this._handleCommand(code, txId, bytes);
     } else if (type === _PTP_DATA) {
@@ -204,6 +276,15 @@ export class FakeUSBDevice {
   }
 
   async transferIn(endpointNumber, length) {
+    if (this._stuckOnWrite) {
+      return new Promise(() => {});
+    }
+    if (this._wedged || --this._readsUntilWedge < 0) {
+      this._wedged = true;
+      // Never resolves, and is never cancelled: exactly what the browser does
+      // with an abandoned transfer.
+      return new Promise(() => {});
+    }
     if (this._failTransferInTimes > 0) {
       this._failTransferInTimes -= 1;
       throw Object.assign(new Error("transfer failed"), { name: "NetworkError" });
@@ -246,7 +327,12 @@ export class FakeUSBDevice {
       return;
     }
     if (code === _OC_GET_DEVICE_INFO) {
-      this._queue.push(this._deviceInfo);
+      // The recorded payload carries the transaction id it was captured with.
+      // Replaying it verbatim makes the mismatch check fire on test data, so
+      // restamp it with the id actually in flight.
+      const info = this._deviceInfo.slice();
+      new DataView(info.buffer).setUint32(8, txId, true);
+      this._queue.push(info);
       this._queue.push(container(_PTP_RESPONSE, _RC_OK, txId));
       return;
     }
@@ -254,8 +340,8 @@ export class FakeUSBDevice {
       if (this._noDataPhaseOn.has(param) && this._noDataPhaseLeft > 0) {
         this._noDataPhaseLeft -= 1;
         // The camera answers with a response where a data container belongs.
-        // One container only: the camera acknowledged the read and sent no
-        // value, so there is nothing further on the wire.
+        // One container only. The camera acknowledged the read and sent no
+        // value; there is nothing further on the wire.
         this._queue.push(container(_PTP_RESPONSE, this._noDataPhaseRc, txId));
         return;
       }

@@ -74,11 +74,11 @@ export async function pushRecipeToCamera(device, recipe, { slotIndex, runtime })
   const settings = config.settings;
 
   // --- Step 1: point the camera at the slot ---
-  // Retried, unlike the Python, which writes this once. The slot listing
-  // already retries the same write, and leaving it bare here meant a single
-  // stall abandoned the push before a byte of the recipe was sent. On hardware
-  // that stalls intermittently that is the difference between a push that
-  // works and one that mostly works.
+  // Retried, unlike the Python, which calls this once. The slot listing already
+  // retries its cursor writes and this is the same write; leaving it bare meant
+  // a single stall abandoned the push before a byte of the recipe was sent,
+  // which on hardware that stalls intermittently is the difference between a
+  // push that works and one that works most of the time.
   try {
     await setCursorWithRetry(device, slotIndex, runtime);
   } catch (error) {

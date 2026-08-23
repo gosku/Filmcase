@@ -5,7 +5,8 @@
  * can be read side by side: the leading underscores are kept even though they
  * mean nothing here, and snake_case becomes camelCase and nothing else.
  *
- * Two things differ from the Python, both forced by the platform.
+ * Three things differ from the Python. Two are forced by the platform; the
+ * third is a deliberate choice, flagged as such so nobody "fixes" it back.
  *
  *   - the device is handed in rather than found. usb.core.find() has no browser
  *     equivalent that a transport could call: navigator.usb.requestDevice()
@@ -16,7 +17,17 @@
  *     WebUSB has no timeout parameter and accepts no AbortSignal, so racing a
  *     timer is the only option. Without it a camera that stops answering hangs
  *     the tab for good.
- * *
+ *
+ *   - a timed-out transfer is treated as fatal to the connection, which the
+ *     Python does not do. This is the deliberate one. Neither platform can
+ *     stop a camera that has already queued a reply from delivering it, so
+ *     after a timeout the next read may return the previous command's answer
+ *     on either side; libusb cancelling the host-side transfer does not change
+ *     that. The Python retries anyway and can act on a stale container. Here
+ *     the device latches unusable instead and the caller reconnects, because a
+ *     wrong value silently written to a camera slot is worse than an error
+ *     message. The server-side equivalent is a known, separate issue.
+ *
  * The transaction id also resets in connect() rather than only in the
  * constructor. That is not a behavioural difference in practice, since callers
  * build a fresh instance per push on both sides; it states the per-session
@@ -25,14 +36,14 @@
 
 import { CameraConnectionError, formatCode, formatRc } from "./ptp_device.js";
 import {
-  PTP_CONTAINER,
   PTP_READ_FAILED,
   PTP_READ_RETRY,
   PTP_READ_SUCCEEDED,
+  PTP_WRITE_FAILED,
+  PTP_CONTAINER,
   PTP_RECEIVED,
   PTP_SENT,
   PTP_TX_MISMATCH,
-  PTP_WRITE_FAILED,
   PTP_WRITE_SUCCEEDED,
   SESSION_CLOSED,
   SESSION_FAILED,
@@ -70,6 +81,15 @@ export const _RC_SESSION_ALREADY = 0x201e; // treat as OK
 // ---------------------------------------------------------------------------
 // Timeout / buffer constants
 // ---------------------------------------------------------------------------
+
+// Class-specific control requests from the USB Still Image Capture Device
+// definition. These travel on endpoint 0, which is what makes them useful: when
+// a bulk read stalls, endpoint 0 is the only way left to talk to the camera.
+export const _REQ_CANCEL = 0x64;
+export const _REQ_DEVICE_RESET = 0x66;
+export const _REQ_GET_DEVICE_STATUS = 0x67;
+const _CANCELLATION_CODE = 0x4001;
+const _RC_DEVICE_BUSY = 0x2019;
 
 export const _USB_TIMEOUT_MS = 5000; // 5 s, camera can be slow to respond
 export const _READ_BUFFER = 65536; // max data to read in one call
@@ -399,7 +419,14 @@ export function _findBulkInterface(device) {
 // ClientPTPUSBDevice
 // ---------------------------------------------------------------------------
 
-/** Milliseconds since page load, for timing transfers. */
+/** A uint16 payload, little-endian, as every cursor write needs. */
+function _uint16(value) {
+  const payload = new Uint8Array(2);
+  new DataView(payload.buffer).setUint16(0, value & 0xffff, true);
+  return payload;
+}
+
+/** Milliseconds since page load, for timing the handshake. */
 function _now() {
   return typeof performance !== "undefined" ? performance.now() : Date.now();
 }
@@ -429,6 +456,14 @@ export class ClientPTPUSBDevice {
     this._interfaceNumber = null;
     this._txId = 1;
     this._cameraName = "";
+    /** The transaction a timed-out transfer left outstanding, if any. */
+    this._stalledTxId = null;
+    /** Consecutive stalls, reset by any transfer that completes. */
+    this._stallCount = 0;
+    /** Guards against recovery re-entering itself through its own transfers. */
+    this._recovering = false;
+    /** The last slot the cursor was pointed at, to restore after a reopen. */
+    this._cursorSlot = null;
   }
 
   get cameraName() {
@@ -477,12 +512,12 @@ export class ClientPTPUSBDevice {
   /**
    * Run one step of the session handshake, recording it either way.
    *
-   * Connecting was the one part of a push that wrote nothing down, so a failure
-   * to open, claim or start a session left no trace at all: the console showed
-   * the reads from the previous successful attempt and nothing from the failed
-   * one. The step name is what says whether the device would not open, would
-   * not be claimed, or would not start a session, and those have entirely
-   * different causes.
+   * Connecting is the one part of a push where nothing else is written down, so
+   * a failure here used to leave no trace at all: the console showed the reads
+   * from the previous successful attempt and nothing from the failed one. The
+   * step name is what says whether the device would not open, would not be
+   * claimed, or would not start a session, and those have entirely different
+   * causes.
    */
   async _step(name, fn) {
     publishEvent({ eventType: SESSION_STEP, step: name });
@@ -554,10 +589,11 @@ export class ClientPTPUSBDevice {
    * next exchange and every container after that would be one behind, which on
    * the write path means confirming a property the camera refused.
    *
-   * The evidence says the camera drops requests and no stale reply exists. This
-   * checks that rather than assuming it: it costs a comparison, and if the
-   * assumption is ever wrong it says so instead of quietly returning the wrong
-   * value.
+   * Retrying in place is what the server does and what works on real hardware,
+   * so the evidence says the camera drops the request and no stale reply
+   * exists. This checks that rather than assuming it: it costs a comparison,
+   * and if the assumption is ever wrong it says so out loud instead of quietly
+   * returning the wrong value.
    */
   _checkTxId(raw, phase) {
     const txId = _containerTxId(raw);
@@ -589,6 +625,14 @@ export class ClientPTPUSBDevice {
     let timer;
     const expiry = new Promise((_, reject) => {
       timer = setTimeout(() => {
+        // WebUSB cannot cancel a transfer. This abandons the promise, but the
+        // read stays queued in the browser and the camera will never complete
+        // it, so every later read queues behind a transfer that cannot finish.
+        // That is why writes keep succeeding while every read times out, and
+        // why retrying in place recovers on the server and cannot here.
+        // Recorded so the next transfer clears it first.
+        this._stalledTxId = this._currentTx ?? 0;
+        this._stallCount += 1;
         reject(
           new CameraConnectionError(
             `USB ${what} timed out after ${this._timeoutMs} ms; the camera stopped responding.`
@@ -617,6 +661,7 @@ export class ClientPTPUSBDevice {
    */
   async _send(packet) {
     this._assertConnected();
+    await this._recoverIfStalled();
     publishTrace({
       eventType: PTP_SENT,
       container: _containerName(_containerType(packet)),
@@ -655,6 +700,7 @@ export class ClientPTPUSBDevice {
    */
   async _read(length, what) {
     this._assertConnected();
+    await this._recoverIfStalled();
     const startedAt = _now();
     let result;
     try {
@@ -670,6 +716,7 @@ export class ClientPTPUSBDevice {
       await this._clearHalt("in", this._inEndpoint);
       throw new CameraConnectionError(`USB read (${what}) failed: endpoint ${result.status}`);
     }
+    this._stallCount = 0;
     const data = result.data;
     const raw = new Uint8Array(data.buffer, data.byteOffset, data.byteLength);
     publishTrace({
@@ -682,6 +729,248 @@ export class ClientPTPUSBDevice {
       durationMs: Math.round(_now() - startedAt),
     });
     return raw;
+  }
+
+  /**
+   * Free the IN endpoint after a timeout, so a retry can actually read.
+   *
+   * Without this a retry is theatre: the abandoned transfer still owns the
+   * endpoint and the new read waits behind it until it too times out. The
+   * protocol's own answer is a Cancel Request on endpoint 0, which reaches the
+   * camera even while the bulk endpoint is blocked. If the camera will not come
+   * back that way, reopening the device does it the hard way, because closing
+   * rejects every pending transfer.
+   */
+  async _recoverIfStalled() {
+    if (this._stalledTxId === null) return;
+    // Recovery talks to the camera, and those transfers can stall too. Without
+    // this it would recurse into itself and each level would start another
+    // reset.
+    if (this._recovering) return;
+    const txId = this._stalledTxId;
+    this._stalledTxId = null;
+    this._recovering = true;
+    try {
+      await this._recover(txId);
+    } finally {
+      this._recovering = false;
+    }
+  }
+
+  async _recover(txId) {
+
+    // Escalate rather than trust the camera's own account of itself. A device
+    // that answers Get Device Status is not necessarily one whose IN endpoint
+    // has been freed, and believing it turns one stall into a loop of them.
+    // A second stall with no completed read in between means cancelling did
+    // not work, whatever the camera said.
+    if (this._stallCount <= 1) {
+      publishEvent({ eventType: SESSION_STEP, step: "cancelStalledTransaction", txId });
+      if (await this._cancelTransaction(txId)) {
+        return;
+      }
+    }
+    publishEvent({
+      eventType: SESSION_STEP,
+      step: "reopenAfterStall",
+      txId,
+      stalls: this._stallCount,
+    });
+    await this._reopen();
+  }
+
+  /**
+   * Read and discard whatever the camera still had to say.
+   *
+   * A cancelled transaction can leave its data and response queued. Reading
+   * past them is what stops the next request collecting an answer to the last
+   * one, which the transaction id check would otherwise report as a mismatch
+   * for the rest of the session.
+   */
+  async _drain() {
+    for (let i = 0; i < 4; i += 1) {
+      let result;
+      try {
+        result = await this._withTimeout(
+          this._usbDevice.transferIn(this._inEndpoint, _READ_BUFFER),
+          "drain"
+        );
+      } catch {
+        // Nothing left, which is the outcome we want.
+        this._stalledTxId = null;
+        return;
+      }
+      if (!result.data || result.data.byteLength === 0) return;
+      publishTrace({
+        eventType: PTP_RECEIVED,
+        phase: "drained",
+        bytes: result.data.byteLength,
+      });
+    }
+  }
+
+  /**
+   * Ask the camera to abandon a transaction, and wait for it to say it has.
+   *
+   * @returns {Promise<boolean>} Whether the camera reported itself ready.
+   */
+  async _cancelTransaction(txId) {
+    const payload = new Uint8Array(6);
+    const view = new DataView(payload.buffer);
+    view.setUint16(0, _CANCELLATION_CODE, true);
+    view.setUint32(2, txId, true);
+    try {
+      await this._withTimeout(
+        this._usbDevice.controlTransferOut(
+          {
+            requestType: "class",
+            recipient: "interface",
+            request: _REQ_CANCEL,
+            value: 0,
+            index: this._interfaceNumber,
+          },
+          payload
+        ),
+        "cancel"
+      );
+      const ready = await this._waitUntilReady();
+      await this._clearHalt("in", this._inEndpoint);
+      await this._clearHalt("out", this._outEndpoint);
+      const drainTimeout = this._timeoutMs;
+      this._timeoutMs = Math.min(200, drainTimeout);
+      try {
+        await this._drain();
+      } finally {
+        this._timeoutMs = drainTimeout;
+      }
+      this._stalledTxId = null;
+      publishEvent({ eventType: SESSION_STEP, step: "cancelled", ready });
+      return ready;
+    } catch (error) {
+      publishEvent({
+        eventType: SESSION_FAILED,
+        step: "cancelStalledTransaction",
+        error: `${error?.name ?? "Error"}: ${error?.message ?? error}`,
+      });
+      // The stall flag was already cleared, and _withTimeout may have set it
+      // again on the control transfer. Drop it: reopening supersedes it.
+      this._stalledTxId = null;
+      return false;
+    }
+  }
+
+  /**
+   * Reset the camera's PTP stack, closing whatever session it still holds.
+   *
+   * Best effort: a camera that will not accept this is one a reopen was never
+   * going to rescue either, and the caller has a failure to report regardless.
+   */
+  async _resetDevice() {
+    publishEvent({ eventType: SESSION_STEP, step: "deviceReset" });
+    try {
+      await this._withTimeout(
+        this._usbDevice.controlTransferOut({
+          requestType: "class",
+          recipient: "interface",
+          request: _REQ_DEVICE_RESET,
+          value: 0,
+          index: this._interfaceNumber,
+        }),
+        "device reset"
+      );
+      const ready = await this._waitUntilReady();
+      publishEvent({ eventType: SESSION_STEP, step: "deviceResetDone", ready });
+    } catch (error) {
+      publishEvent({
+        eventType: SESSION_FAILED,
+        step: "deviceReset",
+        error: `${error?.name ?? "Error"}: ${error?.message ?? error}`,
+      });
+    }
+    this._stalledTxId = null;
+  }
+
+  /** Poll Get Device Status until the camera stops reporting itself busy. */
+  async _waitUntilReady(attempts = 5) {
+    for (let attempt = 0; attempt < attempts; attempt += 1) {
+      const result = await this._usbDevice.controlTransferIn(
+        {
+          requestType: "class",
+          recipient: "interface",
+          request: _REQ_GET_DEVICE_STATUS,
+          value: 0,
+          index: this._interfaceNumber,
+        },
+        4
+      );
+      if (result.status === "ok" && result.data && result.data.byteLength >= 4) {
+        const code = result.data.getUint16(2, true);
+        if (code !== _RC_DEVICE_BUSY) return true;
+      }
+      await this._sleep(0.05);
+    }
+    return false;
+  }
+
+  /**
+   * Close and reopen the device, which is the only certain way to drop a
+   * transfer WebUSB will not cancel.
+   *
+   * The slot cursor does not survive this: it is connection state, and every
+   * later read or write goes to whichever slot the camera is pointing at. It is
+   * restored here rather than left to callers, because a caller that forgets
+   * does not fail, it writes a recipe into the wrong slot.
+   */
+  async _reopen() {
+    const device = this._usbDevice;
+    try {
+      if (this._interfaceNumber !== null) await device.releaseInterface(this._interfaceNumber);
+    } catch {
+      // Already gone; closing below is what matters.
+    }
+    try {
+      await device.close();
+    } catch {
+      // As above.
+    }
+    await device.open();
+    if (device.configuration === null) await device.selectConfiguration(1);
+    await this._claimInterface();
+
+    // Reopening the USB device does not touch the camera's PTP state, which
+    // lives above it. Observed on an X-S10: after a full close and reopen the
+    // camera still answered OpenSession with SessionAlreadyOpen, still holding
+    // the session its stuck transaction belonged to, and still refused to
+    // answer the write that stalled. Reads worked; that one write did not.
+    //
+    // Device Reset is the class request for this. It resets the camera's PTP
+    // stack, which Cancel does not: Cancel abandons a transaction and the
+    // camera cheerfully reports itself ready while remaining stuck.
+    await this._resetDevice();
+
+    this._txId = 1;
+    this._stalledTxId = null;
+    this._stallCount = 0;
+    await this._openSession();
+    if (this._cursorSlot !== null) {
+      const slot = this._cursorSlot;
+      publishEvent({ eventType: SESSION_STEP, step: "restoreSlotCursor", slot });
+      try {
+        await this._setProp(this._config.encodings.prop_slot_cursor, _uint16(slot));
+      } catch (error) {
+        // Best effort. If the cursor write is itself what stalled, restoring it
+        // here walks straight back into the same wall, and the caller is about
+        // to retry that exact write anyway. Failing the reopen over it would
+        // turn a recoverable stall into an abandoned session.
+        publishEvent({
+          eventType: SESSION_FAILED,
+          step: "restoreSlotCursor",
+          error: `${error?.name ?? "Error"}: ${error?.message ?? error}`,
+        });
+        this._stalledTxId = null;
+        this._stallCount = 0;
+      }
+    }
   }
 
   async _clearHalt(direction, endpoint) {
@@ -701,9 +990,9 @@ export class ClientPTPUSBDevice {
   async _recvData() {
     const raw = await this._read(_READ_BUFFER, "data");
     const type = raw.length >= _HEADER_BYTES ? _containerType(raw) : null;
-    // What the camera actually sent, which a stalled read leaves no evidence
-    // of. Cheap, and it tells a short reply from a missing one without anyone
-    // having to guess.
+    // What the camera actually sent, which is the one thing a stalled read
+    // leaves no evidence of. Cheap, and it distinguishes a short reply from a
+    // missing one without anybody having to guess.
     publishEvent({
       eventType: PTP_CONTAINER,
       phase: "data",
@@ -714,9 +1003,10 @@ export class ClientPTPUSBDevice {
     this._checkTxId(raw, "data");
 
     if (type === _PTP_RESPONSE) {
-      // The camera answered without a data phase, so its response is already
-      // in hand and there is nothing further on the wire. Reading for one
-      // anyway waits out the entire timeout; returning it says so instead.
+      // The camera answered without a data phase. Its response is in hand, so
+      // there is nothing further to read: asking for one anyway waits out the
+      // full timeout and then poisons the connection. The Python has the same
+      // shape and the same latent stall.
       const { code, params } = _parseResponse(raw);
       if (code !== _RC_OK) {
         throw new CameraConnectionError(
@@ -735,7 +1025,7 @@ export class ClientPTPUSBDevice {
     const raw = await this._read(64, "response");
     this._checkTxId(raw, "response");
     const parsed = _parseResponse(raw);
-    publishEvent({
+    publishTrace({
       eventType: PTP_CONTAINER,
       phase: "response",
       rc: formatCode(parsed.code),
@@ -807,6 +1097,10 @@ export class ClientPTPUSBDevice {
       }
       const model = _parseDeviceInfoModel(data);
       if (!model) {
+        // Not an exception: a truncated or unexpected payload parses to an
+        // empty string quite happily. Recorded anyway, because an empty model
+        // means zero slots and the user is then told this camera has no custom
+        // slots when the truth is that its reply made no sense.
         publishEvent({
           eventType: SESSION_FAILED,
           step: "getDeviceInfo",
@@ -815,6 +1109,10 @@ export class ClientPTPUSBDevice {
       }
       return model;
     } catch (error) {
+      // Swallowed deliberately, as the Python does: the model only decides how
+      // many slots to offer. But it is recorded, because an empty model means
+      // zero slots, and the user is then told this camera has no custom slots
+      // when the truth is that it stopped answering.
       publishEvent({
         eventType: SESSION_FAILED,
         step: "getDeviceInfo",
@@ -968,9 +1266,10 @@ Object.assign(ClientPTPUSBDevice.prototype, {
    * @returns {Promise<number>}
    */
   async setPropertyUint16(code, value) {
-    const payload = new Uint8Array(2);
-    new DataView(payload.buffer).setUint16(0, value & 0xffff, true);
-    return this._setProp(code, payload);
+    if (code === this._config?.encodings?.prop_slot_cursor) {
+      this._cursorSlot = value;
+    }
+    return this._setProp(code, _uint16(value));
   },
 
   /**
@@ -1029,20 +1328,23 @@ Object.assign(ClientPTPUSBDevice.prototype, {
         await this._sleep(backoff * 2 ** (attempt - 1));
       }
       try {
+        // As in _setProp: the id has to be taken after any recovery, or it
+        // refers to a numbering the camera has since abandoned.
+        await this._recoverIfStalled();
         await this._send(
           _commandPacket(_OC_GET_DEVICE_PROP_VALUE, this._nextTx(), code)
         );
         const { data, response } = await this._recvData();
         if (response !== null) {
-          // Acknowledged with no value attached. That is not an answer and
-          // must not be reported as one: an empty payload decodes to 0, a
-          // legitimate value for most of these properties, so it would show as
-          // a real setting and be written to a slot on a push.
+          // The camera acknowledged the read and sent no value with it. That
+          // is not an answer, so it must not be reported as one: an empty
+          // payload decodes to 0, which is a legitimate value for most of these
+          // properties and would show as a real setting or be written to a slot.
           //
-          // Retrying is what recovers. The server reaches the same outcome by
-          // accident: it reads for a response that has already arrived, waits
-          // out the full timeout, and its retry loop then asks again. This
-          // takes the same decision in milliseconds.
+          // Retrying is what recovers, and the server reaches the same outcome
+          // by accident. It re-reads for a response that has already arrived,
+          // waits out the full timeout, and its retry loop then asks again.
+          // This takes the same decision in milliseconds rather than seconds.
           throw new CameraConnectionError(
             `Camera answered ${formatCode(code)} with no value ` +
               `(rc=${formatRc(response.code)})`
@@ -1054,8 +1356,8 @@ Object.assign(ClientPTPUSBDevice.prototype, {
       } catch (error) {
         if (!(error instanceof CameraConnectionError)) throw error;
         // Published per attempt, so a read that eventually succeeds still shows
-        // that the camera needed asking twice. Recording only the final failure
-        // made a flaky camera look like a healthy one.
+        // that the camera needed asking twice. Only the final failure was
+        // recorded before, which made a flaky camera look like a healthy one.
         publishEvent({
           eventType: PTP_READ_RETRY,
           prop: formatCode(code),
@@ -1080,6 +1382,12 @@ Object.assign(ClientPTPUSBDevice.prototype, {
    * @returns {Promise<number>} 0 on success, otherwise the response code.
    */
   async _setProp(code, payload) {
+    // Recover before taking a transaction id, not after. A reopen restarts the
+    // camera's numbering from 1, so an id taken beforehand goes out stale: the
+    // camera accepts it, but the exchange no longer matches the numbering
+    // either side believes it is using, and the mismatch check reports every
+    // reply from then on.
+    await this._recoverIfStalled();
     const tx = this._nextTx();
     await this._send(_commandPacket(_OC_SET_DEVICE_PROP_VALUE, tx, code));
     await this._send(_dataPacket(_OC_SET_DEVICE_PROP_VALUE, tx, payload));

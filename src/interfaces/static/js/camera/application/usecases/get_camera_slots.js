@@ -47,10 +47,10 @@ async function _retry(fn, { config, sleep }, what) {
       return await fn();
     } catch (error) {
       if (!(error instanceof CameraConnectionError)) throw error;
-      // This loop swallowed its attempts, which made the slot listing look like
-      // it gave up first time when it had in fact tried three times. Of the
-      // three retry loops it is the only one wrapping a whole slot operation,
-      // so its attempts are the ones worth seeing.
+      // This loop used to swallow its attempts silently, which made the slot
+      // listing look like it gave up first time when it had in fact tried
+      // three times. Of the three retry loops it is the only one that wraps a
+      // whole slot operation, so its attempts are the ones worth seeing.
       publishEvent({
         eventType: SLOT_RETRY,
         operation: what,

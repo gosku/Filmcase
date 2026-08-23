@@ -10,6 +10,15 @@ import { FakeUSBDevice } from "./fakes/usb_device.js";
 import { makeConfig } from "./fakes/config.js";
 import { CameraConnectionError } from "../../src/interfaces/static/js/camera/vendor/ptp_device.js";
 import {
+  PTP_READ_RETRY,
+  SESSION_CLOSED,
+  SESSION_FAILED,
+  SESSION_OPENED,
+  SESSION_STEP,
+  recent,
+  reset,
+} from "../../src/interfaces/static/js/camera/vendor/events.js";
+import {
   ClientPTPUSBDevice,
   _OC_CLOSE_SESSION,
   _OC_GET_DEVICE_INFO,
@@ -29,7 +38,7 @@ function makeDevice(options = {}) {
   const usbDevice = new FakeUSBDevice(options);
   const device = new ClientPTPUSBDevice({
     usbDevice,
-    // A real config: connecting needs none of it, but the read retry loop
+    // A real config: the connect path needs none of it, but the retry loop
     // refuses to guess a missing timing setting, which is the point of it.
     config: makeConfig(),
     sleep: noSleep,
@@ -285,22 +294,23 @@ describe("ClientPTPUSBDevice transfer failures", () => {
   });
 
   it("stays usable after a timeout, so the retry loops can retry", async () => {
-    // A timeout means the camera did not answer, which on this hardware is a
-    // dropped request rather than a late one: the server retries in place and
-    // recovers. Refusing to continue would turn a recoverable stall into a dead
-    // session, and would make all three retry loops decorative.
+    // A timeout means the camera did not answer, and on this hardware that is
+    // a dropped request rather than a late one: the server retries in place and
+    // always recovers. Refusing to continue would turn a recoverable stall into
+    // a dead session, which is what an earlier version of this did.
     const usbDevice = new FakeUSBDevice({ hangOn: [_OC_OPEN_SESSION] });
     const device = new ClientPTPUSBDevice({
       usbDevice,
-      config: {},
+      config: makeConfig(),
       sleep: noSleep,
       timeoutMs: 5,
     });
 
     await assert.rejects(() => device.connect());
 
-    // Still connected, and a fresh exchange is allowed. This says the code will
-    // ask again, not that the camera will answer.
+    // The device is still connected and a fresh exchange is allowed. Nothing
+    // here says the camera will answer, only that the code will ask.
+    usbDevice._hangPending = false;
     assert.doesNotThrow(() => device._assertConnected());
   });
 
@@ -339,8 +349,9 @@ describe("ClientPTPUSBDevice._recvData", () => {
 
   it("hands back the response when the camera skips the data phase", async () => {
     // The bug this replaced: _recvData returned the response container and left
-    // the caller to read for a response that had already arrived. Nothing
-    // further was on the wire, so that read waited out the entire timeout.
+    // the caller to read for a response that had already arrived. There is
+    // nothing further on the wire, so that read waited out the entire timeout
+    // and then poisoned the connection. Returning the response says so.
     const { device } = makeDevice({ noDataPhaseOn: [0xd023] });
     await device.connect();
 
@@ -349,16 +360,16 @@ describe("ClientPTPUSBDevice._recvData", () => {
 
     assert.notEqual(response, null, "the response was consumed and not reported");
     assert.equal(response.code, _RC_OK);
-    // No value came back, so none is reported. Passing the response container
-    // off as data would decode its parameters as a value.
+    // No value came back, so none is reported. Handing the response container
+    // over as though it were data would decode its parameters as a value.
     assert.equal(data.length, 0);
   });
 
   it("retries rather than reporting a value the camera never sent", async () => {
     // Observed on an X-S10: the camera acknowledges the read and sends no
-    // value. An empty payload decodes to 0, a legitimate value for most of
-    // these properties, so reporting it would put a real-looking setting on
-    // screen and write it to a slot on a push.
+    // value. An empty payload decodes to 0, which is a legitimate value for
+    // most of these properties, so reporting it would put a real-looking
+    // setting on screen and write it to a slot on a push.
     const { device } = makeDevice({
       noDataPhaseOn: [0xd192],
       noDataPhaseTimes: 1,
@@ -366,10 +377,15 @@ describe("ClientPTPUSBDevice._recvData", () => {
     });
     await device.connect();
 
-    assert.equal(await device.getPropertyInt(0xd192), 13);
+    const value = await device.getPropertyInt(0xd192);
+
+    assert.equal(value, 13, "the retry should have fetched the real value");
   });
 
   it("gives up quickly when the camera never sends a value", async () => {
+    // It must fail rather than answer 0, and it must not stall: the server
+    // reaches the same decision only by waiting out a five second timeout on
+    // every attempt.
     const { device } = makeDevice({ noDataPhaseOn: [0xd192] });
     await device.connect();
 
@@ -379,7 +395,7 @@ describe("ClientPTPUSBDevice._recvData", () => {
       (error) => error instanceof CameraConnectionError && /no value/.test(error.message)
     );
 
-    assert.ok(Date.now() - started < 500, "it stalled instead of failing");
+    assert.ok(Date.now() - started < 500, "the read stalled instead of failing");
   });
 
   it("reports the error when a skipped data phase carries a failure", async () => {
@@ -408,5 +424,104 @@ describe("ClientPTPUSBDevice._recvData", () => {
     const view = new DataView(data.buffer, data.byteOffset, data.byteLength);
     assert.equal(view.getUint16(4, true), _PTP_DATA);
     await device._recvResponse();
+  });
+});
+
+describe("session logging", () => {
+  it("records each step of the handshake", async () => {
+    // Connecting was the one part of a push that wrote nothing down, so a
+    // failure to open, claim or start a session left the console showing only
+    // the reads from the previous successful attempt.
+    reset();
+    const { device } = makeDevice();
+
+    await device.connect();
+
+    const steps = recent().filter((e) => e.eventType === SESSION_STEP).map((e) => e.step);
+    assert.deepEqual(steps, [
+      "open",
+      "selectConfiguration",
+      "claimInterface",
+      "openSession",
+      "getDeviceInfo",
+    ]);
+  });
+
+  it("names the step that failed", async () => {
+    // Which one it is matters: an interface that will not claim and a session
+    // that will not open have entirely different causes.
+    reset();
+    const { device } = makeDevice({ openSessionRc: 0x2005 });
+
+    await assert.rejects(() => device.connect());
+
+    const failures = recent().filter((e) => e.eventType === SESSION_FAILED);
+    assert.equal(failures.length, 1);
+    assert.equal(failures[0].step, "openSession");
+    assert.match(failures[0].error, /OpenSession failed/);
+  });
+
+  it("names an interface that will not open", async () => {
+    reset();
+    const { device } = makeDevice({
+      failOpenWith: Object.assign(new Error("busy"), { name: "NetworkError" }),
+    });
+
+    await assert.rejects(() => device.connect());
+
+    const failure = recent().find((e) => e.eventType === SESSION_FAILED);
+    assert.equal(failure.step, "open");
+    assert.match(failure.error, /NetworkError/);
+  });
+
+  it("records a model it could not read rather than passing silently", async () => {
+    // An empty model means zero slots, and the user is then told the camera has
+    // no custom slots when the truth is that it stopped answering.
+    reset();
+    const { device } = makeDevice({ deviceInfoHex: "00" });
+
+    await device.connect();
+
+    const failure = recent().find(
+      (e) => e.eventType === SESSION_FAILED && e.step === "getDeviceInfo"
+    );
+    assert.ok(failure, "a failed model read left no trace");
+    assert.equal(device.cameraName, "");
+  });
+
+  it("records the session opening, with the camera it found", async () => {
+    reset();
+    const { device } = makeDevice();
+
+    await device.connect();
+
+    const opened = recent().find((e) => e.eventType === SESSION_OPENED);
+    assert.equal(opened.camera, "X-S10");
+    assert.equal(typeof opened.durationMs, "number");
+  });
+
+  it("records the session closing", async () => {
+    const { device } = makeDevice();
+    await device.connect();
+    reset();
+
+    await device.disconnect();
+
+    assert.ok(recent().some((e) => e.eventType === SESSION_CLOSED));
+  });
+
+  it("records each read retry, not only the final failure", async () => {
+    // A read that eventually succeeds should still show that the camera needed
+    // asking twice; before, a flaky camera looked like a healthy one.
+    const { device, usbDevice } = makeDevice();
+    await device.connect();
+    reset();
+    usbDevice.failNextReads(1);
+
+    await device.getPropertyInt(0xd192);
+
+    const retries = recent().filter((e) => e.eventType === PTP_READ_RETRY);
+    assert.equal(retries.length, 1);
+    assert.equal(retries[0].attempt, "1/3");
   });
 });
