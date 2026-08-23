@@ -91,7 +91,9 @@ export const _REQ_GET_DEVICE_STATUS = 0x67;
 const _CANCELLATION_CODE = 0x4001;
 const _RC_DEVICE_BUSY = 0x2019;
 
-export const _USB_TIMEOUT_MS = 5000; // 5 s, camera can be slow to respond
+// Fallback only. The real value is served as CAMERA_USB_TIMEOUT_MS, so an
+// operator can tune it against their own camera without a code change.
+export const _USB_TIMEOUT_MS = 1500;
 export const _READ_BUFFER = 65536; // max data to read in one call
 export const _SESSION_ID = 1;
 
@@ -446,11 +448,12 @@ export class ClientPTPUSBDevice {
    *   so tests can shrink it; a suite that waits out real five-second timeouts
    *   stops being run.
    */
-  constructor({ usbDevice, config, sleep = _realSleep, timeoutMs = _USB_TIMEOUT_MS }) {
+  constructor({ usbDevice, config, sleep = _realSleep, timeoutMs = undefined }) {
     this._usbDevice = usbDevice;
     this._config = config;
     this._sleep = sleep;
-    this._timeoutMs = timeoutMs;
+    this._timeoutMs =
+      timeoutMs ?? config?.settings?.CAMERA_USB_TIMEOUT_MS ?? _USB_TIMEOUT_MS;
     this._inEndpoint = null;
     this._outEndpoint = null;
     this._interfaceNumber = null;

@@ -23,6 +23,7 @@ x-filmcase-env: &filmcase-env
   FILMCASE_WORKER_CONCURRENCY: ${FILMCASE_WORKER_CONCURRENCY:-8}
   SYNC_IMAGE_BATCH_SIZE: ${SYNC_IMAGE_BATCH_SIZE:-100}
   CAMERA_TRANSPORT: ${CAMERA_TRANSPORT:-browser}
+  CAMERA_USB_TIMEOUT_MS: ${CAMERA_USB_TIMEOUT_MS:-1500}
   DB_ENGINE: django.db.backends.postgresql
   DB_NAME: fujifilm_recipes
   DB_USER: fujifilm_recipes

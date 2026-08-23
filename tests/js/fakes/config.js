@@ -39,6 +39,7 @@ export function makeConfig(settingOverrides = {}) {
       CAMERA_INTER_SLOT_DELAY_S: 0,
       CAMERA_MAX_RETRIES: 3,
       CAMERA_RETRY_BACKOFF_S: 0.15,
+      CAMERA_USB_TIMEOUT_MS: 1500,
       ...settingOverrides,
     },
     encodings: ENCODINGS,

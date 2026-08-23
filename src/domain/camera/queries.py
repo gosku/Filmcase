@@ -319,6 +319,7 @@ class ClientCameraSettings:
     CAMERA_INTER_SLOT_DELAY_S: float
     CAMERA_MAX_RETRIES: int
     CAMERA_RETRY_BACKOFF_S: float
+    CAMERA_USB_TIMEOUT_MS: int
 
 
 def client_camera_settings() -> ClientCameraSettings:
@@ -338,6 +339,7 @@ def client_camera_settings() -> ClientCameraSettings:
         CAMERA_INTER_SLOT_DELAY_S=_settings.CAMERA_INTER_SLOT_DELAY_S,
         CAMERA_MAX_RETRIES=_settings.CAMERA_MAX_RETRIES,
         CAMERA_RETRY_BACKOFF_S=_settings.CAMERA_RETRY_BACKOFF_S,
+        CAMERA_USB_TIMEOUT_MS=_settings.CAMERA_USB_TIMEOUT_MS,
     )
 
 

@@ -100,6 +100,7 @@ CAMERA_POST_CURSOR_DELAY_S: float = env.float("CAMERA_POST_CURSOR_DELAY_S", defa
 CAMERA_INTER_SLOT_DELAY_S:  float = env.float("CAMERA_INTER_SLOT_DELAY_S",  default=0.05)   # pause between slot cursor changes
 CAMERA_MAX_RETRIES:         int   = env.int(  "CAMERA_MAX_RETRIES",          default=3)      # attempts per operation before giving up
 CAMERA_RETRY_BACKOFF_S:     float = env.float("CAMERA_RETRY_BACKOFF_S",     default=0.15)   # base back-off; doubles each retry (0.15 s, 0.30 s, …)
+CAMERA_USB_TIMEOUT_MS:      int   = env.int(  "CAMERA_USB_TIMEOUT_MS",      default=1500)   # how long one USB transfer may take before the camera is treated as unresponsive
 
 THUMBNAIL_CACHE_DIR = BASE_DIR / "thumbnail_cache"  # filesystem directory where generated thumbnails are cached
 RECIPE_CARDS_DIR: Path = Path(env.str("RECIPE_CARDS_DIR", default=str(BASE_DIR / "recipe_cards")))  # filesystem directory where generated recipe card images are stored
