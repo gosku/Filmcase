@@ -9,6 +9,7 @@
 
 ## Reference
 
+- [Manual Installation](manual_install.md) — installing the dependencies and setting up the project by hand, without the setup script
 - [Library Sync](library_sync.md) — how make start scans library folders, deduplicates against the catalog, and uses timestamps to skip unchanged directories
 - [EXIF Mapping](exif_mapping.md) — how Fujifilm EXIF fields map to database model fields
 - [Recipe Naming](recipe_naming.md) — how recipes are named and the constraints inherited from the camera
