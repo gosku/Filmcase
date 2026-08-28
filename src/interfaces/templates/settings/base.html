@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}Settings{% endblock %}</title>
+  <script src="https://unpkg.com/htmx.org@2.0.4" integrity="sha384-HGfztofotfshcF7+8n44JQL2oJmowVChPTg48S+jvZoztPfvwD79OC/LTtG6dMp+" crossorigin="anonymous"></script>
+  <link rel="stylesheet" href="/static/css/brand.css">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { display: flex; flex-direction: column; font-family: sans-serif; min-height: 100vh; background: var(--color-bg-page); }
+
+    /* Top nav sits above a sidebar-plus-content row that fills the rest of the
+       viewport. Future settings tabs slot into the sidebar without touching this. */
+    .settings-layout {
+      display: flex;
+      flex: 1;
+      min-height: 0;
+    }
+
+    .settings-sidebar {
+      flex-shrink: 0;
+      width: 220px;
+      padding: 1.5rem 0.75rem;
+      background: var(--color-bg-surface);
+      border-right: 1px solid var(--color-border);
+    }
+
+    .settings-sidebar__heading {
+      padding: 0 0.75rem;
+      margin-bottom: 0.75rem;
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: #94a3b8;
+    }
+
+    .settings-nav { display: flex; flex-direction: column; gap: 0.15rem; }
+
+    .settings-nav__item {
+      display: block;
+      padding: 0.45rem 0.75rem;
+      border-radius: 6px;
+      font-size: 0.875rem;
+      font-weight: 500;
+      color: var(--color-text-primary);
+      text-decoration: none;
+    }
+
+    .settings-nav__item:hover { background: var(--color-bg-page); }
+
+    .settings-nav__item--active {
+      background: var(--color-accent);
+      color: #fff;
+      font-weight: 600;
+    }
+
+    .settings-nav__item--active:hover { background: var(--color-accent); }
+
+    .settings-content { flex: 1; min-width: 0; overflow: auto; }
+  </style>
+  {% block extra_head %}{% endblock %}
+</head>
+<body>
+
+{% include "_top_nav.html" with active_section="settings" %}
+
+<div class="settings-layout">
+  <aside class="settings-sidebar">
+    {% include "settings/includes/sidebar.html" %}
+  </aside>
+  <main class="settings-content">
+    {% block settings_content %}{% endblock %}
+  </main>
+</div>
+
+{% block extra_scripts %}{% endblock %}
+
+</body>
+</html>

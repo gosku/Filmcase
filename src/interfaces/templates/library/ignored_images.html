@@ -1,14 +1,10 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Ignored files</title>
-  <link rel="stylesheet" href="/static/css/brand.css">
+{% extends "settings/base.html" %}
+
+{% block title %}Ignored files{% endblock %}
+
+{% block extra_head %}
   <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { display: flex; flex-direction: column; font-family: sans-serif; min-height: 100vh; background: var(--color-bg-page); }
-    .main-content { flex: 1; padding: 2rem; max-width: 1200px; }
+    .main-content { padding: 2rem; max-width: 1200px; }
     .page-header { display: flex; align-items: baseline; gap: 1rem; margin-bottom: 0.5rem; }
     .page-title { font-size: 1.5rem; }
     .folder-path { font-family: monospace; color: #666; word-break: break-all; }
@@ -60,11 +56,9 @@
     .pagination { display: flex; gap: 1rem; align-items: center; margin-top: 1.5rem; color: #64748b; font-size: 0.9rem; }
     .empty-state { padding: 2rem; text-align: center; color: #94a3b8; }
   </style>
-</head>
-<body>
+{% endblock %}
 
-{% include "_top_nav.html" with active_section="library" %}
-
+{% block settings_content %}
 <div class="main-content">
   <div class="page-header">
     <h1 class="page-title">Ignored files</h1>
@@ -162,13 +156,13 @@
     <div class="empty-state">Nothing has been ignored in this folder.</div>
   {% endif %}
 </div>
+{% endblock %}
 
+{% block extra_scripts %}
 <script>
   document.querySelectorAll('time.local-time').forEach(function (el) {
     var d = new Date(el.dataset.utc);
     if (!isNaN(d)) el.textContent = d.toLocaleString();
   });
 </script>
-
-</body>
-</html>
+{% endblock %}

@@ -40,6 +40,13 @@ def _list_all_folders() -> list[library_dataclasses.LibraryFolderData]:
     ]
 
 
+def _render_library_list(request: http.HttpRequest, *, error: str | None = None) -> http.HttpResponse:
+    context: dict[str, object] = {"folders": _list_all_folders(), "active_tab": "library"}
+    if error is not None:
+        context["error"] = error
+    return shortcuts.render(request, "library/library.html", context)
+
+
 def _sync_status(run: models.SyncRun) -> library_dataclasses.SyncRunData:
     total = run.total
     handled = run.processed + run.skipped + run.errors
@@ -71,7 +78,7 @@ class LibraryFolderList(generic.View):
     """Display the list of monitored library folders."""
 
     def get(self, request: http.HttpRequest) -> http.HttpResponse:
-        return shortcuts.render(request, "library/library.html", {"folders": _list_all_folders()})
+        return _render_library_list(request)
 
 
 class LibraryFolderAdd(generic.View):
@@ -84,23 +91,17 @@ class LibraryFolderAdd(generic.View):
         try:
             folder = add_library_folder_uc.add_library_folder(path=path)
         except add_library_folder_uc.FolderNotFound as exc:
-            return shortcuts.render(request, "library/library.html", {
-                "folders": _list_all_folders(),
-                "error": f"Folder does not exist: {exc.path}",
-            })
+            return _render_library_list(request, error=f"Folder does not exist: {exc.path}")
         except add_library_folder_uc.FolderAlreadyInLibrary as exc:
-            return shortcuts.render(request, "library/library.html", {
-                "folders": _list_all_folders(),
-                "error": f"Folder is already in the library: {exc.path}",
-            })
+            return _render_library_list(request, error=f"Folder is already in the library: {exc.path}")
 
         try:
             trigger_folder_sync_uc.trigger_folder_sync(folder_id=folder.folder_id)
         except trigger_folder_sync_uc.CeleryWorkerUnavailable:
-            return shortcuts.render(request, "library/library.html", {
-                "folders": _list_all_folders(),
-                "error": "Folder added, but no image worker is running to sync it. Start one with 'make worker'.",
-            })
+            return _render_library_list(
+                request,
+                error="Folder added, but no image worker is running to sync it. Start one with 'make worker'.",
+            )
         return shortcuts.redirect(urls.reverse("library-list"))
 
 
@@ -153,23 +154,17 @@ class LibraryFolderPathUpdate(generic.View):
         except update_library_folder_path_uc.LibraryFolderNotFound:
             raise http.Http404
         except update_library_folder_path_uc.FolderNotFound as exc:
-            return shortcuts.render(request, "library/library.html", {
-                "folders": _list_all_folders(),
-                "error": f"Folder does not exist: {exc.path}",
-            })
+            return _render_library_list(request, error=f"Folder does not exist: {exc.path}")
         except update_library_folder_path_uc.FolderAlreadyInLibrary as exc:
-            return shortcuts.render(request, "library/library.html", {
-                "folders": _list_all_folders(),
-                "error": f"Folder is already in the library: {exc.path}",
-            })
+            return _render_library_list(request, error=f"Folder is already in the library: {exc.path}")
 
         try:
             trigger_folder_sync_uc.trigger_folder_sync(folder_id=folder_id)
         except trigger_folder_sync_uc.CeleryWorkerUnavailable:
-            return shortcuts.render(request, "library/library.html", {
-                "folders": _list_all_folders(),
-                "error": "Path updated, but no image worker is running to sync it. Start one with 'make worker'.",
-            })
+            return _render_library_list(
+                request,
+                error="Path updated, but no image worker is running to sync it. Start one with 'make worker'.",
+            )
         return shortcuts.redirect(urls.reverse("library-list"))
 
 
@@ -275,6 +270,7 @@ class LibraryFolderIgnoredImages(generic.View):
         )
 
         return shortcuts.render(request, "library/ignored_images.html", {
+            "active_tab": "library",
             "folder": _folder_data(folder),
             "ignored_images": [_ignored_image_data(i) for i in page_obj],
             "page_obj": page_obj,

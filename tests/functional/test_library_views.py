@@ -43,13 +43,13 @@ class TestLibraryFolderList:
         assert f"/settings/library/{folder.pk}/sync-status/" in content
         assert 'hx-trigger="load"' in content
 
-    def test_shows_library_nav_link_as_active(self, client):
+    def test_shows_library_sidebar_item_as_active(self, client):
         response = client.get("/settings/library/")
 
         assert response.status_code == 200
         soup = BeautifulSoup(response.content, "html.parser")
-        active_links = soup.find_all(class_="top-nav__link--active")
-        assert any("Library" in link.text for link in active_links)
+        active_items = soup.find_all(class_="settings-nav__item--active")
+        assert any("Library" in item.text for item in active_items)
 
 
 @pytest.mark.django_db
