@@ -9,7 +9,7 @@ class TestLibraryFolderSyncStatus:
     def test_shows_not_synced_when_no_run_exists(self, client):
         folder = LibraryFolderFactory()
 
-        response = client.get(f"/library/{folder.pk}/sync-status/")
+        response = client.get(f"/settings/library/{folder.pk}/sync-status/")
 
         assert response.status_code == 200
         content = response.content.decode()
@@ -20,7 +20,7 @@ class TestLibraryFolderSyncStatus:
         folder = LibraryFolderFactory()
         SyncRunFactory(folder=folder, state=models.SyncRun.STATE_SCANNING)
 
-        response = client.get(f"/library/{folder.pk}/sync-status/")
+        response = client.get(f"/settings/library/{folder.pk}/sync-status/")
 
         content = response.content.decode()
         assert "Scanning" in content
@@ -32,7 +32,7 @@ class TestLibraryFolderSyncStatus:
         run.processed = 1
         run.save(update_fields=["processed"])
 
-        response = client.get(f"/library/{folder.pk}/sync-status/")
+        response = client.get(f"/settings/library/{folder.pk}/sync-status/")
 
         content = response.content.decode()
         assert "Processing 1/4" in content
@@ -50,7 +50,7 @@ class TestLibraryFolderSyncStatus:
         run.errors = 1
         run.save(update_fields=["processed", "skipped", "errors"])
 
-        response = client.get(f"/library/{folder.pk}/sync-status/")
+        response = client.get(f"/settings/library/{folder.pk}/sync-status/")
 
         content = response.content.decode()
         assert "Processing 4/10" in content
@@ -62,7 +62,7 @@ class TestLibraryFolderSyncStatus:
         run.skipped = 1
         run.save(update_fields=["processed", "skipped"])
 
-        response = client.get(f"/library/{folder.pk}/sync-status/")
+        response = client.get(f"/settings/library/{folder.pk}/sync-status/")
 
         content = response.content.decode()
         assert "Imported 2" in content
@@ -73,7 +73,7 @@ class TestLibraryFolderSyncStatus:
         folder = LibraryFolderFactory()
         SyncRunFactory(folder=folder, state=models.SyncRun.STATE_FAILED)
 
-        response = client.get(f"/library/{folder.pk}/sync-status/")
+        response = client.get(f"/settings/library/{folder.pk}/sync-status/")
 
         content = response.content.decode()
         assert "Sync failed" in content
@@ -87,7 +87,7 @@ class TestLibraryFolderSyncStatusRemovals:
         run = SyncRunFactory(folder=folder, state=models.SyncRun.STATE_COMPLETED, total=2)
         run.record_removal_results(missing_found=3, uncovered_found=0, removed=3, skipped_reason="")
 
-        response = client.get(f"/library/{folder.pk}/sync-status/")
+        response = client.get(f"/settings/library/{folder.pk}/sync-status/")
 
         assert "removed 3" in response.content.decode()
 
@@ -95,7 +95,7 @@ class TestLibraryFolderSyncStatusRemovals:
         folder = LibraryFolderFactory()
         SyncRunFactory(folder=folder, state=models.SyncRun.STATE_PRUNING, total=2)
 
-        response = client.get(f"/library/{folder.pk}/sync-status/")
+        response = client.get(f"/settings/library/{folder.pk}/sync-status/")
 
         content = response.content.decode()
         assert "Removing missing images" in content
@@ -111,7 +111,7 @@ class TestLibraryFolderSyncStatusRemovals:
             skipped_reason=models.SyncRun.SKIPPED_GUARD,
         )
 
-        response = client.get(f"/library/{folder.pk}/sync-status/")
+        response = client.get(f"/settings/library/{folder.pk}/sync-status/")
 
         content = response.content.decode()
         assert "Skipped removing 30 missing image" in content
@@ -125,7 +125,7 @@ class TestLibraryFolderSyncStatusRemovals:
             message="Folder does not exist",
         )
 
-        response = client.get(f"/library/{folder.pk}/sync-status/")
+        response = client.get(f"/settings/library/{folder.pk}/sync-status/")
 
         content = response.content.decode()
         assert "Folder not found on disk" in content
@@ -137,7 +137,7 @@ class TestLibraryFolderSyncStatusRemovals:
         run = SyncRunFactory(folder=folder, state=models.SyncRun.STATE_SCANNING)
         run.mark_failed(reason="", message="something else went wrong")
 
-        response = client.get(f"/library/{folder.pk}/sync-status/")
+        response = client.get(f"/settings/library/{folder.pk}/sync-status/")
 
         assert "Sync failed" in response.content.decode()
 
@@ -151,7 +151,7 @@ class TestLibraryFolderSyncStatusUncovered:
             missing_found=0, uncovered_found=2, removed=2, skipped_reason=""
         )
 
-        response = client.get(f"/library/{folder.pk}/sync-status/")
+        response = client.get(f"/settings/library/{folder.pk}/sync-status/")
 
         content = response.content.decode()
         assert "removed 2" in content
@@ -164,7 +164,7 @@ class TestLibraryFolderSyncStatusUncovered:
             missing_found=2, uncovered_found=0, removed=2, skipped_reason=""
         )
 
-        response = client.get(f"/library/{folder.pk}/sync-status/")
+        response = client.get(f"/settings/library/{folder.pk}/sync-status/")
 
         content = response.content.decode()
         assert "removed 2" in content

@@ -13,14 +13,14 @@ TRIGGER = "src.interfaces.library.views.trigger_folder_sync_uc.trigger_folder_sy
 @pytest.mark.django_db
 class TestLibraryFolderList:
     def test_returns_200(self, client):
-        response = client.get("/library/")
+        response = client.get("/settings/library/")
         assert response.status_code == 200
 
     def test_lists_all_folders(self, client, tmp_path):
         folder_a = LibraryFolderFactory(path=str(tmp_path / "a"))
         folder_b = LibraryFolderFactory(path=str(tmp_path / "b"))
 
-        response = client.get("/library/")
+        response = client.get("/settings/library/")
 
         assert response.status_code == 200
         content = response.content.decode()
@@ -28,7 +28,7 @@ class TestLibraryFolderList:
         assert folder_b.path in content
 
     def test_shows_empty_state_when_no_folders(self, client):
-        response = client.get("/library/")
+        response = client.get("/settings/library/")
 
         assert response.status_code == 200
         soup = BeautifulSoup(response.content, "html.parser")
@@ -37,14 +37,14 @@ class TestLibraryFolderList:
     def test_folder_row_lazy_loads_its_sync_status(self, client, tmp_path):
         folder = LibraryFolderFactory(path=str(tmp_path))
 
-        response = client.get("/library/")
+        response = client.get("/settings/library/")
 
         content = response.content.decode()
-        assert f"/library/{folder.pk}/sync-status/" in content
+        assert f"/settings/library/{folder.pk}/sync-status/" in content
         assert 'hx-trigger="load"' in content
 
     def test_shows_library_nav_link_as_active(self, client):
-        response = client.get("/library/")
+        response = client.get("/settings/library/")
 
         assert response.status_code == 200
         soup = BeautifulSoup(response.content, "html.parser")
@@ -59,10 +59,10 @@ class TestLibraryFolderAdd:
         new_dir.mkdir()
 
         with patch(TRIGGER):
-            response = client.post("/library/new/",{"path": str(new_dir)})
+            response = client.post("/settings/library/new/",{"path": str(new_dir)})
 
         assert response.status_code == 302
-        assert response["Location"] == "/library/"
+        assert response["Location"] == "/settings/library/"
         assert models.LibraryFolder.objects.filter(path=str(new_dir)).exists()
 
     def test_triggers_sync_for_the_new_folder(self, client, tmp_path):
@@ -70,7 +70,7 @@ class TestLibraryFolderAdd:
         new_dir.mkdir()
 
         with patch(TRIGGER) as mock_trigger:
-            client.post("/library/new/",{"path": str(new_dir)})
+            client.post("/settings/library/new/",{"path": str(new_dir)})
 
         folder = models.LibraryFolder.objects.get(path=str(new_dir))
         mock_trigger.assert_called_once_with(folder_id=folder.pk)
@@ -80,7 +80,7 @@ class TestLibraryFolderAdd:
         new_dir.mkdir()
 
         with patch(TRIGGER, side_effect=CeleryWorkerUnavailable()):
-            response = client.post("/library/new/",{"path": str(new_dir)})
+            response = client.post("/settings/library/new/",{"path": str(new_dir)})
 
         assert response.status_code == 200
         soup = BeautifulSoup(response.content, "html.parser")
@@ -91,7 +91,7 @@ class TestLibraryFolderAdd:
     def test_returns_error_for_nonexistent_path(self, client, tmp_path):
         missing = str(tmp_path / "does_not_exist")
 
-        response = client.post("/library/new/",{"path": missing})
+        response = client.post("/settings/library/new/",{"path": missing})
 
         assert response.status_code == 200
         soup = BeautifulSoup(response.content, "html.parser")
@@ -102,14 +102,14 @@ class TestLibraryFolderAdd:
         existing_dir.mkdir()
         LibraryFolderFactory(path=str(existing_dir))
 
-        response = client.post("/library/new/",{"path": str(existing_dir)})
+        response = client.post("/settings/library/new/",{"path": str(existing_dir)})
 
         assert response.status_code == 200
         soup = BeautifulSoup(response.content, "html.parser")
         assert soup.find(class_="error-banner") is not None
 
     def test_returns_400_when_path_is_missing(self, client):
-        response = client.post("/library/new/",{})
+        response = client.post("/settings/library/new/",{})
         assert response.status_code == 400
 
 
@@ -118,21 +118,21 @@ class TestLibraryFolderRemove:
     def test_removes_folder_and_redirects_to_list(self, client):
         folder = LibraryFolderFactory()
 
-        response = client.post(f"/library/{folder.pk}/delete/")
+        response = client.post(f"/settings/library/{folder.pk}/delete/")
 
         assert response.status_code == 302
-        assert response["Location"] == "/library/"
+        assert response["Location"] == "/settings/library/"
         assert not models.LibraryFolder.objects.filter(pk=folder.pk).exists()
 
     def test_returns_404_for_unknown_folder_id(self, client):
-        response = client.post("/library/99999/delete/")
+        response = client.post("/settings/library/99999/delete/")
         assert response.status_code == 404
 
     def test_keeps_the_images_by_default(self, client):
         folder = LibraryFolderFactory(path="/photos")
         image = ImageFactory(filepath="/photos/DSCF0001.JPG")
 
-        client.post(f"/library/{folder.pk}/delete/")
+        client.post(f"/settings/library/{folder.pk}/delete/")
 
         assert models.Image.objects.filter(pk=image.pk).exists()
 
@@ -140,7 +140,7 @@ class TestLibraryFolderRemove:
         folder = LibraryFolderFactory(path="/photos")
         image = ImageFactory(filepath="/photos/DSCF0001.JPG")
 
-        client.post(f"/library/{folder.pk}/delete/", {"delete_images": "on"})
+        client.post(f"/settings/library/{folder.pk}/delete/", {"delete_images": "on"})
 
         assert not models.Image.objects.filter(pk=image.pk).exists()
 
@@ -152,7 +152,7 @@ class TestLibraryFolderRemoveConfirm:
         ImageFactory(filepath="/photos/DSCF0001.JPG")
         ImageFactory(filepath="/photos/2024/DSCF0002.JPG")
 
-        response = client.get(f"/library/{folder.pk}/confirm-delete/")
+        response = client.get(f"/settings/library/{folder.pk}/confirm-delete/")
 
         content = response.content.decode()
         assert response.status_code == 200
@@ -163,14 +163,14 @@ class TestLibraryFolderRemoveConfirm:
         folder = LibraryFolderFactory(path="/photos")
         ImageFactory(filepath="/photos/DSCF0001.JPG")
 
-        response = client.get(f"/library/{folder.pk}/confirm-delete/")
+        response = client.get(f"/settings/library/{folder.pk}/confirm-delete/")
 
         assert "Your photo files are never deleted" in response.content.decode()
 
     def test_offers_only_the_folder_when_nothing_would_leave_the_gallery(self, client):
         folder = LibraryFolderFactory(path="/photos")
 
-        response = client.get(f"/library/{folder.pk}/confirm-delete/")
+        response = client.get(f"/settings/library/{folder.pk}/confirm-delete/")
 
         content = response.content.decode()
         assert "No image in the gallery comes only from this folder" in content
@@ -181,12 +181,12 @@ class TestLibraryFolderRemoveConfirm:
         inner = LibraryFolderFactory(path="/photos/2024")
         ImageFactory(filepath="/photos/2024/DSCF0001.JPG")
 
-        response = client.get(f"/library/{inner.pk}/confirm-delete/")
+        response = client.get(f"/settings/library/{inner.pk}/confirm-delete/")
 
         assert "No image in the gallery comes only from this folder" in response.content.decode()
 
     def test_returns_404_for_unknown_folder_id(self, client):
-        assert client.get("/library/99999/confirm-delete/").status_code == 404
+        assert client.get("/settings/library/99999/confirm-delete/").status_code == 404
 
 
 @pytest.mark.django_db
@@ -199,10 +199,10 @@ class TestLibraryFolderPathUpdate:
         folder = LibraryFolderFactory(path=str(old_dir))
 
         with patch(TRIGGER):
-            response = client.post(f"/library/{folder.pk}/edit/",{"path": str(new_dir)})
+            response = client.post(f"/settings/library/{folder.pk}/edit/",{"path": str(new_dir)})
 
         assert response.status_code == 302
-        assert response["Location"] == "/library/"
+        assert response["Location"] == "/settings/library/"
         folder.refresh_from_db()
         assert folder.path == str(new_dir)
 
@@ -214,7 +214,7 @@ class TestLibraryFolderPathUpdate:
         folder = LibraryFolderFactory(path=str(old_dir))
 
         with patch(TRIGGER) as mock_trigger:
-            client.post(f"/library/{folder.pk}/edit/",{"path": str(new_dir)})
+            client.post(f"/settings/library/{folder.pk}/edit/",{"path": str(new_dir)})
 
         mock_trigger.assert_called_once_with(folder_id=folder.pk)
 
@@ -222,7 +222,7 @@ class TestLibraryFolderPathUpdate:
         new_dir = tmp_path / "new"
         new_dir.mkdir()
 
-        response = client.post("/library/99999/edit/",{"path": str(new_dir)})
+        response = client.post("/settings/library/99999/edit/",{"path": str(new_dir)})
 
         assert response.status_code == 404
 
@@ -230,7 +230,7 @@ class TestLibraryFolderPathUpdate:
         folder = LibraryFolderFactory(path=str(tmp_path))
         missing = str(tmp_path / "does_not_exist")
 
-        response = client.post(f"/library/{folder.pk}/edit/",{"path": missing})
+        response = client.post(f"/settings/library/{folder.pk}/edit/",{"path": missing})
 
         assert response.status_code == 200
         soup = BeautifulSoup(response.content, "html.parser")
@@ -244,7 +244,7 @@ class TestLibraryFolderPathUpdate:
         LibraryFolderFactory(path=str(dir_a))
         folder_b = LibraryFolderFactory(path=str(dir_b))
 
-        response = client.post(f"/library/{folder_b.pk}/edit/",{"path": str(dir_a)})
+        response = client.post(f"/settings/library/{folder_b.pk}/edit/",{"path": str(dir_a)})
 
         assert response.status_code == 200
         soup = BeautifulSoup(response.content, "html.parser")
@@ -253,7 +253,7 @@ class TestLibraryFolderPathUpdate:
     def test_returns_400_when_path_is_missing(self, client):
         folder = LibraryFolderFactory()
 
-        response = client.post(f"/library/{folder.pk}/edit/",{})
+        response = client.post(f"/settings/library/{folder.pk}/edit/",{})
 
         assert response.status_code == 400
 
@@ -261,14 +261,14 @@ class TestLibraryFolderPathUpdate:
 @pytest.mark.django_db
 class TestFilesystemBrowser:
     def test_returns_200_with_default_path(self, client):
-        response = client.get("/library/browse/partial/")
+        response = client.get("/settings/library/browse/partial/")
         assert response.status_code == 200
 
     def test_lists_immediate_subdirectories(self, client, tmp_path):
         (tmp_path / "alpha").mkdir()
         (tmp_path / "beta").mkdir()
 
-        response = client.get(f"/library/browse/partial/?path={tmp_path}")
+        response = client.get(f"/settings/library/browse/partial/?path={tmp_path}")
 
         assert response.status_code == 200
         content = response.content.decode()
@@ -276,14 +276,14 @@ class TestFilesystemBrowser:
         assert "beta" in content
 
     def test_shows_back_link_when_not_at_root(self, client, tmp_path):
-        response = client.get(f"/library/browse/partial/?path={tmp_path}")
+        response = client.get(f"/settings/library/browse/partial/?path={tmp_path}")
 
         assert response.status_code == 200
         soup = BeautifulSoup(response.content, "html.parser")
         assert soup.find(class_="browser-back-link") is not None
 
     def test_no_back_link_at_filesystem_root(self, client):
-        response = client.get("/library/browse/partial/?path=/")
+        response = client.get("/settings/library/browse/partial/?path=/")
 
         assert response.status_code == 200
         soup = BeautifulSoup(response.content, "html.parser")
@@ -292,30 +292,30 @@ class TestFilesystemBrowser:
     def test_returns_404_for_nonexistent_path(self, client, tmp_path):
         missing = str(tmp_path / "does_not_exist")
 
-        response = client.get(f"/library/browse/partial/?path={missing}")
+        response = client.get(f"/settings/library/browse/partial/?path={missing}")
 
         assert response.status_code == 404
 
     def test_select_form_posts_to_add_url_without_folder_id(self, client, tmp_path):
-        response = client.get(f"/library/browse/partial/?path={tmp_path}")
+        response = client.get(f"/settings/library/browse/partial/?path={tmp_path}")
 
         assert response.status_code == 200
         soup = BeautifulSoup(response.content, "html.parser")
         form = soup.find("form")
-        assert form["action"] == "/library/new/"
+        assert form["action"] == "/settings/library/new/"
 
     def test_select_form_posts_to_update_url_with_folder_id(self, client, tmp_path):
         folder = LibraryFolderFactory(path=str(tmp_path))
 
-        response = client.get(f"/library/browse/partial/?path={tmp_path}&folder_id={folder.pk}")
+        response = client.get(f"/settings/library/browse/partial/?path={tmp_path}&folder_id={folder.pk}")
 
         assert response.status_code == 200
         soup = BeautifulSoup(response.content, "html.parser")
         form = soup.find("form")
-        assert form["action"] == f"/library/{folder.pk}/edit/"
+        assert form["action"] == f"/settings/library/{folder.pk}/edit/"
 
     def test_returns_400_for_non_integer_folder_id(self, client, tmp_path):
-        response = client.get(f"/library/browse/partial/?path={tmp_path}&folder_id=not-an-int")
+        response = client.get(f"/settings/library/browse/partial/?path={tmp_path}&folder_id=not-an-int")
 
         assert response.status_code == 400
 
@@ -327,19 +327,19 @@ class TestLibraryPageIgnoredCount:
         IgnoredImageFactory(folder=folder, filepath="/photos/a.jpg")
         IgnoredImageFactory(folder=folder, filepath="/photos/b.jpg")
 
-        response = client.get("/library/")
+        response = client.get("/settings/library/")
 
         content = response.content.decode()
         assert "2 ignored" in content
-        assert f"/library/{folder.pk}/ignored/" in content
+        assert f"/settings/library/{folder.pk}/ignored/" in content
 
     def test_shows_none_without_a_link_when_nothing_is_ignored(self, client):
         folder = LibraryFolderFactory(path="/photos")
 
-        response = client.get("/library/")
+        response = client.get("/settings/library/")
 
         content = response.content.decode()
-        assert f"/library/{folder.pk}/ignored/" not in content
+        assert f"/settings/library/{folder.pk}/ignored/" not in content
         assert "None" in content
 
     def test_counts_each_folder_separately(self, client):
@@ -349,7 +349,7 @@ class TestLibraryPageIgnoredCount:
         IgnoredImageFactory(folder=second, filepath="/scans/a.jpg")
         IgnoredImageFactory(folder=second, filepath="/scans/b.jpg")
 
-        content = client.get("/library/").content.decode()
+        content = client.get("/settings/library/").content.decode()
 
         assert "1 ignored" in content
         assert "2 ignored" in content
