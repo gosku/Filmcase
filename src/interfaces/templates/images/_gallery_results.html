@@ -12,6 +12,11 @@
        hx-push-url="{% url 'image-detail' image.id %}"
        hx-include="#filter-form">
       <img class="image-thumbnail" src="{% url 'image-file' image.id %}?width=600" alt="{{ image.filename }}" loading="lazy">
+      {# Caption shown only in the compact layout (CSS-gated); grid mode uses the meta below. #}
+      <div class="image-overlay">
+        <span class="image-overlay-name">{% if image.fujifilm_recipe and image.fujifilm_recipe.name %}{{ image.fujifilm_recipe.name }}{% elif image.fujifilm_recipe and image.fujifilm_recipe.film_simulation %}{{ image.fujifilm_recipe.film_simulation }}{% else %}—{% endif %}</span>
+        {% if image.rating %}<span class="image-overlay-rating">{{ image.rating|stars }}</span>{% endif %}
+      </div>
     </a>
     <span class="image-recipe">{% if image.fujifilm_recipe and image.fujifilm_recipe.name %}{{ image.fujifilm_recipe.name }}{% elif image.fujifilm_recipe and image.fujifilm_recipe.film_simulation %}{{ image.fujifilm_recipe.film_simulation }}{% else %}—{% endif %}</span>
     <div class="image-meta-row">

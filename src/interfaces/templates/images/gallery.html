@@ -6,6 +6,7 @@
   <title>Image Gallery</title>
   <script src="https://unpkg.com/htmx.org@2.0.4" integrity="sha384-HGfztofotfshcF7+8n44JQL2oJmowVChPTg48S+jvZoztPfvwD79OC/LTtG6dMp+" crossorigin="anonymous"></script>
   <script src="/static/js/multi-select.js"></script>
+  <script src="/static/js/compact-gallery.js" defer></script>
   <link href="https://cdn.jsdelivr.net/npm/tom-select@2/dist/css/tom-select.css" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/tom-select@2/dist/js/tom-select.complete.min.js"></script>
   <link rel="stylesheet" href="/static/css/brand.css">
@@ -188,10 +189,20 @@
       left: calc(100% - 0.975rem);
     }
 
-    #gallery-results {
+    #gallery-results.layout-grid {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
       gap: 1rem;
+    }
+
+    /* Compact ("justified") layout: rows are packed and sized by compact-gallery.js;
+       each row fills the content width at a shared height, so mixed aspect ratios
+       tile edge-to-edge with no cropping. */
+    #gallery-results.layout-compact {
+      display: flex;
+      flex-wrap: wrap;
+      align-content: flex-start;
+      gap: 4px;
     }
 
     .infinite-scroll-sentinel {
@@ -216,6 +227,103 @@
       border-radius: 4px;
       margin-bottom: 0.5rem;
       background: #f0f0f0;
+    }
+
+    /* ── Compact layout overrides ─────────────────────────────────────── */
+    #gallery-results.layout-compact .image-card {
+      flex: 0 0 auto; /* honor the exact width/height compact-gallery.js assigns */
+      border: none;
+      border-radius: 2px;
+      padding: 0;
+      background: none;
+      overflow: hidden;
+      /* width/height are assigned inline by compact-gallery.js */
+    }
+
+    #gallery-results.layout-compact .detail-link {
+      display: block;
+      position: relative;
+      height: 100%;
+    }
+
+    #gallery-results.layout-compact .image-thumbnail {
+      width: 100%;
+      height: 100%;
+      object-fit: cover; /* box matches the image's true aspect ratio, so nothing is cropped */
+      margin-bottom: 0;
+      border-radius: 0;
+    }
+
+    #gallery-results.layout-compact .image-recipe,
+    #gallery-results.layout-compact .image-meta-row,
+    #gallery-results.layout-compact .recipe-labels {
+      display: none;
+    }
+
+    #gallery-results.layout-compact .no-results {
+      flex: 1 1 100%;
+    }
+
+    /* Recipe-name overlay: rendered in every card, shown only in compact mode. */
+    .image-overlay {
+      display: none;
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      padding: 14px 8px 6px;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 6px;
+      background: linear-gradient(to top, rgba(0, 0, 0, 0.62), rgba(0, 0, 0, 0));
+      pointer-events: none;
+    }
+
+    .image-overlay-name {
+      color: #fff;
+      font-size: 0.75rem;
+      font-weight: 600;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
+    }
+
+    .image-overlay-rating {
+      flex-shrink: 0;
+      font-size: 0.75rem;
+      color: var(--color-accent);
+      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+    }
+
+    /* Label-mode: always-on vs reveal-on-hover (toggled by the header control). */
+    #gallery-results.layout-compact.labels-always .image-overlay {
+      display: flex;
+    }
+
+    #gallery-results.layout-compact.labels-hover .image-card:hover .image-overlay {
+      display: flex;
+    }
+
+    /* ── Header view controls (rendered into the top-nav actions slot) ──── */
+    .view-controls {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .label-mode {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+    }
+
+    .label-mode[hidden] {
+      display: none;
+    }
+
+    .view-switcher .segmented-toggle__option {
+      gap: 6px;
     }
 
     .image-recipe {
@@ -529,9 +637,21 @@
 
 <main class="main">
   <div class="gallery-scroll">
-    <div id="gallery-results">
+    <div id="gallery-results" class="layout-grid labels-hover">
       {% include "images/_gallery_results.html" %}
     </div>
+    <script>
+      // Apply the stored view/label preference synchronously to avoid a flash of
+      // the grid layout for users who last chose compact. The full engine
+      // (justified sizing, toggles, re-layout) lives in compact-gallery.js.
+      (function () {
+        var el = document.getElementById('gallery-results');
+        var view = localStorage.getItem('galleryViewMode') === 'compact' ? 'compact' : 'grid';
+        var labels = localStorage.getItem('galleryLabelMode') === 'always' ? 'always' : 'hover';
+        el.classList.remove('layout-grid', 'layout-compact', 'labels-hover', 'labels-always');
+        el.classList.add('layout-' + view, 'labels-' + labels);
+      }());
+    </script>
     <div id="load-more-sentinel">
       {% if page_obj.has_next %}
       <div class="infinite-scroll-sentinel"
