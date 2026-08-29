@@ -1,0 +1,19 @@
+{% comment %}
+Image-gallery action toolbar rendered into the top-nav's right-hand slot
+(see _top_nav.html). Owned by the gallery page, not the header.
+{% endcomment %}
+<div class="ms-toolbar" id="ms-toolbar" hidden>
+  <span class="ms-count">0 selected</span>
+  <button class="ms-cancel-btn" type="button">Cancel</button>
+  <div class="ms-actions-wrap">
+    <button class="ms-actions-btn" id="ms-actions-btn" type="button">
+      Actions
+      <svg width="10" height="6" viewBox="0 0 10 6" fill="none" aria-hidden="true">
+        <path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </button>
+    <div class="ms-actions-dropdown" id="ms-actions-dropdown" hidden>
+      <button class="ms-actions-option" id="ms-set-rating-btn" type="button">Set rating</button>
+    </div>
+  </div>
+</div>

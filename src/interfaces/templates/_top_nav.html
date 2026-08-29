@@ -47,6 +47,17 @@
     border-bottom: 2px solid var(--color-accent);
     border-radius: 0;
   }
+
+  /* Right-aligned slot where a page can render its own action buttons/toolbar
+     into the otherwise-empty header. The markup itself lives in the page's own
+     templates (passed via `nav_actions_template`); the nav only provides the
+     placement. */
+  .top-nav__actions {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
 </style>
 
 <nav class="top-nav">
@@ -56,4 +67,9 @@
   <a href="{% url 'recipes-explorer' %}" class="top-nav__link{% if active_section == 'recipes' %} top-nav__link--active{% endif %}">Recipes</a>
   <a href="{% url 'gallery' %}" class="top-nav__link{% if active_section == 'images' %} top-nav__link--active{% endif %}">Images</a>
   <a href="{% url 'settings' %}" class="top-nav__link{% if active_section == 'settings' %} top-nav__link--active{% endif %}">Settings</a>
+  {% if nav_actions_template %}
+  <div class="top-nav__actions">
+    {% include nav_actions_template %}
+  </div>
+  {% endif %}
 </nav>
