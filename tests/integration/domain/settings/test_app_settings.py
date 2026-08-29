@@ -27,6 +27,7 @@ SAMPLE = AppSettings(
 )
 
 
+@pytest.mark.real_constance
 @pytest.mark.django_db
 class TestAppSettingsRoundTrip:
     def test_saved_settings_are_read_back_unchanged(self) -> None:

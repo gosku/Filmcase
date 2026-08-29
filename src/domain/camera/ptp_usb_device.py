@@ -30,9 +30,8 @@ import usb.core
 import usb.util
 
 from src.domain.camera import events as camera_events
-from django.conf import settings as _settings
-
 from src.domain.camera import ptp_device
+from src.domain.settings import queries as settings_queries
 
 if TYPE_CHECKING:
     pass
@@ -63,16 +62,13 @@ _RC_OK                  = 0x2001
 _RC_SESSION_ALREADY     = 0x201E  # treat as OK
 
 # ---------------------------------------------------------------------------
-# Timeout / buffer constants
+# Buffer constants
 # ---------------------------------------------------------------------------
 
-_USB_TIMEOUT_MS  = _settings.CAMERA_USB_TIMEOUT_MS  # per transfer, before the camera is treated as unresponsive
 _READ_BUFFER     = 65_536    # max data to read in one call
 _SESSION_ID      = 1
-# Re-exported under legacy names so existing test imports keep working.
-_PROP_READ_DELAY  = _settings.CAMERA_POST_READ_DELAY_S
-_PROP_MAX_RETRIES = _settings.CAMERA_MAX_RETRIES
-_RETRY_BACKOFF    = _settings.CAMERA_RETRY_BACKOFF_S
+# The USB timeout, property-read delay, retry count and back-off are dynamic
+# settings read into instance attributes in PTPUSBDevice.__init__.
 
 
 # ---------------------------------------------------------------------------
@@ -254,6 +250,15 @@ class PTPUSBDevice:
         self._ep_in: usb.core.Endpoint | None = None
         self._tx_id: int = 1
         self._camera_name: str = ""
+        # Read the dynamic timing/retry settings once, when the device is created.
+        # A fresh device is built for each camera operation, so an edit on the
+        # settings page takes effect on the next operation without a restart,
+        # while a single session keeps consistent timings and avoids a settings
+        # lookup on every USB transfer.
+        self._usb_timeout_ms = settings_queries.get_camera_usb_timeout_ms()
+        self._prop_read_delay_s = settings_queries.get_camera_post_read_delay_s()
+        self._prop_max_retries = settings_queries.get_camera_max_retries()
+        self._retry_backoff_s = settings_queries.get_camera_retry_backoff_s()
 
     # ------------------------------------------------------------------
     # Context manager
@@ -329,7 +334,7 @@ class PTPUSBDevice:
                 error=str(e),
             )
             raise
-        time.sleep(_PROP_READ_DELAY)
+        time.sleep(self._prop_read_delay_s)
         # Property value is in the data payload after the 12-byte container header.
         # Most Fuji recipe properties are uint16; read as uint32 if 4 bytes available.
         payload = data[12:]
@@ -363,7 +368,7 @@ class PTPUSBDevice:
                 error=str(e),
             )
             raise
-        time.sleep(_PROP_READ_DELAY)
+        time.sleep(self._prop_read_delay_s)
         value, _ = _decode_ptp_string(data, 12)
         camera_events.publish_event(
             event_type=camera_events.PTP_READ_SUCCEEDED,
@@ -423,9 +428,9 @@ class PTPUSBDevice:
         Send GetDevicePropValue and return the raw data, retrying on USB timeout.
         """
         last_err: ptp_device.CameraConnectionError = ptp_device.CameraConnectionError("No retries attempted")
-        for attempt in range(_PROP_MAX_RETRIES):
+        for attempt in range(self._prop_max_retries):
             if attempt > 0:
-                time.sleep(_RETRY_BACKOFF * (2 ** (attempt - 1)))
+                time.sleep(self._retry_backoff_s * (2 ** (attempt - 1)))
             try:
                 tx = self._next_tx()
                 self._send(_command_packet(_OC_GET_DEVICE_PROP_VALUE, tx, code))
@@ -445,7 +450,7 @@ class PTPUSBDevice:
     def _send(self, packet: bytes) -> None:
         assert self._ep_out is not None
         try:
-            self._ep_out.write(packet, timeout=_USB_TIMEOUT_MS)
+            self._ep_out.write(packet, timeout=self._usb_timeout_ms)
         except usb.core.USBError as e:
             raise ptp_device.CameraConnectionError(f"USB write failed: {e}") from e
 
@@ -455,7 +460,7 @@ class PTPUSBDevice:
         """
         assert self._ep_in is not None
         try:
-            raw = bytes(self._ep_in.read(_READ_BUFFER, timeout=_USB_TIMEOUT_MS))
+            raw = bytes(self._ep_in.read(_READ_BUFFER, timeout=self._usb_timeout_ms))
         except usb.core.USBError as e:
             raise ptp_device.CameraConnectionError(f"USB read (data) failed: {e}") from e
         # Some cameras skip the data phase for properties with no value.
@@ -474,7 +479,7 @@ class PTPUSBDevice:
     def _recv_response(self) -> tuple[int, list[int]]:
         assert self._ep_in is not None
         try:
-            raw = bytes(self._ep_in.read(64, timeout=_USB_TIMEOUT_MS))
+            raw = bytes(self._ep_in.read(64, timeout=self._usb_timeout_ms))
         except usb.core.USBError as e:
             raise ptp_device.CameraConnectionError(f"USB read (response) failed: {e}") from e
         return _parse_response(raw)

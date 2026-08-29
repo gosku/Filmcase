@@ -7,7 +7,6 @@ from urllib.parse import urlencode
 import attrs as _attrs
 import structlog
 
-from django.conf import settings
 from django import http
 from django import shortcuts
 from django import urls
@@ -37,6 +36,7 @@ from src.domain.recipes import dataclasses as recipe_dataclasses
 from src.domain.recipes import graph as recipe_graph
 from src.domain.recipes import operations as recipe_operations
 from src.domain.recipes import queries as recipe_queries
+from src.domain.settings import queries as settings_queries
 from src.domain.recipes.cards.designs import aperture as aperture_design
 from src.domain.recipes.cards.designs import base as card_designs
 from src.domain.recipes.cards.designs import classic as classic_design
@@ -67,7 +67,7 @@ class RecipesExplorer(generic.View):
             active_filters=active_filters,
             name_search=name_search,
             page_number=request.GET.get("page", 1),
-            page_size=settings.RECIPE_EXPLORER_PAGE_SIZE,
+            page_size=settings_queries.get_recipe_explorer_page_size(),
         )
         ctx = {"page_obj": gallery.page_obj, "sidebar_options": gallery.sidebar_options, "name_search": name_search}
         if request.headers.get("HX-Request"):
@@ -87,7 +87,7 @@ class RecipesExplorerResults(generic.View):
             active_filters=active_filters,
             name_search=name_search,
             page_number=request.GET.get("page", 1),
-            page_size=settings.RECIPE_EXPLORER_PAGE_SIZE,
+            page_size=settings_queries.get_recipe_explorer_page_size(),
         )
         return shortcuts.render(request, "recipes/partials/htmx_scroll_response.html", {"page_obj": gallery.page_obj})
 
@@ -448,7 +448,7 @@ class RecipeGraph(generic.View):
     def get(self, request: http.HttpRequest, recipe_id: int) -> http.HttpResponse:
         result = build_graph_uc.build_recipe_neighbourhood(
             root=self.recipe,
-            max_distance=settings.RECIPE_GRAPH_MAX_DISTANCE,
+            max_distance=settings_queries.get_recipe_graph_max_distance(),
             named_only=_named_only(request),
         )
         cyto_elements = _cyto_elements(graph_data=result.graph_data)

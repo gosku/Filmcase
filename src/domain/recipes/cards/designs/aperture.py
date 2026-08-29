@@ -6,10 +6,9 @@ import attrs
 from PIL import Image as PILImage
 from PIL import ImageDraw, ImageEnhance, ImageFilter, ImageFont
 
-from django import conf
-
 from src.data import models
 from src.domain.recipes.cards import queries as card_queries
+from src.domain.settings import queries as settings_queries
 from src.domain.recipes.cards import rendering
 from src.domain.recipes.cards.designs import base
 
@@ -232,8 +231,8 @@ class ApertureDesign(base.CardDesign):
         scrim = _vertical_scrim(
             (width, height),
             _SCRIM_COLOR,
-            _scrim_alpha(conf.settings.RECIPE_CARD_APERTURE_SCRIM_TOP_OPACITY),
-            _scrim_alpha(conf.settings.RECIPE_CARD_APERTURE_SCRIM_BOTTOM_OPACITY),
+            _scrim_alpha(settings_queries.get_recipe_card_aperture_scrim_top_opacity()),
+            _scrim_alpha(settings_queries.get_recipe_card_aperture_scrim_bottom_opacity()),
         )
         base_img.alpha_composite(scrim)
         return base_img

@@ -2,7 +2,6 @@ import mimetypes
 from pathlib import Path
 
 import structlog
-from django.conf import settings
 from django.core import paginator as django_paginator
 from django import http
 from django import shortcuts
@@ -13,6 +12,7 @@ from src.data import models
 from src.domain.images import filter_queries
 from src.domain.images import operations as image_operations
 from src.domain.images import queries as image_queries
+from src.domain.settings import queries as settings_queries
 from src.domain.images.thumbnails import operations as thumbnail_operations
 
 
@@ -43,7 +43,7 @@ class Gallery(generic.View):
             active_filters=active_filters,
             rating_first=rating_first,
             page_number=request.GET.get("page", 1),
-            page_size=settings.GALLERY_PAGE_SIZE,
+            page_size=settings_queries.get_gallery_page_size(),
         )
         if request.headers.get("HX-Request"):
             return shortcuts.render(request, "images/_gallery_htmx_filter_response.html", {
@@ -51,7 +51,7 @@ class Gallery(generic.View):
                 "sidebar_options": gallery.sidebar_options,
                 "recipe_options": gallery.recipe_options,
             })
-        max_rating = settings.IMAGE_MAX_RATING
+        max_rating = settings_queries.get_image_max_rating()
         return shortcuts.render(
             request,
             "images/gallery.html",
@@ -74,7 +74,7 @@ class ImageDetail(generic.View):
     """
 
     def get(self, request: http.HttpRequest, image_id: int) -> http.HttpResponse:
-        max_rating = settings.IMAGE_MAX_RATING
+        max_rating = settings_queries.get_image_max_rating()
         rating_range = range(1, max_rating + 1)
         if request.headers.get("HX-Request"):
             active_filters = _active_filters_from_request(request)
@@ -124,7 +124,7 @@ class GalleryResults(generic.View):
         active_filters = _active_filters_from_request(request)
         rating_first = request.GET.get("rating_first", "1") == "1"
         qs = filter_queries.get_filtered_images(active_filters=active_filters, rating_first=rating_first)
-        page_obj = django_paginator.Paginator(qs, settings.GALLERY_PAGE_SIZE).get_page(request.GET.get("page", 1))
+        page_obj = django_paginator.Paginator(qs, settings_queries.get_gallery_page_size()).get_page(request.GET.get("page", 1))
         return shortcuts.render(request, "images/_gallery_htmx_scroll_response.html", {"page_obj": page_obj})
 
 
@@ -178,7 +178,7 @@ class SetImageRating(generic.View):
             image_operations.set_image_rating(image=self.image, rating=rating)
         except image_operations.InvalidImageRatingError:
             raise http.Http404
-        max_rating = settings.IMAGE_MAX_RATING
+        max_rating = settings_queries.get_image_max_rating()
         return shortcuts.render(
             request,
             "images/_rating_widget.html",
