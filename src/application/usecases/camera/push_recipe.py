@@ -5,8 +5,6 @@ from __future__ import annotations
 
 import time
 
-from django.conf import settings
-
 from src.data import models
 from src.data.camera import constants
 from src.domain.camera import device_config
@@ -14,6 +12,7 @@ from src.domain.camera import operations as camera_operations
 from src.domain.camera import ptp_device
 from src.domain.camera import queries as camera_queries
 from src.domain.recipes import queries as recipe_queries
+from src.domain.settings import queries as settings_queries
 
 _CODE_TO_PROP_NAME: dict[int, str] = {
     constants.PROP_SLOT_NAME: "SlotName",
@@ -69,7 +68,7 @@ def push_recipe_to_camera(
                 f"Failed to set slot cursor to slot {slot_index} (rc={rc})"
             )
 
-        time.sleep(settings.CAMERA_PRE_WRITE_DELAY_S)
+        time.sleep(settings_queries.get_camera_pre_write_delay_s())
 
         # --- Step 2: validate recipe and translate to PTP values ---
         # Validation happens here, before any writes, so an invalid recipe never
@@ -88,7 +87,7 @@ def push_recipe_to_camera(
         ]
 
         for code, value in all_writes:
-            time.sleep(settings.CAMERA_PRE_WRITE_DELAY_S)   # 50 ms before write
+            time.sleep(settings_queries.get_camera_pre_write_delay_s())   # 50 ms before write
 
             try:
                 camera_operations.set_prop_with_retry(device, code, value)
@@ -100,10 +99,10 @@ def push_recipe_to_camera(
                 failed_codes.remove(code)
                 written.append((code, value))
 
-            time.sleep(settings.CAMERA_POST_WRITE_DELAY_S)  # 200 ms after write
+            time.sleep(settings_queries.get_camera_post_write_delay_s())  # 200 ms after write
 
         # --- Step 4: verify written properties ---
-        if settings.CAMERA_VERIFY_WRITES:
+        if settings_queries.get_camera_verify_writes():
             # GrainEffect Off is written as a sentinel; the camera normalises it to
             # 6 or 7 (retaining the last-remembered grain size), so the read-back
             # never matches the written value. Skip verification for that case.

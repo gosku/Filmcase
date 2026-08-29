@@ -16,10 +16,10 @@ from collections.abc import Mapping
 import attrs
 
 from src.data.camera import constants
-from django.conf import settings as _settings
 
 from src.domain.camera import events
 from src.domain.camera import ptp_device
+from src.domain.settings import queries as settings_queries
 from src.domain.camera import validation
 from src.domain.images import dataclasses as image_dataclasses
 from src.domain.recipes import normalization as recipe_normalization
@@ -192,7 +192,7 @@ def slot_states(device: ptp_device.PTPDevice, slot_count: int) -> list[SlotState
     states: list[SlotState] = []
     for idx in range(1, slot_count + 1):
         device.set_property_uint16(constants.PROP_SLOT_CURSOR, idx)
-        time.sleep(_settings.CAMERA_POST_CURSOR_DELAY_S)  # 50 ms between slots
+        time.sleep(settings_queries.get_camera_post_cursor_delay_s())  # 50 ms between slots
 
         try:
             name = _get_str(device, constants.PROP_SLOT_NAME)
@@ -224,7 +224,7 @@ def slot_recipe(device: ptp_device.PTPDevice, slot_index: int) -> image_dataclas
         FujifilmRecipeData populated from the camera's current slot state.
     """
     device.set_property_uint16(constants.PROP_SLOT_CURSOR, slot_index)
-    time.sleep(_settings.CAMERA_POST_CURSOR_DELAY_S)  # 50 ms settle
+    time.sleep(settings_queries.get_camera_post_cursor_delay_s())  # 50 ms settle
 
     codes = constants.CUSTOM_SLOT_CODES
 
@@ -330,16 +330,16 @@ def client_camera_settings() -> ClientCameraSettings:
     one, or a restart with a different environment, takes effect.
     """
     return ClientCameraSettings(
-        CAMERA_TRANSPORT=_settings.CAMERA_TRANSPORT,
-        CAMERA_VERIFY_WRITES=_settings.CAMERA_VERIFY_WRITES,
-        CAMERA_POST_READ_DELAY_S=_settings.CAMERA_POST_READ_DELAY_S,
-        CAMERA_PRE_WRITE_DELAY_S=_settings.CAMERA_PRE_WRITE_DELAY_S,
-        CAMERA_POST_WRITE_DELAY_S=_settings.CAMERA_POST_WRITE_DELAY_S,
-        CAMERA_POST_CURSOR_DELAY_S=_settings.CAMERA_POST_CURSOR_DELAY_S,
-        CAMERA_INTER_SLOT_DELAY_S=_settings.CAMERA_INTER_SLOT_DELAY_S,
-        CAMERA_MAX_RETRIES=_settings.CAMERA_MAX_RETRIES,
-        CAMERA_RETRY_BACKOFF_S=_settings.CAMERA_RETRY_BACKOFF_S,
-        CAMERA_USB_TIMEOUT_MS=_settings.CAMERA_USB_TIMEOUT_MS,
+        CAMERA_TRANSPORT=settings_queries.get_camera_transport(),
+        CAMERA_VERIFY_WRITES=settings_queries.get_camera_verify_writes(),
+        CAMERA_POST_READ_DELAY_S=settings_queries.get_camera_post_read_delay_s(),
+        CAMERA_PRE_WRITE_DELAY_S=settings_queries.get_camera_pre_write_delay_s(),
+        CAMERA_POST_WRITE_DELAY_S=settings_queries.get_camera_post_write_delay_s(),
+        CAMERA_POST_CURSOR_DELAY_S=settings_queries.get_camera_post_cursor_delay_s(),
+        CAMERA_INTER_SLOT_DELAY_S=settings_queries.get_camera_inter_slot_delay_s(),
+        CAMERA_MAX_RETRIES=settings_queries.get_camera_max_retries(),
+        CAMERA_RETRY_BACKOFF_S=settings_queries.get_camera_retry_backoff_s(),
+        CAMERA_USB_TIMEOUT_MS=settings_queries.get_camera_usb_timeout_ms(),
     )
 
 

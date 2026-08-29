@@ -3,11 +3,11 @@ import os
 from pathlib import Path
 
 import attrs
-from django import conf
 from django.db import IntegrityError, transaction
 from django.utils import timezone
 
 from src.data import models
+from src.domain.settings import queries as settings_queries
 from src.domain.images import events as image_events
 from src.domain.images import operations as image_operations
 from src.domain.images import queries as image_queries
@@ -379,9 +379,9 @@ def prune_guard_trips(*, missing: int, total: int) -> bool:
     """
     if total <= 0:
         return False
-    if missing <= conf.settings.LIBRARY_PRUNE_GUARD_MIN_IMAGES:
+    if missing <= settings_queries.get_library_prune_guard_min_images():
         return False
-    return missing / total > conf.settings.LIBRARY_PRUNE_GUARD_FRACTION
+    return missing / total > settings_queries.get_library_prune_guard_fraction()
 
 
 def prune_missing_images(*, folder: models.LibraryFolder, mode: str) -> PruneResult:

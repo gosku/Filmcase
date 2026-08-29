@@ -1,9 +1,9 @@
 from pathlib import Path
 
-from django import conf
 from PIL import Image as PILImage
 
 from src.domain.images.thumbnails import queries as thumbnail_queries
+from src.domain.settings import queries as settings_queries
 
 # Maps EXIF Orientation tag values to PIL transpose operations.
 # Orientation tag = 0x0112.  Value 1 means "normal" (no-op).
@@ -31,7 +31,7 @@ def delete_cached_thumbnails(*, original_path: Path) -> int:
     generated, or that another process removed first, is not an error.
     """
     removed = 0
-    for width in conf.settings.THUMBNAIL_WIDTHS:
+    for width in settings_queries.get_thumbnail_widths():
         cache_path = thumbnail_queries.thumbnail_cache_path(original_path=original_path, width=width)
         try:
             cache_path.unlink()

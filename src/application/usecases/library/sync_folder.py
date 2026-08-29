@@ -9,6 +9,7 @@ from src.data import models
 from src.domain.images import queries as image_queries
 from src.domain.library import operations as library_operations
 from src.domain.library import queries as library_queries
+from src.domain.settings import queries as settings_queries
 from src.services import workertasks
 
 _SYNC_DISPATCH_IMAGE_BATCH_TASK = "src.interfaces.tasks.sync_dispatch_image_batch_task"
@@ -134,7 +135,7 @@ def _dispatch(*, new_paths: list[str], run: models.SyncRun) -> None:
         task_name=_SYNC_DISPATCH_IMAGE_BATCH_TASK,
         kwargs_list=[
             {"image_paths": batch, "sync_run_id": run.pk}
-            for batch in _batched(new_paths, settings.SYNC_IMAGE_BATCH_SIZE)
+            for batch in _batched(new_paths, settings_queries.get_sync_image_batch_size())
         ],
         queue=settings.PROCESS_IMAGE_QUEUE,
     )

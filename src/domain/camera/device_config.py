@@ -16,8 +16,9 @@ from typing import cast
 from django.conf import settings as django_settings
 
 from src.domain.camera import ptp_device
+from src.domain.settings import queries as settings_queries
 
-# Accepted values of settings.CAMERA_TRANSPORT.
+# Accepted values of the CAMERA_TRANSPORT setting.
 TRANSPORT_SERVER = "server"
 TRANSPORT_BROWSER = "browser"
 
@@ -29,7 +30,7 @@ def is_browser_transport() -> bool:
     When this is true the server has no route to the camera, so the views that
     open a USB connection should decline rather than try.
     """
-    return bool(django_settings.CAMERA_TRANSPORT == TRANSPORT_BROWSER)
+    return settings_queries.get_camera_transport() == TRANSPORT_BROWSER
 
 
 def get_device() -> ptp_device.PTPDevice:

@@ -3,13 +3,13 @@ from collections.abc import Sequence
 from pathlib import Path
 
 import attrs
-from django import conf
 from django.db import transaction
 
 from src.data import models
 from src.domain.images import events, queries
 from src.domain.images.queries import NoFilmSimulationError as NoFilmSimulationError
 from src.domain.images.thumbnails import operations as thumbnail_operations
+from src.domain.settings import queries as settings_queries
 from src.domain.recipes import operations as recipe_operations
 
 
@@ -37,9 +37,9 @@ def set_image_rating(*, image: models.Image, rating: int) -> None:
 
     Raises:
         InvalidImageRatingError: If *rating* is negative or exceeds
-            settings.IMAGE_MAX_RATING.
+            the configured maximum rating (IMAGE_MAX_RATING).
     """
-    if rating < 0 or rating > conf.settings.IMAGE_MAX_RATING:
+    if rating < 0 or rating > settings_queries.get_image_max_rating():
         raise InvalidImageRatingError(rating)
     image.set_rating(rating)
     events.publish_event(
@@ -59,9 +59,9 @@ def set_images_rating(*, image_ids: Sequence[int], rating: int) -> int:
 
     Raises:
         InvalidImageRatingError: If *rating* is negative or exceeds
-            settings.IMAGE_MAX_RATING.
+            the configured maximum rating (IMAGE_MAX_RATING).
     """
-    if rating < 0 or rating > conf.settings.IMAGE_MAX_RATING:
+    if rating < 0 or rating > settings_queries.get_image_max_rating():
         raise InvalidImageRatingError(rating)
 
     with transaction.atomic():

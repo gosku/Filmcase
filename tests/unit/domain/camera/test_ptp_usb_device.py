@@ -14,10 +14,8 @@ import pytest
 
 from src.domain.camera import events as camera_events
 from src.domain.camera.ptp_device import CameraConnectionError
-from src.domain.camera.ptp_usb_device import (
-    PTPUSBDevice,
-    _PROP_MAX_RETRIES,
-)
+from src.domain.camera.ptp_usb_device import PTPUSBDevice
+from src.domain.settings import queries as settings_queries
 
 
 # ---------------------------------------------------------------------------
@@ -95,7 +93,7 @@ class TestGetPropWithRetry:
             with pytest.raises(CameraConnectionError):
                 device._get_prop_with_retry(0xD192)
 
-        assert send_mock.call_count == _PROP_MAX_RETRIES
+        assert send_mock.call_count == settings_queries.get_camera_max_retries()
 
 
 # ---------------------------------------------------------------------------

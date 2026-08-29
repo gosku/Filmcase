@@ -39,6 +39,7 @@ CSRF_TRUSTED_ORIGINS: list[str] = env.list(
 INSTALLED_APPS = [
     "django.contrib.contenttypes",
     "django.contrib.auth",
+    "constance",
     "src.data",
     "src.interfaces",
 ]
@@ -162,6 +163,79 @@ SYNC_IMAGE_BATCH_SIZE: int = env.int("SYNC_IMAGE_BATCH_SIZE", default=100)
 USE_ASYNC_TASKS: bool = env.bool("USE_ASYNC_TASKS", default=True)  # True: enqueue Celery tasks (full stack); False: run sequentially (SQLite / lite install)
 
 CELERY_TASK_QUEUES: tuple[Queue, ...] = (Queue(PROCESS_IMAGE_QUEUE),)
+
+# Dynamic settings (django-constance)
+#
+# The runtime-changeable settings above are also registered with constance so a
+# user can edit them from the settings page and have the change take effect
+# immediately, with no restart. Each env-read value above becomes that key's
+# constance default: with no saved value constance returns the env default, and
+# once the page is saved the database value wins and the env var is no longer
+# consulted. Reads go through src.domain.settings.queries, never config directly.
+CONSTANCE_BACKEND = "constance.backends.database.DatabaseBackend"
+# Left at None (the default) on purpose: with no cache every process reads the
+# current database value on each access, so a change on the settings page reaches
+# the web workers and the Celery worker on their next operation without a restart.
+CONSTANCE_DATABASE_CACHE_BACKEND = None
+
+# THUMBNAIL_WIDTHS is a tuple, which constance cannot store, so it is held as the
+# same comma-separated string the env file uses (e.g. "600,1200") and parsed back
+# to a tuple by src.domain.settings.queries.get_thumbnail_widths.
+_THUMBNAIL_WIDTHS_DEFAULT = ",".join(str(width) for width in THUMBNAIL_WIDTHS)
+
+CONSTANCE_CONFIG: dict[str, tuple[object, str, type]] = {
+    "CAMERA_TRANSPORT": (CAMERA_TRANSPORT, "Which machine drives the camera: 'server' (attached to the Filmcase host, PyUSB) or 'browser' (attached to your machine, WebUSB). Browser mode needs an HTTPS or localhost page on a Chromium browser; server mode needs the camera plugged into the host.", str),
+    "CAMERA_VERIFY_WRITES": (CAMERA_VERIFY_WRITES, "Read each recipe value back after writing it to the camera to confirm it landed.", bool),
+    "CAMERA_POST_READ_DELAY_S": (CAMERA_POST_READ_DELAY_S, "Pause in seconds after each property read from the camera.", float),
+    "CAMERA_PRE_WRITE_DELAY_S": (CAMERA_PRE_WRITE_DELAY_S, "Pause in seconds before each property write to the camera.", float),
+    "CAMERA_POST_WRITE_DELAY_S": (CAMERA_POST_WRITE_DELAY_S, "Pause in seconds after each property write to the camera.", float),
+    "CAMERA_POST_CURSOR_DELAY_S": (CAMERA_POST_CURSOR_DELAY_S, "Pause in seconds after positioning the recipe-slot cursor.", float),
+    "CAMERA_INTER_SLOT_DELAY_S": (CAMERA_INTER_SLOT_DELAY_S, "Pause in seconds between moving the cursor from one slot to the next.", float),
+    "CAMERA_MAX_RETRIES": (CAMERA_MAX_RETRIES, "How many times a camera operation is attempted before giving up.", int),
+    "CAMERA_RETRY_BACKOFF_S": (CAMERA_RETRY_BACKOFF_S, "Base back-off in seconds between camera retries; it doubles each attempt.", float),
+    "CAMERA_USB_TIMEOUT_MS": (CAMERA_USB_TIMEOUT_MS, "How long in milliseconds one USB transfer may take before the camera is treated as unresponsive.", int),
+    "RECIPE_EXPLORER_PAGE_SIZE": (RECIPE_EXPLORER_PAGE_SIZE, "Number of recipes shown per page in the recipe explorer.", int),
+    "RECIPE_GRAPH_MAX_DISTANCE": (RECIPE_GRAPH_MAX_DISTANCE, "Maximum difference between two recipes for them to be linked in the recipe graph. Higher values draw more connections.", int),
+    "RECIPE_CARD_APERTURE_SCRIM_TOP_OPACITY": (RECIPE_CARD_APERTURE_SCRIM_TOP_OPACITY, "Opacity percentage (0-100) of the darkening gradient at the top of the Aperture recipe card.", int),
+    "RECIPE_CARD_APERTURE_SCRIM_BOTTOM_OPACITY": (RECIPE_CARD_APERTURE_SCRIM_BOTTOM_OPACITY, "Opacity percentage (0-100) of the darkening gradient at the bottom of the Aperture recipe card.", int),
+    "GALLERY_PAGE_SIZE": (GALLERY_PAGE_SIZE, "Number of images shown per page in the gallery.", int),
+    "IMAGE_MAX_RATING": (IMAGE_MAX_RATING, "Highest star rating that can be given to an image.", int),
+    "THUMBNAIL_WIDTHS": (_THUMBNAIL_WIDTHS_DEFAULT, "Comma-separated thumbnail widths in pixels to generate and cache (e.g. '600,1200'). Changing this does not regenerate or clear thumbnails already on disk: existing images keep their current widths until the generate_thumbnails command is run again.", str),
+    "LIBRARY_PRUNE_GUARD_FRACTION": (LIBRARY_PRUNE_GUARD_FRACTION, "A sync that finds more than this share (0-1) of a folder's images missing reports the removal instead of applying it, guarding against an unmounted drive. 1.0 disables the guard.", float),
+    "LIBRARY_PRUNE_GUARD_MIN_IMAGES": (LIBRARY_PRUNE_GUARD_MIN_IMAGES, "The prune guard only engages once at least this many images are missing (paired with the fraction above; both must be exceeded). A very high value disables the guard.", int),
+    "SYNC_IMAGE_BATCH_SIZE": (SYNC_IMAGE_BATCH_SIZE, "How many images are handed to the worker per batch during a library sync.", int),
+}
+
+CONSTANCE_CONFIG_FIELDSETS: dict[str, tuple[str, ...]] = {
+    "Recipes": (
+        "RECIPE_EXPLORER_PAGE_SIZE",
+        "RECIPE_GRAPH_MAX_DISTANCE",
+        "RECIPE_CARD_APERTURE_SCRIM_TOP_OPACITY",
+        "RECIPE_CARD_APERTURE_SCRIM_BOTTOM_OPACITY",
+    ),
+    "Images": (
+        "GALLERY_PAGE_SIZE",
+        "IMAGE_MAX_RATING",
+        "THUMBNAIL_WIDTHS",
+    ),
+    "Library": (
+        "LIBRARY_PRUNE_GUARD_FRACTION",
+        "LIBRARY_PRUNE_GUARD_MIN_IMAGES",
+        "SYNC_IMAGE_BATCH_SIZE",
+    ),
+    "Camera": (
+        "CAMERA_TRANSPORT",
+        "CAMERA_VERIFY_WRITES",
+        "CAMERA_POST_READ_DELAY_S",
+        "CAMERA_PRE_WRITE_DELAY_S",
+        "CAMERA_POST_WRITE_DELAY_S",
+        "CAMERA_POST_CURSOR_DELAY_S",
+        "CAMERA_INTER_SLOT_DELAY_S",
+        "CAMERA_MAX_RETRIES",
+        "CAMERA_RETRY_BACKOFF_S",
+        "CAMERA_USB_TIMEOUT_MS",
+    ),
+}
 
 # Logging
 LOG_DIR = BASE_DIR / "logs"

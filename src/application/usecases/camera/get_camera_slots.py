@@ -14,10 +14,10 @@ import time
 from typing import Callable, TypeVar
 
 from src.data.camera import constants
-from django.conf import settings as _settings
 
 from src.domain.camera import device_config
 from src.domain.camera import ptp_device
+from src.domain.settings import queries as settings_queries
 from src.domain.camera import queries as camera_queries
 
 _T = TypeVar("_T")
@@ -45,9 +45,9 @@ def get_camera_slots() -> list[camera_queries.SlotState]:
         states: list[camera_queries.SlotState] = []
         for idx in range(1, slot_count + 1):
             if idx > 1:
-                time.sleep(_settings.CAMERA_INTER_SLOT_DELAY_S)
+                time.sleep(settings_queries.get_camera_inter_slot_delay_s())
             _set_cursor_with_retry(device, idx)
-            time.sleep(_settings.CAMERA_POST_CURSOR_DELAY_S)
+            time.sleep(settings_queries.get_camera_post_cursor_delay_s())
             name = _read_str_with_retry(device, constants.PROP_SLOT_NAME)
             film_sim = _read_int_with_retry(device, constants.CUSTOM_SLOT_CODES["FilmSimulation"])
             states.append(camera_queries.SlotState(index=idx, name=name, film_sim_ptp=film_sim))
@@ -58,14 +58,16 @@ def get_camera_slots() -> list[camera_queries.SlotState]:
 
 def _retry(fn: Callable[[], _T]) -> _T:
     """
-    Call *fn* up to _settings.CAMERA_MAX_RETRIES times, sleeping with exponential
+    Call *fn* up to CAMERA_MAX_RETRIES times, sleeping with exponential
     back-off between attempts.  Only retries on CameraConnectionError.
     Any other exception (e.g. CameraWriteError) propagates immediately.
     """
     last_err: ptp_device.CameraConnectionError = ptp_device.CameraConnectionError("no retries attempted")
-    for attempt in range(1, _settings.CAMERA_MAX_RETRIES + 1):
+    max_retries = settings_queries.get_camera_max_retries()
+    retry_backoff_s = settings_queries.get_camera_retry_backoff_s()
+    for attempt in range(1, max_retries + 1):
         if attempt > 1:
-            time.sleep(_settings.CAMERA_RETRY_BACKOFF_S * (2 ** (attempt - 2)))
+            time.sleep(retry_backoff_s * (2 ** (attempt - 2)))
         try:
             return fn()
         except ptp_device.CameraConnectionError as exc:

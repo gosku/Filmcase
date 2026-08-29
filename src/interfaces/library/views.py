@@ -1,7 +1,6 @@
 import os
 
 from django import http, shortcuts, urls
-from django.conf import settings
 from django.core import paginator as django_paginator
 from django.views import generic
 
@@ -15,6 +14,7 @@ from src.application.usecases.library import trigger_folder_sync as trigger_fold
 from src.application.usecases.library import update_library_folder_path as update_library_folder_path_uc
 from src.data import models
 from src.domain.library import queries as domain_queries
+from src.domain.settings import queries as settings_queries
 
 
 def _folder_data(
@@ -265,7 +265,7 @@ class LibraryFolderIgnoredImages(generic.View):
         reason = request.GET.get("reason") or None
         ignored = domain_queries.get_ignored_images(folder_id=folder_id, reason=reason)
         counts = domain_queries.count_ignored_images_by_reason(folder_id=folder_id)
-        page_obj = django_paginator.Paginator(ignored, settings.GALLERY_PAGE_SIZE).get_page(
+        page_obj = django_paginator.Paginator(ignored, settings_queries.get_gallery_page_size()).get_page(
             request.GET.get("page", 1)
         )
 
