@@ -14,8 +14,12 @@
 (function () {
   var VIEW_KEY = 'galleryViewMode';
   var LABEL_KEY = 'galleryLabelMode';
+  var ROW_HEIGHT_KEY = 'galleryRowHeight';
   var GAP = 4; // must match `#gallery-results.layout-compact { gap }` in gallery.html
   var FALLBACK_RATIO = 1.5; // used until a thumbnail has loaded and can be measured
+  var DEFAULT_ROW_HEIGHT = 280; // near the grid layout's fixed 300px, so switching feels size-consistent
+  var MIN_ROW_HEIGHT = 120; // keep in sync with the size-slider min in gallery_actions.html
+  var MAX_ROW_HEIGHT = 500; // keep in sync with the size-slider max in gallery_actions.html
 
   var container = document.getElementById('gallery-results');
   if (!container) return;
@@ -28,11 +32,16 @@
     return localStorage.getItem(LABEL_KEY) === 'always' ? 'always' : 'hover';
   }
 
-  // ── Layout engine ──────────────────────────────────────────────────────
-
-  function targetRowHeight(width) {
-    return width < 700 ? 150 : 200;
+  // Preferred row height (the target the justified rows are solved toward),
+  // set by the size slider. Actual per-row heights come out at or below it so
+  // each row fills the width exactly.
+  function readRowHeight() {
+    var stored = parseInt(localStorage.getItem(ROW_HEIGHT_KEY), 10);
+    if (isNaN(stored)) return DEFAULT_ROW_HEIGHT;
+    return Math.max(MIN_ROW_HEIGHT, Math.min(MAX_ROW_HEIGHT, stored));
   }
+
+  // ── Layout engine ──────────────────────────────────────────────────────
 
   function ratioOf(card) {
     var img = card.querySelector('.image-thumbnail');
@@ -66,7 +75,7 @@
     var cards = Array.prototype.slice.call(container.querySelectorAll('.image-card'));
     if (cards.length === 0) return;
 
-    var target = targetRowHeight(containerWidth);
+    var target = readRowHeight();
     var rowCards = [];
     var rowRatios = [];
     var ratioSum = 0;
@@ -130,6 +139,7 @@
     container.classList.add('layout-' + mode);
     setActive(viewButtons, 'data-view-mode', mode);
     if (labelControl) labelControl.hidden = mode !== 'compact';
+    if (sizeControl) sizeControl.hidden = mode !== 'compact';
     if (mode === 'compact') {
       justify(); // immediate; load/resize/swap refine it via scheduleJustify
     } else {
@@ -149,6 +159,8 @@
 
   var viewSwitcher = document.getElementById('view-switcher');
   var labelControl = document.getElementById('label-mode');
+  var sizeControl = document.getElementById('size-control');
+  var sizeSlider = document.getElementById('size-slider');
   var viewButtons = viewSwitcher ? viewSwitcher.querySelectorAll('[data-view-mode]') : [];
   var labelButtons = labelControl ? labelControl.querySelectorAll('[data-label-mode]') : [];
 
@@ -163,6 +175,14 @@
     labelControl.addEventListener('click', function (evt) {
       var btn = evt.target.closest('[data-label-mode]');
       if (btn) applyLabels(btn.getAttribute('data-label-mode'));
+    });
+  }
+
+  if (sizeSlider) {
+    sizeSlider.value = readRowHeight();
+    sizeSlider.addEventListener('input', function () {
+      localStorage.setItem(ROW_HEIGHT_KEY, sizeSlider.value);
+      scheduleJustify();
     });
   }
 

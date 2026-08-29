@@ -29,6 +29,13 @@ class TestGalleryViewLayoutControls:
         assert 'data-label-mode="hover"' in content
         assert 'data-label-mode="always"' in content
 
+    def test_renders_thumbnail_size_slider(self, client):
+        response = _get(client)
+
+        content = response.content.decode()
+        assert 'id="size-slider"' in content
+        assert 'type="range"' in content
+
     def test_loads_compact_gallery_script(self, client):
         response = _get(client)
 
