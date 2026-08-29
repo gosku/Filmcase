@@ -1,0 +1,125 @@
+{% extends "settings/base.html" %}
+
+{% block title %}Preferences{% endblock %}
+
+{% block extra_head %}
+  <style>
+    .main-content { padding: 2rem; max-width: 820px; }
+
+    .page-title { font-size: 1.25rem; font-weight: 700; color: var(--color-text-primary); margin-bottom: 0.35rem; }
+    .page-intro { font-size: 0.875rem; color: #6b7280; line-height: 1.5; margin-bottom: 1.5rem; }
+
+    .banner {
+      padding: 0.7rem 1rem;
+      border-radius: 6px;
+      font-size: 0.875rem;
+      margin-bottom: 1.5rem;
+    }
+    .banner--ok { background: #dcfce7; color: #15803d; }
+    .banner--error { background: #fee2e2; color: #b91c1c; }
+
+    .fieldset { margin-bottom: 2rem; }
+    .section-title {
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: #94a3b8;
+      padding-bottom: 0.5rem;
+      margin-bottom: 0.75rem;
+      border-bottom: 1px solid var(--color-border);
+    }
+
+    .field {
+      display: flex;
+      align-items: baseline;
+      gap: 1rem;
+      padding: 0.75rem 0;
+      border-bottom: 1px solid var(--color-border);
+    }
+    .field:last-child { border-bottom: none; }
+
+    .field__label {
+      flex: 0 0 16rem;
+      color: var(--color-text-primary);
+      font-weight: 500;
+      font-size: 0.875rem;
+    }
+    .field__control { flex: 1; min-width: 0; }
+
+    .field__control input[type="text"],
+    .field__control input[type="number"],
+    .field__control select {
+      width: 12rem;
+      max-width: 100%;
+      padding: 0.4rem 0.55rem;
+      border: 1px solid var(--color-border);
+      border-radius: 5px;
+      font-size: 0.875rem;
+      background: var(--color-bg-surface);
+      color: var(--color-text-primary);
+    }
+
+    .field__help { font-size: 0.8125rem; color: #6b7280; line-height: 1.45; margin-top: 0.4rem; }
+    .field__error { font-size: 0.8125rem; color: #b91c1c; margin-top: 0.35rem; }
+    .field--error .field__label { color: #b91c1c; }
+
+    .actions { margin-top: 1.5rem; }
+    .btn-primary {
+      padding: 0.55rem 1.25rem;
+      background: var(--color-accent);
+      color: #fff;
+      border: none;
+      border-radius: 5px;
+      font-size: 0.875rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+  </style>
+{% endblock %}
+
+{% block settings_content %}
+  <div class="main-content">
+    <h1 class="page-title">Preferences</h1>
+    <p class="page-intro">
+      These settings take effect immediately, with no restart. Until you save, each shows the
+      value from the environment configuration; once saved, the stored value is used instead.
+    </p>
+
+    {% if saved %}
+      <div class="banner banner--ok">Preferences saved.</div>
+    {% endif %}
+
+    <form method="post" action="{% url 'app-settings' %}" novalidate>
+      {% csrf_token %}
+
+      {% if form.non_field_errors %}
+        <div class="banner banner--error">{{ form.non_field_errors }}</div>
+      {% endif %}
+
+      {% for title, fields in fieldsets %}
+        <section class="fieldset">
+          <h2 class="section-title">{{ title }}</h2>
+          {% for field in fields %}
+            <div class="field{% if field.errors %} field--error{% endif %}">
+              <label class="field__label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+              <div class="field__control">
+                {{ field }}
+                {% if field.help_text %}
+                  <p class="field__help">{{ field.help_text }}</p>
+                {% endif %}
+                {% for error in field.errors %}
+                  <p class="field__error">{{ error }}</p>
+                {% endfor %}
+              </div>
+            </div>
+          {% endfor %}
+        </section>
+      {% endfor %}
+
+      <div class="actions">
+        <button type="submit" class="btn-primary">Save preferences</button>
+      </div>
+    </form>
+  </div>
+{% endblock %}

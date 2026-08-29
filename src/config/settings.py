@@ -207,18 +207,6 @@ CONSTANCE_CONFIG: dict[str, tuple[object, str, type]] = {
 }
 
 CONSTANCE_CONFIG_FIELDSETS: dict[str, tuple[str, ...]] = {
-    "Camera": (
-        "CAMERA_TRANSPORT",
-        "CAMERA_VERIFY_WRITES",
-        "CAMERA_POST_READ_DELAY_S",
-        "CAMERA_PRE_WRITE_DELAY_S",
-        "CAMERA_POST_WRITE_DELAY_S",
-        "CAMERA_POST_CURSOR_DELAY_S",
-        "CAMERA_INTER_SLOT_DELAY_S",
-        "CAMERA_MAX_RETRIES",
-        "CAMERA_RETRY_BACKOFF_S",
-        "CAMERA_USB_TIMEOUT_MS",
-    ),
     "Recipes": (
         "RECIPE_EXPLORER_PAGE_SIZE",
         "RECIPE_GRAPH_MAX_DISTANCE",
@@ -234,6 +222,18 @@ CONSTANCE_CONFIG_FIELDSETS: dict[str, tuple[str, ...]] = {
         "LIBRARY_PRUNE_GUARD_FRACTION",
         "LIBRARY_PRUNE_GUARD_MIN_IMAGES",
         "SYNC_IMAGE_BATCH_SIZE",
+    ),
+    "Camera": (
+        "CAMERA_TRANSPORT",
+        "CAMERA_VERIFY_WRITES",
+        "CAMERA_POST_READ_DELAY_S",
+        "CAMERA_PRE_WRITE_DELAY_S",
+        "CAMERA_POST_WRITE_DELAY_S",
+        "CAMERA_POST_CURSOR_DELAY_S",
+        "CAMERA_INTER_SLOT_DELAY_S",
+        "CAMERA_MAX_RETRIES",
+        "CAMERA_RETRY_BACKOFF_S",
+        "CAMERA_USB_TIMEOUT_MS",
     ),
 }
 
