@@ -148,18 +148,10 @@
       overflow: hidden;
     }
 
-    .gallery-header {
-      display: flex;
-      align-items: center;
-      padding: 1rem 2rem;
-      flex-shrink: 0;
-      min-height: 4rem;
-    }
-
     .recipe-gallery-scroll {
       flex: 1;
       overflow-y: auto;
-      padding: 0 2rem 2rem;
+      padding: 1.5rem 2rem 2rem;
     }
 
     #recipe-gallery-results {
@@ -588,7 +580,7 @@
 </head>
 <body>
 
-{% include "_top_nav.html" with active_section="recipes" %}
+{% include "_top_nav.html" with active_section="recipes" nav_actions_template="recipes/includes/explorer_actions.html" %}
 
 <div class="content-area">
 
@@ -611,58 +603,6 @@
   </aside>
 
   <main class="main">
-    <div class="gallery-header">
-      <div class="ms-toolbar" id="ms-toolbar" hidden>
-        <span class="ms-count">0 selected</span>
-        <button class="ms-cancel-btn" type="button">Cancel</button>
-        <div class="ms-actions-wrap">
-          <button class="ms-actions-btn" id="ms-actions-btn" type="button">
-            Actions
-            <svg width="10" height="6" viewBox="0 0 10 6" fill="none" aria-hidden="true">
-              <path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
-          </button>
-          <div class="ms-actions-dropdown" id="ms-actions-dropdown" hidden>
-            <button class="ms-actions-option" id="ms-delete-recipes-btn" type="button">
-              Delete recipes
-            </button>
-            <button class="ms-actions-option" id="ms-create-cards-btn" type="button">
-              Create recipe cards
-            </button>
-          </div>
-        </div>
-      </div>
-      <div class="header-actions">
-        <a href="{% url 'create-recipe' %}" class="create-recipe-link-btn">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-          </svg>
-          Create Recipe
-        </a>
-        <div class="create-recipes-wrap">
-          <button class="create-recipes-btn" id="create-recipes-btn">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
-            </svg>
-            Import Recipes
-          </button>
-          <div class="create-recipes-dropdown" id="create-recipes-dropdown" hidden>
-            <button class="create-recipes-option open-import-modal-btn"
-                    data-import-url="{% url 'recipes-import' %}"
-                    data-import-title="Import Recipes from Images"
-                    data-import-desc="Select one or more Fujifilm JPEG files. The recipe settings encoded in their EXIF data will be extracted and saved — the image files themselves are not stored.">
-              Import recipes from images
-            </button>
-            <button class="create-recipes-option open-import-modal-btn"
-                    data-import-url="{% url 'recipes-import-qr-cards' %}"
-                    data-import-title="Import Recipes from Cards"
-                    data-import-desc="Select one or more recipe-card JPEGs. The recipe encoded in each card's QR code will be extracted and saved — the card images themselves are not stored.">
-              Import recipes from recipe cards
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
 
     <!-- Import modal -->
     <div class="import-overlay" id="import-overlay" hidden>

@@ -1,0 +1,49 @@
+{% comment %}
+Image-gallery action toolbar rendered into the top-nav's right-hand slot
+(see _top_nav.html). Owned by the gallery page, not the header.
+{% endcomment %}
+
+{% comment %} View controls: label-mode (compact-only) + Grid/Compact switcher.
+Driven entirely client-side by compact-gallery.js. {% endcomment %}
+<div class="view-controls" id="view-controls">
+  <div class="size-control" id="size-control" hidden>
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+    {# min/max/step are kept in sync with MIN/MAX_ROW_HEIGHT in compact-gallery.js #}
+    <input type="range" id="size-slider" class="size-slider" min="120" max="500" step="20" aria-label="Thumbnail size">
+  </div>
+
+  <div class="label-mode" id="label-mode" hidden>
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.6 13.4l-7.2 7.2a2 2 0 0 1-2.8 0l-7.2-7.2a2 2 0 0 1-.6-1.4V4a2 2 0 0 1 2-2h8a2 2 0 0 1 1.4.6l6.4 6.4a2 2 0 0 1 0 2.8z"/><circle cx="7.5" cy="7.5" r="1.2" fill="#94a3b8" stroke="none"/></svg>
+    <div class="segmented-toggle segmented-toggle--subtle" role="group" aria-label="Recipe name labels">
+      <button type="button" class="segmented-toggle__option" data-label-mode="hover">On hover</button>
+      <button type="button" class="segmented-toggle__option" data-label-mode="always">Always</button>
+    </div>
+  </div>
+
+  <div class="segmented-toggle view-switcher" id="view-switcher" role="group" aria-label="Gallery layout">
+    <button type="button" class="segmented-toggle__option" data-view-mode="grid">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+      Grid
+    </button>
+    <button type="button" class="segmented-toggle__option" data-view-mode="compact">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="8" height="5" rx="1"/><rect x="13" y="3" width="8" height="5" rx="1"/><rect x="3" y="10" width="5" height="5" rx="1"/><rect x="10" y="10" width="11" height="5" rx="1"/><rect x="3" y="17" width="11" height="4" rx="1"/><rect x="16" y="17" width="5" height="4" rx="1"/></svg>
+      Compact
+    </button>
+  </div>
+</div>
+
+<div class="ms-toolbar" id="ms-toolbar" hidden>
+  <span class="ms-count">0 selected</span>
+  <button class="ms-cancel-btn" type="button">Cancel</button>
+  <div class="ms-actions-wrap">
+    <button class="ms-actions-btn" id="ms-actions-btn" type="button">
+      Actions
+      <svg width="10" height="6" viewBox="0 0 10 6" fill="none" aria-hidden="true">
+        <path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </button>
+    <div class="ms-actions-dropdown" id="ms-actions-dropdown" hidden>
+      <button class="ms-actions-option" id="ms-set-rating-btn" type="button">Set rating</button>
+    </div>
+  </div>
+</div>
