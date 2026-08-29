@@ -224,5 +224,5 @@ class CameraDiagnostics(generic.View):
         return shortcuts.render(
             request,
             "camera/diagnostics.html",
-            {"diagnostics": _DiagnosticsContext.build(), "active_section": "camera"},
+            {"diagnostics": _DiagnosticsContext.build(), "active_tab": "camera-diagnostics"},
         )

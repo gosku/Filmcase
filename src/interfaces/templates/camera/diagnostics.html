@@ -1,15 +1,10 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Camera Diagnostics</title>
-  <link rel="stylesheet" href="/static/css/brand.css">
-  <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { display: flex; flex-direction: column; font-family: sans-serif; min-height: 100vh; background: var(--color-bg-page); }
+{% extends "settings/base.html" %}
 
-    .main-content { flex: 1; padding: 2rem; max-width: 820px; }
+{% block title %}Camera Diagnostics{% endblock %}
+
+{% block extra_head %}
+  <style>
+    .main-content { padding: 2rem; max-width: 820px; }
 
     .page-title { font-size: 1.25rem; font-weight: 700; color: var(--color-text-primary); margin-bottom: 0.35rem; }
     .page-intro { font-size: 0.875rem; color: #6b7280; line-height: 1.5; margin-bottom: 1.75rem; }
@@ -81,10 +76,9 @@
     .note p + p { margin-top: 0.5rem; }
     .note code { font-family: ui-monospace, monospace; font-size: 0.78125rem; }
   </style>
-</head>
-<body>
-  {% include "_top_nav.html" %}
+{% endblock %}
 
+{% block settings_content %}
   <main class="main-content">
     <h1 class="page-title">Camera diagnostics</h1>
     <p class="page-intro">
@@ -177,7 +171,9 @@
       </p>
     </div>
   </main>
+{% endblock %}
 
+{% block extra_scripts %}
   <script type="module">
     import {
       ClientPTPUSBDevice,
@@ -345,5 +341,4 @@
         .addEventListener("click", function () { probe(false); });
     })();
   </script>
-</body>
-</html>
+{% endblock %}

@@ -145,7 +145,7 @@ class TestCameraClientTemplates:
         card = _soup(client, "/recipes/").find("template", id="camera-unavailable-template")
 
         assert card.select_one("[data-unavailable-reason]") is not None
-        assert card.find("a", href="/camera/diagnostics/") is not None
+        assert card.find("a", href="/settings/camera-diagnostics/") is not None
 
     def test_only_the_standalone_templates_carry_a_card(self, client, settings):
         # The contract send_to_camera.js depends on, worth stating because

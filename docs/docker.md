@@ -167,7 +167,7 @@ The image ships `libusb` for that second case. It is unused in browser mode.
 
 ### Checking what your browser can do
 
-`https://<FILMCASE_HOST>:8443/camera/diagnostics/` reports whether the page is a secure
+`https://<FILMCASE_HOST>:8443/settings/camera-diagnostics/` reports whether the page is a secure
 context, whether the browser exposes WebUSB, and whether it can select, open and claim the
 camera, and whether it can open a PTP session and read the model name. Run it before
 switching `CAMERA_TRANSPORT` to `browser`: it answers in one click whether this address and
