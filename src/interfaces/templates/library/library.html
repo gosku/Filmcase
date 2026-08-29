@@ -1,16 +1,10 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Image Library</title>
-  <script src="https://unpkg.com/htmx.org@2.0.4" integrity="sha384-HGfztofotfshcF7+8n44JQL2oJmowVChPTg48S+jvZoztPfvwD79OC/LTtG6dMp+" crossorigin="anonymous"></script>
-  <link rel="stylesheet" href="/static/css/brand.css">
-  <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { display: flex; flex-direction: column; font-family: sans-serif; min-height: 100vh; background: var(--color-bg-page); }
+{% extends "settings/base.html" %}
 
-    .main-content { flex: 1; padding: 2rem; max-width: 1200px; }
+{% block title %}Image Library{% endblock %}
+
+{% block extra_head %}
+  <style>
+    .main-content { padding: 2rem; max-width: 1200px; }
 
     .page-header {
       display: flex;
@@ -201,11 +195,9 @@
       min-height: 0;
     }
   </style>
-</head>
-<body>
+{% endblock %}
 
-{% include "_top_nav.html" with active_section="library" %}
-
+{% block settings_content %}
 <div class="main-content">
   <div class="page-header">
     <h1 class="page-title">Image Library</h1>
@@ -250,7 +242,9 @@
     <div id="browser-modal-content"></div>
   </div>
 </div>
+{% endblock %}
 
+{% block extra_scripts %}
 <script>
   function openBrowserModal(folderId, initialPath) {
     var url = '{% url "library-browse" %}';
@@ -291,6 +285,4 @@
       + String(d.getMinutes()).padStart(2, '0');
   });
 </script>
-
-</body>
-</html>
+{% endblock %}

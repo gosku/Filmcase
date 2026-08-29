@@ -10,7 +10,7 @@ class TestLibraryFolderIgnoredImages:
         folder = LibraryFolderFactory(path="/photos")
         IgnoredImageFactory(folder=folder, filepath="/photos/other_brand.jpg")
 
-        response = client.get(f"/library/{folder.pk}/ignored/")
+        response = client.get(f"/settings/library/{folder.pk}/ignored/")
 
         assert response.status_code == 200
         content = response.content.decode()
@@ -21,7 +21,7 @@ class TestLibraryFolderIgnoredImages:
         folder = LibraryFolderFactory(path="/photos")
         IgnoredImageFactory(folder=folder, filepath="/photos/other_brand.jpg")
 
-        response = client.get(f"/library/{folder.pk}/ignored/")
+        response = client.get(f"/settings/library/{folder.pk}/ignored/")
 
         assert "None of them has been deleted or changed" in response.content.decode()
 
@@ -34,7 +34,7 @@ class TestLibraryFolderIgnoredImages:
             detail="OSError: disk went away",
         )
 
-        response = client.get(f"/library/{folder.pk}/ignored/")
+        response = client.get(f"/settings/library/{folder.pk}/ignored/")
 
         content = response.content.decode()
         assert "Failed with an error" in content
@@ -50,7 +50,7 @@ class TestLibraryFolderIgnoredImages:
         )
 
         response = client.get(
-            f"/library/{folder.pk}/ignored/?reason={models.IgnoredImage.REASON_ERROR}"
+            f"/settings/library/{folder.pk}/ignored/?reason={models.IgnoredImage.REASON_ERROR}"
         )
 
         content = response.content.decode()
@@ -67,7 +67,7 @@ class TestLibraryFolderIgnoredImages:
             reason=models.IgnoredImage.REASON_ERROR,
         )
 
-        response = client.get(f"/library/{folder.pk}/ignored/")
+        response = client.get(f"/settings/library/{folder.pk}/ignored/")
 
         content = response.content.decode()
         assert "Not a Fujifilm photo 2" in content
@@ -79,7 +79,7 @@ class TestLibraryFolderIgnoredImages:
         for index in range(5):
             IgnoredImageFactory(folder=folder, filepath=f"/photos/{index}.jpg")
 
-        response = client.get(f"/library/{folder.pk}/ignored/")
+        response = client.get(f"/settings/library/{folder.pk}/ignored/")
 
         content = response.content.decode()
         assert "Page 1 of 3" in content
@@ -89,12 +89,12 @@ class TestLibraryFolderIgnoredImages:
         folder = LibraryFolderFactory(path="/photos")
         IgnoredImageFactory(folder=LibraryFolderFactory(path="/scans"), filepath="/scans/x.jpg")
 
-        response = client.get(f"/library/{folder.pk}/ignored/")
+        response = client.get(f"/settings/library/{folder.pk}/ignored/")
 
         assert "Nothing has been ignored in this folder" in response.content.decode()
 
     def test_returns_404_for_unknown_folder_id(self, client):
-        assert client.get("/library/9999/ignored/").status_code == 404
+        assert client.get("/settings/library/9999/ignored/").status_code == 404
 
 
 @pytest.mark.django_db
@@ -103,7 +103,7 @@ class TestRetryingIgnoredImages:
         folder = LibraryFolderFactory(path="/photos")
         ignored = IgnoredImageFactory(folder=folder, filepath="/photos/other_brand.jpg")
 
-        response = client.post(f"/library/ignored/{ignored.pk}/retry/")
+        response = client.post(f"/settings/library/ignored/{ignored.pk}/retry/")
 
         assert response.status_code == 302
         assert models.IgnoredImage.objects.count() == 0
@@ -111,14 +111,14 @@ class TestRetryingIgnoredImages:
     def test_per_row_retry_returns_to_the_page_it_came_from(self, client):
         folder = LibraryFolderFactory(path="/photos")
         ignored = IgnoredImageFactory(folder=folder, filepath="/photos/other_brand.jpg")
-        came_from = f"/library/{folder.pk}/ignored/?page=2"
+        came_from = f"/settings/library/{folder.pk}/ignored/?page=2"
 
-        response = client.post(f"/library/ignored/{ignored.pk}/retry/", {"next": came_from})
+        response = client.post(f"/settings/library/ignored/{ignored.pk}/retry/", {"next": came_from})
 
         assert response["Location"] == came_from
 
     def test_per_row_retry_returns_404_for_unknown_id(self, client):
-        assert client.post("/library/ignored/9999/retry/").status_code == 404
+        assert client.post("/settings/library/ignored/9999/retry/").status_code == 404
 
     def test_retry_all_errors_leaves_the_other_reasons_alone(self, client):
         folder = LibraryFolderFactory(path="/photos")
@@ -130,7 +130,7 @@ class TestRetryingIgnoredImages:
         )
 
         client.post(
-            f"/library/{folder.pk}/ignored/retry/",
+            f"/settings/library/{folder.pk}/ignored/retry/",
             {"reason": models.IgnoredImage.REASON_ERROR},
         )
 
@@ -145,19 +145,19 @@ class TestRetryingIgnoredImages:
             reason=models.IgnoredImage.REASON_ERROR,
         )
 
-        response = client.post(f"/library/{folder.pk}/ignored/retry/")
+        response = client.post(f"/settings/library/{folder.pk}/ignored/retry/")
 
         assert response.status_code == 302
         assert models.IgnoredImage.objects.count() == 0
 
     def test_bulk_retry_returns_404_for_unknown_folder(self, client):
-        assert client.post("/library/9999/ignored/retry/").status_code == 404
+        assert client.post("/settings/library/9999/ignored/retry/").status_code == 404
 
     def test_offers_retry_all_errors_only_when_there_are_errors(self, client):
         folder = LibraryFolderFactory(path="/photos")
         IgnoredImageFactory(folder=folder, filepath="/photos/other_brand.jpg")
 
-        response = client.get(f"/library/{folder.pk}/ignored/")
+        response = client.get(f"/settings/library/{folder.pk}/ignored/")
 
         assert "Retry all" not in response.content.decode()
 
@@ -165,7 +165,7 @@ class TestRetryingIgnoredImages:
         folder = LibraryFolderFactory(path="/photos")
         IgnoredImageFactory(folder=folder, filepath="/photos/other_brand.jpg")
 
-        response = client.get(f"/library/{folder.pk}/ignored/")
+        response = client.get(f"/settings/library/{folder.pk}/ignored/")
 
         assert "Only changes anything once the file itself has changed" in response.content.decode()
 
@@ -177,6 +177,6 @@ class TestRetryingIgnoredImages:
             reason=models.IgnoredImage.REASON_ERROR,
         )
 
-        response = client.get(f"/library/{folder.pk}/ignored/")
+        response = client.get(f"/settings/library/{folder.pk}/ignored/")
 
         assert "Only changes anything once" not in response.content.decode()

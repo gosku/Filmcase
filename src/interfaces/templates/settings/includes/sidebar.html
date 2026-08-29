@@ -1,0 +1,11 @@
+{% comment %}
+  Settings sidebar. Each tab is one line here; `active_tab` (set by the view)
+  decides which one is highlighted. Add a new tab by adding another anchor.
+{% endcomment %}
+<div class="settings-sidebar__heading">Settings</div>
+<nav class="settings-nav">
+  <a href="{% url 'library-list' %}"
+     class="settings-nav__item{% if active_tab == 'library' %} settings-nav__item--active{% endif %}">Library</a>
+  <a href="{% url 'camera-diagnostics' %}"
+     class="settings-nav__item{% if active_tab == 'camera-diagnostics' %} settings-nav__item--active{% endif %}">Camera Diagnostics</a>
+</nav>
