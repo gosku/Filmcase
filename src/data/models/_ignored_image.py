@@ -11,6 +11,10 @@ from ._library import LibraryFolder
 _IGNORED_NO_FILM_SIMULATION = "IGNORED_NO_FILM_SIMULATION"
 _IGNORED_INVALID_RECIPE_DATA = "IGNORED_INVALID_RECIPE_DATA"
 _IGNORED_ERROR = "IGNORED_ERROR"
+# Not an import failure: the file was imported and then removed from the gallery
+# by the user, who chose to keep it out. The ignore record is what stops the next
+# sync re-importing it.
+_IGNORED_USER_REMOVED = "IGNORED_USER_REMOVED"
 
 _PATH_MAX_LEN = 1024
 _CODE_MAX_LEN = 32
@@ -20,6 +24,7 @@ class IgnoredImage(models.Model):
     REASON_NO_FILM_SIMULATION = _IGNORED_NO_FILM_SIMULATION
     REASON_INVALID_RECIPE_DATA = _IGNORED_INVALID_RECIPE_DATA
     REASON_ERROR = _IGNORED_ERROR
+    REASON_USER_REMOVED = _IGNORED_USER_REMOVED
 
     folder = models.ForeignKey(
         LibraryFolder,
