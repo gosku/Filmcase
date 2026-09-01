@@ -243,6 +243,24 @@ def get_image_ids_no_longer_covered(*, folder_path: str) -> list[int]:
     return list(uncovered.order_by("id").values_list("id", flat=True))
 
 
+def get_owning_folder(*, filepath: str) -> models.LibraryFolder | None:
+    """
+    Return the registered library folder that *filepath* sits under, or None if
+    no folder covers it.
+
+    Folders may nest, so a file below ``/photos/2024`` is under both ``/photos``
+    and ``/photos/2024``. The most specific one owns it, so the folder with the
+    longest matching path prefix wins. Membership is purely lexical, the same
+    path-prefix inference the coverage queries above use (ADR 015).
+    """
+    owning: models.LibraryFolder | None = None
+    for folder in models.LibraryFolder.objects.all():
+        if filepath.startswith(_folder_prefix(path=folder.path)):
+            if owning is None or len(folder.path) > len(owning.path):
+                owning = folder
+    return owning
+
+
 def get_active_sync_run(*, folder_id: int) -> models.SyncRun | None:
     """
     Return the in-progress (scanning or processing) sync run for *folder_id*, or

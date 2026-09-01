@@ -5,6 +5,7 @@ from src.domain.library.queries import (
     count_exclusively_owned_images,
     get_image_ids_no_longer_covered,
     get_exclusively_owned_image_ids,
+    get_owning_folder,
 )
 from tests.factories import ImageFactory, LibraryFolderFactory
 
@@ -145,3 +146,30 @@ class TestOwnershipIncludesAPreviousPath:
         ImageFactory(filepath="/photos/2023/a.jpg")
 
         assert get_exclusively_owned_image_ids(folder_id=folder.pk) == []
+
+
+@pytest.mark.django_db
+class TestGetOwningFolder:
+    def test_returns_the_folder_a_file_sits_under(self):
+        folder = LibraryFolderFactory(path="/photos")
+
+        assert get_owning_folder(filepath="/photos/2024/DSCF0001.JPG") == folder
+
+    def test_returns_none_when_no_folder_covers_the_file(self):
+        LibraryFolderFactory(path="/photos")
+
+        assert get_owning_folder(filepath="/elsewhere/DSCF0001.JPG") is None
+
+    def test_returns_none_when_there_are_no_folders(self):
+        assert get_owning_folder(filepath="/photos/DSCF0001.JPG") is None
+
+    def test_the_most_specific_nested_folder_wins(self):
+        LibraryFolderFactory(path="/photos")
+        inner = LibraryFolderFactory(path="/photos/2024")
+
+        assert get_owning_folder(filepath="/photos/2024/DSCF0001.JPG") == inner
+
+    def test_does_not_claim_a_sibling_sharing_the_name_as_a_prefix(self):
+        LibraryFolderFactory(path="/photos")
+
+        assert get_owning_folder(filepath="/photos-old/DSCF0001.JPG") is None
