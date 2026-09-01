@@ -7,6 +7,7 @@ from django import http
 from django import shortcuts
 from django.views import generic
 
+from src.application.usecases.images import remove_images as remove_images_uc
 from src.application.usecases.images import set_images_rating as set_images_rating_uc
 from src.data import models
 from src.domain.images import filter_queries
@@ -232,6 +233,43 @@ class SetImagesRating(generic.View):
                 "not_found_count": result.not_found_count,
                 "rating": rating,
                 "all_succeeded": result.not_found_count == 0,
+            },
+        )
+
+
+class RemoveImages(generic.View):
+    """
+    Remove a batch of selected images from the gallery.
+
+    Images under a registered library folder are also added to that folder's
+    ignore list so a later sync does not re-import them; no file is deleted from
+    disk. Returns an HTML result fragment for the multi-select modal.
+    """
+
+    def post(self, request: http.HttpRequest) -> http.HttpResponse:
+        image_ids_raw = request.POST.getlist("image_ids")
+        try:
+            image_ids = [int(pk) for pk in image_ids_raw]
+        except (ValueError, TypeError):
+            return http.HttpResponseBadRequest("image_ids must be integers")
+
+        try:
+            result = remove_images_uc.remove_images_from_gallery(image_ids=image_ids)
+        except Exception:
+            structlog.get_logger().exception("Unexpected error in RemoveImages.post")
+            return shortcuts.render(
+                request,
+                "images/partials/remove_images_result.html",
+                {"error": "An unexpected error occurred. Please try again."},
+            )
+        return shortcuts.render(
+            request,
+            "images/partials/remove_images_result.html",
+            {
+                "removed_count": result.removed_count,
+                "ignored_count": result.ignored_count,
+                "not_found_count": result.not_found_count,
+                "all_succeeded": result.all_succeeded,
             },
         )
 

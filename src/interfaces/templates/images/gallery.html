@@ -816,6 +816,96 @@
   }());
 </script>
 
+<!-- Remove images modal -->
+<div class="import-overlay" id="remove-images-overlay" hidden>
+  <div class="import-modal" role="dialog" aria-modal="true" aria-labelledby="remove-images-modal-title">
+    <button class="import-modal__close" id="close-remove-images-btn" aria-label="Close">&#x2715;</button>
+    <div id="remove-images-modal-body">
+      <h2 id="remove-images-modal-title">Remove Images</h2>
+      <p class="import-modal__desc">
+        Remove these <strong id="remove-images-count">0</strong> images from the gallery?
+      </p>
+      <p class="import-modal__desc">
+        Images inside a library folder are also added to that folder's ignore list,
+        so a later sync will not bring them back. You can undo that from the
+        folder's ignored files. Images outside any library folder are just removed.
+        No file is deleted from disk.
+      </p>
+      <form id="remove-images-form"
+            hx-post="{% url 'images-remove' %}"
+            hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+            hx-target="#remove-images-modal-body"
+            hx-swap="innerHTML">
+        <div id="remove-images-pks-container"></div>
+        <div class="delete-confirm__actions">
+          <button type="button" class="delete-confirm__no-btn" id="remove-images-cancel-btn">Cancel</button>
+          <button type="submit" class="delete-confirm__yes-btn" id="remove-images-confirm-btn">Remove</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+  (function () {
+    var overlay       = document.getElementById('remove-images-overlay');
+    var closeBtn      = document.getElementById('close-remove-images-btn');
+    var _allSucceeded = false;
+
+    // Snapshot the confirm form once so we can restore it after a submission
+    // replaces the modal body with the result partial.
+    var _confirmHTML = document.getElementById('remove-images-modal-body').innerHTML;
+
+    function handleClose() {
+      overlay.hidden = true;
+      if (_allSucceeded) {
+        _allSucceeded = false;
+        location.reload();
+      }
+    }
+
+    function openModal() {
+      _allSucceeded = false;
+
+      // Restore the confirm form (in case a previous submission replaced it).
+      var body = document.getElementById('remove-images-modal-body');
+      body.innerHTML = _confirmHTML;
+      htmx.process(body);
+
+      var pks = imageMultiSelect.getSelectedPks();
+      document.getElementById('remove-images-count').textContent = pks.length;
+      var container = document.getElementById('remove-images-pks-container');
+      pks.forEach(function (pk) {
+        var input = document.createElement('input');
+        input.type  = 'hidden';
+        input.name  = 'image_ids';
+        input.value = pk;
+        container.appendChild(input);
+      });
+
+      overlay.hidden = false;
+      document.getElementById('ms-actions-dropdown').hidden = true;
+    }
+
+    document.getElementById('ms-remove-btn').addEventListener('click', openModal);
+    closeBtn.addEventListener('click', handleClose);
+
+    // Delegate Cancel button and backdrop clicks (Cancel is inside the modal
+    // body and gets replaced by HTMX after a submission).
+    overlay.addEventListener('click', function (e) {
+      if (e.target === overlay || e.target.closest('#remove-images-cancel-btn')) {
+        handleClose();
+      }
+    });
+
+    document.body.addEventListener('htmx:afterSwap', function (e) {
+      if (e.detail.target.id !== 'remove-images-modal-body') return;
+      var resultEl = e.detail.target.querySelector('[data-all-succeeded]');
+      _allSucceeded = !!(resultEl && resultEl.dataset.allSucceeded === 'true');
+    });
+  }());
+</script>
+
 <script>
   // Multi-select recipe dropdown with search and removable tags.
   // Tom Select hides the original <select multiple>, so we relay its onChange
