@@ -581,6 +581,16 @@ def get_images_for_recipe(*, recipe_id: int) -> list[int]:
     )
 
 
+def get_images_by_ids(*, image_ids: Sequence[int]) -> list[models.Image]:
+    """
+    Return the Image rows for *image_ids* that exist, ordered by id.
+
+    Ids with no matching row are simply absent from the result, so the caller
+    can tell which were found by length or membership.
+    """
+    return list(models.Image.objects.filter(pk__in=image_ids).order_by("id"))
+
+
 class Duration(str, enum.Enum):
     WEEK = "week"
     MONTH = "month"
