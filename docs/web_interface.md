@@ -63,6 +63,10 @@ thousands of "not a Fujifilm photo" entries. You can retry one file, retry every
 retry everything. Retrying a non-Fujifilm file that has not changed does nothing, and the page says
 so on the row.
 
+Images you [remove from the gallery](#212-bulk-actions) that came from inside a folder also appear
+here, under **Removed from the gallery**. Retrying one un-ignores it, so the next sync imports it
+again (its previous rating, favourite and album membership are not restored).
+
 ### 1.3 Automatic sync on startup
 
 Every time you start the app with `make start`, Filmcase runs a sync pass across all
@@ -123,6 +127,11 @@ mode, then open the _Actions_ menu to choose what to do with the selection.
   in the image detail view. Pick a rating (or the ✕ to clear it) and confirm to apply it to
   every selected image at once. The gallery reloads when you close the modal so the updated
   star counts appear on the cards.
+- **Remove**: a modal asks you to confirm removing the selected images from the gallery. No
+  file is ever deleted from disk. An image whose file sits inside a registered library folder
+  is also added to that folder's ignore list, so a later sync does not re-import it; you can
+  undo that from the folder's [ignored files](#12-files-that-could-not-be-imported). An image outside any library
+  folder is simply removed. The gallery reloads when you close the modal.
 
 ---
 

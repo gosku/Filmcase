@@ -1,0 +1,31 @@
+{% if error %}
+<div class="remove-result remove-result--error" data-all-succeeded="false">
+  <p class="remove-result__message">{{ error }}</p>
+</div>
+
+{% else %}
+<div class="remove-result" data-all-succeeded="{{ all_succeeded|yesno:'true,false' }}">
+  {% if removed_count %}
+  <p class="remove-result__message remove-result__message--success">
+    {{ removed_count }} image{{ removed_count|pluralize }} removed.
+  </p>
+  {% endif %}
+
+  {% if ignored_count %}
+  <p class="remove-result__message">
+    {{ ignored_count }} added to the ignore list so a later sync will not bring
+    {% if ignored_count == 1 %}it{% else %}them{% endif %} back.
+  </p>
+  {% endif %}
+
+  {% if not_found_count %}
+  <p class="remove-result__message remove-result__message--warning">
+    {{ not_found_count }} image{{ not_found_count|pluralize }} could not be found.
+  </p>
+  {% endif %}
+
+  {% if not removed_count and not not_found_count %}
+  <p class="remove-result__message">No images were removed.</p>
+  {% endif %}
+</div>
+{% endif %}

@@ -219,10 +219,15 @@ _IGNORED_REASON_LABELS = {
     models.IgnoredImage.REASON_NO_FILM_SIMULATION: "Not a Fujifilm photo",
     models.IgnoredImage.REASON_INVALID_RECIPE_DATA: "Recipe could not be read",
     models.IgnoredImage.REASON_ERROR: "Failed with an error",
+    models.IgnoredImage.REASON_USER_REMOVED: "Removed from the gallery",
 }
-# Only an error is worth retrying by hand. The other two are verdicts on the
-# file's own contents, so an unchanged file gets the same verdict again.
-_RETRY_CHANGES_SOMETHING = {models.IgnoredImage.REASON_ERROR}
+# An error is worth retrying by hand, and a user-removed file is un-ignored to
+# let the next sync import it again. The other two are verdicts on the file's own
+# contents, so an unchanged file gets the same verdict again.
+_RETRY_CHANGES_SOMETHING = {
+    models.IgnoredImage.REASON_ERROR,
+    models.IgnoredImage.REASON_USER_REMOVED,
+}
 
 
 def _ignored_image_data(ignored: models.IgnoredImage) -> library_dataclasses.IgnoredImageData:

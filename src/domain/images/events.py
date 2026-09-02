@@ -33,11 +33,12 @@ TASK_IMAGE_COMPLETED = "task.image.completed"
 SKIP_REASON_NO_FILM_SIMULATION = "no_film_simulation"
 SKIP_REASON_INVALID_RECIPE_DATA = "invalid_recipe_data"
 
-# Values carried on the `reason` field of IMAGE_REMOVED. Both mean the catalog
-# entry was removed; neither involves deleting the file from disk.
+# Values carried on the `reason` field of IMAGE_REMOVED. All mean the catalog
+# entry was removed; none involves deleting the file from disk.
 REMOVE_REASON_FILE_MISSING = "file_missing"
 REMOVE_REASON_FOLDER_REMOVED = "folder_removed"
 REMOVE_REASON_NO_LONGER_IN_LIBRARY = "no_longer_in_library"
+REMOVE_REASON_USER_REMOVED = "user_removed"
 
 
 def publish_event(*, event_type: str, **kwargs: object) -> None:
