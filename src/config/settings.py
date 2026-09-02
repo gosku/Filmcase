@@ -128,6 +128,17 @@ THUMBNAIL_WIDTHS: tuple[int, ...] = tuple(env.list("THUMBNAIL_WIDTHS", subcast=i
 LIBRARY_PRUNE_GUARD_FRACTION: float = env.float("LIBRARY_PRUNE_GUARD_FRACTION", default=1.0)
 LIBRARY_PRUNE_GUARD_MIN_IMAGES: int = env.int("LIBRARY_PRUNE_GUARD_MIN_IMAGES", default=9999999)
 
+# Directories whose name starts with any of these comma-separated prefixes are skipped entirely by
+# the library scan and the folder browser: the walk never descends into them, so the files inside
+# are never read, hashed, imported, or recorded as ignored. The defaults cover machine-generated
+# junk that never holds user photos: '.' (Linux/macOS hidden dirs such as .Trash-*, .Spotlight-V100,
+# .AppleDouble), '@' (Synology @eaDir, QNAP @Recycle), '#' (Synology #recycle), '$' (Windows
+# $RECYCLE.BIN), 'System Volume Information' (Windows), and '__MACOSX' (macOS zip artifacts). The
+# match is a plain prefix, so '@' also hides a folder a user named '@work'.
+LIBRARY_IGNORED_DIRECTORY_PREFIXES: str = env.str(
+    "LIBRARY_IGNORED_DIRECTORY_PREFIXES", default=".,@,#,$,System Volume Information,__MACOSX"
+)
+
 
 TEMPLATES = [
     {
@@ -204,6 +215,7 @@ CONSTANCE_CONFIG: dict[str, tuple[object, str, type]] = {
     "LIBRARY_PRUNE_GUARD_FRACTION": (LIBRARY_PRUNE_GUARD_FRACTION, "A sync that finds more than this share (0-1) of a folder's images missing reports the removal instead of applying it, guarding against an unmounted drive. 1.0 disables the guard.", float),
     "LIBRARY_PRUNE_GUARD_MIN_IMAGES": (LIBRARY_PRUNE_GUARD_MIN_IMAGES, "The prune guard only engages once at least this many images are missing (paired with the fraction above; both must be exceeded). A very high value disables the guard.", int),
     "SYNC_IMAGE_BATCH_SIZE": (SYNC_IMAGE_BATCH_SIZE, "How many images are handed to the worker per batch during a library sync.", int),
+    "LIBRARY_IGNORED_DIRECTORY_PREFIXES": (LIBRARY_IGNORED_DIRECTORY_PREFIXES, "Comma-separated directory-name prefixes to skip during a scan and in the folder browser. A directory whose name starts with any of these is not descended into, so nothing inside it is imported or recorded as ignored (e.g. Synology '@eaDir', Windows '$RECYCLE.BIN'). The match is a plain prefix, so '@' also hides a folder named '@work'.", str),
 }
 
 CONSTANCE_CONFIG_FIELDSETS: dict[str, tuple[str, ...]] = {
@@ -222,6 +234,7 @@ CONSTANCE_CONFIG_FIELDSETS: dict[str, tuple[str, ...]] = {
         "LIBRARY_PRUNE_GUARD_FRACTION",
         "LIBRARY_PRUNE_GUARD_MIN_IMAGES",
         "SYNC_IMAGE_BATCH_SIZE",
+        "LIBRARY_IGNORED_DIRECTORY_PREFIXES",
     ),
     "Camera": (
         "CAMERA_TRANSPORT",

@@ -24,6 +24,7 @@ SAMPLE = AppSettings(
     library_prune_guard_fraction=0.5,
     library_prune_guard_min_images=20,
     sync_image_batch_size=50,
+    library_ignored_directory_prefixes=(".", "@"),
 )
 
 
@@ -33,6 +34,14 @@ class TestSerializeWidths:
 
     def test_renders_a_single_width(self) -> None:
         assert operations._serialize_widths((600,)) == "600"
+
+
+class TestSerializePrefixes:
+    def test_joins_prefixes_with_commas(self) -> None:
+        assert operations._serialize_prefixes((".", "@", "#")) == ".,@,#"
+
+    def test_renders_an_empty_tuple_as_an_empty_string(self) -> None:
+        assert operations._serialize_prefixes(()) == ""
 
 
 class TestUpdateAppSettings:
@@ -46,6 +55,7 @@ class TestUpdateAppSettings:
         assert fake_config.CAMERA_MAX_RETRIES == 4
         # The tuple is serialized to the comma-separated string constance stores.
         assert fake_config.THUMBNAIL_WIDTHS == "600,1200"
+        assert fake_config.LIBRARY_IGNORED_DIRECTORY_PREFIXES == ".,@"
 
     def test_publishes_an_event_describing_the_saved_settings(self, captured_logs) -> None:
         with patch("src.domain.settings.operations.config", MagicMock()):
@@ -57,3 +67,4 @@ class TestUpdateAppSettings:
         assert updated[0]["camera_transport"] == "browser"
         # thumbnail_widths is logged as the serialized string, not the tuple.
         assert updated[0]["thumbnail_widths"] == "600,1200"
+        assert updated[0]["library_ignored_directory_prefixes"] == ".,@"

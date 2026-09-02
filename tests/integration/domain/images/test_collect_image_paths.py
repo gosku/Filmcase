@@ -52,6 +52,38 @@ class TestCollectImagePaths:
         assert "top.jpg" in filenames
         assert "nested.jpg" in filenames
 
+    def test_does_not_descend_into_an_ignored_prefix_directory(self, tmp_path):
+        # @eaDir matches the default '@' prefix, so the Synology thumbnails inside
+        # it must never be returned, while sibling real photos still are.
+        junk = tmp_path / "@eaDir"
+        junk.mkdir()
+        (junk / "thumb.jpg").write_bytes(b"\xff\xd8")
+        (tmp_path / "photo.jpg").write_bytes(b"\xff\xd8")
+
+        paths = collect_image_paths(folder=str(tmp_path))
+
+        assert paths == [str(tmp_path / "photo.jpg")]
+
+    def test_does_not_descend_into_a_hidden_directory(self, tmp_path):
+        hidden = tmp_path / ".Trash-1000"
+        hidden.mkdir()
+        (hidden / "deleted.jpg").write_bytes(b"\xff\xd8")
+        (tmp_path / "photo.jpg").write_bytes(b"\xff\xd8")
+
+        paths = collect_image_paths(folder=str(tmp_path))
+
+        assert paths == [str(tmp_path / "photo.jpg")]
+
+    def test_prunes_ignored_directories_at_any_depth(self, tmp_path):
+        nested = tmp_path / "2026" / "@eaDir"
+        nested.mkdir(parents=True)
+        (nested / "thumb.jpg").write_bytes(b"\xff\xd8")
+        (tmp_path / "2026" / "photo.jpg").write_bytes(b"\xff\xd8")
+
+        paths = collect_image_paths(folder=str(tmp_path))
+
+        assert paths == [str(tmp_path / "2026" / "photo.jpg")]
+
     def test_returns_absolute_paths(self, tmp_path):
         (tmp_path / "photo.jpg").write_bytes(b"\xff\xd8")
 

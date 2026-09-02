@@ -24,6 +24,7 @@ SAMPLE = AppSettings(
     library_prune_guard_fraction=0.5,
     library_prune_guard_min_images=20,
     sync_image_batch_size=50,
+    library_ignored_directory_prefixes=(".", "@"),
 )
 
 

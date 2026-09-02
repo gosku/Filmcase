@@ -11,7 +11,8 @@ class AppSettings:
 
     Field names match the constance keys in ``settings.CONSTANCE_CONFIG`` in
     lower snake case; ``thumbnail_widths`` is held as a tuple here even though
-    constance stores it as a comma-separated string.
+    constance stores it as a comma-separated string, and
+    ``library_ignored_directory_prefixes`` likewise.
     """
 
     camera_transport: str
@@ -34,3 +35,4 @@ class AppSettings:
     library_prune_guard_fraction: float
     library_prune_guard_min_images: int
     sync_image_batch_size: int
+    library_ignored_directory_prefixes: tuple[str, ...]

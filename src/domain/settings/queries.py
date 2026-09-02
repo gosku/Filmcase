@@ -9,6 +9,8 @@ type it cannot, and give one place to stub the store in tests.
 """
 from __future__ import annotations
 
+from collections.abc import Iterable
+
 from constance import config
 
 from src.domain.settings.dataclasses import AppSettings
@@ -19,6 +21,28 @@ def _parse_widths(raw: str) -> tuple[int, ...]:
     Turn the comma-separated ``THUMBNAIL_WIDTHS`` string into a tuple of ints.
     """
     return tuple(int(part) for part in raw.split(",") if part.strip())
+
+
+def _parse_prefixes(raw: str) -> tuple[str, ...]:
+    """
+    Turn the comma-separated ``LIBRARY_IGNORED_DIRECTORY_PREFIXES`` string into a
+    tuple of prefixes, dropping blank entries.
+
+    Blank entries are dropped deliberately: an empty prefix would make
+    ``str.startswith`` match every directory name and skip the whole tree.
+    """
+    return tuple(part.strip() for part in raw.split(",") if part.strip())
+
+
+def directory_name_is_ignored(*, name: str, prefixes: Iterable[str]) -> bool:
+    """
+    Return whether directory *name* begins with any of the ignored *prefixes*.
+
+    This is the single rule both library walks share. The match is a plain
+    prefix test, so an entry of ``@`` hides a Synology ``@eaDir`` as well as a
+    directory a user deliberately named ``@work``.
+    """
+    return name.startswith(tuple(prefixes))
 
 
 def get_camera_transport() -> str:
@@ -121,6 +145,11 @@ def get_sync_image_batch_size() -> int:
     return value
 
 
+def get_library_ignored_directory_prefixes() -> tuple[str, ...]:
+    raw: str = config.LIBRARY_IGNORED_DIRECTORY_PREFIXES
+    return _parse_prefixes(raw)
+
+
 def get_app_settings() -> AppSettings:
     """
     Read every dynamic setting into a single typed ``AppSettings`` value.
@@ -146,4 +175,5 @@ def get_app_settings() -> AppSettings:
         library_prune_guard_fraction=get_library_prune_guard_fraction(),
         library_prune_guard_min_images=get_library_prune_guard_min_images(),
         sync_image_batch_size=get_sync_image_batch_size(),
+        library_ignored_directory_prefixes=get_library_ignored_directory_prefixes(),
     )

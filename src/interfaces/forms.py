@@ -205,6 +205,7 @@ class Preferences(forms.Form):
     library_prune_guard_fraction = forms.FloatField(validators=_FRACTION)
     library_prune_guard_min_images = forms.IntegerField(validators=_NON_NEGATIVE)
     sync_image_batch_size = forms.IntegerField(validators=_POSITIVE)
+    library_ignored_directory_prefixes = forms.CharField(required=False)
 
     def __init__(self, *args: object, **kwargs: object) -> None:
         super().__init__(*args, **kwargs)  # type: ignore[arg-type]
@@ -240,6 +241,7 @@ class Preferences(forms.Form):
             "library_prune_guard_fraction": values.library_prune_guard_fraction,
             "library_prune_guard_min_images": values.library_prune_guard_min_images,
             "sync_image_batch_size": values.sync_image_batch_size,
+            "library_ignored_directory_prefixes": ",".join(values.library_ignored_directory_prefixes),
         }
 
     def clean_thumbnail_widths(self) -> tuple[int, ...]:
@@ -257,6 +259,13 @@ class Preferences(forms.Form):
                 raise forms.ValidationError("Widths must be greater than zero.")
             widths.append(width)
         return tuple(widths)
+
+    def clean_library_ignored_directory_prefixes(self) -> tuple[str, ...]:
+        # An empty value is allowed: it means nothing is skipped. Blank entries
+        # are dropped so a stray comma cannot introduce an empty prefix, which
+        # would match every directory name.
+        raw: str = self.cleaned_data["library_ignored_directory_prefixes"]
+        return tuple(part.strip() for part in raw.split(",") if part.strip())
 
     def to_app_settings(self) -> AppSettings:
         """
@@ -286,4 +295,5 @@ class Preferences(forms.Form):
             library_prune_guard_fraction=data["library_prune_guard_fraction"],
             library_prune_guard_min_images=data["library_prune_guard_min_images"],
             sync_image_batch_size=data["sync_image_batch_size"],
+            library_ignored_directory_prefixes=data["library_ignored_directory_prefixes"],
         )

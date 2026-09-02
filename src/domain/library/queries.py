@@ -6,6 +6,7 @@ import attrs
 from django.db.models import Count, Q, QuerySet
 
 from src.data import models
+from src.domain.settings import queries as settings_queries
 
 
 @attrs.frozen
@@ -142,7 +143,10 @@ def get_library_folder(*, folder_id: int) -> models.LibraryFolder:
 def list_subdirectories(*, path: str) -> tuple[str, ...]:
     """
     Return absolute paths of immediate subdirectories at *path*, sorted
-    alphabetically, excluding hidden directories (those starting with '.').
+    alphabetically, excluding directories whose name matches a configured
+    ignored prefix (see ``get_library_ignored_directory_prefixes``). This is the
+    same rule the scan uses, so junk such as hidden dirs and Synology ``@eaDir``
+    folders is not offered when browsing for a folder to add.
 
     :raises FolderNotFound: If *path* does not exist or is not a directory.
     """
@@ -150,10 +154,12 @@ def list_subdirectories(*, path: str) -> tuple[str, ...]:
     if not root.is_dir():
         raise FolderNotFound(path=path)
 
+    prefixes = settings_queries.get_library_ignored_directory_prefixes()
     entries = sorted(
         str(entry)
         for entry in root.iterdir()
-        if entry.is_dir() and not entry.name.startswith(".")
+        if entry.is_dir()
+        and not settings_queries.directory_name_is_ignored(name=entry.name, prefixes=prefixes)
     )
     return tuple(entries)
 
