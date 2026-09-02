@@ -19,6 +19,7 @@ from src.domain.images import filter_queries
 from src.domain.images import recipe_values
 from src.domain.recipes import constants as recipe_constants
 from src.domain.recipes import normalization as recipe_normalization
+from src.domain.settings import queries as settings_queries
 
 class ImageNotFound(Exception):
     """
@@ -437,12 +438,18 @@ def collect_image_paths(*, folder: str) -> list[str]:
     """
     Return absolute paths of all JPG files inside *folder* (recursively).
 
-    The whole tree is walked every time. Directory mtimes are deliberately not
-    used to skip anything: renaming a directory updates its parent's mtime and
-    not its own, so a gated walk never revisits a renamed subtree, which would
-    leave every image under it pointing at a path that no longer exists. The
-    expensive part of an import (reading EXIF and hashing) is already avoided by
-    diffing against the known catalog paths, so the walk costs little.
+    Directories whose name matches a configured ignored prefix (see
+    ``get_library_ignored_directory_prefixes``) are pruned from the walk
+    wholesale: it never descends into them, so nothing inside is read, hashed,
+    imported, or recorded as ignored. This keeps machine-generated junk such as
+    Synology ``@eaDir`` thumbnail folders out of the scan entirely.
+
+    The rest of the tree is walked every time. Directory mtimes are deliberately
+    not used to skip anything: renaming a directory updates its parent's mtime
+    and not its own, so a gated walk never revisits a renamed subtree, which
+    would leave every image under it pointing at a path that no longer exists.
+    The expensive part of an import (reading EXIF and hashing) is already avoided
+    by diffing against the known catalog paths, so the walk costs little.
 
     :raises FileNotFoundError: If *folder* does not exist or is not a directory.
     """
@@ -450,9 +457,17 @@ def collect_image_paths(*, folder: str) -> list[str]:
     if not root.is_dir():
         raise FileNotFoundError(f"Directory not found: {folder}")
 
+    prefixes = settings_queries.get_library_ignored_directory_prefixes()
     extensions = {".jpg", ".jpeg"}
     paths: list[str] = []
-    for dirpath, _dirnames, filenames in os.walk(root):
+    for dirpath, dirnames, filenames in os.walk(root):
+        # Mutate dirnames in place so os.walk skips the pruned subtrees. Rebinding
+        # the name instead would be a silent no-op and descend into everything.
+        dirnames[:] = [
+            name
+            for name in dirnames
+            if not settings_queries.directory_name_is_ignored(name=name, prefixes=prefixes)
+        ]
         for fname in filenames:
             if Path(fname).suffix.lower() in extensions:
                 paths.append(os.path.join(dirpath, fname))
