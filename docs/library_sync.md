@@ -24,6 +24,15 @@ between the discovered paths and the catalog snapshot: only files not yet in the
 processed. This means re-running the command is always safe; existing entries are never
 duplicated or overwritten.
 
+**Skipped directories.** Directories whose name starts with any of the prefixes in
+`LIBRARY_IGNORED_DIRECTORY_PREFIXES` are pruned from the walk entirely: nothing inside them is
+read, imported, or recorded as ignored. The default set covers machine-generated folders that
+never hold your photos, such as Synology `@eaDir` thumbnail caches, QNAP `@Recycle`, Windows
+`$RECYCLE.BIN` and `System Volume Information`, and hidden dot-directories. The same rule is
+used by the folder browser when you pick a folder to add. Edit the prefixes on Settings >
+Preferences > Library. The match is a plain prefix, so `@` also hides a folder you named
+`@work`.
+
 **Deduplication across overlapping folders.** If two registered folders overlap (for example,
 `/Photos` and `/Photos/2024`), a file discovered in the first folder is not processed again
 when the second folder is scanned. The command tracks every path seen so far across the whole
