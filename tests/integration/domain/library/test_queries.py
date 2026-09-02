@@ -70,6 +70,15 @@ class TestListSubdirectories:
 
         assert result == (str(tmp_path / "visible"),)
 
+    def test_excludes_directories_matching_an_ignored_prefix(self, tmp_path):
+        # @eaDir matches the default '@' prefix, so it is not offered when browsing.
+        (tmp_path / "visible").mkdir()
+        (tmp_path / "@eaDir").mkdir()
+
+        result = list_subdirectories(path=str(tmp_path))
+
+        assert result == (str(tmp_path / "visible"),)
+
     def test_excludes_files(self, tmp_path):
         (tmp_path / "subdir").mkdir()
         (tmp_path / "file.txt").write_text("x")
