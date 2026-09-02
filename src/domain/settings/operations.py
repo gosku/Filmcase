@@ -21,6 +21,14 @@ def _serialize_widths(widths: tuple[int, ...]) -> str:
     return ",".join(str(width) for width in widths)
 
 
+def _serialize_prefixes(prefixes: tuple[str, ...]) -> str:
+    """
+    Render ignored directory prefixes as the comma-separated string constance
+    stores.
+    """
+    return ",".join(prefixes)
+
+
 def update_app_settings(*, values: AppSettings) -> None:
     """
     Persist every dynamic setting to the database-backed store.
@@ -45,6 +53,7 @@ def update_app_settings(*, values: AppSettings) -> None:
     config.LIBRARY_PRUNE_GUARD_FRACTION = values.library_prune_guard_fraction
     config.LIBRARY_PRUNE_GUARD_MIN_IMAGES = values.library_prune_guard_min_images
     config.SYNC_IMAGE_BATCH_SIZE = values.sync_image_batch_size
+    config.LIBRARY_IGNORED_DIRECTORY_PREFIXES = _serialize_prefixes(values.library_ignored_directory_prefixes)
 
     events.publish_event(
         event_type=events.APP_SETTINGS_UPDATED,
@@ -68,4 +77,5 @@ def update_app_settings(*, values: AppSettings) -> None:
         library_prune_guard_fraction=values.library_prune_guard_fraction,
         library_prune_guard_min_images=values.library_prune_guard_min_images,
         sync_image_batch_size=values.sync_image_batch_size,
+        library_ignored_directory_prefixes=_serialize_prefixes(values.library_ignored_directory_prefixes),
     )

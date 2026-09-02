@@ -25,6 +25,7 @@ def _valid_payload(**overrides: str) -> dict[str, str]:
         "library_prune_guard_fraction": "1.0",
         "library_prune_guard_min_images": "9999999",
         "sync_image_batch_size": "100",
+        "library_ignored_directory_prefixes": ".,@",
     }
     payload.update(overrides)
     return payload
@@ -62,6 +63,11 @@ class TestSavingPreferences:
         client.post(URL, data=_valid_payload(thumbnail_widths="600, 1200, 2400"))
 
         assert settings_queries.get_thumbnail_widths() == (600, 1200, 2400)
+
+    def test_post_round_trips_ignored_directory_prefixes(self, client) -> None:
+        client.post(URL, data=_valid_payload(library_ignored_directory_prefixes=". , @, #recycle"))
+
+        assert settings_queries.get_library_ignored_directory_prefixes() == (".", "@", "#recycle")
 
     def test_invalid_value_is_rejected_and_not_saved(self, client) -> None:
         response = client.post(URL, data=_valid_payload(image_max_rating="0"))

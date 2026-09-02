@@ -27,6 +27,7 @@ _ALL_VALUES = {
     "LIBRARY_PRUNE_GUARD_FRACTION": 0.5,
     "LIBRARY_PRUNE_GUARD_MIN_IMAGES": 20,
     "SYNC_IMAGE_BATCH_SIZE": 50,
+    "LIBRARY_IGNORED_DIRECTORY_PREFIXES": ".,@",
 }
 
 
@@ -50,6 +51,55 @@ class TestGetThumbnailWidths:
     def test_returns_the_parsed_tuple(self) -> None:
         with patch("src.domain.settings.queries.config", _fake_config(THUMBNAIL_WIDTHS="600,1200")):
             assert queries.get_thumbnail_widths() == (600, 1200)
+
+
+class TestParsePrefixes:
+    def test_parses_a_single_prefix(self) -> None:
+        assert queries._parse_prefixes(".") == (".",)
+
+    def test_parses_several_prefixes(self) -> None:
+        assert queries._parse_prefixes(".,@,#") == (".", "@", "#")
+
+    def test_strips_whitespace_and_drops_blank_entries(self) -> None:
+        assert queries._parse_prefixes(". , ,@") == (".", "@")
+
+    def test_keeps_multi_character_prefixes_with_spaces(self) -> None:
+        assert queries._parse_prefixes("System Volume Information,__MACOSX") == (
+            "System Volume Information",
+            "__MACOSX",
+        )
+
+    def test_empty_string_yields_no_prefixes(self) -> None:
+        assert queries._parse_prefixes("") == ()
+
+
+class TestDirectoryNameIsIgnored:
+    def test_matches_a_configured_prefix(self) -> None:
+        assert queries.directory_name_is_ignored(name="@eaDir", prefixes=(".", "@")) is True
+
+    def test_prefix_matches_anywhere_a_name_begins(self) -> None:
+        # A plain prefix test, so '@' also hides a deliberately named '@work'.
+        assert queries.directory_name_is_ignored(name="@work", prefixes=("@",)) is True
+
+    def test_does_not_match_an_unrelated_name(self) -> None:
+        assert queries.directory_name_is_ignored(name="2026", prefixes=(".", "@")) is False
+
+    def test_matches_a_multi_character_prefix(self) -> None:
+        assert queries.directory_name_is_ignored(
+            name="System Volume Information", prefixes=("System Volume Information",)
+        ) is True
+
+    def test_no_prefixes_never_matches(self) -> None:
+        assert queries.directory_name_is_ignored(name="@eaDir", prefixes=()) is False
+
+
+class TestGetLibraryIgnoredDirectoryPrefixes:
+    def test_returns_the_parsed_tuple(self) -> None:
+        with patch(
+            "src.domain.settings.queries.config",
+            _fake_config(LIBRARY_IGNORED_DIRECTORY_PREFIXES=".,@,#"),
+        ):
+            assert queries.get_library_ignored_directory_prefixes() == (".", "@", "#")
 
 
 class TestGetCameraTransport:
@@ -84,4 +134,5 @@ class TestGetAppSettings:
             library_prune_guard_fraction=0.5,
             library_prune_guard_min_images=20,
             sync_image_batch_size=50,
+            library_ignored_directory_prefixes=(".", "@"),
         )
