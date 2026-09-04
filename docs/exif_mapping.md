@@ -142,7 +142,7 @@ value fails `validate_recipe_data`, and the image is skipped at ingest.
 ### Key observations
 
 - `Film Simulation` means the camera, not the user, drove saturation for that shot.  It is not a property of the film simulation: it has been observed on Eterna, Astia and Pro Neg. Std images, but the same simulations carry numeric values on the great majority of shots.  Nothing else in the EXIF flags the condition, so this value is the only signal.
-- A colour simulation whose `Saturation` is `Film Simulation` records no recipe of the user's, so the image is skipped at ingest rather than stored with an empty Color.  See [management_commands.md](management_commands.md) for how skips are reported.
+- A colour simulation whose `Saturation` is `Film Simulation` records no recipe of the user's, so the image is skipped at ingest rather than stored with an empty Color.  See [the User Guide](user_guide.md#43-importing-images) for how skips are reported.
 - For B&W/Acros/Sepia simulations the `Film Mode` EXIF field is absent; `Saturation` encodes the simulation name instead.  In those cases the Color recipe field is `None` — there is no separate saturation adjustment, and the recipe is stored normally.
 - Recipe output for numeric values is a signed integer string: `"-2"`, `"+3"`, `"0"`.
 

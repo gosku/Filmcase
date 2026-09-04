@@ -171,10 +171,9 @@ If you only want to start the server without running a sync first, use `make run
 
 Filmcase does far more than fits here: browsing and filtering your catalog, rating images,
 managing library folders, pushing recipes to your camera, exploring recipe graphs, and more.
-Two documents cover it in full:
-
-- [docs/web_interface.md](docs/web_interface.md) for everything you can do from the web app.
-- [docs/management_commands.md](docs/management_commands.md) for the command-line tools.
+The [User Guide](docs/user_guide.md) covers it in full: chapters 1 to 3 for everything you can
+do from the web app, and [chapter 4](docs/user_guide.md#4-management-commands) for the
+command-line tools.
 
 ---
 

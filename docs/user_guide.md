@@ -1,4 +1,7 @@
-# Web Interface
+# User Guide
+
+Everything you can do with Filmcase, from the web app (chapters 1 to 3) and from the command
+line (chapter 4).
 
 ## Contents
 
@@ -21,6 +24,17 @@
       - [3.3.3.1 Creating a new version](#3331-creating-a-new-version)
       - [3.3.3.2 Grouping existing recipes](#3332-grouping-existing-recipes)
   - [3.4 Graph](#34-graph)
+    - [3.4.1 Film simulation graph](#341-film-simulation-graph)
+      - [3.4.1.1 Exploring a node](#3411-exploring-a-node)
+    - [3.4.2 Recipe graph](#342-recipe-graph)
+- [4 Management Commands](#4-management-commands)
+  - [4.1 Running commands](#41-running-commands)
+  - [4.2 Syncing the library](#42-syncing-the-library)
+  - [4.3 Importing images](#43-importing-images)
+  - [4.4 Rating images in bulk](#44-rating-images-in-bulk)
+  - [4.5 Pre-generating thumbnails](#45-pre-generating-thumbnails)
+  - [4.6 Inspecting camera slots](#46-inspecting-camera-slots)
+  - [4.7 Comparing recipes](#47-comparing-recipes)
 
 ## 1 Library
 
@@ -323,7 +337,242 @@ automatically; the recipe's own images and history are preserved.
 
 ### 3.4 Graph
 
-Each recipe has a visual graph showing how it relates to your other recipes: which ones are
-close, how many settings differ between them, and how you can trace the path from one to
-another. See [Recipe Graphs](recipe_graphs.md) for a full explanation of the graph views and
-what you can do from them.
+Each recipe relates to your other recipes: which ones are close, how many settings differ
+between them, and how you can trace the path from one to another. Two graph views show this,
+and both share the same layout, sidebar, and node panel.
+
+#### 3.4.1 Film simulation graph
+
+In the **Recipes** section there is a **Graph** button that opens the film simulation
+graph. This view shows all your recipes for a given film simulation as a connected map,
+so you can see at a glance how similar or different they are from one another.
+
+The graph picks the recipe you have shot with the most for that film simulation as the
+**reference node** and places it at the centre. All other recipes radiate outward: the
+further a recipe sits from the centre, the more settings it differs from the reference.
+Recipes that are one or two changes away cluster close in; recipes with many differences
+sit further out.
+
+A **Film Simulation** dropdown in the left sidebar lets you switch to a different film
+simulation without leaving the page.
+
+Below it the sidebar lists every recipe in the graph, ordered by how many images you have
+shot with each. Clicking a name does exactly what clicking its node does. A **Named
+recipes only** switch above the list hides the recipes you have not named yet, which is
+usually most of them; the reference recipe always stays, named or not.
+
+Most connections are drawn as solid lines. A **dashed** line is a warning: it means the
+recipe could not be placed on an exact path from the reference, so adding up the numbers
+along its route will overstate how far it really is from the centre. Its ring position is
+still correct.
+
+![Film simulation recipe graph](images/film_sim_recipe_graph.jpg)
+
+##### 3.4.1.1 Exploring a node
+
+Before you pick anything, the panel on the right shows the reference recipe on its own:
+every setting, grouped into categories, with the film simulation and image count at the top.
+
+Clicking any node fills that panel in with a comparison. The panel shows:
+
+- **Every setting, with the changed ones highlighted.** A changed row shows both values
+  inline, reference first and the compared recipe's value after the arrow. Unchanged rows
+  stay in place but recede, so you can see the whole recipe and the differences at once.
+  An **All properties / Only changes** switch narrows the list to just what differs.
+- **Differences broken down by path** — if the selected recipe sits further out and there
+  are intermediate recipes between it and the reference, the panel breaks the changes
+  down hop by hop as a timeline, showing which settings shifted at each step along the
+  route. A single hop skips this, since the list above already says everything.
+- **Compare images** — a side-by-side image viewer that lets you look at photos from both
+  recipes at the same time, so you can judge the visual difference rather than just the
+  numerical one.
+
+  ![Recipe image comparison](images/compare_recipe_images.jpg)
+
+- A link to open the **recipe graph** for the selected recipe (see below).
+
+#### 3.4.2 Recipe graph
+
+Each recipe has its own graph, accessible from the recipe detail or from the node panel
+described above. It works like the film simulation graph but with three differences:
+
+1. **The reference is fixed.** The graph is always centred on the specific recipe you
+   opened it from. It does not automatically pick the most-used recipe for a film
+   simulation — it uses exactly the recipe you chose.
+
+2. **No film simulation restriction.** Related recipes can use a different film
+   simulation from the reference. If you have recipes with slightly different settings
+   that happen to use different film simulations, they still appear as neighbours if they
+   are close enough.
+
+3. **A maximum distance limit applies.** Only recipes within a certain number of
+   differences from the reference are shown (normally 7). Recipes further away than that
+   threshold are excluded, keeping the graph focused on genuinely nearby recipes rather
+   than pulling in the entire collection.
+
+   Because this cutoff can leave out a recipe that another one would have connected
+   through, dashed connections show up more often here than on the film simulation graph.
+
+Everything else works the same way: nodes radiate outward by distance, the sidebar lists
+the recipes in the graph with the same Named recipes only switch, and clicking a node fills in
+the same panel with differences, path breakdown, image comparison, and the option to jump
+to that recipe's own graph.
+
+---
+
+## 4 Management Commands
+
+Management commands are run from the terminal and handle tasks that don't belong in the
+web interface (yet)— bulk imports, maintenance, and camera inspection.
+
+### 4.1 Running commands
+
+The project uses a virtualenv located at `.venv/`. To run any management command, prefix
+it with `.venv/bin/python` instead of `python`:
+
+```bash
+.venv/bin/python manage.py <command> [args]
+```
+
+Alternatively, activate the virtualenv for your shell session first:
+
+```bash
+source .venv/bin/activate
+python manage.py <command> [args]
+```
+
+---
+
+### 4.2 Syncing the library
+
+```
+python manage.py sync_library
+```
+
+Scans all folders registered in the Library, finds JPEG files not yet in the catalog, imports
+them, and takes out of the gallery any entry whose file has disappeared. This command is run
+automatically by `make start` before the web server starts, so in normal use you do not need to
+call it directly.
+
+Removing an entry never deletes the photo file: it only removes Filmcase's record of it. A
+photo you renamed or moved is recognised by its contents and keeps its rating and favourite
+mark rather than being removed and re-imported.
+
+If a registered folder is no longer present on disk, a warning is printed, **nothing is removed
+from the gallery**, and the remaining folders are still scanned.
+
+Three flags control removal (they are mutually exclusive):
+
+| Flag | Effect |
+|---|---|
+| `--dry-run-prune` | List which entries would be removed, and remove none |
+| `--force-prune` | Remove even when the mass-removal safety guard would stop it |
+| `--no-prune` | Import only; never remove anything |
+
+The safety guard stops a pass that would remove more than half of a folder's images and more
+than twenty of them, since that usually means a drive is not mounted rather than that the
+photos were deleted. See `docs/library_sync.md` for the full picture.
+
+By default the sync leaves previously skipped or failed files alone until they change on disk.
+`--retry-failed` examines every one of them again; use it after fixing whatever caused a batch of
+failures. It is slow on a library carrying many ignored files, since re-examining them is the cost
+the records avoid.
+
+Behaviour depends on your install mode:
+
+- **Lite install** (`USE_ASYNC_TASKS=False`): new images are processed in the foreground
+  before the command exits.
+- **Full install** (`USE_ASYNC_TASKS=True`): one Celery task is enqueued per new image and
+  processed in parallel by the worker. The command exits as soon as all tasks are queued. If
+  no Celery worker is reachable, the sync is skipped with a warning.
+
+See [Library Sync](library_sync.md) for a detailed explanation of the sync algorithm.
+
+---
+
+### 4.3 Importing images
+
+```
+python manage.py process_images <folder>
+```
+
+Scans a folder for JPEG images taken with a Fujifilm camera and imports them into the
+application, extracting recipe and EXIF data from each file.
+
+Behaviour depends on your install mode:
+
+- **Lite install** (`USE_ASYNC_TASKS=False`): images are processed one at a time in the
+  foreground. The terminal blocks until all images are done.
+- **Full install** (`USE_ASYNC_TASKS=True`): one Celery task is enqueued per image and
+  processed in parallel by the worker (start it first with `make worker`).
+
+Files that cannot produce a recipe are skipped, never aborting the run. That covers
+images carrying no Fujifilm metadata, and images whose EXIF fails recipe validation,
+such as a colour simulation whose Color the camera set rather than the user. In lite
+mode the command reports how many were skipped; add `--verbosity 2` to list their
+paths. In full install mode each skip is recorded as an `image.import.skipped` event
+in the worker log, carrying the reason and the offending recipe field.
+
+---
+
+### 4.4 Rating images in bulk
+
+```
+python manage.py rate_images <folder> --rating=<value>
+```
+
+Applies a rating to every image in a folder. Useful when you have already curated a
+selection of images outside the app (e.g. a folder of exports from your camera, editing
+software, Google Photos...) and want that rating reflected in the gallery without clicking
+through each image individually.
+
+`--rating` accepts any integer from 0 to `IMAGE_MAX_RATING` (default 5). Use `--rating=0`
+to clear ratings in bulk.
+
+Images are matched to your catalogue by reading their EXIF metadata — not by filename,
+since export tools often rename files. The command tries a series of increasingly broad
+strategies (date + filename, date + shutter counter, date + film simulation, etc.) until it
+finds a unique match. If no match is found, the image is imported as a new entry and rated.
+See [favorite_image_matching.md](favorite_image_matching.md) for the full matching logic.
+
+---
+
+### 4.5 Pre-generating thumbnails
+
+```
+python manage.py generate_thumbnails
+```
+
+Generates thumbnail cache for all images in the database. The web interface creates
+thumbnails on demand, but running this command upfront means the gallery loads at full speed
+from the first visit, with no on-the-fly resizing.
+
+---
+
+### 4.6 Inspecting camera slots
+
+```
+python manage.py camera_info
+python manage.py camera_info --slots
+```
+
+Connects to a Fujifilm camera over USB and reports its model, battery level, and firmware
+version. Adding `--slots` also reads the contents of each custom slot (C1–C7), showing
+what name and film simulation is currently saved in each one.
+
+This is read-only — nothing on the camera is changed. Useful for checking the state of your
+camera before or after pushing a recipe from the web interface.
+
+---
+
+### 4.7 Comparing recipes
+
+```
+python manage.py compare_recipes <id> [<id> ...]
+```
+
+Prints a side-by-side comparison of two or more recipes, showing every setting and how many
+photos were shot with each one. Also shows a monthly breakdown of usage, which is useful for
+understanding how a recipe evolved in your workflow over time.
+
+Recipe IDs can be found in the URL when viewing an image in the web interface.
