@@ -1,29 +1,50 @@
 # Documentation Index
 
-## Functionality
+## Using Filmcase
 
-- [Web Interface](web_interface.md) — library folder management, image gallery, image detail, recipe explorer, recipe detail, and recipe graphs
-- [Management Commands](management_commands.md) — syncing the library, importing images, bulk rating, thumbnails, camera inspection, recipe comparison
-- [Pushing Recipes from the Browser](camera_webusb.md) — driving the camera from your own machine over WebUSB, for installs where Filmcase runs somewhere you do not sit
-- [Running in Docker](docker.md) — the containerised full stack, HTTPS with a self-signed certificate, mounting photo directories, and what camera access can and cannot do in a container
+- [User Guide](user_guide.md) — everything you can do from the web app and the command line
+  - [1 Library](user_guide.md#1-library)
+    - [1.1 Managing folders](user_guide.md#11-managing-folders)
+    - [1.2 Files that could not be imported](user_guide.md#12-files-that-could-not-be-imported)
+    - [1.3 Automatic sync on startup](user_guide.md#13-automatic-sync-on-startup)
+  - [2 Images](user_guide.md#2-images)
+    - [2.1 Gallery](user_guide.md#21-gallery)
+    - [2.2 Image Detail](user_guide.md#22-image-detail)
+  - [3 Recipes](user_guide.md#3-recipes)
+    - [3.1 Explorer](user_guide.md#31-explorer)
+    - [3.2 Importing, creating & deleting recipes](user_guide.md#32-importing-creating--deleting-recipes)
+    - [3.3 Recipe Detail](user_guide.md#33-recipe-detail)
+    - [3.4 Graph](user_guide.md#34-graph)
+  - [4 Management Commands](user_guide.md#4-management-commands)
+    - [4.1 Running commands](user_guide.md#41-running-commands)
+    - [4.2 Syncing the library](user_guide.md#42-syncing-the-library)
+    - [4.3 Importing images](user_guide.md#43-importing-images)
+    - [4.4 Rating images in bulk](user_guide.md#44-rating-images-in-bulk)
+    - [4.5 Pre-generating thumbnails](user_guide.md#45-pre-generating-thumbnails)
+    - [4.6 Inspecting camera slots](user_guide.md#46-inspecting-camera-slots)
+    - [4.7 Comparing recipes](user_guide.md#47-comparing-recipes)
 
-## Reference
+## How It Works
+
+- [Library Sync](library_sync.md) — how make start scans library folders, deduplicates against the catalog, and uses timestamps to skip unchanged directories
+- [Recipe Naming](recipe_naming.md) — how recipes are named and the constraints inherited from the camera
+- [Image Matching](favorite_image_matching.md) — how images are matched to the catalogue when rating in bulk
+- [EXIF Mapping](exif_mapping.md) — reference tables mapping Fujifilm EXIF fields to database model fields
+- [PTP Encodings](ptp_encodings.md) — reference for the PTP/USB property codes used to talk to the camera
+
+## Installation & Setup
 
 - [Manual Installation](manual_install.md) — installing the dependencies and setting up the project by hand, without the setup script
-- [Library Sync](library_sync.md) — how make start scans library folders, deduplicates against the catalog, and uses timestamps to skip unchanged directories
-- [EXIF Mapping](exif_mapping.md) — how Fujifilm EXIF fields map to database model fields
-- [Recipe Naming](recipe_naming.md) — how recipes are named and the constraints inherited from the camera
-- [Recipe Graphs](recipe_graphs.md) — the film simulation graph and version-line graph views, and how to read node distance
-- [Image Matching](favorite_image_matching.md) — how images are matched to the catalogue when rating in bulk
-- [PTP Encodings](ptp_encodings.md) — PTP/USB encoding reference for camera communication
-
-## Development
-
-- [Contributing](contributing.md) — testing strategy, local environment setup, PR requirements, and review conventions
+- [Running in Docker](docker.md) — the containerised full stack, HTTPS with a self-signed certificate, mounting photo directories, and what camera access can and cannot do in a container
+- [Pushing Recipes from the Browser](camera_webusb.md) — driving the camera from your own machine over WebUSB, for installs where Filmcase runs somewhere you do not sit
 
 ## Troubleshooting
 
 - [Camera USB Access on Linux](camera_usb_access.md) — fixing "Resource busy" errors and udev setup, for both the server-side and browser-side transports
+
+## Development
+
+- [Contributing](contributing.md) — testing strategy, local environment setup, PR requirements, and review conventions
 
 ## Architecture
 

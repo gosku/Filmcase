@@ -15,19 +15,14 @@ Nothing else changes. The recipes, the slots and the result are the same either 
 
 ## Turning it on
 
-Docker, in `.env`:
+Go to **Settings > Preferences > Camera** and set **Camera transport** to `browser`. The
+change is saved to the database and takes effect immediately, with no restart.
 
-```
-CAMERA_TRANSPORT=browser
-```
+The `CAMERA_TRANSPORT` value in `.env` (Docker) or `src/config/env` (native) is only the
+default used before anything is saved; once you set it in Preferences, the saved value wins.
 
-Native install, in `src/config/env`:
-
-```
-CAMERA_TRANSPORT=browser
-```
-
-Restart Filmcase. Open a named recipe and click **Send to camera**. The first time, the browser asks which device to use; pick the camera. It will not ask again.
+Then open a named recipe and click **Send to camera**. The first time, the browser asks which
+device to use; pick the camera. It will not ask again.
 
 ---
 
