@@ -23,6 +23,11 @@
     - [4.5 Pre-generating thumbnails](user_guide.md#45-pre-generating-thumbnails)
     - [4.6 Inspecting camera slots](user_guide.md#46-inspecting-camera-slots)
     - [4.7 Comparing recipes](user_guide.md#47-comparing-recipes)
+  - [5 Using Filmcase on a phone or tablet](user_guide.md#5-using-filmcase-on-a-phone-or-tablet)
+    - [5.1 Filters and navigation](user_guide.md#51-filters-and-navigation)
+    - [5.2 Browsing images and recipes](user_guide.md#52-browsing-images-and-recipes)
+    - [5.3 The graph and recipe cards](user_guide.md#53-the-graph-and-recipe-cards)
+    - [5.4 Settings](user_guide.md#54-settings)
 
 ## How It Works
 
