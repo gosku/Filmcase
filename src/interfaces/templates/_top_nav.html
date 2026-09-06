@@ -20,6 +20,13 @@
     width: auto;
   }
 
+  /* Compact wordmark (no tagline) shown in the mobile top bar. */
+  .top-nav__logo--compact {
+    display: none;
+    height: 2rem;
+    width: auto;
+  }
+
   .top-nav__link {
     display: inline-flex;
     align-items: center;
@@ -58,11 +65,202 @@
     align-items: center;
     gap: 0.75rem;
   }
+
+  /* Hamburger button — only shown on mobile (see media query below). */
+  .top-nav__burger {
+    display: none;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    background: none;
+    border: none;
+    border-radius: 10px;
+    color: var(--color-text-primary);
+    cursor: pointer;
+  }
+
+  .top-nav__burger:hover {
+    background: var(--color-bg-surface);
+  }
+
+  /* ── Mobile navigation drawer ─────────────────────────────────────── */
+  /* Off-canvas menu holding the section links (and any page actions passed
+     via `nav_drawer_actions_template`). Hidden entirely on desktop. */
+  .nav-drawer {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    z-index: 210;
+    display: flex;
+    flex-direction: column;
+    width: min(84%, 300px);
+    background: var(--color-bg-page);
+    box-shadow: 8px 0 30px rgba(15, 23, 42, 0.28);
+    transform: translateX(-100%);
+    transition: transform 0.25s ease;
+    overflow-y: auto;
+  }
+
+  .nav-drawer[hidden] {
+    display: none;
+  }
+
+  .nav-drawer--open {
+    transform: translateX(0);
+  }
+
+  .nav-drawer__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1rem 1rem 0.75rem;
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  .nav-drawer__logo {
+    height: 2.25rem;
+    width: auto;
+  }
+
+  .nav-drawer__close {
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: none;
+    border: none;
+    border-radius: 8px;
+    color: var(--color-text-muted);
+    cursor: pointer;
+  }
+
+  .nav-drawer__close:hover {
+    background: var(--color-bg-surface);
+    color: var(--color-text-primary);
+  }
+
+  .nav-drawer__nav {
+    display: flex;
+    flex-direction: column;
+    padding: 0.5rem;
+    gap: 2px;
+  }
+
+  .nav-drawer__link {
+    display: flex;
+    align-items: center;
+    height: 52px;
+    padding: 0 0.75rem;
+    border-radius: 11px;
+    font-size: 1.02rem;
+    font-weight: 600;
+    color: #334155;
+    text-decoration: none;
+  }
+
+  .nav-drawer__link:hover {
+    background: var(--color-bg-surface);
+  }
+
+  .nav-drawer__link--active {
+    background: var(--color-accent-light);
+    color: var(--color-accent-dark);
+  }
+
+  .nav-drawer__actions {
+    border-top: 1px solid var(--color-border);
+    padding: 0.5rem;
+    margin-top: 0.25rem;
+  }
+
+  /* Generic action row inside the drawer; page-specific action templates
+     (passed via `nav_drawer_actions_template`) use this class. */
+  .nav-drawer__action {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    width: 100%;
+    height: 52px;
+    padding: 0 0.75rem;
+    background: none;
+    border: none;
+    border-radius: 11px;
+    font-family: inherit;
+    font-size: 1.02rem;
+    font-weight: 600;
+    text-align: left;
+    color: var(--color-text-primary);
+    text-decoration: none;
+    cursor: pointer;
+  }
+
+  .nav-drawer__action:hover {
+    background: var(--color-bg-surface);
+  }
+
+  .nav-drawer__action-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 38px;
+    height: 38px;
+    border-radius: 10px;
+    background: var(--color-accent-light);
+    color: var(--color-accent-dark);
+  }
+
+  /* Shared backdrop behind the mobile drawer. */
+  .nav-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 205;
+    background: rgba(15, 23, 42, 0.5);
+  }
+
+  .nav-backdrop[hidden] {
+    display: none;
+  }
+
+  @media (max-width: 1024px) and (orientation: portrait), (max-width: 768px) {
+    .top-nav {
+      height: 56px;
+      padding: 0 0.5rem;
+      gap: 0.25rem;
+    }
+
+    .top-nav__burger {
+      display: flex;
+    }
+
+    .top-nav__logo {
+      display: none;
+    }
+
+    .top-nav__logo--compact {
+      display: block;
+    }
+
+    /* The inline section links live in the drawer on mobile. */
+    .top-nav > .top-nav__link {
+      display: none;
+    }
+  }
 </style>
 
 <nav class="top-nav">
+  <button class="top-nav__burger" id="nav-burger" type="button" aria-label="Open menu" aria-expanded="false" aria-controls="nav-drawer">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+      <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>
+    </svg>
+  </button>
   <a href="/" style="display: contents;">
     <img class="top-nav__logo" src="/static/images/filmcase_primary_aligned.svg" alt="Filmcase">
+    <img class="top-nav__logo--compact" src="/static/images/filmcase_horizontal_red.svg" alt="Filmcase">
   </a>
   <a href="{% url 'recipes-explorer' %}" class="top-nav__link{% if active_section == 'recipes' %} top-nav__link--active{% endif %}">Recipes</a>
   <a href="{% url 'gallery' %}" class="top-nav__link{% if active_section == 'images' %} top-nav__link--active{% endif %}">Images</a>
@@ -73,3 +271,65 @@
   </div>
   {% endif %}
 </nav>
+
+<aside class="nav-drawer" id="nav-drawer" hidden>
+  <div class="nav-drawer__head">
+    <img class="nav-drawer__logo" src="/static/images/filmcase_horizontal_red.svg" alt="Filmcase">
+    <button class="nav-drawer__close" id="nav-drawer-close" type="button" aria-label="Close menu">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+        <line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/>
+      </svg>
+    </button>
+  </div>
+  <nav class="nav-drawer__nav">
+    <a href="{% url 'recipes-explorer' %}" class="nav-drawer__link{% if active_section == 'recipes' %} nav-drawer__link--active{% endif %}">Recipes</a>
+    <a href="{% url 'gallery' %}" class="nav-drawer__link{% if active_section == 'images' %} nav-drawer__link--active{% endif %}">Images</a>
+    <a href="{% url 'settings' %}" class="nav-drawer__link{% if active_section == 'settings' %} nav-drawer__link--active{% endif %}">Settings</a>
+  </nav>
+  {% if nav_drawer_actions_template %}
+  <div class="nav-drawer__actions">
+    {% include nav_drawer_actions_template %}
+  </div>
+  {% endif %}
+</aside>
+<div class="nav-backdrop" id="nav-backdrop" hidden></div>
+
+<script>
+  (function () {
+    var burger   = document.getElementById('nav-burger');
+    var drawer   = document.getElementById('nav-drawer');
+    var backdrop = document.getElementById('nav-backdrop');
+    var closeBtn = document.getElementById('nav-drawer-close');
+    if (!burger || !drawer || !backdrop) return;
+
+    function openDrawer() {
+      drawer.hidden = false;
+      backdrop.hidden = false;
+      // Unhide first, then flip the transform on the next frame so it animates.
+      requestAnimationFrame(function () { drawer.classList.add('nav-drawer--open'); });
+      burger.setAttribute('aria-expanded', 'true');
+    }
+
+    function closeDrawer() {
+      drawer.classList.remove('nav-drawer--open');
+      backdrop.hidden = true;
+      burger.setAttribute('aria-expanded', 'false');
+      setTimeout(function () {
+        if (!drawer.classList.contains('nav-drawer--open')) drawer.hidden = true;
+      }, 250);
+    }
+
+    burger.addEventListener('click', openDrawer);
+    closeBtn.addEventListener('click', closeDrawer);
+    backdrop.addEventListener('click', closeDrawer);
+
+    // Any navigation/action inside the drawer dismisses it.
+    drawer.addEventListener('click', function (e) {
+      if (e.target.closest('a, .nav-drawer__action')) closeDrawer();
+    });
+
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && drawer.classList.contains('nav-drawer--open')) closeDrawer();
+    });
+  }());
+</script>
