@@ -194,6 +194,26 @@
   .move-vl-btn:disabled { opacity: 0.4; cursor: not-allowed; }
   .move-vl-btn--primary { background: #1F2128; color: #fff; }
   .move-vl-btn--secondary { background: #F4F4F2; color: #1F2128; }
+
+  /* ── Mobile: stack the two distribution columns ─────────────────── */
+  @media (max-width: 1024px) and (orientation: portrait), (max-width: 768px) {
+    .move-vl-modal {
+      width: calc(100vw - 1.5rem);
+      max-height: 92vh;
+      padding: 1.25rem;
+    }
+
+    .move-vl-header { margin: -1.25rem -1.25rem 1.25rem; }
+
+    .move-vl-body { grid-template-columns: 1fr; }
+
+    .move-vl-search-input {
+      min-height: 44px;
+      font-size: 1rem;
+    }
+
+    .move-vl-btn { min-height: 44px; }
+  }
 </style>
 
 <div class="move-vl-modal">
