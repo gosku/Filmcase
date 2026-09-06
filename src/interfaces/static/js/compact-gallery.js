@@ -18,18 +18,30 @@
   var GAP = 4; // must match `#gallery-results.layout-compact { gap }` in gallery.html
   var FALLBACK_RATIO = 1.5; // used until a thumbnail has loaded and can be measured
   var DEFAULT_ROW_HEIGHT = 280; // near the grid layout's fixed 300px, so switching feels size-consistent
+  var DEFAULT_ROW_HEIGHT_MOBILE = 200; // denser default on phones so rows show more than one image
   var MIN_ROW_HEIGHT = 120; // keep in sync with the size-slider min in gallery_actions.html
   var MAX_ROW_HEIGHT = 500; // keep in sync with the size-slider max in gallery_actions.html
 
   var container = document.getElementById('gallery-results');
   if (!container) return;
 
+  // On a phone the gallery is always compact, with recipe-name labels shown
+  // (there is no hover on touch). This is forced without persisting, so the
+  // user's desktop grid/compact preference is left untouched.
+  function isMobile() {
+    return window.matchMedia('(max-width: 1024px) and (orientation: portrait), (max-width: 768px)').matches;
+  }
+
   function readView() {
+    if (isMobile()) return 'compact';
     return localStorage.getItem(VIEW_KEY) === 'compact' ? 'compact' : 'grid';
   }
 
   function readLabels() {
-    return localStorage.getItem(LABEL_KEY) === 'always' ? 'always' : 'hover';
+    var stored = localStorage.getItem(LABEL_KEY);
+    if (stored === 'always') return 'always';
+    if (stored === 'hover') return 'hover';
+    return isMobile() ? 'always' : 'hover'; // default to always on mobile (no hover)
   }
 
   // Preferred row height (the target the justified rows are solved toward),
@@ -37,7 +49,7 @@
   // each row fills the width exactly.
   function readRowHeight() {
     var stored = parseInt(localStorage.getItem(ROW_HEIGHT_KEY), 10);
-    if (isNaN(stored)) return DEFAULT_ROW_HEIGHT;
+    if (isNaN(stored)) return isMobile() ? DEFAULT_ROW_HEIGHT_MOBILE : DEFAULT_ROW_HEIGHT;
     return Math.max(MIN_ROW_HEIGHT, Math.min(MAX_ROW_HEIGHT, stored));
   }
 
@@ -56,11 +68,16 @@
   // the row sum plus its gaps equals the container width and the next card
   // wraps where intended.
   function sizeRow(cards, ratios, height, containerWidth) {
+    // Fill 1px short of the container. A row whose widths sum to exactly the
+    // container width can round just over the line width on high-DPR screens,
+    // wrapping the last image onto its own line and leaving every multi-image
+    // row half-empty on mobile. The 1px slack is imperceptible and prevents it.
+    var fill = containerWidth - 1;
     var gaps = (cards.length - 1) * GAP;
     var used = 0;
     for (var i = 0; i < cards.length; i++) {
       var isLast = i === cards.length - 1;
-      var w = isLast ? (containerWidth - gaps - used) : Math.floor(ratios[i] * height);
+      var w = isLast ? (fill - gaps - used) : Math.floor(ratios[i] * height);
       used += w;
       cards[i].style.width = w + 'px';
       cards[i].style.height = Math.round(height) + 'px';
@@ -134,7 +151,9 @@
     }
   }
 
-  function applyView(mode) {
+  // `persist` is set only for explicit user choices from the header controls, so
+  // the forced-compact-on-mobile default never overwrites the desktop preference.
+  function applyView(mode, persist) {
     container.classList.remove('layout-grid', 'layout-compact');
     container.classList.add('layout-' + mode);
     setActive(viewButtons, 'data-view-mode', mode);
@@ -145,14 +164,14 @@
     } else {
       clearSizes();
     }
-    localStorage.setItem(VIEW_KEY, mode);
+    if (persist && !isMobile()) localStorage.setItem(VIEW_KEY, mode);
   }
 
-  function applyLabels(mode) {
+  function applyLabels(mode, persist) {
     container.classList.remove('labels-hover', 'labels-always');
     container.classList.add('labels-' + mode);
     setActive(labelButtons, 'data-label-mode', mode);
-    localStorage.setItem(LABEL_KEY, mode);
+    if (persist) localStorage.setItem(LABEL_KEY, mode);
   }
 
   // ── Wiring ─────────────────────────────────────────────────────────────
@@ -167,14 +186,14 @@
   if (viewSwitcher) {
     viewSwitcher.addEventListener('click', function (evt) {
       var btn = evt.target.closest('[data-view-mode]');
-      if (btn) applyView(btn.getAttribute('data-view-mode'));
+      if (btn) applyView(btn.getAttribute('data-view-mode'), true);
     });
   }
 
   if (labelControl) {
     labelControl.addEventListener('click', function (evt) {
       var btn = evt.target.closest('[data-label-mode]');
-      if (btn) applyLabels(btn.getAttribute('data-label-mode'));
+      if (btn) applyLabels(btn.getAttribute('data-label-mode'), true);
     });
   }
 
@@ -192,7 +211,15 @@
     if (evt.target && evt.target.classList.contains('image-thumbnail')) scheduleJustify();
   }, true);
 
-  window.addEventListener('resize', scheduleJustify);
+  window.addEventListener('resize', function () {
+    // Re-evaluate the forced-compact-on-mobile rule when crossing the breakpoint,
+    // without persisting (readView/readLabels already fold in the mobile rule).
+    var wantView = readView();
+    if (!container.classList.contains('layout-' + wantView)) applyView(wantView);
+    var wantLabels = readLabels();
+    if (!container.classList.contains('labels-' + wantLabels)) applyLabels(wantLabels);
+    scheduleJustify();
+  });
 
   document.body.addEventListener('htmx:afterSwap', function () {
     if (container.classList.contains('layout-compact')) scheduleJustify();

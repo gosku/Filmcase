@@ -624,6 +624,319 @@
       transition: color 0.15s;
     }
     .set-rating-modal__picker .detail-rating-clear:hover { color: #666; }
+
+    /* ------------------------------------ */
+    /* Mobile layout (<= 768px)             */
+    /* ------------------------------------ */
+
+    /* Controls that exist only in the mobile layout are hidden by default so the
+       desktop layout is untouched; the media query below reveals them. */
+    .mobile-subbar,
+    .sidebar__mobile-head,
+    .sidebar__done,
+    .filters-backdrop,
+    .view-backdrop,
+    .view-sheet__grab,
+    .view-sheet__head { display: none; }
+
+    @media (max-width: 1024px) and (orientation: portrait), (max-width: 768px) {
+      body { height: 100dvh; }
+
+      .gallery-scroll { padding: 1rem; }
+
+      /* The gallery is always compact on mobile; keep a sane 1-column fallback
+         for the grid class in case the compact engine has not run yet. */
+      #gallery-results.layout-grid { grid-template-columns: 1fr; }
+
+      /* Filter sidebar becomes an off-canvas drawer (same pattern as the recipes
+         explorer). */
+      .sidebar {
+        position: fixed;
+        top: 0;
+        left: 0;
+        bottom: 0;
+        z-index: 160;
+        width: min(88%, 340px);
+        transform: translateX(-100%);
+        transition: transform 0.25s ease;
+        box-shadow: 8px 0 30px rgba(15, 23, 42, 0.28);
+      }
+
+      .sidebar--open { transform: translateX(0); }
+
+      .sidebar__mobile-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin: -1.5rem -1.5rem 1rem;
+        padding: 1rem 1.5rem 0.75rem;
+        border-bottom: 1px solid #e0e0e0;
+      }
+
+      .sidebar__mobile-title {
+        font-size: 1.05rem;
+        font-weight: 800;
+        color: #222;
+      }
+
+      .sidebar__close {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 36px;
+        height: 36px;
+        background: none;
+        border: none;
+        border-radius: 8px;
+        color: #888;
+        cursor: pointer;
+      }
+
+      .sidebar__close:hover { background: #f0f0f0; color: #333; }
+
+      .sidebar__done {
+        display: block;
+        position: sticky;
+        bottom: 0;
+        width: 100%;
+        margin-top: 1rem;
+        padding: 0.85rem 1rem;
+        background: var(--color-accent);
+        color: #fff;
+        border: none;
+        border-radius: 10px;
+        font-size: 0.95rem;
+        font-weight: 700;
+        cursor: pointer;
+        box-shadow: 0 -10px 16px rgba(241, 245, 249, 0.95);
+      }
+
+      .filters-backdrop {
+        display: block;
+        position: fixed;
+        inset: 0;
+        z-index: 155;
+        background: rgba(15, 23, 42, 0.5);
+      }
+
+      .filters-backdrop[hidden] { display: none; }
+
+      /* Sub-bar above the gallery with the Filters trigger. */
+      .mobile-subbar {
+        flex-shrink: 0;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 10px 16px;
+        background: var(--color-bg-page);
+        border-bottom: 1px solid var(--color-border);
+        overflow: hidden;
+        min-height: 0;
+        max-height: 5.5rem;
+        transition: max-height 0.25s ease, padding 0.25s ease, opacity 0.2s ease;
+      }
+
+      /* Hidden when scrolling down; it collapses so the gallery gets the space. */
+      .mobile-subbar--hidden {
+        max-height: 0;
+        padding-top: 0;
+        padding-bottom: 0;
+        opacity: 0;
+        border-bottom-color: transparent;
+      }
+
+      .mobile-filters-btn {
+        flex: 1;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        height: 50px;
+        padding: 0 16px;
+        background: var(--color-bg-page);
+        color: var(--color-text-primary);
+        border: 1px solid var(--color-border);
+        border-radius: 10px;
+        font-size: 0.95rem;
+        font-weight: 600;
+        cursor: pointer;
+      }
+
+      .mobile-filters-btn:hover { background: var(--color-bg-surface); }
+
+      /* Touch-friendly filter controls inside the drawer. */
+      .filter-label { font-size: 0.9rem; margin-bottom: 0.5rem; }
+      .clear-filters-btn { padding: 0.6rem 0.75rem; font-size: 0.95rem; }
+      .rating-toggle { min-height: 44px; font-size: 0.95rem; }
+      .filter-select { min-height: 44px; font-size: 1rem; }
+      .ts-control { min-height: 44px; font-size: 1rem; }
+
+      /* Faceted checkbox lists: bigger rows/checkboxes/text, and keep the
+         per-category inner scroll (a bit taller for touch). */
+      .filter-checkboxes { max-height: 16rem; }
+      .filter-option {
+        gap: 0.75rem;
+        min-height: 44px;
+        padding: 0.4rem 0.35rem;
+      }
+      .filter-option input[type="checkbox"] {
+        width: 22px;
+        height: 22px;
+        flex-shrink: 0;
+      }
+      .filter-option-value { font-size: 1rem; }
+      .filter-option-count { font-size: 0.85rem; }
+
+      /* The desktop view controls become a bottom sheet opened by the View
+         button. The grid/compact switch is hidden (mobile is always compact);
+         the size slider and label toggle remain accessible. */
+      .mobile-view-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        height: 50px;
+        padding: 0 16px;
+        background: var(--color-bg-page);
+        color: var(--color-text-primary);
+        border: 1px solid var(--color-border);
+        border-radius: 10px;
+        font-size: 0.95rem;
+        font-weight: 600;
+        cursor: pointer;
+      }
+
+      .mobile-view-btn:hover { background: var(--color-bg-surface); }
+
+      .top-nav__actions .view-controls {
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        z-index: 210;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 18px;
+        padding: 0 1.25rem calc(1.5rem + env(safe-area-inset-bottom));
+        background: var(--color-bg-page);
+        border-radius: 20px 20px 0 0;
+        box-shadow: 0 -12px 40px rgba(15, 23, 42, 0.28);
+        transform: translateY(100%);
+        transition: transform 0.25s ease;
+      }
+
+      .top-nav__actions .view-controls.view-controls--open { transform: translateY(0); }
+
+      .view-sheet__grab {
+        display: block;
+        width: 40px;
+        height: 5px;
+        border-radius: 999px;
+        background: #d5dae1;
+        margin: 10px auto 0;
+      }
+
+      .view-sheet__head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 4px 0 12px;
+        border-bottom: 1px solid var(--color-border);
+      }
+
+      .view-sheet__title { font-size: 1.05rem; font-weight: 800; color: #222; }
+
+      .view-sheet__close {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 36px;
+        height: 36px;
+        background: rgba(0, 0, 0, 0.06);
+        border: none;
+        border-radius: 50%;
+        color: var(--color-text-primary);
+        font-size: 1.1rem;
+        line-height: 1;
+        cursor: pointer;
+      }
+
+      /* Always compact on mobile — hide the grid/compact switch inside the sheet. */
+      .view-controls #view-switcher { display: none; }
+
+      /* Size + label controls: full width and touch-sized. */
+      .view-controls .size-control,
+      .view-controls .label-mode {
+        width: 100%;
+        gap: 12px;
+      }
+
+      .view-controls .size-slider { flex: 1; width: auto; height: 34px; }
+
+      .view-controls .label-mode .segmented-toggle { flex: 1; }
+
+      .view-controls .label-mode .segmented-toggle__option {
+        min-height: 44px;
+        font-size: 0.9rem;
+      }
+
+      .view-backdrop {
+        display: block;
+        position: fixed;
+        inset: 0;
+        z-index: 200;
+        background: rgba(15, 23, 42, 0.25);
+      }
+
+      .view-backdrop[hidden] { display: none; }
+
+      /* Multi-select docks to the bottom of the screen. On touch the checkboxes
+         appear only once selection is active (entered by long-press — see the
+         script below), so a normal tap still opens the image. */
+      .image-card {
+        -webkit-touch-callout: none;
+        -webkit-user-select: none;
+        user-select: none;
+      }
+
+      .top-nav .ms-toolbar:not([hidden]) {
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        z-index: 150;
+        height: 64px;
+        padding: 0 14px;
+        background: var(--color-bg-page);
+        border-top: 1px solid var(--color-border);
+        box-shadow: 0 -6px 20px rgba(15, 23, 42, 0.08);
+      }
+
+      .top-nav .ms-count { flex: 1; font-size: 1rem; }
+
+      .top-nav .ms-cancel-btn,
+      .top-nav .ms-actions-btn {
+        display: inline-flex;
+        align-items: center;
+        min-height: 48px;
+        padding: 0 1.1rem;
+        font-size: 1rem;
+        border-radius: 10px;
+      }
+
+      .top-nav .ms-actions-dropdown {
+        top: auto;
+        bottom: calc(100% + 8px);
+        left: auto;
+        right: 0;
+        min-width: 220px;
+      }
+
+      .ms-actions-option {
+        padding: 0.9rem 1.1rem;
+        font-size: 1rem;
+      }
+    }
   </style>
 </head>
 <body>
@@ -633,6 +946,14 @@
 <div class="content-area">
 
 <aside class="sidebar">
+  <div class="sidebar__mobile-head">
+    <span class="sidebar__mobile-title">Filters</span>
+    <button type="button" class="sidebar__close" id="close-filters-btn" aria-label="Close filters">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+        <line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/>
+      </svg>
+    </button>
+  </div>
   <a href="{% url 'gallery' %}?rating_first={{ rating_first }}" class="clear-filters-btn">Clear all filters</a>
   <form id="filter-form"
         hx-get="{% url 'gallery' %}"
@@ -649,9 +970,26 @@
     {% include "images/_recipe_filter.html" %}
     {% include "images/_sidebar_filters.html" %}
   </form>
+  <button type="button" class="sidebar__done" id="close-filters-done">Show images</button>
 </aside>
+<div class="filters-backdrop" id="filters-backdrop" hidden></div>
+<div class="view-backdrop" id="view-backdrop" hidden></div>
 
 <main class="main">
+  <div class="mobile-subbar">
+    <button type="button" class="mobile-filters-btn" id="open-filters-btn">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>
+      </svg>
+      Filters
+    </button>
+    <button type="button" class="mobile-view-btn" id="open-view-btn">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="20" y2="18"/><circle cx="9" cy="6" r="2" fill="currentColor" stroke="none"/><circle cx="15" cy="12" r="2" fill="currentColor" stroke="none"/><circle cx="8" cy="18" r="2" fill="currentColor" stroke="none"/>
+      </svg>
+      View
+    </button>
+  </div>
   <div class="gallery-scroll">
     <div id="gallery-results" class="layout-grid labels-hover">
       {% include "images/_gallery_results.html" %}
@@ -660,10 +998,17 @@
       // Apply the stored view/label preference synchronously to avoid a flash of
       // the grid layout for users who last chose compact. The full engine
       // (justified sizing, toggles, re-layout) lives in compact-gallery.js.
+      // On mobile the gallery is always compact, with labels shown (no hover on
+      // touch); the stored desktop preference is left untouched.
       (function () {
         var el = document.getElementById('gallery-results');
-        var view = localStorage.getItem('galleryViewMode') === 'compact' ? 'compact' : 'grid';
-        var labels = localStorage.getItem('galleryLabelMode') === 'always' ? 'always' : 'hover';
+        var mobile = window.matchMedia('(max-width: 1024px) and (orientation: portrait), (max-width: 768px)').matches;
+        var view = mobile ? 'compact'
+          : (localStorage.getItem('galleryViewMode') === 'compact' ? 'compact' : 'grid');
+        var storedLabels = localStorage.getItem('galleryLabelMode');
+        var labels = storedLabels === 'always' ? 'always'
+          : storedLabels === 'hover' ? 'hover'
+          : (mobile ? 'always' : 'hover');
         el.classList.remove('layout-grid', 'layout-compact', 'labels-hover', 'labels-always');
         el.classList.add('layout-' + view, 'labels-' + labels);
       }());
@@ -702,6 +1047,133 @@
     document.addEventListener('click', function () {
       actionsDropdown.hidden = true;
     });
+  }());
+</script>
+
+<script>
+  // Touch: long-press a card to start multi-select (there is no hover to reveal
+  // the checkbox). A normal tap still opens the image.
+  (function () {
+    var container = document.getElementById('gallery-results');
+    if (!container || typeof imageMultiSelect === 'undefined') return;
+
+    // On touch, the long-press-to-select gesture must not also raise the
+    // browser's native image/link context menu ("open in new tab", "save
+    // image", …), which would otherwise swallow the gesture. Suppress it on
+    // touch devices only, so desktop right-click is unaffected.
+    if (window.matchMedia('(pointer: coarse)').matches) {
+      container.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+    }
+
+    var LONG_MS = 450, MOVE = 10;
+    var timer = null, fired = false, sx = 0, sy = 0;
+
+    container.addEventListener('touchstart', function (e) {
+      if (imageMultiSelect.active) return;   // already selecting: taps toggle
+      var card = e.target.closest('.image-card');
+      if (!card) return;
+      fired = false;
+      var t = e.touches[0]; sx = t.clientX; sy = t.clientY;
+      timer = setTimeout(function () {
+        fired = true;
+        var cb = card.querySelector('.ms-checkbox');
+        if (cb) cb.click();                   // selects the card + enters active mode
+        if (navigator.vibrate) navigator.vibrate(10);
+      }, LONG_MS);
+    }, { passive: true });
+
+    container.addEventListener('touchmove', function (e) {
+      if (!timer) return;
+      var t = e.touches[0];
+      if (Math.abs(t.clientX - sx) > MOVE || Math.abs(t.clientY - sy) > MOVE) {
+        clearTimeout(timer); timer = null;
+      }
+    }, { passive: true });
+
+    function done() {
+      if (timer) { clearTimeout(timer); timer = null; }
+      if (!fired) return;
+      fired = false;
+      // Swallow the click this touch emits so it doesn't immediately toggle the
+      // freshly selected card back off.
+      var swallow = function (ev) { ev.stopPropagation(); ev.preventDefault(); };
+      document.addEventListener('click', swallow, true);
+      setTimeout(function () { document.removeEventListener('click', swallow, true); }, 500);
+    }
+    container.addEventListener('touchend', done);
+    container.addEventListener('touchcancel', done);
+  }());
+</script>
+
+<script>
+  // Mobile filter drawer open/close (mirrors the recipes explorer).
+  (function () {
+    var sidebar  = document.querySelector('.sidebar');
+    var openBtn  = document.getElementById('open-filters-btn');
+    var backdrop = document.getElementById('filters-backdrop');
+    var closeEls = [
+      document.getElementById('close-filters-btn'),
+      document.getElementById('close-filters-done'),
+    ];
+    if (!sidebar || !openBtn || !backdrop) return;
+
+    function openFilters() {
+      sidebar.classList.add('sidebar--open');
+      backdrop.hidden = false;
+    }
+
+    function closeFilters() {
+      sidebar.classList.remove('sidebar--open');
+      backdrop.hidden = true;
+    }
+
+    openBtn.addEventListener('click', openFilters);
+    backdrop.addEventListener('click', closeFilters);
+    closeEls.forEach(function (el) { if (el) el.addEventListener('click', closeFilters); });
+
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && sidebar.classList.contains('sidebar--open')) closeFilters();
+    });
+  }());
+</script>
+
+<script>
+  // Mobile "View" bottom sheet: reuses the desktop view-controls element, so the
+  // size slider and on-hover/always toggle keep their compact-gallery.js wiring.
+  (function () {
+    var sheet    = document.getElementById('view-controls');
+    var openBtn  = document.getElementById('open-view-btn');
+    var closeBtn = document.getElementById('close-view-btn');
+    var backdrop = document.getElementById('view-backdrop');
+    if (!sheet || !openBtn || !backdrop) return;
+
+    function openView() { sheet.classList.add('view-controls--open'); backdrop.hidden = false; }
+    function closeView() { sheet.classList.remove('view-controls--open'); backdrop.hidden = true; }
+
+    openBtn.addEventListener('click', openView);
+    if (closeBtn) closeBtn.addEventListener('click', closeView);
+    backdrop.addEventListener('click', closeView);
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && sheet.classList.contains('view-controls--open')) closeView();
+    });
+  }());
+</script>
+
+<script>
+  // Hide the mobile sub-bar (Filters / View) when scrolling down, reveal it when
+  // scrolling up or at the top — giving the gallery more room while browsing.
+  (function () {
+    var scroller = document.querySelector('.gallery-scroll');
+    var bar = document.querySelector('.mobile-subbar');
+    if (!scroller || !bar) return;
+    var lastY = 0;
+    scroller.addEventListener('scroll', function () {
+      var y = scroller.scrollTop;
+      if (y <= 8) bar.classList.remove('mobile-subbar--hidden');
+      else if (y > lastY + 6) bar.classList.add('mobile-subbar--hidden');
+      else if (y < lastY - 6) bar.classList.remove('mobile-subbar--hidden');
+      lastY = y;
+    }, { passive: true });
   }());
 </script>
 

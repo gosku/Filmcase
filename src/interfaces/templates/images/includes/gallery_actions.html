@@ -6,6 +6,12 @@ Image-gallery action toolbar rendered into the top-nav's right-hand slot
 {% comment %} View controls: label-mode (compact-only) + Grid/Compact switcher.
 Driven entirely client-side by compact-gallery.js. {% endcomment %}
 <div class="view-controls" id="view-controls">
+  {% comment %} Sheet chrome shown only when these controls become a bottom sheet on mobile. {% endcomment %}
+  <div class="view-sheet__grab"></div>
+  <div class="view-sheet__head">
+    <span class="view-sheet__title">View</span>
+    <button type="button" class="view-sheet__close" id="close-view-btn" aria-label="Close">&#x2715;</button>
+  </div>
   <div class="size-control" id="size-control" hidden>
     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
     {# min/max/step are kept in sync with MIN/MAX_ROW_HEIGHT in compact-gallery.js #}
