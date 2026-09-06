@@ -532,6 +532,139 @@
     text-align: center;
     padding: 1rem;
   }
+
+  /* ------------------------------------ */
+  /* Mobile layout (<= 768px)             */
+  /* ------------------------------------ */
+
+  /* Mobile-only elements, revealed in the media query below. */
+  .detail-mobile-bar,
+  .detail-sheet-backdrop,
+  .sheet-close { display: none; }
+
+  /* The detail overlay needs the full width for its two panes, so it stacks on
+     any viewport up to 1366px wide (tablet landscape included), not just
+     portrait. Wider screens keep the side-by-side desktop layout. */
+  @media (max-width: 1366px) {
+    .detail-header { padding: 0.6rem 0.75rem; }
+    .header-logo { margin-right: 0.5rem; }
+
+    /* Recipe settings become a single scrolling column; the right-hand panel
+       is dropped from the flow and its two blocks become bottom sheets. */
+    .detail-actions-col { display: contents; }
+
+    .detail-settings-col {
+      overflow-y: auto;
+      padding: 1rem 1rem 6rem;
+    }
+
+    .settings-grid { grid-template-columns: 1fr; gap: 0; }
+    .settings-grid > div { display: block; }
+    .settings-grid .settings-section { margin-bottom: 1.5rem; }
+    .settings-cell--chrome-tone { display: block; }
+    .settings-bottom { grid-template-columns: 1fr; gap: 0; margin-top: 0; }
+
+    /* The read-only R/B white-balance grid is dropped on mobile; the values
+       remain. */
+    .wb-grid-readonly-wrap { display: none; }
+    .wb-layout { padding-bottom: 0; }
+
+    /* Actions and Distribution become off-canvas bottom sheets. */
+    .detail-panel-sheet {
+      position: fixed;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      z-index: 210;
+      max-height: 82%;
+      overflow-y: auto;
+      padding: 1.5rem 1.25rem calc(1.5rem + env(safe-area-inset-bottom));
+      background: var(--color-bg-page);
+      border-radius: 20px 20px 0 0;
+      box-shadow: 0 -12px 40px rgba(15, 23, 42, 0.28);
+      transform: translateY(100%);
+      transition: transform 0.25s ease;
+    }
+
+    .detail-panel-sheet--open { transform: translateY(0); }
+
+    .sheet-close {
+      display: flex;
+      position: absolute;
+      top: 14px;
+      right: 14px;
+      align-items: center;
+      justify-content: center;
+      width: 36px;
+      height: 36px;
+      background: rgba(0, 0, 0, 0.06);
+      border: none;
+      border-radius: 50%;
+      color: var(--color-text-primary);
+      font-size: 1.1rem;
+      line-height: 1;
+      cursor: pointer;
+    }
+
+    /* Full-width, touch-height action buttons inside the sheet. */
+    .detail-panel-sheet .action-group { align-items: stretch; }
+
+    .detail-panel-sheet .action-btn {
+      max-width: none;
+      min-height: 48px;
+      font-size: 0.95rem;
+    }
+
+    /* Sticky bottom bar carrying the two sheet triggers. */
+    .detail-mobile-bar {
+      display: flex;
+      gap: 10px;
+      position: fixed;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      z-index: 150;
+      padding: 12px 14px calc(12px + env(safe-area-inset-bottom));
+      background: var(--color-bg-page);
+      border-top: 1px solid var(--color-border);
+      box-shadow: 0 -6px 20px rgba(15, 23, 42, 0.08);
+    }
+
+    .detail-mbar-btn {
+      flex: 1;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      height: 50px;
+      border-radius: 11px;
+      font-size: 0.98rem;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .detail-mbar-btn--primary {
+      background: var(--color-accent);
+      color: #fff;
+      border: none;
+    }
+
+    .detail-mbar-btn--secondary {
+      background: var(--color-bg-page);
+      color: var(--color-text-primary);
+      border: 1px solid var(--color-border);
+    }
+
+    .detail-sheet-backdrop {
+      display: block;
+      position: fixed;
+      inset: 0;
+      z-index: 200;
+      background: rgba(15, 23, 42, 0.5);
+    }
+
+    .detail-sheet-backdrop[hidden] { display: none; }
+  }
 </style>
 
 <div class="detail-overlay">
@@ -885,6 +1018,8 @@
 
     <!-- Actions -->
     <div class="detail-actions-col">
+      <div class="detail-panel-sheet" id="actions-sheet">
+      <button type="button" class="sheet-close" data-close-sheet aria-label="Close">&#x2715;</button>
       <h2 class="detail-section-title">Actions</h2>
 
       <div class="action-group">
@@ -922,7 +1057,10 @@
                 hx-target="#move-version-line-overlay"
                 hx-swap="innerHTML">Change version group</button>
       </div>
+      </div>{# /#actions-sheet #}
 
+      <div class="detail-panel-sheet" id="dist-sheet">
+      <button type="button" class="sheet-close" data-close-sheet aria-label="Close">&#x2715;</button>
       <div class="detail-distribution" id="detail-distribution-{{ recipe.id }}">
         <div class="detail-distribution-placeholder"
              hx-get="{% url 'recipe-distribution' recipe_id=recipe.id %}"
@@ -930,9 +1068,23 @@
              hx-target="closest .detail-distribution"
              hx-swap="innerHTML">Loading…</div>
       </div>
+      </div>{# /#dist-sheet #}
     </div>
 
   </div>
+
+  <div class="detail-mobile-bar">
+    <button type="button" class="detail-mbar-btn detail-mbar-btn--primary" data-open-sheet="actions-sheet">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="8 12 11 15 16 9"/></svg>
+      Actions
+    </button>
+    <button type="button" class="detail-mbar-btn detail-mbar-btn--secondary" data-open-sheet="dist-sheet">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="6" y1="20" x2="6" y2="13"/><line x1="12" y1="20" x2="12" y2="7"/><line x1="18" y1="20" x2="18" y2="10"/></svg>
+      Distribution
+    </button>
+  </div>
+  <div class="detail-sheet-backdrop" id="detail-sheet-backdrop" hidden></div>
+
 </div>
 
 <div id="card-overlay" hidden></div>
@@ -1042,4 +1194,48 @@
       closeCardOverlay();
     }
   });
+</script>
+
+<script>
+  // Mobile bottom sheets for the recipe detail (Actions / Distribution).
+  (function () {
+    var backdrop = document.getElementById('detail-sheet-backdrop');
+    var sheets = ['actions-sheet', 'dist-sheet']
+      .map(function (id) { return document.getElementById(id); })
+      .filter(Boolean);
+    if (!sheets.length) return;
+
+    function anyOpen() {
+      return sheets.some(function (s) { return s.classList.contains('detail-panel-sheet--open'); });
+    }
+    function closeSheets() {
+      sheets.forEach(function (s) { s.classList.remove('detail-panel-sheet--open'); });
+      if (backdrop) backdrop.hidden = true;
+    }
+    function openSheet(id) {
+      closeSheets();
+      var s = document.getElementById(id);
+      if (!s) return;
+      s.classList.add('detail-panel-sheet--open');
+      if (backdrop) backdrop.hidden = false;
+    }
+
+    document.querySelectorAll('[data-open-sheet]').forEach(function (btn) {
+      btn.addEventListener('click', function () { openSheet(btn.getAttribute('data-open-sheet')); });
+    });
+    document.querySelectorAll('[data-close-sheet]').forEach(function (btn) {
+      btn.addEventListener('click', closeSheets);
+    });
+    if (backdrop) backdrop.addEventListener('click', closeSheets);
+
+    // Capture phase so an open sheet consumes Escape before the page-level
+    // handler closes the whole recipe-detail overlay.
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && anyOpen()) {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        closeSheets();
+      }
+    }, true);
+  })();
 </script>
