@@ -55,6 +55,61 @@
 
     .pagination { display: flex; gap: 1rem; align-items: center; margin-top: 1.5rem; color: #64748b; font-size: 0.9rem; }
     .empty-state { padding: 2rem; text-align: center; color: #94a3b8; }
+
+    /* ------------------------------------ */
+    /* Mobile layout (<= 768px)             */
+    /* ------------------------------------ */
+    @media (max-width: 1024px) and (orientation: portrait), (max-width: 768px) {
+      .main-content { padding: 1.25rem 1rem; }
+
+      /* The 5-column table becomes one card per ignored file. */
+      .ignored-table thead { display: none; }
+
+      .ignored-table,
+      .ignored-table tbody,
+      .ignored-table tr,
+      .ignored-table td {
+        display: block;
+        width: 100%;
+      }
+
+      .ignored-table tr {
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        padding: 0.5rem 0.85rem;
+        margin-bottom: 1rem;
+      }
+
+      .ignored-table td {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 1rem;
+        padding: 0.5rem 0;
+        border-bottom: 1px solid #e2e8f0;
+      }
+
+      .ignored-table tr td:last-child { border-bottom: none; }
+
+      .ignored-table td[data-label]::before {
+        content: attr(data-label);
+        flex-shrink: 0;
+        font-size: 0.7rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        color: #64748b;
+      }
+
+      /* The file cell (name + path) is the card header: full width, no label. */
+      .ignored-table td:first-child { flex-direction: column; align-items: stretch; }
+
+      .ignored-detail { text-align: right; }
+
+      .reason-filter { min-height: 40px; display: inline-flex; align-items: center; }
+
+      .btn { min-height: 40px; padding: 0.4rem 0.9rem; font-size: 0.9rem; }
+    }
   </style>
 {% endblock %}
 
@@ -121,9 +176,9 @@
               <div class="ignored-file__name">{{ ignored.filename }}</div>
               <div class="ignored-file__path">{{ ignored.filepath }}</div>
             </td>
-            <td>{{ ignored.reason_label }}</td>
-            <td class="ignored-detail">{{ ignored.detail }}</td>
-            <td>
+            <td data-label="Why">{{ ignored.reason_label }}</td>
+            <td class="ignored-detail" data-label="Details">{{ ignored.detail }}</td>
+            <td data-label="Noticed">
               <time class="local-time" data-utc="{{ ignored.created_at|date:"c" }}">{{ ignored.created_at|date:"Y-m-d H:i" }}</time>
             </td>
             <td>
