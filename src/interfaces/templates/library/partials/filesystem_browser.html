@@ -95,6 +95,28 @@
   }
 
   .btn-select:hover { background: var(--color-accent-dark); }
+
+  /* ── Mobile: touch-sized folder rows and a full-width Select button ─── */
+  @media (max-width: 1024px) and (orientation: portrait), (max-width: 768px) {
+    .browser-entry {
+      min-height: 44px;
+      padding: 0.75rem;
+      font-size: 1rem;
+    }
+
+    .browser-back-link {
+      min-height: 44px;
+      font-size: 1rem;
+    }
+
+    .browser-footer form { width: 100%; }
+
+    .btn-select {
+      width: 100%;
+      min-height: 44px;
+      font-size: 1rem;
+    }
+  }
 </style>
 
 <div class="browser-header">
