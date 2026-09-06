@@ -75,6 +75,22 @@
     .note--blocked { background: #fef2f2; border-color: #fecaca; color: #b91c1c; }
     .note p + p { margin-top: 0.5rem; }
     .note code { font-family: ui-monospace, monospace; font-size: 0.78125rem; }
+
+    /* ------------------------------------ */
+    /* Mobile layout (<= 768px)             */
+    /* ------------------------------------ */
+    @media (max-width: 1024px) and (orientation: portrait), (max-width: 768px) {
+      .main-content { padding: 1.25rem 1rem; }
+
+      /* Keep the label + status pill on the first line and drop the long
+         monospace value onto its own full-width line so nothing overflows. */
+      .check { flex-wrap: wrap; align-items: center; }
+      .check__label { flex: 1 1 auto; }
+      .check__value { flex: 1 0 100%; order: 3; }
+
+      /* The two probe buttons stack full width. */
+      .probe-btn { width: 100%; justify-content: center; }
+    }
   </style>
 {% endblock %}
 
