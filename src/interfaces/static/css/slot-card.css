@@ -28,7 +28,7 @@
 
 .slot-card {
     position: relative;
-    width: 580px;
+    width: min(580px, calc(100vw - 2rem));
     min-height: 120px;
     padding: 2rem;
     overflow: hidden;
