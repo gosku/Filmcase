@@ -15,6 +15,11 @@
 <div class="content-area">
 
   <aside class="sidebar" id="graph-sidebar">
+    <div class="sidebar__mobile-head">
+      <span class="sidebar__mobile-title">Recipe graph</span>
+      <button type="button" class="sidebar__close" aria-label="Close filters">&#x2715;</button>
+    </div>
+
     {% include "recipes/includes/section_toggle.html" with active="graph" %}
     {% if recipe_name %}
     <div class="graph-sidebar__section">
@@ -31,14 +36,31 @@
 
   <main class="main">
     <div class="section-header">
+      <div class="graph-subbar">
+        {% include "recipes/includes/section_toggle.html" with active="graph" %}
+        <button type="button" class="graph-menu-btn" aria-label="Open filters">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>
+          </svg>
+          Filters
+        </button>
+      </div>
       <span class="graph-hint">Root = selected recipe &mdash; click a node to inspect it</span>
     </div>
 
     <div class="graph-body">
       <div class="graph-canvas" id="cy"></div>
-      <aside class="graph-panel" id="recipe-card">{{ panel_html }}</aside>
+      <aside class="graph-panel">
+        <span class="graph-sheet__grab" aria-hidden="true"></span>
+        <div class="graph-sheet__head">
+          <button type="button" class="graph-sheet__close" aria-label="Close">&#x2715;</button>
+        </div>
+        <div id="recipe-card">{{ panel_html }}</div>
+      </aside>
     </div>
   </main>
+
+  <div class="graph-backdrop" hidden></div>
 
 </div><!-- .content-area -->
 
@@ -56,6 +78,7 @@
 </script>
 <script src="/static/js/recipe-compare-overlay.js"></script>
 <script src="/static/js/recipe-graph.js"></script>
+<script src="/static/js/recipe-graph-mobile.js"></script>
 <script>
   (function () {
     var initData = JSON.parse(document.getElementById("init-data").textContent);
@@ -97,6 +120,10 @@
         loadGraph(graph.getRootId(), namedOnly);
       },
     });
+
+    if (window.RecipeGraphMobile) {
+      window.RecipeGraphMobile.setup(graph.cy);
+    }
 
     var sidebarName = document.querySelector(".sidebar-recipe-name");
 

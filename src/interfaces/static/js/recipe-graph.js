@@ -640,7 +640,10 @@ window.RecipeGraph = (function () {
       }
     }
 
-    cy.on("click", "node", function (event) {
+    // `tap` is Cytoscape's normalised click/touch event; binding it rather than
+    // `click` means node selection works the same on a phone, where the DOM
+    // click never reaches the canvas.
+    cy.on("tap", "node", function (event) {
       selectRecipe(event.target.data("id"));
     });
 
