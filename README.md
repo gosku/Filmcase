@@ -20,12 +20,22 @@ Read more about it in our [documentation index](docs/index.md).
 - Rate images (0–5 stars) individually or in bulk from the command line
 - Sort the gallery by rating to surface your best shots first
 - Customize the cover image shown for each recipe
+- **Use it on your phone or tablet** — the entire web app is responsive
 
 ---
 
 ![Recipe card creation](docs/images/recipe_card_creation.jpeg)
 ![Gallery view](docs/images/images_gallery.jpg)
 ![Import recipes](docs/images/import_recipes_from_cards.jpeg)
+
+## On a phone or tablet
+
+The entire web app is responsive, so you can browse, filter, inspect recipes, and push to your
+camera from a phone or tablet. See
+[Using Filmcase on a phone or tablet](docs/user_guide.md#5-using-filmcase-on-a-phone-or-tablet)
+for how the layout adapts.
+
+<img src="docs/images/mobile_browse.jpg" width="410" alt="Browsing recipes and images on a phone"> <img src="docs/images/mobile_detail_views.jpg" width="410" alt="Image and recipe detail views on a phone">
 
 ## Installation
 

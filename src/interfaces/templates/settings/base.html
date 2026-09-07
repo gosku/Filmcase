@@ -59,6 +59,112 @@
     .settings-nav__item--active:hover { background: var(--color-accent); }
 
     .settings-content { flex: 1; min-width: 0; overflow: auto; }
+
+    /* Chrome that only exists in the mobile layout, hidden by default. */
+    .settings-subbar,
+    .settings-sidebar__mobile-head,
+    .settings-sidebar__close,
+    .settings-backdrop { display: none; }
+
+    /* ── Mobile: the section list becomes an off-canvas drawer ─────────
+       A horizontal tab strip does not scale past a few sections, so the
+       sidebar slides in from the left, opened from a Sections button. */
+    @media (max-width: 1024px) and (orientation: portrait), (max-width: 768px) {
+      .settings-layout {
+        flex-direction: column;
+      }
+
+      .settings-subbar {
+        display: flex;
+        align-items: center;
+        padding: 10px 16px;
+        background: var(--color-bg-page);
+        border-bottom: 1px solid var(--color-border);
+      }
+
+      .settings-sections-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        height: 50px;
+        padding: 0 16px;
+        color: var(--color-text-primary);
+        background: var(--color-bg-page);
+        border: 1px solid var(--color-border);
+        border-radius: 10px;
+        font-size: 0.95rem;
+        font-weight: 600;
+        cursor: pointer;
+      }
+
+      .settings-sections-btn:hover { background: var(--color-bg-surface); }
+
+      /* Sidebar slides in from the left over a dimmed backdrop. */
+      .settings-sidebar {
+        position: fixed;
+        top: 0;
+        left: 0;
+        bottom: 0;
+        z-index: 160;
+        width: min(84%, 320px);
+        padding: 1.5rem;
+        border-right: 1px solid var(--color-border);
+        transform: translateX(-100%);
+        transition: transform 0.25s ease;
+        box-shadow: 8px 0 30px rgba(15, 23, 42, 0.28);
+        overflow-y: auto;
+      }
+
+      .settings-sidebar--open { transform: translateX(0); }
+
+      .settings-sidebar__mobile-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin: -1.5rem -1.5rem 1rem;
+        padding: 1rem 1.5rem 0.75rem;
+        border-bottom: 1px solid var(--color-border);
+      }
+
+      .settings-sidebar__mobile-title {
+        font-size: 1.05rem;
+        font-weight: 800;
+        color: #222222;
+      }
+
+      .settings-sidebar__close {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 36px;
+        height: 36px;
+        color: #888888;
+        background: none;
+        border: none;
+        border-radius: 8px;
+        cursor: pointer;
+      }
+
+      /* The drawer head already carries a "Settings" title. */
+      .settings-sidebar__heading { display: none; }
+
+      .settings-backdrop {
+        display: block;
+        position: fixed;
+        inset: 0;
+        z-index: 155;
+        background: rgba(15, 23, 42, 0.5);
+      }
+
+      .settings-backdrop[hidden] { display: none; }
+
+      .settings-nav__item {
+        display: flex;
+        align-items: center;
+        min-height: 44px;
+        font-size: 1rem;
+      }
+    }
   </style>
   {% block extra_head %}{% endblock %}
 </head>
@@ -67,13 +173,57 @@
 {% include "_top_nav.html" with active_section="settings" %}
 
 <div class="settings-layout">
-  <aside class="settings-sidebar">
+  <div class="settings-subbar">
+    <button type="button" class="settings-sections-btn" id="settings-sections-btn" aria-label="Open settings sections">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/>
+        <line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>
+      </svg>
+      Sections
+    </button>
+  </div>
+
+  <aside class="settings-sidebar" id="settings-sidebar">
+    <div class="settings-sidebar__mobile-head">
+      <span class="settings-sidebar__mobile-title">Settings</span>
+      <button type="button" class="settings-sidebar__close" id="settings-sidebar-close" aria-label="Close sections">&#x2715;</button>
+    </div>
     {% include "settings/includes/sidebar.html" %}
   </aside>
+
+  <div class="settings-backdrop" id="settings-backdrop" hidden></div>
+
   <main class="settings-content">
     {% block settings_content %}{% endblock %}
   </main>
 </div>
+
+<script>
+  (function () {
+    var btn = document.getElementById('settings-sections-btn');
+    var sidebar = document.getElementById('settings-sidebar');
+    var backdrop = document.getElementById('settings-backdrop');
+    var closeBtn = document.getElementById('settings-sidebar-close');
+    if (!btn || !sidebar) { return; }
+
+    function openDrawer() {
+      sidebar.classList.add('settings-sidebar--open');
+      if (backdrop) { backdrop.hidden = false; }
+    }
+
+    function closeDrawer() {
+      sidebar.classList.remove('settings-sidebar--open');
+      if (backdrop) { backdrop.hidden = true; }
+    }
+
+    btn.addEventListener('click', openDrawer);
+    if (closeBtn) { closeBtn.addEventListener('click', closeDrawer); }
+    if (backdrop) { backdrop.addEventListener('click', closeDrawer); }
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && sidebar.classList.contains('settings-sidebar--open')) { closeDrawer(); }
+    });
+  })();
+</script>
 
 {% block extra_scripts %}{% endblock %}
 

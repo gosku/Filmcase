@@ -75,6 +75,37 @@
       font-weight: 600;
       cursor: pointer;
     }
+
+    /* ── Mobile: stacked fields, full-width touch-sized inputs ────────── */
+    @media (max-width: 1024px) and (orientation: portrait), (max-width: 768px) {
+      .main-content { padding: 1.25rem 1rem; }
+
+      .field {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 0.4rem;
+      }
+
+      .field__label {
+        flex: none;
+        font-size: 1rem;
+      }
+
+      .field__control input[type="text"],
+      .field__control input[type="number"],
+      .field__control select {
+        width: 100%;
+        min-height: 44px;
+        padding: 0.5rem 0.7rem;
+        font-size: 1rem;
+      }
+
+      .btn-primary {
+        width: 100%;
+        min-height: 44px;
+        font-size: 1rem;
+      }
+    }
   </style>
 {% endblock %}
 

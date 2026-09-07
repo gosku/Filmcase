@@ -1,27 +1,27 @@
 <tr>
-  <td class="folder-path">{{ folder.path }}</td>
-  <td class="folder-meta">
+  <td class="folder-path" data-label="Path">{{ folder.path }}</td>
+  <td class="folder-meta" data-label="Last synced">
     {% if folder.last_processed_at %}
       <time class="local-time" data-utc="{{ folder.last_processed_at|date:"c" }}">{{ folder.last_processed_at|date:"Y-m-d H:i" }}</time>
     {% else %}
       <span style="color: #ccc;">Never</span>
     {% endif %}
   </td>
-  <td class="folder-meta">
+  <td class="folder-meta" data-label="Last checked">
     {% if folder.last_checked_at %}
       <time class="local-time" data-utc="{{ folder.last_checked_at|date:"c" }}">{{ folder.last_checked_at|date:"Y-m-d H:i" }}</time>
     {% else %}
       <span style="color: #ccc;">Never</span>
     {% endif %}
   </td>
-  <td class="folder-sync">
+  <td class="folder-sync" data-label="Sync">
     <div
       hx-get="{% url 'library-folder-sync-status' folder.folder_id %}"
       hx-trigger="load"
       hx-swap="outerHTML"
     ></div>
   </td>
-  <td class="folder-ignored">
+  <td class="folder-ignored" data-label="Ignored">
     {% if folder.ignored_count %}
       <a href="{% url 'library-folder-ignored' folder.folder_id %}"
          title="Files this folder could not import. None of them has been deleted.">{{ folder.ignored_count }} ignored</a>

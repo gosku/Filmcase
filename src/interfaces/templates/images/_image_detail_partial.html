@@ -318,6 +318,91 @@
     opacity: 0.8;
   }
 
+  /* Additional EXIF disclosure chevron — hidden on desktop (always expanded). */
+  .detail-exif__chevron {
+    display: none;
+    transition: transform 0.18s ease;
+  }
+
+  /* ------------------------------------ */
+  /* Mobile layout (<= 768px)             */
+  /* ------------------------------------ */
+  /* The lightbox needs the full width for its image + info panes, so it stacks
+     on any viewport up to 1366px wide (tablet landscape included), not just
+     portrait. Wider screens keep the side-by-side desktop layout. */
+  @media (max-width: 1366px) {
+    /* Full-width photo on top, the info pane scrolls below it. */
+    .detail-body { flex-direction: column; overflow: hidden; }
+
+    .detail-image-col {
+      flex: 0 0 auto;
+      width: 100%;
+      height: 42vh;
+      min-height: 240px;
+      padding: 0;
+    }
+
+    /* Rating + close overlay the top of the image, costing no vertical space. */
+    .detail-header {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 3;
+      padding: 10px 12px;
+      background: linear-gradient(to bottom, rgba(0,0,0,0.55), transparent);
+    }
+
+    .detail-header-spacer { display: none; }
+    .detail-rating { margin-right: auto; }
+
+    /* Prev/next arrows are replaced by swipe (see the script). */
+    .detail-nav { display: none; }
+
+    .detail-info-col {
+      flex: 1 1 auto;
+      width: 100%;
+      overflow-y: auto;
+      padding: 14px 14px 28px;
+      gap: 1.25rem;
+    }
+
+    /* Recipe actions move directly under the image, above Key Info. The recipe
+       section flattens so its action row can be reordered to the top. */
+    .detail-recipe { display: contents; }
+
+    .detail-recipe-actions { order: -1; margin-bottom: 0; }
+
+    .view-recipe-btn,
+    .set-cover-btn,
+    .cover-image-badge {
+      min-width: 0;
+      width: 100%;
+      padding: 0.7rem;
+      font-size: 0.85rem;
+    }
+
+    /* Recipe settings collapse to a single column. */
+    .settings-grid,
+    .settings-bottom { grid-template-columns: 1fr; gap: 0; }
+    .settings-grid { margin-bottom: 0; }
+    .settings-grid > div { display: block; }
+    .settings-section { margin-bottom: 1.1rem; }
+
+    /* Additional EXIF collapses; tap the heading to expand. */
+    .detail-exif__summary {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      cursor: pointer;
+    }
+
+    .detail-exif__chevron { display: inline-block; }
+    .detail-exif--open .detail-exif__chevron { transform: rotate(180deg); }
+    .detail-exif__body { display: none; }
+    .detail-exif--open .detail-exif__body { display: block; }
+  }
+
 </style>
 
 <div class="detail-overlay">
@@ -704,7 +789,11 @@
 
       {% if image.fujifilm_exif %}
         <section class="detail-exif">
-          <h2 class="detail-section-title">Additional EXIF</h2>
+          <h2 class="detail-section-title detail-exif__summary">
+            Additional EXIF
+            <svg class="detail-exif__chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
+          </h2>
+          <div class="detail-exif__body">
 
           {% if image.exposure_compensation %}
             <div class="detail-row">
@@ -832,9 +921,46 @@
               <span class="detail-value">{{ image.fujifilm_exif.faces_detected }}</span>
             </div>
           {% endif %}
+          </div>
         </section>
       {% endif %}
 
     </aside>
   </div>
 </div>
+
+<script>
+  // Mobile: swipe the photo left/right to go to the next/previous image
+  // (the on-screen arrows are hidden on small screens), and tap the
+  // "Additional EXIF" heading to expand/collapse it.
+  (function () {
+    var col = document.querySelector('.detail-image-col');
+    if (col) {
+      var prevBtn = col.querySelector('.detail-nav-prev');
+      var nextBtn = col.querySelector('.detail-nav-next');
+      var sx = 0, sy = 0, tracking = false;
+      col.addEventListener('touchstart', function (e) {
+        if (e.touches.length !== 1) { tracking = false; return; }
+        sx = e.touches[0].clientX; sy = e.touches[0].clientY; tracking = true;
+      }, { passive: true });
+      col.addEventListener('touchend', function (e) {
+        if (!tracking) return;
+        tracking = false;
+        var t = e.changedTouches[0];
+        var dx = t.clientX - sx, dy = t.clientY - sy;
+        // Only a clearly horizontal swipe navigates.
+        if (Math.abs(dx) < 50 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+        if (dx < 0 && nextBtn) nextBtn.click();       // swipe left → next
+        else if (dx > 0 && prevBtn) prevBtn.click();  // swipe right → previous
+      }, { passive: true });
+    }
+
+    var exif = document.querySelector('.detail-exif');
+    var summary = exif && exif.querySelector('.detail-exif__summary');
+    if (summary) {
+      summary.addEventListener('click', function () {
+        exif.classList.toggle('detail-exif--open');
+      });
+    }
+  }());
+</script>

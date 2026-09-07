@@ -194,6 +194,76 @@
       overflow: hidden;
       min-height: 0;
     }
+
+    /* ------------------------------------ */
+    /* Mobile layout (<= 768px)             */
+    /* ------------------------------------ */
+    @media (max-width: 1024px) and (orientation: portrait), (max-width: 768px) {
+      .main-content { padding: 1.25rem 1rem; }
+
+      /* The 6-column table becomes one card per folder. The header row is
+         dropped and each cell shows its own label. */
+      .folder-table thead { display: none; }
+
+      .folder-table,
+      .folder-table tbody,
+      .folder-table tr,
+      .folder-table td {
+        display: block;
+        width: 100%;
+      }
+
+      .folder-table tr {
+        border: 1px solid var(--color-border);
+        border-radius: 8px;
+        padding: 0.5rem 0.85rem;
+        margin-bottom: 1rem;
+      }
+
+      .folder-table td {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 1rem;
+        padding: 0.5rem 0;
+        border-bottom: 1px solid var(--color-border);
+      }
+
+      .folder-table tr td:last-child { border-bottom: none; }
+
+      .folder-table td[data-label]::before {
+        content: attr(data-label);
+        flex-shrink: 0;
+        font-size: 0.7rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        color: #666;
+      }
+
+      /* The path is long: stack it under its label and let it wrap. */
+      .folder-path {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 0.2rem;
+      }
+
+      .folder-meta { white-space: normal; text-align: right; }
+
+      .sync-status { flex-wrap: wrap; justify-content: flex-end; }
+      .sync-status__bar { width: 100%; }
+
+      .folder-actions { justify-content: flex-start; flex-wrap: wrap; gap: 0.6rem; }
+
+      .btn-update,
+      .btn-remove {
+        min-height: 40px;
+        padding: 0.4rem 0.9rem;
+        font-size: 0.9rem;
+      }
+
+      .add-folder-btn { min-height: 40px; }
+    }
   </style>
 {% endblock %}
 

@@ -283,6 +283,68 @@
       opacity: 0.4;
       pointer-events: none;
     }
+
+    /* ------------------------------------ */
+    /* Mobile layout (<= 768px)             */
+    /* ------------------------------------ */
+    @media (max-width: 1024px) and (orientation: portrait), (max-width: 768px) {
+      .page-content { max-width: none; padding: 1.25rem 1rem 5rem; }
+
+      /* Multi-column sections collapse to a single column. */
+      .form-columns { grid-template-columns: minmax(0, 1fr); gap: 0; }
+      .wb-layout { grid-template-columns: minmax(0, 1fr); gap: 1rem; }
+
+      /* Stack each label above its control and touch-size the controls. */
+      .field-row {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 0.35rem;
+      }
+
+      .field-label { width: auto; font-size: 0.95rem; }
+
+      select,
+      textarea,
+      input[type="text"],
+      input[type="number"] {
+        width: 100%;
+        min-height: 44px;
+        padding: 0.5rem 0.7rem;
+        font-size: 1rem; /* >= 16px prevents iOS zoom-on-focus */
+      }
+
+      .slider-wrap input[type="range"] { height: 40px; }
+      .slider-value { font-size: 1rem; }
+
+      /* White balance: the two sliders are the source of truth on mobile. The
+         19x19 dot grid is a desktop convenience, so stack it above the legend
+         and let it scroll horizontally rather than overflow the viewport. */
+      .wb-grid-wrap {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 12px;
+        min-width: 0; /* allow the fixed-width grid to scroll instead of overflowing */
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+      }
+
+      .wb-grid-info { flex-direction: row; align-items: center; gap: 16px; }
+
+      /* The keyboard nudge affordance is desktop-only. */
+      .wb-grid-hint { display: none; }
+
+      /* Sticky submit bar keeps the primary action reachable on long forms. */
+      .submit-row {
+        position: sticky;
+        bottom: 0;
+        margin: 2.5rem -1rem 0;
+        padding: 0.75rem 1rem calc(0.75rem + env(safe-area-inset-bottom));
+        background: var(--color-bg-page);
+        border-top: 1px solid var(--color-border);
+      }
+
+      .submit-btn { width: 100%; min-height: 48px; }
+    }
   </style>
 </head>
 <body>

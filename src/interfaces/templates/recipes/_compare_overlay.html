@@ -115,6 +115,26 @@
   .compare-nav:hover { background: rgba(0,0,0,0.75); }
   .compare-nav--prev { left: 0.75rem; }
   .compare-nav--next { right: 0.75rem; }
+
+  /* ── Mobile: stack the two carousels vertically ─────────────────── */
+  @media (max-width: 1024px) and (orientation: portrait), (max-width: 768px) {
+    .compare-body { flex-direction: column; }
+
+    .compare-carousel {
+      border-right: none;
+      border-bottom: 1px solid #222;
+    }
+
+    .compare-carousel:last-child { border-bottom: none; }
+
+    /* Touch-sized navigation arrows. */
+    .compare-nav {
+      min-width: 44px;
+      min-height: 44px;
+      padding: 0.6rem 0.8rem;
+      font-size: 1.5rem;
+    }
+  }
 </style>
 
 <div class="compare-overlay" id="compare-overlay">

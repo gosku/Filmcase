@@ -1,7 +1,7 @@
 # User Guide
 
 Everything you can do with Filmcase, from the web app (chapters 1 to 3) and from the command
-line (chapter 4).
+line (chapter 4). Chapter 5 covers using the web app on a phone or tablet.
 
 ## Contents
 
@@ -35,6 +35,11 @@ line (chapter 4).
   - [4.5 Pre-generating thumbnails](#45-pre-generating-thumbnails)
   - [4.6 Inspecting camera slots](#46-inspecting-camera-slots)
   - [4.7 Comparing recipes](#47-comparing-recipes)
+- [5 Using Filmcase on a phone or tablet](#5-using-filmcase-on-a-phone-or-tablet)
+  - [5.1 Filters and navigation](#51-filters-and-navigation)
+  - [5.2 Browsing images and recipes](#52-browsing-images-and-recipes)
+  - [5.3 The graph and recipe cards](#53-the-graph-and-recipe-cards)
+  - [5.4 Settings](#54-settings)
 
 ## 1 Library
 
@@ -576,3 +581,57 @@ photos were shot with each one. Also shows a monthly breakdown of usage, which i
 understanding how a recipe evolved in your workflow over time.
 
 Recipe IDs can be found in the URL when viewing an image in the web interface.
+
+---
+
+## 5 Using Filmcase on a phone or tablet
+
+Everything in chapters 1 to 3 works from a phone or tablet as well as from a desktop: the web
+app is responsive, so the layout adapts to a narrow screen without dropping any functionality.
+Point your phone's browser at the same address the app is served from and you get a
+touch-friendly version of the same pages. A few things change shape on small screens, described
+below.
+
+![Browsing recipes and images on a phone](images/mobile_browse.jpg)
+
+### 5.1 Filters and navigation
+
+The sidebars that sit alongside the content on a desktop — the gallery and explorer filters, and
+the graph's controls — collapse into an **off-canvas drawer**. A **Filters** button in the bar at
+the top of the page slides the drawer in over the content; a **Show recipes** button, the ✕, the
+dimmed backdrop, or your browser's back gesture close it again. Filter rows and checkboxes are
+enlarged so they are comfortable to tap.
+
+The **Explorer / Graph** switch sits in that same top bar, next to the Filters button (visible
+above, left), so it stays in one place across both sections. The app's main sections stay reachable
+from the hamburger menu in the header.
+
+### 5.2 Browsing images and recipes
+
+The gallery reflows into a compact, gap-free layout that fills the width of the screen (above,
+right). The image and recipe **detail views** become a single scrolling column: the photo (or the
+recipe's settings) fills the width, and the actions that sit in a side panel on a desktop move to a
+sticky bar at the bottom of the screen. On the recipe detail view the **Actions** and
+**Distribution** panels open from that bar as **bottom sheets**.
+
+![The image detail view and the recipe detail's Actions sheet on a phone](images/mobile_detail_views.jpg)
+
+In the single-image view the mid-screen previous/next arrows give way to a **swipe** left or right
+across the photo, and long secondary blocks such as the full EXIF list start collapsed and expand
+on tap. To enter multi-select mode without a mouse hover, **press and hold** a card; the selection
+toolbar then docks to the bottom of the screen.
+
+### 5.3 The graph and recipe cards
+
+The graph keeps its canvas full-screen and stays interactive on touch: drag to pan, pinch to zoom,
+and tap a node to open its comparison — reference versus selected recipe, with the changed settings
+and the hop-by-hop breakdown — as a bottom sheet. Modals such as the recipe-card creator open as
+full-height sheets too, so the whole form and its live preview fit the screen.
+
+![The recipe graph comparison and the recipe-card creator on a phone](images/mobile_graph_and_card.jpg)
+
+### 5.4 Settings
+
+The Settings sub-sections (Library, Camera Diagnostics, Preferences, and any added later) move
+into their own **Sections** drawer, opened from a button at the top of the page. The list scales
+as more sections are added, rather than crowding a single row across the top.

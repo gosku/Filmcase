@@ -289,6 +289,37 @@
     line-height: 1.5;
     color: #777;
   }
+
+  /* ── Mobile: single column, wrapping tabs/options ───────────────── */
+  @media (max-width: 1024px) and (orientation: portrait), (max-width: 768px) {
+    .card-modal {
+      width: 100%;
+      max-width: calc(100vw - 1.5rem);
+      max-height: 92vh;
+      padding: 1.25rem;
+    }
+
+    .card-modal-header { margin: -1.25rem -1.25rem 1.25rem; }
+
+    /* Form above, live preview below. */
+    .card-modal-body {
+      grid-template-columns: minmax(0, 1fr);
+      gap: 1.25rem;
+    }
+
+    .card-design-tabs { flex-wrap: wrap; }
+
+    .card-design-tab {
+      flex: 1 0 8rem;
+      min-height: 44px;
+    }
+
+    /* Template option rows and their inner choices stack. */
+    .card-option-row { flex-direction: column; gap: 1rem; }
+    .card-template-options { flex-direction: column; }
+
+    .card-create-btn { min-height: 48px; }
+  }
 </style>
 
 <div class="card-modal">

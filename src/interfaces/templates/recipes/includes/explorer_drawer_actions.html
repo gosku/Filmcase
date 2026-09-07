@@ -1,0 +1,38 @@
+{% comment %}
+Recipes-explorer action rows rendered inside the mobile navigation drawer
+(see _top_nav.html, passed via `nav_drawer_actions_template`). These mirror the
+desktop header actions in recipes/includes/explorer_actions.html: "Create
+Recipe" is a plain link, and the two import options reuse the
+`.open-import-modal-btn` class + data-import-* attributes that the explorer's
+inline script already binds, so no extra JS is needed.
+{% endcomment %}
+<a href="{% url 'create-recipe' %}" class="nav-drawer__action">
+  <span class="nav-drawer__action-icon">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true">
+      <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+    </svg>
+  </span>
+  Create Recipe
+</a>
+<button type="button" class="nav-drawer__action open-import-modal-btn"
+        data-import-url="{% url 'recipes-import' %}"
+        data-import-title="Import Recipes from Images"
+        data-import-desc="Select one or more Fujifilm JPEG files. The recipe settings encoded in their EXIF data will be extracted and saved — the image files themselves are not stored.">
+  <span class="nav-drawer__action-icon">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+    </svg>
+  </span>
+  Import from images
+</button>
+<button type="button" class="nav-drawer__action open-import-modal-btn"
+        data-import-url="{% url 'recipes-import-qr-cards' %}"
+        data-import-title="Import Recipes from Cards"
+        data-import-desc="Select one or more recipe-card JPEGs. The recipe encoded in each card's QR code will be extracted and saved — the card images themselves are not stored.">
+  <span class="nav-drawer__action-icon">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><line x1="14" y1="14" x2="21" y2="14"/><line x1="14" y1="18" x2="21" y2="18"/><line x1="14" y1="21" x2="17" y2="21"/>
+    </svg>
+  </span>
+  Import from recipe cards
+</button>
