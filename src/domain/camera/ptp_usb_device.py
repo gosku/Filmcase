@@ -566,14 +566,38 @@ class PTPUSBDevice:
             )
 
     def _open_session(self) -> None:
-        tx = self._next_tx()
-        self._send(_command_packet(_OC_OPEN_SESSION, tx, _SESSION_ID))
-        rc, _ = self._recv_response()
-        if rc not in (_RC_OK, _RC_SESSION_ALREADY):
+        # Retry a transport failure here with back-off, mirroring the read and
+        # write paths.  OpenSession is the first exchange of every push, and a
+        # transient timeout on its response would otherwise abort the whole push
+        # before a single property is written.  Re-sending is safe: if the camera
+        # opened the session on an earlier attempt it answers SessionAlreadyOpen,
+        # which is treated as success.  A non-OK response code is not a transport
+        # failure (the camera is in the wrong USB mode) and is not retried.
+        last_err: ptp_device.CameraConnectionError = ptp_device.CameraConnectionError(
+            "OpenSession not attempted"
+        )
+        for attempt in range(self._prop_max_retries):
+            if attempt > 0:
+                time.sleep(self._retry_backoff_s * (2 ** (attempt - 1)))
+            try:
+                tx = self._next_tx()
+                self._send(_command_packet(_OC_OPEN_SESSION, tx, _SESSION_ID))
+                rc, _ = self._recv_response()
+            except ptp_device.CameraConnectionError as e:
+                last_err = e
+                camera_events.publish_event(
+                    event_type=camera_events.PTP_READ_RETRY,
+                    prop="OpenSession",
+                    attempt=f"{attempt + 1}/{self._prop_max_retries}",
+                )
+                continue
+            if rc in (_RC_OK, _RC_SESSION_ALREADY):
+                return
             raise ptp_device.CameraConnectionError(
                 f"PTP OpenSession failed with code 0x{rc:04X}. "
                 "The camera may be in the wrong USB mode."
             )
+        raise last_err
 
     def _fetch_camera_name(self) -> str:
         """

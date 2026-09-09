@@ -89,6 +89,61 @@ def set_prop_with_retry(device: ptp_device.PTPDevice, code: int, value: str | in
         raise ptp_device.CameraWriteError(code, value, failed_rc)
 
 
+def set_cursor_with_retry(device: ptp_device.PTPDevice, code: int, slot_index: int) -> None:
+    """
+    Point the camera at a custom slot, retrying transport failures with back-off.
+
+    Separate from set_prop_with_retry because the cursor is a uint16 and that
+    function sends numbers as int32; four bytes where the camera expects two is
+    not a value it will interpret.  Mirrors the WebUSB port's setCursorWithRetry,
+    so a transient timeout on the very first write of a push no longer aborts the
+    whole recipe.
+
+    Raises:
+        CameraWriteError: The camera refused to move the cursor (non-zero rc).
+                          Not retried; the camera is still reachable.
+        CameraConnectionError: The transport failed on every attempt.
+    """
+    prop_hex = f"0x{code:04X}"
+    max_retries = settings_queries.get_camera_max_retries()
+    retry_backoff_s = settings_queries.get_camera_retry_backoff_s()
+
+    last_err = ptp_device.CameraConnectionError(
+        f"Camera unreachable setting slot cursor to {slot_index}"
+    )
+    for attempt in range(1, max_retries + 1):
+        if attempt > 1:
+            time.sleep(retry_backoff_s * (2 ** (attempt - 2)))
+
+        try:
+            rc = device.set_property_uint16(code, slot_index)
+        except ptp_device.CameraConnectionError as exc:
+            last_err = exc
+            events.publish_event(
+                event_type=events.PTP_WRITE_FAILED,
+                description=(
+                    f"{prop_hex} = {slot_index}: {exc} "
+                    f"(attempt {attempt}/{max_retries})"
+                ),
+            )
+            continue
+
+        if rc != 0:
+            events.publish_event(
+                event_type=events.PTP_WRITE_FAILED,
+                description=f"{prop_hex} = {slot_index}: camera rejected write (rc={rc:#x})",
+            )
+            raise ptp_device.CameraWriteError(code, slot_index, rc)
+
+        events.publish_event(
+            event_type=events.PTP_WRITE_SUCCEEDED,
+            description=f"{prop_hex} = {slot_index}",
+        )
+        return
+
+    raise last_err
+
+
 def verify_written_properties(
     device: ptp_device.PTPDevice,
     written: list[tuple[int, str | int]],

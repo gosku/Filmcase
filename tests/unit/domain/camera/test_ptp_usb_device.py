@@ -95,6 +95,28 @@ class TestGetPropWithRetry:
 
         assert send_mock.call_count == settings_queries.get_camera_max_retries()
 
+    def test_publishes_read_retry_event_on_transient_failure(self):
+        device = _make_device()
+        good_data = _data_for_uint16(7)
+
+        with (
+            patch.object(
+                device,
+                "_send",
+                MagicMock(side_effect=[CameraConnectionError("timeout"), None]),
+            ),
+            patch.object(device, "_recv_data", return_value=good_data),
+            patch.object(device, "_recv_response", return_value=_ok_response()),
+            patch.object(device, "_check_rc"),
+            patch.object(camera_events, "publish_event") as mock_publish,
+        ):
+            device._get_prop_with_retry(0xD192)
+
+        assert any(
+            call.kwargs.get("event_type") == camera_events.PTP_READ_RETRY
+            for call in mock_publish.call_args_list
+        )
+
 
 # ---------------------------------------------------------------------------
 # Event publishing
@@ -200,4 +222,90 @@ class TestEventPublishing:
             event_type=camera_events.PTP_WRITE_FAILED,
             prop="0xD192",
             rc="0x2005",
+        )
+
+
+# ---------------------------------------------------------------------------
+# _open_session (retried, so a transient timeout on the first exchange of a
+# push does not abort the whole recipe)
+# ---------------------------------------------------------------------------
+
+_RC_SESSION_ALREADY = 0x201E
+
+
+class TestOpenSessionRetry:
+
+    def test_succeeds_on_first_attempt(self):
+        device = _make_device()
+        send_mock = MagicMock()
+
+        with (
+            patch.object(device, "_send", send_mock),
+            patch.object(device, "_recv_response", return_value=_ok_response()),
+        ):
+            device._open_session()
+
+        assert send_mock.call_count == 1
+
+    def test_retries_transport_failure_then_succeeds(self):
+        device = _make_device()
+        send_mock = MagicMock(side_effect=[CameraConnectionError("timeout"), None])
+
+        with (
+            patch.object(device, "_send", send_mock),
+            patch.object(device, "_recv_response", return_value=_ok_response()),
+        ):
+            device._open_session()
+
+        assert send_mock.call_count == 2
+
+    def test_session_already_open_is_treated_as_success(self):
+        device = _make_device()
+
+        with (
+            patch.object(device, "_send"),
+            patch.object(device, "_recv_response", return_value=(_RC_SESSION_ALREADY, [])),
+        ):
+            device._open_session()  # must not raise
+
+    def test_bad_response_code_is_not_retried(self):
+        device = _make_device()
+        send_mock = MagicMock()
+
+        with (
+            patch.object(device, "_send", send_mock),
+            patch.object(device, "_recv_response", return_value=(0x2019, [])),
+        ):
+            with pytest.raises(CameraConnectionError, match="OpenSession"):
+                device._open_session()
+
+        assert send_mock.call_count == 1
+
+    def test_raises_after_exhausting_all_retries(self):
+        device = _make_device()
+        send_mock = MagicMock(side_effect=CameraConnectionError("USB dead"))
+
+        with patch.object(device, "_send", send_mock):
+            with pytest.raises(CameraConnectionError):
+                device._open_session()
+
+        assert send_mock.call_count == settings_queries.get_camera_max_retries()
+
+    def test_publishes_read_retry_event_on_transport_failure(self):
+        device = _make_device()
+
+        with (
+            patch.object(
+                device,
+                "_send",
+                MagicMock(side_effect=[CameraConnectionError("timeout"), None]),
+            ),
+            patch.object(device, "_recv_response", return_value=_ok_response()),
+            patch.object(camera_events, "publish_event") as mock_publish,
+        ):
+            device._open_session()
+
+        assert any(
+            call.kwargs.get("event_type") == camera_events.PTP_READ_RETRY
+            for call in mock_publish.call_args_list
         )

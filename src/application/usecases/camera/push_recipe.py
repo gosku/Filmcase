@@ -61,12 +61,19 @@ def push_recipe_to_camera(
     device = device_config.get_device()
     device.connect()
     try:
-        # --- Step 1: set slot cursor ---
-        rc = device.set_property_uint16(constants.PROP_SLOT_CURSOR, slot_index)
-        if rc != 0:
-            raise ptp_device.CameraConnectionError(
-                f"Failed to set slot cursor to slot {slot_index} (rc={rc})"
+        # --- Step 1: set slot cursor (retried, mirroring the WebUSB port) ---
+        try:
+            camera_operations.set_cursor_with_retry(
+                device, constants.PROP_SLOT_CURSOR, slot_index
             )
+        except ptp_device.CameraWriteError as exc:
+            # A refusal is reported as a connection failure, as the WebUSB port
+            # also does: nothing has been written yet, so there is no partly
+            # applied recipe to describe and the user only needs to know it did
+            # not start.
+            raise ptp_device.CameraConnectionError(
+                f"Failed to set slot cursor to slot {slot_index} (rc={exc.rc})"
+            ) from exc
 
         time.sleep(settings_queries.get_camera_pre_write_delay_s())
 

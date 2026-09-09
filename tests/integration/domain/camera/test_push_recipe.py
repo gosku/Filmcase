@@ -180,6 +180,9 @@ class TestWriteFailedTransportError:
             if e.get("event_type") == events.PTP_WRITE_SUCCEEDED
             and f"0x{film_sim_code:04X}" not in e["description"]
             and f"0x{constants.PROP_SLOT_NAME:04X}" not in e["description"]
+            # The slot cursor is written first via set_cursor_with_retry and
+            # succeeds before the failing property; exclude it too.
+            and f"0x{constants.PROP_SLOT_CURSOR:04X}" not in e["description"]
         ]
         assert succeeded_int_props == []
 
@@ -237,3 +240,48 @@ class TestWriteFailedTransportError:
             and f"0x{film_sim_code:04X}" in e["description"]
         ]
         assert succeeded_for_film_sim == []
+
+
+class _CursorFailsThenSucceeds(FakePTPDevice):
+    """FakePTPDevice whose slot-cursor write fails `cursor_fails` times first."""
+
+    def __init__(self, *, cursor_fails: int, **kwargs: object) -> None:
+        super().__init__(**kwargs)
+        self._cursor_fails_left = cursor_fails
+
+    def set_property_uint16(self, code: int, value: int) -> int:
+        if code == constants.PROP_SLOT_CURSOR and self._cursor_fails_left > 0:
+            self._cursor_fails_left -= 1
+            raise CameraConnectionError("transient cursor timeout")
+        return super().set_property_uint16(code, value)
+
+
+@pytest.mark.django_db
+class TestSlotCursorRetry:
+    def test_transient_cursor_failure_is_retried_and_push_succeeds(self, settings):
+        # The slot cursor is written once per push; before it was a single shot,
+        # so a lone timeout there aborted the whole recipe. It is now retried.
+        settings.CAMERA_MAX_RETRIES = 3
+        device = _CursorFailsThenSucceeds(cursor_fails=2)
+        settings.PTP_DEVICE = lambda: device
+
+        _push()  # must not raise
+
+    def test_cursor_transport_failure_exhausts_retries_and_aborts(self, settings):
+        settings.CAMERA_MAX_RETRIES = 3
+        settings.PTP_DEVICE = lambda: FakePTPDevice(
+            set_errors={constants.PROP_SLOT_CURSOR: CameraConnectionError("cursor timeout")}
+        )
+
+        with pytest.raises(CameraConnectionError):
+            _push()
+
+    def test_cursor_rejection_is_surfaced_as_connection_error(self, settings):
+        # A refused cursor write is wrapped as a connection error (nothing has
+        # been written yet), mirroring the WebUSB port.
+        settings.PTP_DEVICE = lambda: FakePTPDevice(
+            set_rejection_codes={constants.PROP_SLOT_CURSOR: 0x2005}
+        )
+
+        with pytest.raises(CameraConnectionError):
+            _push()
