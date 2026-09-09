@@ -439,6 +439,15 @@ class PTPUSBDevice:
                 self._check_rc(rc, f"GetDevicePropValue(0x{code:04X})")
                 return data
             except ptp_device.CameraConnectionError as e:
+                # Record the read retry so it is observable, mirroring the WebUSB
+                # port's camera.ptp_read.retry event. Published on every failed
+                # attempt (the last one included), so the count reflects how many
+                # reads the camera needed asking twice.
+                camera_events.publish_event(
+                    event_type=camera_events.PTP_READ_RETRY,
+                    prop=f"0x{code:04X}",
+                    attempt=f"{attempt + 1}/{self._prop_max_retries}",
+                )
                 last_err = e
         raise last_err
 
