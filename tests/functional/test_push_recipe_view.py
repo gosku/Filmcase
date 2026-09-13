@@ -1,3 +1,5 @@
+from unittest import mock
+
 import pytest
 from bs4 import BeautifulSoup
 
@@ -68,12 +70,16 @@ class TestPushRecipeToCameraView:
         assert "SlotName" in data["error"]
 
     def test_camera_write_error_returns_500(self, client, settings):
+        # push_recipe_to_camera never surfaces a bare CameraWriteError today
+        # (the cursor wraps it as CameraConnectionError and property rejections
+        # become RecipeWriteError), so drive the view's defensive handler
+        # directly to check it still maps CameraWriteError to a 500.
         recipe = _recipe()
-        settings.PTP_DEVICE = lambda: FakePTPDevice(
-            set_errors={constants.PROP_SLOT_CURSOR: CameraWriteError(constants.PROP_SLOT_CURSOR, 1, 0x2005)}
-        )
-
-        response = client.post(f"/recipes/{recipe.id}/push/C1/")
+        with mock.patch(
+            "src.interfaces.camera.views.push_recipe_uc.push_recipe_to_camera",
+            side_effect=CameraWriteError(constants.PROP_SLOT_CURSOR, 1, 0x2005),
+        ):
+            response = client.post(f"/recipes/{recipe.id}/push/C1/")
 
         assert response.status_code == 500
         assert "rejected a write" in response.json()["error"]
@@ -246,12 +252,14 @@ class TestPushRecipeToCameraViewHtmx:
         assert "couldn't be saved" in soup.get_text()
 
     def test_camera_write_error_renders_partial_with_error(self, client, settings):
+        # As above: exercise the view's defensive CameraWriteError handler
+        # directly, since push_recipe_to_camera no longer raises a bare one.
         recipe = _recipe()
-        settings.PTP_DEVICE = lambda: FakePTPDevice(
-            set_errors={constants.PROP_SLOT_CURSOR: CameraWriteError(constants.PROP_SLOT_CURSOR, 1, 0x2005)}
-        )
-
-        response = self._post(client, recipe.id, "C3")
+        with mock.patch(
+            "src.interfaces.camera.views.push_recipe_uc.push_recipe_to_camera",
+            side_effect=CameraWriteError(constants.PROP_SLOT_CURSOR, 1, 0x2005),
+        ):
+            response = self._post(client, recipe.id, "C3")
 
         assert response.status_code == 200
         soup = BeautifulSoup(response.content, "html.parser")
