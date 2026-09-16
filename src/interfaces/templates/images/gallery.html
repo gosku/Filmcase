@@ -7,6 +7,7 @@
   <script src="https://unpkg.com/htmx.org@2.0.4" integrity="sha384-HGfztofotfshcF7+8n44JQL2oJmowVChPTg48S+jvZoztPfvwD79OC/LTtG6dMp+" crossorigin="anonymous"></script>
   <script src="/static/js/multi-select.js"></script>
   <script src="/static/js/compact-gallery.js" defer></script>
+  <script src="/static/js/gallery-timeline.js" defer></script>
   <link href="https://cdn.jsdelivr.net/npm/tom-select@2/dist/css/tom-select.css" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/tom-select@2/dist/js/tom-select.complete.min.js"></script>
   <link rel="stylesheet" href="/static/css/brand.css">
@@ -139,6 +140,122 @@
       display: flex;
       flex-direction: column;
       overflow: hidden;
+      position: relative;
+    }
+
+    /* Scroll area + timeline rail. The rail is positioned against this, not the
+       whole .main, so it never overlaps the mobile sub-bar (Filters / View). */
+    .gallery-viewport {
+      position: relative;
+      flex: 1;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── Date timeline rail ─────────────────────────────────────────── */
+    /* Hover-summoned on desktop; on mobile shown via the Dates toggle button
+       (gallery-timeline.js flips .timeline-rail--visible). Navigation, not a
+       filter: clicking a mark travels the gallery to that month. */
+    .timeline-rail {
+      position: absolute;
+      top: 0;
+      right: 0;
+      bottom: 0;
+      width: 96px;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.18s ease;
+      z-index: 30;
+    }
+    .timeline-rail--visible { opacity: 1; }
+    /* Scrolls (with a hidden scrollbar) when the year list is taller than the rail. */
+    .timeline-rail__mount {
+      position: absolute;
+      top: 14px;
+      right: 14px;
+      bottom: 14px;
+      left: 0;
+      overflow-y: auto;
+      scrollbar-width: none;
+      -ms-overflow-style: none;
+    }
+    .timeline-rail__mount::-webkit-scrollbar { width: 0; height: 0; }
+    .timeline-rail__spacer { width: 1px; flex-shrink: 0; }
+    .timeline-mark {
+      position: absolute;
+      right: 0;
+      transform: translateY(-50%);
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 8px;
+      margin: 0;
+      padding: 4px 0;
+      border: none;
+      background: none;
+      font: inherit;
+      pointer-events: none;
+      cursor: pointer;
+    }
+    /* Only a visible rail is interactive; a hidden one must not intercept taps
+       on the photos beneath it. */
+    .timeline-rail--visible { pointer-events: auto; }
+    .timeline-rail--visible .timeline-mark { pointer-events: auto; }
+    .timeline-mark__tick { width: 8px; height: 1.5px; background: #cbd5e1; flex-shrink: 0; }
+    .timeline-mark__pill {
+      font-size: 11px;
+      font-weight: 600;
+      color: #fff;
+      background: rgba(17, 24, 39, 0.82);
+      padding: 3px 9px;
+      border-radius: 999px;
+      white-space: nowrap;
+    }
+    .timeline-mark--year .timeline-mark__pill { background: rgba(17, 24, 39, 0.7); }
+    .timeline-mark--current .timeline-mark__pill {
+      background: var(--color-accent);
+      box-shadow: 0 3px 10px rgba(239, 68, 68, 0.45);
+    }
+    .timeline-mark--current .timeline-mark__tick { width: 14px; height: 2px; background: var(--color-accent); }
+    .timeline-mark:hover .timeline-mark__pill { background: var(--color-accent-dark); }
+    .timeline-bubble {
+      position: absolute;
+      right: 104px;
+      transform: translateY(-50%);
+      background: #111827;
+      color: #fff;
+      padding: 9px 15px;
+      border-radius: 999px;
+      font-size: 15px;
+      font-weight: 600;
+      white-space: nowrap;
+      box-shadow: 0 10px 30px rgba(15, 23, 42, 0.35);
+      pointer-events: none;
+      z-index: 31;
+    }
+    /* Highlighted band drawn behind an expanded year, with a vertical label. */
+    .timeline-focus-zone {
+      position: absolute;
+      right: -4px;
+      width: 78px;
+      border-radius: 12px;
+      background: rgba(239, 68, 68, 0.09);
+      border: 1px solid rgba(239, 68, 68, 0.3);
+      pointer-events: none;
+    }
+    .timeline-focus-tag {
+      position: absolute;
+      right: 80px;
+      transform: translateY(-50%) rotate(180deg);
+      writing-mode: vertical-rl;
+      font-size: 9.5px;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--color-accent);
+      white-space: nowrap;
+      pointer-events: none;
     }
 
     .gallery-scroll {
@@ -808,6 +925,23 @@
 
       .mobile-view-btn:hover { background: var(--color-bg-surface); }
 
+      /* The timeline toggle lights up when the rail is on. */
+      .mobile-timeline-btn--active {
+        background: var(--color-accent);
+        color: #fff;
+        border-color: var(--color-accent);
+      }
+      .mobile-timeline-btn--active:hover { background: var(--color-accent-dark); }
+
+      /* Touch-friendly timeline: a wider rail with bigger, tappable marks. */
+      .timeline-rail { width: 96px; }
+      .timeline-mark { padding: 6px 0; gap: 10px; }
+      .timeline-mark__pill { font-size: 15px; padding: 11px 16px; }
+      .timeline-mark__tick { width: 10px; }
+      .timeline-mark--current .timeline-mark__tick { width: 16px; }
+      .timeline-bubble { font-size: 17px; padding: 11px 18px; right: 110px; }
+      .timeline-focus-tag { right: 102px; font-size: 10.5px; }
+
       .top-nav__actions .view-controls {
         position: fixed;
         left: 0;
@@ -960,6 +1094,11 @@
         hx-trigger="change"
         hx-target="#gallery-results"
         hx-push-url="true">
+    {% comment %}
+    Timeline focus travels with the filters so a filter change keeps the date
+    and it is pushed into the URL; set by gallery-timeline.js on a jump.
+    {% endcomment %}
+    <input type="hidden" name="to_date" id="to-date-input" value="{{ to_date }}">
     <div class="filter-group">
       <label class="rating-toggle" for="rating-first-toggle">
         <input type="checkbox" id="rating-first-toggle">
@@ -989,10 +1128,18 @@
       </svg>
       View
     </button>
+    <button type="button" class="mobile-view-btn mobile-timeline-btn" id="toggle-timeline-btn" aria-pressed="false">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
+      </svg>
+      Dates
+    </button>
   </div>
+  <div class="gallery-viewport">
   <div class="gallery-scroll">
+    {% include "images/_gallery_sentinel.html" with sentinel_id="load-newer-sentinel" direction="newer" cursor=newer_cursor active=has_newer sentinel_class="sentinel-newer" trigger="loadnewer" %}
     <div id="gallery-results" class="layout-grid labels-hover">
-      {% include "images/_gallery_results.html" %}
+      {% include "images/_gallery_results.html" with images=images %}
     </div>
     <script>
       // Apply the stored view/label preference synchronously to avoid a flash of
@@ -1013,18 +1160,9 @@
         el.classList.add('layout-' + view, 'labels-' + labels);
       }());
     </script>
-    <div id="load-more-sentinel">
-      {% if page_obj.has_next %}
-      <div class="infinite-scroll-sentinel"
-           hx-get="{% url 'gallery-results' %}"
-           hx-include="#filter-form"
-           hx-vals='{"page": "{{ page_obj.next_page_number }}"}'
-           hx-trigger="intersect root:.gallery-scroll"
-           hx-target="#load-more-sentinel"
-           hx-swap="outerHTML">
-      </div>
-      {% endif %}
-    </div>
+    {% include "images/_gallery_sentinel.html" with sentinel_id="load-older-sentinel" direction="older" cursor=older_cursor active=has_older %}
+  </div>
+  {% include "images/_gallery_timeline.html" %}
   </div>
 </main>
 

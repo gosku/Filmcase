@@ -1,10 +1,11 @@
 import mimetypes
+from datetime import datetime, tzinfo
 from pathlib import Path
 
 import structlog
-from django.core import paginator as django_paginator
 from django import http
 from django import shortcuts
+from django.utils import timezone as dj_tz
 from django.views import generic
 
 from src.application.usecases.images import remove_images as remove_images_uc
@@ -13,6 +14,7 @@ from src.data import models
 from src.domain.images import filter_queries
 from src.domain.images import operations as image_operations
 from src.domain.images import queries as image_queries
+from src.domain.images import timeline_queries
 from src.domain.settings import queries as settings_queries
 from src.domain.images.thumbnails import operations as thumbnail_operations
 
@@ -32,6 +34,84 @@ def _active_filters_from_request(request: http.HttpRequest) -> dict[str, list[st
     return filters
 
 
+def _rating_first_from_request(request: http.HttpRequest) -> bool:
+    return request.GET.get("rating_first", "1") == "1"
+
+
+def _timeline_data(
+    distribution: timeline_queries.TimelineDistribution,
+    today: datetime,
+    focus: str | None,
+) -> dict[str, object]:
+    """Serialize the distribution for the rail's client-side layout."""
+    return {
+        "today": {"year": today.year, "month": today.month},
+        "months": [{"year": m.year, "month": m.month, "count": m.count} for m in distribution.months],
+        "undatedCount": distribution.undated_count,
+        "total": distribution.total,
+        "focus": focus,
+    }
+
+
+def _exclusive_month_end(*, year_month: str, tz: tzinfo) -> datetime:
+    """
+    Turn a ``YYYY-MM`` jump target into the exclusive upper bound for the seek:
+    the first moment of the month *after* the one requested, in *tz*.
+
+    :raises ValueError: if *year_month* is not ``YYYY-MM``.
+    """
+    year_str, month_str = year_month.split("-")
+    year, month = int(year_str), int(month_str)
+    if not 1 <= month <= 12:
+        raise ValueError(year_month)
+    return datetime(year + 1, 1, 1, tzinfo=tz) if month == 12 else datetime(year, month + 1, 1, tzinfo=tz)
+
+
+def _page_context(page: timeline_queries.ImagePage) -> dict[str, object]:
+    return {
+        "images": page.images,
+        "older_cursor": page.older_cursor,
+        "newer_cursor": page.newer_cursor,
+        "has_older": page.has_older,
+        "has_newer": page.has_newer,
+    }
+
+
+def _focused_page(
+    *,
+    active_filters: dict[str, list[str]],
+    rating_first: bool,
+    to_date: str,
+    tz: tzinfo,
+    limit: int,
+) -> tuple[timeline_queries.ImagePage, str | None]:
+    """
+    Return the page to render and the resolved focus month.
+
+    With a valid ``to_date`` (``YYYY-MM``) it lands on that date; otherwise, and
+    for an unparseable value (a page URL should not 500 on a bad param), it
+    returns the newest page and no focus.
+    """
+    if to_date:
+        try:
+            target = _exclusive_month_end(year_month=to_date, tz=tz)
+        except (ValueError, TypeError):
+            pass
+        else:
+            page = timeline_queries.get_images_from_date(
+                active_filters=active_filters, rating_first=rating_first, target=target, limit=limit
+            )
+            return page, to_date
+    newest = timeline_queries.get_images_page(
+        active_filters=active_filters,
+        rating_first=rating_first,
+        cursor=None,
+        direction=timeline_queries.Direction.OLDER,
+        limit=limit,
+    )
+    return newest, None
+
+
 class Gallery(generic.View):
     """
     Display the image gallery with filtering and pagination.
@@ -39,27 +119,37 @@ class Gallery(generic.View):
 
     def get(self, request: http.HttpRequest) -> http.HttpResponse:
         active_filters = _active_filters_from_request(request)
-        rating_first = request.GET.get("rating_first", "1") == "1"
-        gallery = filter_queries.get_gallery_data(
+        rating_first = _rating_first_from_request(request)
+        tz = dj_tz.get_current_timezone()
+        today = dj_tz.localtime()
+        # A ``to_date`` in the URL lands on that month (deep-linkable, survives a
+        # refresh); otherwise the freshly-loaded gallery is the newest page.
+        page, focus = _focused_page(
             active_filters=active_filters,
             rating_first=rating_first,
-            page_number=request.GET.get("page", 1),
-            page_size=settings_queries.get_gallery_page_size(),
+            to_date=request.GET.get("to_date") or "",
+            tz=tz,
+            limit=settings_queries.get_gallery_page_size(),
         )
+        distribution = timeline_queries.get_timeline_distribution(
+            active_filters=active_filters, rating_first=rating_first, tz=tz
+        )
+        options = filter_queries.get_filter_options(active_filters=active_filters)
+        context: dict[str, object] = {
+            **_page_context(page),
+            "timeline_data": _timeline_data(distribution, today, focus),
+            "to_date": focus or "",
+            "sidebar_options": options.sidebar_options,
+            "recipe_options": options.recipe_options,
+        }
         if request.headers.get("HX-Request"):
-            return shortcuts.render(request, "images/_gallery_htmx_filter_response.html", {
-                "page_obj": gallery.page_obj,
-                "sidebar_options": gallery.sidebar_options,
-                "recipe_options": gallery.recipe_options,
-            })
+            return shortcuts.render(request, "images/_gallery_htmx_filter_response.html", context)
         max_rating = settings_queries.get_image_max_rating()
         return shortcuts.render(
             request,
             "images/gallery.html",
             {
-                "page_obj": gallery.page_obj,
-                "sidebar_options": gallery.sidebar_options,
-                "recipe_options": gallery.recipe_options,
+                **context,
                 "rating_first": "1" if rating_first else "0",
                 "max_rating": max_rating,
                 "rating_range": range(1, max_rating + 1),
@@ -118,15 +208,59 @@ class ImageDetail(generic.View):
 
 class GalleryResults(generic.View):
     """
-    Return a paginated page of gallery images for infinite scroll.
+    Return one keyset page of gallery images for two-way infinite scroll, or the
+    landing page for a date jump.
+
+    Query params:
+    - ``direction`` (``older``/``newer``) + ``cursor``: the next scroll page.
+    - ``to_date`` (``YYYY-MM``): jump — the landing page around that month.
+
+    ``direction`` is checked first: the scroll sentinels include the whole
+    filter-form (which carries ``to_date`` so it survives filter changes), so a
+    scroll request also sends ``to_date`` — but it must page from its cursor, not
+    re-land at the date. The date is a "go to", not a filter.
     """
 
     def get(self, request: http.HttpRequest) -> http.HttpResponse:
         active_filters = _active_filters_from_request(request)
-        rating_first = request.GET.get("rating_first", "1") == "1"
-        qs = filter_queries.get_filtered_images(active_filters=active_filters, rating_first=rating_first)
-        page_obj = django_paginator.Paginator(qs, settings_queries.get_gallery_page_size()).get_page(request.GET.get("page", 1))
-        return shortcuts.render(request, "images/_gallery_htmx_scroll_response.html", {"page_obj": page_obj})
+        rating_first = _rating_first_from_request(request)
+        limit = settings_queries.get_gallery_page_size()
+
+        direction_param = request.GET.get("direction")
+        if direction_param in ("older", "newer"):
+            newer = direction_param == "newer"
+            try:
+                page = timeline_queries.get_images_page(
+                    active_filters=active_filters,
+                    rating_first=rating_first,
+                    cursor=request.GET.get("cursor") or None,
+                    direction=timeline_queries.Direction.NEWER if newer else timeline_queries.Direction.OLDER,
+                    limit=limit,
+                )
+            except timeline_queries.InvalidCursor:
+                return http.HttpResponseBadRequest("invalid cursor")
+            template = "images/_gallery_scroll_newer.html" if newer else "images/_gallery_scroll_older.html"
+            return shortcuts.render(request, template, _page_context(page))
+
+        to_date = request.GET.get("to_date")
+        if to_date:
+            try:
+                target = _exclusive_month_end(year_month=to_date, tz=dj_tz.get_current_timezone())
+            except (ValueError, TypeError):
+                return http.HttpResponseBadRequest("to_date must be YYYY-MM")
+            page = timeline_queries.get_images_from_date(
+                active_filters=active_filters, rating_first=rating_first, target=target, limit=limit
+            )
+            return shortcuts.render(request, "images/_gallery_jump_response.html", _page_context(page))
+
+        page = timeline_queries.get_images_page(
+            active_filters=active_filters,
+            rating_first=rating_first,
+            cursor=None,
+            direction=timeline_queries.Direction.OLDER,
+            limit=limit,
+        )
+        return shortcuts.render(request, "images/_gallery_scroll_older.html", _page_context(page))
 
 
 class ImageFile(generic.View):
