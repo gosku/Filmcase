@@ -1,7 +1,6 @@
 import attrs
 from collections.abc import Mapping, Sequence
 
-from django.core import paginator as django_paginator
 from django.db import models as db_models
 
 from src.data import models
@@ -290,27 +289,20 @@ def _recipe_options(
 
 
 @attrs.frozen
-class GalleryData:
-    page_obj: object
+class FilterOptions:
     sidebar_options: dict[str, dict[str, object]]
     recipe_options: dict[str, object]
 
 
-def get_gallery_data(
-    *,
-    active_filters: Mapping[str, Sequence[str]],
-    rating_first: bool,
-    page_number: int | str,
-    page_size: int,
-) -> GalleryData:
+def get_filter_options(*, active_filters: Mapping[str, Sequence[str]]) -> FilterOptions:
     """
-    Return all data needed to render the gallery page in a single query bundle.
+    Return the faceted sidebar and recipe filter options for the gallery.
+
+    The image rows themselves come from keyset pagination in
+    ``timeline_queries``; this bundles only the filter-sidebar data.
     """
     active_field_filters = {k: v for k, v in active_filters.items() if k != "recipe_id"}
-    qs = get_filtered_images(active_filters=active_filters, rating_first=rating_first)
-    page_obj = django_paginator.Paginator(qs, page_size).get_page(page_number)
-    return GalleryData(
-        page_obj=page_obj,
+    return FilterOptions(
         sidebar_options=get_sidebar_filter_options(active_filters),
         recipe_options=_recipe_options(
             active_filters=active_filters,
