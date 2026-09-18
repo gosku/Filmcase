@@ -3,8 +3,8 @@
 // Adds a second, opt-in layout to the gallery alongside the default 3-column
 // grid. In compact mode, thumbnails are packed into rows that are each scaled
 // to a single height and fill the full content width — so mixed aspect ratios
-// tile edge-to-edge with no cropping (Google-Photos style). Aspect ratios are
-// measured from the loaded thumbnails; nothing is stored server-side.
+// tile edge-to-edge with no cropping. Aspect ratios are measured from the
+// loaded thumbnails; nothing is stored server-side.
 //
 // The view mode (grid|compact) and label mode (hover|always) are persisted in
 // localStorage and applied client-side with no page reload. The same

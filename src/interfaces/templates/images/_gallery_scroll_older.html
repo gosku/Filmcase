@@ -1,0 +1,5 @@
+{% comment %}Scroll-down (older) response: append cards, replace the older sentinel.{% endcomment %}
+{% include "images/_gallery_sentinel.html" with sentinel_id="load-older-sentinel" direction="older" cursor=older_cursor active=has_older %}
+<div hx-swap-oob="beforeend:#gallery-results">
+  {% include "images/_gallery_results.html" with images=images %}
+</div>

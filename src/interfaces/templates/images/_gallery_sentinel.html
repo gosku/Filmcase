@@ -1,0 +1,24 @@
+{% comment %}
+One infinite-scroll sentinel for keyset paging. Params:
+  sentinel_id    – DOM id of the wrapper ("load-older-sentinel" / "load-newer-sentinel")
+  direction      – "older" or "newer" (sent to gallery-results)
+  cursor         – keyset cursor for the next page in that direction
+  active         – whether more rows exist that way (renders the trigger when true)
+  sentinel_class – extra class on the trigger (e.g. "sentinel-newer" for scroll anchoring)
+  trigger        – hx-trigger. Both sentinels are fired by gallery-timeline.js via
+                   custom events ("loadolder" default / "loadnewer") so it can
+                   prefetch a screen ahead rather than waiting for the edge.
+  oob            – when true, the wrapper is swapped out-of-band by id
+{% endcomment %}
+<div id="{{ sentinel_id }}"{% if oob %} hx-swap-oob="true"{% endif %}>
+  {% if active %}
+  <div class="infinite-scroll-sentinel{% if sentinel_class %} {{ sentinel_class }}{% endif %}"
+       hx-get="{% url 'gallery-results' %}"
+       hx-include="#filter-form"
+       hx-vals='{"direction": "{{ direction }}", "cursor": "{{ cursor }}"}'
+       hx-trigger="{{ trigger|default:'loadolder' }}"
+       hx-target="#{{ sentinel_id }}"
+       hx-swap="outerHTML">
+  </div>
+  {% endif %}
+</div>

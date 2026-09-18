@@ -1,6 +1,6 @@
 {% load image_filters %}
-{% for image in page_obj %}
-  <article class="image-card" data-pk="{{ image.id }}">
+{% for image in images %}
+  <article class="image-card" data-pk="{{ image.id }}" data-month="{{ image.taken_at|date:'Y-m' }}" data-rating="{{ image.rating }}">
     <div class="ms-checkbox" aria-label="Select image">
       <svg class="ms-check" width="10" height="8" viewBox="0 0 10 8" fill="none" aria-hidden="true">
         <polyline points="1,4 3.5,6.5 9,1" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>

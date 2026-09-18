@@ -169,6 +169,14 @@ class Image(models.Model):
                 name="unique_image_content_hash",
             ),
         ]
+        # Support keyset (seek) pagination for the gallery timeline. The field
+        # order and direction mirror the two gallery orderings exactly so the
+        # index backs both the range seek and the ORDER BY: chronological
+        # (-taken_at, id) and rating-first (-rating, -taken_at, id).
+        indexes = [
+            models.Index(fields=["-taken_at", "id"], name="image_taken_at_id_idx"),
+            models.Index(fields=["-rating", "-taken_at", "id"], name="image_rating_taken_id_idx"),
+        ]
 
     @classmethod
     def create(

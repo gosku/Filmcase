@@ -13,6 +13,7 @@ line (chapter 4). Chapter 5 covers using the web app on a phone or tablet.
   - [2.1 Gallery](#21-gallery)
     - [2.1.1 Filtering](#211-filtering)
     - [2.1.2 Bulk actions](#212-bulk-actions)
+    - [2.1.3 Timeline (jump to a date)](#213-timeline-jump-to-a-date)
   - [2.2 Image Detail](#22-image-detail)
 - [3 Recipes](#3-recipes)
   - [3.1 Explorer](#31-explorer)
@@ -110,8 +111,9 @@ Two warnings can appear in a folder's **Sync** column:
 
 ![Images gallery](images/images_gallery.jpg)
 
-The main gallery shows all imported images as a scrollable grid. As you scroll down, more
-images load automatically.
+The main gallery shows all imported images as a scrollable grid, newest first. As you scroll
+down, older images load automatically; after you jump to a date with the
+[timeline](#213-timeline-jump-to-a-date), scrolling back up loads newer images too.
 
 #### 2.1.1 Filtering
 
@@ -151,6 +153,26 @@ mode, then open the _Actions_ menu to choose what to do with the selection.
   is also added to that folder's ignore list, so a later sync does not re-import it; you can
   undo that from the folder's [ignored files](#12-files-that-could-not-be-imported). An image outside any library
   folder is simply removed. The gallery reloads when you close the modal.
+
+#### 2.1.3 Timeline (jump to a date)
+
+A timeline runs down the right edge of the gallery, letting you jump straight to photos from a
+particular time instead of scrolling through everything in between. On a computer it appears
+when you move the pointer to the right edge; on a phone it fades in while you scroll and stays
+long enough to tap. It is **navigation, not a filter** — nothing is hidden, the gallery just
+scrolls to the date you pick.
+
+The timeline's detail scales with how far back you go: the last two years are shown month by
+month, the five years before that a year at a time, and older photos in three-year steps.
+Clicking a mark travels there (the most recent photos of that period first); the timeline then
+re-centres so the period you jumped to is expanded to months. Clicking in the space between two
+marks jumps proportionally to the time between them. The marks reflect whatever filters are
+active, so with a recipe or sensor filter on, the timeline covers just those photos.
+
+The date you land on is saved in the page address, together with any active filters, so you can
+**refresh or share the link and return to the exact same point in time**. Changing a filter keeps
+your place in time (within the new filtered set), and the browser Back button steps back through
+the dates you visited.
 
 ---
 
@@ -527,9 +549,9 @@ python manage.py rate_images <folder> --rating=<value>
 ```
 
 Applies a rating to every image in a folder. Useful when you have already curated a
-selection of images outside the app (e.g. a folder of exports from your camera, editing
-software, Google Photos...) and want that rating reflected in the gallery without clicking
-through each image individually.
+selection of images outside the app (e.g. a folder of exports from your camera or editing
+software) and want that rating reflected in the gallery without clicking through each image
+individually.
 
 `--rating` accepts any integer from 0 to `IMAGE_MAX_RATING` (default 5). Use `--rating=0`
 to clear ratings in bulk.

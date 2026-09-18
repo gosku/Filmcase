@@ -1,8 +1,5 @@
-{% comment %}Filter change: replace the grid (hx-target #gallery-results, innerHTML),
-reset both sentinels to the newest page, and refresh the rail + sidebars OOB.{% endcomment %}
+{% comment %}Date-jump landing: replace the gallery grid (hx-target #gallery-results,
+swap innerHTML) and reset both sentinels out-of-band around it.{% endcomment %}
 {% include "images/_gallery_results.html" with images=images %}
 {% include "images/_gallery_sentinel.html" with sentinel_id="load-older-sentinel" direction="older" cursor=older_cursor active=has_older oob=True %}
 {% include "images/_gallery_sentinel.html" with sentinel_id="load-newer-sentinel" direction="newer" cursor=newer_cursor active=has_newer sentinel_class="sentinel-newer" trigger="loadnewer" oob=True %}
-{% include "images/_gallery_timeline.html" with oob=True %}
-{% with oob=True %}{% include "images/_sidebar_filters.html" %}{% endwith %}
-{% with oob=True %}{% include "images/_recipe_filter.html" %}{% endwith %}

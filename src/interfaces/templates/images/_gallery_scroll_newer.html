@@ -1,0 +1,7 @@
+{% comment %}Scroll-up (newer) response: prepend cards, replace the newer sentinel.
+The prepend shifts content down; gallery-timeline.js compensates scroll so the
+viewport does not jump.{% endcomment %}
+{% include "images/_gallery_sentinel.html" with sentinel_id="load-newer-sentinel" direction="newer" cursor=newer_cursor active=has_newer sentinel_class="sentinel-newer" trigger="loadnewer" %}
+<div hx-swap-oob="afterbegin:#gallery-results">
+  {% include "images/_gallery_results.html" with images=images %}
+</div>

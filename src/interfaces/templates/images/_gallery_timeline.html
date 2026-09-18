@@ -1,0 +1,12 @@
+{% comment %}
+Timeline rail data + mount. gallery-timeline.js reads #timeline-data and renders
+the marks into .timeline-rail__mount, applying the granularity rule client-side.
+Wrapped in #timeline-rail so a filter change can replace the whole thing
+out-of-band (the monthly distribution changes with the filters).
+{% endcomment %}
+<div id="timeline-rail" class="timeline-rail"{% if oob %} hx-swap-oob="true"{% endif %}
+     data-results-url="{% url 'gallery-results' %}" aria-hidden="true">
+  {{ timeline_data|json_script:"timeline-data" }}
+  <div class="timeline-rail__mount"></div>
+  <div class="timeline-bubble" hidden></div>
+</div>
