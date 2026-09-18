@@ -436,59 +436,64 @@
     }
   }
 
-  // ── Scroll anchoring when newer pages prepend ────────────────────────
-  // Prepending above the viewport shifts everything down; capture the scroll
-  // metrics before the swap and restore the offset after so the view stays put.
+  // ── Prefetch pages ahead + anchor prepends ───────────────────────────
+  // Load the next page a full screen before its edge, in both directions, and
+  // top up after every load — so pages are already there when the user reaches
+  // them (no visible pop-in). Prepending newer pages above the viewport shifts
+  // content down, so capture the scroll metrics first and restore them after.
   var pendingAnchor = null;
   var jumpArmed = false;
   var loadingNewer = false;
-  var NEWER_TRIGGER_PX = 220;
+  var loadingOlder = false;
 
-  // The newer (top) sentinel is partly visible at a jump landing, so an
-  // IntersectionObserver would not re-fire on scroll-up. Drive it deterministically:
-  // when the user scrolls UP within NEWER_TRIGGER_PX of the top, fire its load.
-  function bindNewerScroll() {
+  function checkPrefetch() {
     var s = scroller();
-    if (!s) return;
-    var lastTop = s.scrollTop;
-    s.addEventListener("scroll", function () {
-      var top = s.scrollTop;
-      var goingUp = top < lastTop;
-      lastTop = top;
-      if (!goingUp || top > NEWER_TRIGGER_PX || loadingNewer) return;
-      var el = document.querySelector("#load-newer-sentinel .infinite-scroll-sentinel");
-      if (el && window.htmx) window.htmx.trigger(el, "loadnewer");
-    }, { passive: true });
+    // Don't prefetch when the tab is hidden: the viewport/card heights collapse,
+    // which would make "near the bottom" always true and load endless pages.
+    if (!s || document.hidden || s.clientHeight <= 0) return;
+    var margin = Math.max(700, s.clientHeight); // ~one screen of lead
+    if (!loadingOlder && s.scrollHeight - (s.scrollTop + s.clientHeight) < margin) {
+      var older = document.querySelector("#load-older-sentinel .infinite-scroll-sentinel");
+      if (older && window.htmx) { loadingOlder = true; window.htmx.trigger(older, "loadolder"); }
+    }
+    if (!loadingNewer && s.scrollTop < margin) {
+      var newer = document.querySelector("#load-newer-sentinel .infinite-scroll-sentinel");
+      if (newer && window.htmx) {
+        loadingNewer = true;
+        pendingAnchor = { height: s.scrollHeight, top: s.scrollTop }; // before the prepend
+        window.htmx.trigger(newer, "loadnewer");
+      }
+    }
+  }
+
+  function bindPrefetch() {
+    var s = scroller();
+    if (s) s.addEventListener("scroll", checkPrefetch, { passive: true });
   }
 
   function bindAnchoring() {
     document.body.addEventListener("htmx:beforeRequest", function (evt) {
       var elt = evt.detail && evt.detail.elt;
-      if (!elt) return;
-      if (elt.classList && elt.classList.contains("sentinel-newer")) {
-        loadingNewer = true;
-        var s = scroller();
-        pendingAnchor = s ? { height: s.scrollHeight, top: s.scrollTop } : null;
-      } else if (elt.id === "filter-form") {
+      if (elt && elt.id === "filter-form") {
         // A filter change that keeps a date should land at the date, not the top.
         var input = document.getElementById("to-date-input");
         if (input && input.value) jumpArmed = true;
       }
     });
     document.body.addEventListener("htmx:afterSettle", function () {
-      // A jump just settled: align the landing month to the top of the viewport.
-      // Done synchronously (not via rAF, which is paused while the tab is hidden);
-      // getBoundingClientRect forces the layout we need.
       if (jumpArmed) {
+        // A jump (or filter-with-date) settled: align the landing to the top.
         jumpArmed = false;
         pinLandingTop();
-        return;
+      } else if (pendingAnchor) {
+        // A newer page prepended above: restore the offset so the view stays put.
+        var s = scroller();
+        if (s) s.scrollTop = pendingAnchor.top + (s.scrollHeight - pendingAnchor.height);
+        pendingAnchor = null;
       }
-      if (!pendingAnchor) return;
-      var s = scroller();
-      if (s) s.scrollTop = pendingAnchor.top + (s.scrollHeight - pendingAnchor.height);
-      pendingAnchor = null;
+      loadingOlder = false;
       loadingNewer = false;
+      checkPrefetch(); // top up the buffer without waiting for a scroll
     });
   }
 
@@ -519,20 +524,21 @@
     init();
     bindReveal();
     bindAnchoring();
-    bindNewerScroll();
+    bindPrefetch();
     bindScrollSync();
     // Deep link with a date: the grid is already server-rendered at it, so pin
     // the landing to the top (the newer sentinel spacer sits above).
     if (lastData && lastData.focus) pinLandingTop();
+    checkPrefetch(); // fill the initial buffer so the first scroll shows no gap
   });
   // Re-fill the rail when the viewport changes size or the tab becomes visible
   // (its height may have been unknown — zero — when the rail first laid out).
   window.addEventListener("resize", relayoutOnResize);
   document.addEventListener("visibilitychange", function () {
-    if (document.visibilityState === "visible" && allMarks.length) render();
+    if (document.visibilityState !== "visible") return;
+    if (allMarks.length) render();
+    checkPrefetch(); // fill the buffer now that the viewport height is known
   });
-  // Rebuild after a filter change replaces #timeline-rail out-of-band.
-  document.body.addEventListener("htmx:afterSettle", function () { init(); });
   // Rebuild after a filter change replaces #timeline-rail out-of-band.
   document.body.addEventListener("htmx:afterSettle", function () { init(); });
 })();
