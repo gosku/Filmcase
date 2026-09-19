@@ -7,6 +7,7 @@ from src.domain.library.operations import (
     SyncAlreadyInProgress,
     add_library_folder,
     begin_pruning,
+    complete_removal_run,
     complete_sync_run,
     fail_sync_run,
     interrupt_active_sync_runs,
@@ -316,6 +317,45 @@ class TestStartRemovalRun:
         with pytest.raises(SyncAlreadyInProgress) as exc_info:
             start_removal_run(folder=folder)
         assert exc_info.value.folder_id == folder.pk
+
+
+@pytest.mark.django_db
+class TestCompleteRemovalRun:
+    def test_transitions_removing_run_to_completed(self):
+        run = SyncRunFactory(state=models.SyncRun.STATE_REMOVING, total=1, removed=1)
+
+        completed = complete_removal_run(run=run)
+
+        assert completed is True
+        run.refresh_from_db()
+        assert run.state == models.SyncRun.STATE_COMPLETED
+
+    def test_publishes_removal_completed_event_with_removed_count(self, captured_logs):
+        run = SyncRunFactory(state=models.SyncRun.STATE_REMOVING, total=3, removed=3)
+
+        complete_removal_run(run=run)
+
+        matching = [
+            e
+            for e in captured_logs
+            if e.get("event_type") == events.LIBRARY_FOLDER_REMOVAL_COMPLETED
+        ]
+        assert len(matching) == 1
+        assert matching[0]["run_id"] == run.pk
+        assert matching[0]["removed"] == 3
+
+    def test_returns_false_and_publishes_nothing_for_the_loser(self, captured_logs):
+        run = SyncRunFactory(state=models.SyncRun.STATE_COMPLETED, total=1, removed=1)
+
+        completed = complete_removal_run(run=run)
+
+        assert completed is False
+        matching = [
+            e
+            for e in captured_logs
+            if e.get("event_type") == events.LIBRARY_FOLDER_REMOVAL_COMPLETED
+        ]
+        assert matching == []
 
 
 @pytest.mark.django_db
