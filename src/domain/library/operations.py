@@ -556,6 +556,32 @@ def start_sync_run(
     return run
 
 
+def start_removal_run(*, folder: models.LibraryFolder) -> models.SyncRun:
+    """
+    Create a new removal run for *folder* in the removing state.
+
+    A removal run tracks tearing the folder down (deleting its exclusively-owned
+    images, then the folder row itself) the same way a sync run tracks importing,
+    so the Library page can show progress. It counts as active, so it shares the
+    one-active-run-per-folder guard with syncs: a folder cannot be removed while a
+    sync is running, or synced while a removal is running.
+
+    :raises SyncAlreadyInProgress: If *folder* already has an active run.
+    """
+    try:
+        with transaction.atomic():
+            run = models.SyncRun.create_removal(folder=folder)
+    except IntegrityError:
+        raise SyncAlreadyInProgress(folder_id=folder.pk)
+
+    events.publish_event(
+        event_type=events.LIBRARY_FOLDER_REMOVAL_STARTED,
+        run_id=run.pk,
+        folder_id=folder.pk,
+    )
+    return run
+
+
 def begin_pruning(*, run: models.SyncRun) -> bool:
     """
     Move *run* from processing into its prune phase.

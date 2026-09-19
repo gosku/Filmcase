@@ -11,6 +11,7 @@ from src.domain.library.operations import (
     fail_sync_run,
     interrupt_active_sync_runs,
     remove_library_folder,
+    start_removal_run,
     start_sync_run,
     update_library_folder_path,
 )
@@ -283,6 +284,38 @@ class TestStartSyncRun:
         run = start_sync_run(folder=folder)
 
         assert run.state == models.SyncRun.STATE_SCANNING
+
+
+@pytest.mark.django_db
+class TestStartRemovalRun:
+    def test_creates_removing_run(self):
+        folder = LibraryFolderFactory()
+
+        run = start_removal_run(folder=folder)
+
+        assert models.SyncRun.objects.filter(pk=run.pk).exists()
+        assert run.state == models.SyncRun.STATE_REMOVING
+        assert run.folder_id == folder.pk
+
+    def test_publishes_removal_started_event(self, captured_logs):
+        folder = LibraryFolderFactory()
+
+        run = start_removal_run(folder=folder)
+
+        matching = [
+            e for e in captured_logs if e.get("event_type") == events.LIBRARY_FOLDER_REMOVAL_STARTED
+        ]
+        assert len(matching) == 1
+        assert matching[0]["run_id"] == run.pk
+        assert matching[0]["folder_id"] == folder.pk
+
+    def test_raises_when_folder_already_has_active_run(self):
+        folder = LibraryFolderFactory()
+        SyncRunFactory(folder=folder, state=models.SyncRun.STATE_PROCESSING, total=1)
+
+        with pytest.raises(SyncAlreadyInProgress) as exc_info:
+            start_removal_run(folder=folder)
+        assert exc_info.value.folder_id == folder.pk
 
 
 @pytest.mark.django_db
