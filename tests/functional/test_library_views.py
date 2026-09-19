@@ -5,9 +5,17 @@ from bs4 import BeautifulSoup
 
 from src.application.usecases.library.trigger_folder_sync import CeleryWorkerUnavailable
 from src.data import models
-from tests.factories import IgnoredImageFactory, ImageFactory, LibraryFolderFactory
+from tests.factories import (
+    IgnoredImageFactory,
+    ImageFactory,
+    LibraryFolderFactory,
+    SyncRunFactory,
+)
 
 TRIGGER = "src.interfaces.library.views.trigger_folder_sync_uc.trigger_folder_sync"
+REMOVAL_WORKER = (
+    "src.application.usecases.library.trigger_folder_removal.workertasks.is_celery_worker_available"
+)
 
 
 @pytest.mark.django_db
@@ -140,9 +148,41 @@ class TestLibraryFolderRemove:
         folder = LibraryFolderFactory(path="/photos")
         image = ImageFactory(filepath="/photos/DSCF0001.JPG")
 
-        client.post(f"/settings/library/{folder.pk}/delete/", {"delete_images": "on"})
+        # A worker is available, so the removal (dispatched to eager Celery in
+        # tests) runs through and both the images and the folder go.
+        with patch(REMOVAL_WORKER, return_value=True):
+            client.post(f"/settings/library/{folder.pk}/delete/", {"delete_images": "on"})
 
         assert not models.Image.objects.filter(pk=image.pk).exists()
+        assert not models.LibraryFolder.objects.filter(pk=folder.pk).exists()
+
+    def test_shows_error_and_keeps_everything_when_worker_unavailable(self, client):
+        folder = LibraryFolderFactory(path="/photos")
+        image = ImageFactory(filepath="/photos/DSCF0001.JPG")
+
+        with patch(REMOVAL_WORKER, return_value=False):
+            response = client.post(
+                f"/settings/library/{folder.pk}/delete/", {"delete_images": "on"}
+            )
+
+        assert response.status_code == 200
+        assert b"No image worker is running" in response.content
+        assert models.Image.objects.filter(pk=image.pk).exists()
+        assert models.LibraryFolder.objects.filter(pk=folder.pk).exists()
+
+    def test_shows_error_when_a_run_is_already_in_progress(self, client):
+        folder = LibraryFolderFactory(path="/photos")
+        ImageFactory(filepath="/photos/DSCF0001.JPG")
+        SyncRunFactory(folder=folder, state=models.SyncRun.STATE_PROCESSING, total=1)
+
+        with patch(REMOVAL_WORKER, return_value=True):
+            response = client.post(
+                f"/settings/library/{folder.pk}/delete/", {"delete_images": "on"}
+            )
+
+        assert response.status_code == 200
+        assert b"already running" in response.content
+        assert models.LibraryFolder.objects.filter(pk=folder.pk).exists()
 
 
 @pytest.mark.django_db

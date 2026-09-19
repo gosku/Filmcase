@@ -14,6 +14,13 @@
       <progress class="sync-status__bar" value="{{ status.percent }}" max="100"></progress>
     {% elif status.is_pruning %}
       <span class="sync-status__label">Removing missing images…</span>
+    {% elif status.is_removing %}
+      {% if status.total %}
+        <span class="sync-status__label">Removing {{ status.handled }}/{{ status.total }}</span>
+        <progress class="sync-status__bar" value="{{ status.percent }}" max="100"></progress>
+      {% else %}
+        <span class="sync-status__label">Removing…</span>
+      {% endif %}
     {% elif status.is_completed %}
       <span class="sync-status__label sync-status__label--done">Imported {{ status.processed }}{% if status.skipped %}, skipped {{ status.skipped }}{% endif %}{% if status.removed %}, removed {{ status.removed }}{% if status.uncovered_found %} ({{ status.uncovered_found }} no longer in this folder){% endif %}{% endif %}{% if status.errors %}, {{ status.errors }} error{{ status.errors|pluralize }}{% endif %}</span>
       {% if status.prune_skipped_by_guard %}

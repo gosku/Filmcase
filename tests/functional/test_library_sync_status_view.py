@@ -39,6 +39,40 @@ class TestLibraryFolderSyncStatus:
         assert 'hx-trigger="every 2s"' in content
         assert "<progress" in content
 
+    def test_shows_removal_progress_while_removing(self, client):
+        folder = LibraryFolderFactory()
+        run = SyncRunFactory(folder=folder, state=models.SyncRun.STATE_REMOVING, total=4)
+        run.removed = 1
+        run.save(update_fields=["removed"])
+
+        response = client.get(f"/settings/library/{folder.pk}/sync-status/")
+
+        content = response.content.decode()
+        assert "Removing 1/4" in content
+        assert 'hx-trigger="every 2s"' in content
+        assert "<progress" in content
+
+    def test_shows_removing_without_a_bar_before_the_total_is_known(self, client):
+        folder = LibraryFolderFactory()
+        SyncRunFactory(folder=folder, state=models.SyncRun.STATE_REMOVING, total=None)
+
+        response = client.get(f"/settings/library/{folder.pk}/sync-status/")
+
+        content = response.content.decode()
+        assert "Removing…" in content
+        assert 'hx-trigger="every 2s"' in content
+
+    def test_deletes_the_row_when_the_folder_is_gone(self, client):
+        # A removal finalised: the folder (and its run) are gone, so a poll must
+        # tell HTMX to remove the row rather than fall back to "Not synced".
+        response = client.get("/settings/library/99999/sync-status/")
+
+        assert response.status_code == 200
+        content = response.content.decode()
+        assert "hx-swap-oob" in content
+        assert "delete:#folder-row-99999" in content
+        assert "Not synced" not in content
+
     def test_processing_label_counts_skipped_and_errors(self, client):
         # Regression: the label must show total handled (processed+skipped+errors),
         # not just processed — otherwise non-Fujifilm folders show "0/N" forever
