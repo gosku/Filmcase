@@ -556,6 +556,56 @@ def start_sync_run(
     return run
 
 
+def start_removal_run(*, folder: models.LibraryFolder) -> models.SyncRun:
+    """
+    Create a new removal run for *folder* in the removing state.
+
+    A removal run tracks tearing the folder down (deleting its exclusively-owned
+    images, then the folder row itself) the same way a sync run tracks importing,
+    so the Library page can show progress. It counts as active, so it shares the
+    one-active-run-per-folder guard with syncs: a folder cannot be removed while a
+    sync is running, or synced while a removal is running.
+
+    :raises SyncAlreadyInProgress: If *folder* already has an active run.
+    """
+    try:
+        with transaction.atomic():
+            run = models.SyncRun.create_removal(folder=folder)
+    except IntegrityError:
+        raise SyncAlreadyInProgress(folder_id=folder.pk)
+
+    events.publish_event(
+        event_type=events.LIBRARY_FOLDER_REMOVAL_STARTED,
+        run_id=run.pk,
+        folder_id=folder.pk,
+    )
+    return run
+
+
+def complete_removal_run(*, run: models.SyncRun) -> bool:
+    """
+    Mark a removal *run* completed if it is still removing.
+
+    A single conditional UPDATE, so when several per-image removal tasks reach the
+    last image at once, exactly one wins and goes on to delete the folder. Returns
+    True for that winner. The run is deleted along with the folder immediately
+    after, so COMPLETED is only ever a momentary state for a removal.
+    """
+    completed = run.transition_state(
+        from_states=(models.SyncRun.STATE_REMOVING,),
+        to_state=models.SyncRun.STATE_COMPLETED,
+        finished_at=timezone.now(),
+    )
+    if completed:
+        events.publish_event(
+            event_type=events.LIBRARY_FOLDER_REMOVAL_COMPLETED,
+            run_id=run.pk,
+            folder_id=run.folder_id,
+            removed=run.removed,
+        )
+    return completed
+
+
 def begin_pruning(*, run: models.SyncRun) -> bool:
     """
     Move *run* from processing into its prune phase.

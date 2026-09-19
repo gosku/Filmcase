@@ -1,0 +1,6 @@
+{% comment %}
+The folder this row was polling has been removed, so delete the whole row out of
+band. The polling div (the main swap target) is emptied by the empty response
+body; the out-of-band delete removes the row that contained it.
+{% endcomment %}
+<div hx-swap-oob="delete:#folder-row-{{ folder_id }}"></div>

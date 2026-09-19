@@ -30,6 +30,10 @@ def sync_folder(*, folder_id: int, prune_mode: str = models.SyncRun.PRUNE_MODE_A
     an active run (the concurrency guard). A folder that is missing from disk
     fails its run and removes nothing, because an unplugged drive is far more
     likely than a deletion of everything at once.
+
+    Creating the run and walking the tree happen together here, which is what the
+    startup/full-library sync wants. A web request that must return before the
+    walk starts the run itself and hands the walk to resume_folder_scan instead.
     """
     try:
         folder = library_queries.get_library_folder(folder_id=folder_id)
@@ -41,6 +45,34 @@ def sync_folder(*, folder_id: int, prune_mode: str = models.SyncRun.PRUNE_MODE_A
     except library_operations.SyncAlreadyInProgress:
         return
 
+    _run_scan(run=run, folder=folder)
+
+
+def resume_folder_scan(*, sync_run_id: int) -> None:
+    """
+    Walk the folder for a run that was already started, and dispatch its images.
+
+    The counterpart to starting the run in the web request: the request creates
+    the run (claiming the concurrency guard and giving the page something to poll
+    at once), then this runs the actual walk off the request, in the worker or a
+    background thread.
+
+    Returns without doing anything if the run or its folder no longer exists.
+    """
+    try:
+        run = library_queries.get_sync_run(run_id=sync_run_id)
+    except library_queries.SyncRunNotFound:
+        return
+
+    try:
+        folder = library_queries.get_library_folder(folder_id=run.folder_id)
+    except library_queries.LibraryFolderNotFound:
+        return
+
+    _run_scan(run=run, folder=folder)
+
+
+def _run_scan(*, run: models.SyncRun, folder: models.LibraryFolder) -> None:
     # last_checked_at records when the scan started, so files added during or
     # after this scan are still caught on the next run.
     now = datetime.now(tz=timezone.utc)

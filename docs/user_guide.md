@@ -65,8 +65,10 @@ folder was checked and the last time new images were found in it.
 - **Remove**: click _Remove_ to unregister a folder. A confirmation appears showing how many
   images in the gallery come only from that folder, and offers two choices: remove the folder
   only, leaving its images in the gallery, or remove the folder and take those images out of
-  the gallery too. **Neither option deletes a photo file**; your files stay on disk. If folders
-  are nested, removing the inner one never takes images the outer one still monitors.
+  the gallery too. Removing the folder only is immediate; removing its images too runs in the
+  background (the row shows `Removing X/Y` and disappears when it finishes), so the page never
+  hangs on a large folder. **Neither option deletes a photo file**; your files stay on disk. If
+  folders are nested, removing the inner one never takes images the outer one still monitors.
 
 ### 1.2 Files that could not be imported
 

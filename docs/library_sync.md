@@ -61,15 +61,16 @@ or changing an existing folder's path, triggers a sync of that one folder straig
 Removing a folder asks what you want to happen to its images: you can keep them in the gallery
 or take them out along with the folder. Either way the photo files themselves stay on disk.
 
-The triggered sync reuses the same per-folder scan described above and behaves according to
-your install mode:
+The triggered sync reuses the same per-folder scan described above. The scan itself, including
+the walk of the folder tree, runs off the web request, so the page returns immediately no
+matter how large the library:
 
 - **Lite install:** the sync runs in a background thread, so the page responds immediately
-  while images are imported behind the scenes. You can navigate away and come back; the work
-  keeps running on the server.
-- **Full install:** the new images are enqueued to the Celery worker and the page returns at
-  once. If no worker is reachable, the folder is still added but a message explains that it
-  could not be synced (start a worker with `make worker`, then re-add or re-save the folder).
+  while the folder is walked and images are imported behind the scenes. You can navigate away
+  and come back; the work keeps running on the server.
+- **Full install:** the scan is handed to the Celery worker and the page returns at once. If no
+  worker is reachable, the folder is still added but a message explains that it could not be
+  synced (start a worker with `make worker`, then re-add or re-save the folder).
 
 Changing a folder's path rescans the whole new location. If you moved the folder rather than
 pointing it somewhere new, the photos inside it are recognised and simply follow the move; you
@@ -159,8 +160,14 @@ the command's own count is always zero; watch the Library page for the result.
 Pressing **Remove** on a folder asks what should happen to its images. It tells you how many
 images in the gallery come only from that folder, and offers two choices:
 
-- **Remove folder only** stops monitoring the folder and leaves its images in the gallery.
-- **Remove folder and its images** also takes those images out of the gallery.
+- **Remove folder only** stops monitoring the folder and leaves its images in the gallery. This
+  is immediate.
+- **Remove folder and its images** also takes those images out of the gallery. On a large
+  folder this can be a lot of work, so it runs off the web request the same way a sync does:
+  the page returns at once, the folder row shows `Removing X/Y` while its images are taken out,
+  and the row disappears once the last one is gone. In full install mode this needs a Celery
+  worker; if none is reachable a message says so and nothing is removed (start one with
+  `make worker`, then press Remove again).
 
 Again, no photo file is deleted either way.
 

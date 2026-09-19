@@ -29,6 +29,7 @@ class SyncRunData:
     is_scanning: bool
     is_processing: bool
     is_pruning: bool
+    is_removing: bool
     is_completed: bool
     is_failed: bool
     is_interrupted: bool

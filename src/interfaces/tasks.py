@@ -6,6 +6,9 @@ from django.conf import settings
 
 from src.application.usecases.library.finalize_sync_run import finalize_sync_run_by_id
 from src.application.usecases.library.process_synced_image import process_synced_image
+from src.application.usecases.library.remove_folder_image import remove_folder_image
+from src.application.usecases.library.run_folder_removal import run_folder_removal
+from src.application.usecases.library.sync_folder import resume_folder_scan
 from src.domain.images import events, operations
 from src.domain.images.thumbnails import operations as thumbnail_operations
 from src.domain.recipes import validation as recipe_validation
@@ -139,6 +142,48 @@ def finalize_sync_run_task(self: Any, /, *, sync_run_id: int, **kwargs: object) 
     """
     finalize_sync_run_by_id(sync_run_id=sync_run_id)
     return f"Finalized sync run {sync_run_id}"
+
+
+@shared_task(name="library.sync_folder_scan", bind=True, queue=settings.PROCESS_IMAGE_QUEUE)
+def sync_folder_scan_task(self: Any, /, *, sync_run_id: int, **kwargs: object) -> str:
+    """
+    Celery task that walks a folder for a run the web request already started.
+
+    The walk is the slow part of an add or a repoint; running it here keeps it off
+    the request, which returns as soon as the run exists.
+    """
+    resume_folder_scan(sync_run_id=sync_run_id)
+    return f"Scanned folder for sync run {sync_run_id}"
+
+
+@shared_task(name="library.remove_folder_images", bind=True, queue=settings.PROCESS_IMAGE_QUEUE)
+def remove_folder_images_task(self: Any, /, *, sync_run_id: int, **kwargs: object) -> str:
+    """
+    Celery task that orchestrates a folder removal: resolve the folder's images
+    and dispatch one removal task per image.
+    """
+    run_folder_removal(sync_run_id=sync_run_id)
+    return f"Dispatched folder removal for sync run {sync_run_id}"
+
+
+@shared_task(name="library.remove_folder_image", bind=True, queue=settings.PROCESS_IMAGE_QUEUE)
+def remove_folder_image_task(
+    self: Any,
+    /,
+    *,
+    image_id: int,
+    sync_run_id: int,
+    **kwargs: object,
+) -> str:
+    """
+    Celery task that removes one image for a folder removal and, if it is the last,
+    finalises the run by deleting the folder.
+
+    One image per message is what makes a removal parallel and lets a single
+    failure retry one file rather than the whole folder.
+    """
+    remove_folder_image(image_id=image_id, sync_run_id=sync_run_id)
+    return f"Removed image {image_id} for sync run {sync_run_id}"
 
 
 @shared_task(name="domain.generate_thumbnail", bind=True, queue=settings.PROCESS_IMAGE_QUEUE)

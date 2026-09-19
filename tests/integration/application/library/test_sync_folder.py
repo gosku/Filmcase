@@ -6,7 +6,7 @@ from unittest.mock import patch
 import pytest
 from django.test import override_settings
 
-from src.application.usecases.library.sync_folder import sync_folder
+from src.application.usecases.library.sync_folder import resume_folder_scan, sync_folder
 from src.data import models
 from tests.factories import ImageFactory, LibraryFolderFactory, SyncRunFactory
 
@@ -78,6 +78,28 @@ class TestSyncFolderLiteMode:
         assert run.state == models.SyncRun.STATE_FAILED
         folder.refresh_from_db()
         assert folder.last_checked_at is not None
+
+
+@pytest.mark.django_db
+class TestResumeFolderScan:
+    @override_settings(USE_ASYNC_TASKS=False)
+    def test_walks_and_completes_an_already_started_run(self, tmp_path):
+        image_path = tmp_path / FUJIFILM_FIXTURE.name
+        shutil.copy(FUJIFILM_FIXTURE, image_path)
+        folder = LibraryFolderFactory(path=str(tmp_path))
+        run = SyncRunFactory(folder=folder, state=models.SyncRun.STATE_SCANNING, total=None)
+
+        resume_folder_scan(sync_run_id=run.pk)
+
+        run.refresh_from_db()
+        assert run.state == models.SyncRun.STATE_COMPLETED
+        assert run.total == 1
+        assert models.Image.objects.filter(filepath=str(image_path)).exists()
+
+    @override_settings(USE_ASYNC_TASKS=False)
+    def test_does_nothing_when_the_run_is_gone(self):
+        # No run with this id: the call must return quietly rather than raise.
+        resume_folder_scan(sync_run_id=999999)
 
 
 @pytest.mark.django_db

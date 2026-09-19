@@ -9,7 +9,10 @@ from unittest import mock
 from src.interfaces import tasks as interface_tasks
 from src.interfaces.tasks import (
     finalize_sync_run_task,
+    remove_folder_image_task,
+    remove_folder_images_task,
     sync_dispatch_image_batch_task,
+    sync_folder_scan_task,
     sync_process_image_batch_task,
     sync_process_image_task,
 )
@@ -149,3 +152,47 @@ class TestFinalizeSyncRunTask:
 
     def test_does_nothing_for_a_run_that_no_longer_exists(self):
         finalize_sync_run_task.apply(kwargs={"sync_run_id": 9999}).get()
+
+
+@pytest.mark.django_db
+class TestSyncFolderScanTask:
+    def test_walks_the_folder_and_imports_its_images(self, tmp_path):
+        image_path = tmp_path / FUJIFILM_FIXTURE.name
+        shutil.copy(FUJIFILM_FIXTURE, image_path)
+        folder = LibraryFolderFactory(path=str(tmp_path))
+        run = SyncRunFactory(folder=folder, state=models.SyncRun.STATE_SCANNING, total=None)
+
+        sync_folder_scan_task.apply(kwargs={"sync_run_id": run.pk}).get()
+
+        run.refresh_from_db()
+        assert run.state == models.SyncRun.STATE_COMPLETED
+        assert models.Image.objects.filter(filepath=str(image_path)).exists()
+
+
+@pytest.mark.django_db
+class TestRemoveFolderImagesTask:
+    def test_removes_the_folder_images_and_deletes_the_folder(self, tmp_path):
+        folder = LibraryFolderFactory(path=str(tmp_path))
+        first = ImageFactory(filepath=str(tmp_path / "a.jpg"))
+        second = ImageFactory(filepath=str(tmp_path / "b.jpg"))
+        run = SyncRunFactory(folder=folder, state=models.SyncRun.STATE_REMOVING, total=None)
+
+        remove_folder_images_task.apply(kwargs={"sync_run_id": run.pk}).get()
+
+        assert not models.Image.objects.filter(pk__in=[first.pk, second.pk]).exists()
+        assert not models.LibraryFolder.objects.filter(pk=folder.pk).exists()
+
+
+@pytest.mark.django_db
+class TestRemoveFolderImageTask:
+    def test_removes_one_image_and_finalises_on_the_last(self, tmp_path):
+        folder = LibraryFolderFactory(path=str(tmp_path))
+        image = ImageFactory(filepath=str(tmp_path / "a.jpg"))
+        run = SyncRunFactory(folder=folder, state=models.SyncRun.STATE_REMOVING, total=1)
+
+        remove_folder_image_task.apply(
+            kwargs={"image_id": image.pk, "sync_run_id": run.pk}
+        ).get()
+
+        assert not models.Image.objects.filter(pk=image.pk).exists()
+        assert not models.LibraryFolder.objects.filter(pk=folder.pk).exists()

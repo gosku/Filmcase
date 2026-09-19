@@ -8,8 +8,8 @@ from src.application.usecases.library import add_library_folder as add_library_f
 from src.application.usecases.library import browse_filesystem as browse_filesystem_uc
 from src.application.usecases.library import dataclasses as library_dataclasses
 from src.application.usecases.library import get_folder_removal_preview as get_folder_removal_preview_uc
-from src.application.usecases.library import remove_library_folder as remove_library_folder_uc
 from src.application.usecases.library import retry_ignored_images as retry_ignored_images_uc
+from src.application.usecases.library import trigger_folder_removal as trigger_folder_removal_uc
 from src.application.usecases.library import trigger_folder_sync as trigger_folder_sync_uc
 from src.application.usecases.library import update_library_folder_path as update_library_folder_path_uc
 from src.data import models
@@ -49,7 +49,10 @@ def _render_library_list(request: http.HttpRequest, *, error: str | None = None)
 
 def _sync_status(run: models.SyncRun) -> library_dataclasses.SyncRunData:
     total = run.total
-    handled = run.processed + run.skipped + run.errors
+    is_removing = run.state == models.SyncRun.STATE_REMOVING
+    # A removal counts its progress in images removed; every other phase counts
+    # images that reached a terminal import outcome.
+    handled = run.removed if is_removing else run.processed + run.skipped + run.errors
     percent = int(handled / total * 100) if total else 0
     return library_dataclasses.SyncRunData(
         folder_id=run.folder_id,
@@ -66,6 +69,7 @@ def _sync_status(run: models.SyncRun) -> library_dataclasses.SyncRunData:
         is_scanning=run.state == models.SyncRun.STATE_SCANNING,
         is_processing=run.state == models.SyncRun.STATE_PROCESSING,
         is_pruning=run.state == models.SyncRun.STATE_PRUNING,
+        is_removing=is_removing,
         is_completed=run.state == models.SyncRun.STATE_COMPLETED,
         is_failed=run.state == models.SyncRun.STATE_FAILED,
         is_interrupted=run.state == models.SyncRun.STATE_INTERRUPTED,
@@ -130,12 +134,22 @@ class LibraryFolderRemove(generic.View):
     def post(self, request: http.HttpRequest, folder_id: int) -> http.HttpResponse:
         delete_images = request.POST.get("delete_images") == "on"
         try:
-            remove_library_folder_uc.remove_library_folder(
+            trigger_folder_removal_uc.trigger_folder_removal(
                 folder_id=folder_id,
                 delete_images=delete_images,
             )
-        except remove_library_folder_uc.LibraryFolderNotFound:
+        except trigger_folder_removal_uc.LibraryFolderNotFound:
             raise http.Http404
+        except trigger_folder_removal_uc.SyncAlreadyInProgress:
+            return _render_library_list(
+                request,
+                error="A sync is already running for this folder. Try removing it again in a moment.",
+            )
+        except trigger_folder_removal_uc.CeleryWorkerUnavailable:
+            return _render_library_list(
+                request,
+                error="No image worker is running to remove the folder's images. Start one with 'make worker'.",
+            )
         return shortcuts.redirect(urls.reverse("library-list"))
 
 
@@ -172,6 +186,15 @@ class LibraryFolderSyncStatus(generic.View):
     """Return an HTMX partial with the latest sync-run status for a folder."""
 
     def get(self, request: http.HttpRequest, folder_id: int) -> http.HttpResponse:
+        try:
+            domain_queries.get_library_folder(folder_id=folder_id)
+        except domain_queries.LibraryFolderNotFound:
+            # The folder was removed (a removal run just finalised), so the row it
+            # was polling should disappear rather than fall back to "Not synced".
+            return shortcuts.render(request, "library/partials/folder_row_removed.html", {
+                "folder_id": folder_id,
+            })
+
         run = domain_queries.get_latest_sync_run(folder_id=folder_id)
         status = _sync_status(run) if run is not None else None
         return shortcuts.render(request, "library/partials/sync_status.html", {
