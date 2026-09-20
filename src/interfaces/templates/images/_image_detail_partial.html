@@ -98,6 +98,11 @@
     background: #111;
     overflow: hidden;
     height: 100%;
+    /* Reserve horizontal drags for the swipe handler. Without this the browser
+       claims the horizontal gesture for its own panning and the swipe never
+       reaches our touchmove listener (breaks navigation on Chrome for Android);
+       pan-y still lets vertical gestures scroll. */
+    touch-action: pan-y;
   }
 
   .detail-nav {
@@ -125,6 +130,9 @@
     height: 100%;
     object-fit: contain;
     border-radius: 4px;
+    /* The photo is the touch target for the swipe; reserve horizontal drags
+       (see .detail-image-col). */
+    touch-action: pan-y;
   }
 
   /* Transient neighbour image used only while a next/prev slide plays. It
