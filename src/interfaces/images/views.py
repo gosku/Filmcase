@@ -112,49 +112,54 @@ def _focused_page(
     return newest, None
 
 
+def _gallery_context(request: http.HttpRequest) -> dict[str, object]:
+    """
+    Build the context the gallery page renders with: the current page of images,
+    the timeline rail, the filter options and the rating scale.
+
+    Shared by the gallery itself and by a direct image-detail load, which renders
+    the same gallery underneath its pre-opened overlay.
+    """
+    active_filters = _active_filters_from_request(request)
+    rating_first = _rating_first_from_request(request)
+    tz = dj_tz.get_current_timezone()
+    today = dj_tz.localtime()
+    # A ``to_date`` in the URL lands on that month (deep-linkable, survives a
+    # refresh); otherwise the freshly-loaded gallery is the newest page.
+    page, focus = _focused_page(
+        active_filters=active_filters,
+        rating_first=rating_first,
+        to_date=request.GET.get("to_date") or "",
+        tz=tz,
+        limit=settings_queries.get_gallery_page_size(),
+    )
+    distribution = timeline_queries.get_timeline_distribution(
+        active_filters=active_filters, rating_first=rating_first, tz=tz
+    )
+    options = filter_queries.get_filter_options(active_filters=active_filters)
+    max_rating = settings_queries.get_image_max_rating()
+    return {
+        **_page_context(page),
+        "timeline_data": _timeline_data(distribution, today, focus),
+        "to_date": focus or "",
+        "sidebar_options": options.sidebar_options,
+        "recipe_options": options.recipe_options,
+        "rating_first": "1" if rating_first else "0",
+        "max_rating": max_rating,
+        "rating_range": range(1, max_rating + 1),
+    }
+
+
 class Gallery(generic.View):
     """
     Display the image gallery with filtering and pagination.
     """
 
     def get(self, request: http.HttpRequest) -> http.HttpResponse:
-        active_filters = _active_filters_from_request(request)
-        rating_first = _rating_first_from_request(request)
-        tz = dj_tz.get_current_timezone()
-        today = dj_tz.localtime()
-        # A ``to_date`` in the URL lands on that month (deep-linkable, survives a
-        # refresh); otherwise the freshly-loaded gallery is the newest page.
-        page, focus = _focused_page(
-            active_filters=active_filters,
-            rating_first=rating_first,
-            to_date=request.GET.get("to_date") or "",
-            tz=tz,
-            limit=settings_queries.get_gallery_page_size(),
-        )
-        distribution = timeline_queries.get_timeline_distribution(
-            active_filters=active_filters, rating_first=rating_first, tz=tz
-        )
-        options = filter_queries.get_filter_options(active_filters=active_filters)
-        context: dict[str, object] = {
-            **_page_context(page),
-            "timeline_data": _timeline_data(distribution, today, focus),
-            "to_date": focus or "",
-            "sidebar_options": options.sidebar_options,
-            "recipe_options": options.recipe_options,
-        }
+        context = _gallery_context(request)
         if request.headers.get("HX-Request"):
             return shortcuts.render(request, "images/_gallery_htmx_filter_response.html", context)
-        max_rating = settings_queries.get_image_max_rating()
-        return shortcuts.render(
-            request,
-            "images/gallery.html",
-            {
-                **context,
-                "rating_first": "1" if rating_first else "0",
-                "max_rating": max_rating,
-                "rating_range": range(1, max_rating + 1),
-            },
-        )
+        return shortcuts.render(request, "images/gallery.html", context)
 
 
 class ImageDetail(generic.View):
@@ -165,29 +170,8 @@ class ImageDetail(generic.View):
     """
 
     def get(self, request: http.HttpRequest, image_id: int) -> http.HttpResponse:
-        max_rating = settings_queries.get_image_max_rating()
-        rating_range = range(1, max_rating + 1)
-        if request.headers.get("HX-Request"):
-            active_filters = _active_filters_from_request(request)
-            rating_first = request.GET.get("rating_first", "1") == "1"
-            try:
-                detail = image_queries.get_image_detail(
-                    image_id=image_id,
-                    active_filters=active_filters,
-                    rating_first=rating_first,
-                )
-            except models.Image.DoesNotExist:
-                raise http.Http404
-            return shortcuts.render(request, "images/_image_detail_partial.html", {
-                "image": detail.image,
-                "prev_id": detail.prev_id,
-                "next_id": detail.next_id,
-                "is_monochromatic": detail.is_monochromatic,
-                "max_rating": max_rating,
-                "rating_range": rating_range,
-            })
         active_filters = _active_filters_from_request(request)
-        rating_first = request.GET.get("rating_first", "1") == "1"
+        rating_first = _rating_first_from_request(request)
         try:
             detail = image_queries.get_image_detail(
                 image_id=image_id,
@@ -196,14 +180,27 @@ class ImageDetail(generic.View):
             )
         except models.Image.DoesNotExist:
             raise http.Http404
-        return shortcuts.render(request, "images/image_detail.html", {
+        max_rating = settings_queries.get_image_max_rating()
+        detail_context: dict[str, object] = {
             "image": detail.image,
             "prev_id": detail.prev_id,
             "next_id": detail.next_id,
+            "prev2_id": detail.prev2_id,
+            "next2_id": detail.next2_id,
             "is_monochromatic": detail.is_monochromatic,
             "max_rating": max_rating,
-            "rating_range": rating_range,
-        })
+            "rating_range": range(1, max_rating + 1),
+        }
+        if request.headers.get("HX-Request"):
+            return shortcuts.render(request, "images/_image_detail_partial.html", detail_context)
+        # A direct load renders the full gallery with the overlay pre-opened on
+        # this image, so closing it reveals the same gallery (and remembered
+        # view mode) as ``/images/``.
+        return shortcuts.render(
+            request,
+            "images/gallery.html",
+            {**_gallery_context(request), **detail_context, "detail_open": True},
+        )
 
 
 class GalleryResults(generic.View):
