@@ -142,9 +142,13 @@
   .detail-slide-in {
     position: absolute;
     top: 1.5rem;
-    right: 1.5rem;
-    bottom: 1.5rem;
     left: 1.5rem;
+    /* Explicit dimensions matter: an absolutely positioned <img> ignores
+       right/bottom insets and keeps its intrinsic size, so object-fit would
+       not scale it until too late. Size it to the same content box as
+       .detail-image (the column minus its 1.5rem padding on each side). */
+    width: calc(100% - 3rem);
+    height: calc(100% - 3rem);
     object-fit: contain;
     border-radius: 4px;
     z-index: 2;
@@ -370,9 +374,9 @@
        edge, matching the photo. */
     .detail-slide-in {
       top: 0;
-      right: 0;
-      bottom: 0;
       left: 0;
+      width: 100%;
+      height: 100%;
     }
 
     /* Rating + close overlay the top of the image, costing no vertical space. */
