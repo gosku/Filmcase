@@ -507,6 +507,10 @@ class ImageDetailContext:
     image: models.Image
     prev_id: int | None
     next_id: int | None
+    # The neighbours two steps away, used only to warm the cache so a quick run
+    # of next/prev navigations stays ahead of the images it slides in.
+    prev2_id: int | None
+    next2_id: int | None
     is_monochromatic: bool
 
 
@@ -549,6 +553,8 @@ def get_image_detail(
         image=image,
         prev_id=ids[idx - 1] if idx > 0 else None,
         next_id=ids[idx + 1] if idx < len(ids) - 1 else None,
+        prev2_id=ids[idx - 2] if idx > 1 else None,
+        next2_id=ids[idx + 2] if idx < len(ids) - 2 else None,
         is_monochromatic=(
             recipe is not None
             and recipe.film_simulation in recipe_constants.MONOCHROMATIC_FILM_SIMULATIONS

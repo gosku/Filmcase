@@ -185,6 +185,8 @@ class ImageDetail(generic.View):
             "image": detail.image,
             "prev_id": detail.prev_id,
             "next_id": detail.next_id,
+            "prev2_id": detail.prev2_id,
+            "next2_id": detail.next2_id,
             "is_monochromatic": detail.is_monochromatic,
             "max_rating": max_rating,
             "rating_range": range(1, max_rating + 1),

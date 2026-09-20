@@ -1729,6 +1729,15 @@
       if (img.decode) { img.decode().catch(function () {}); }
       col.appendChild(img);
     });
+    // Warm the images two steps away (cache only, not mounted): when you step
+    // to a neighbour, its own neighbour is already downloaded and stages
+    // instantly, so a quick run of navigations stays ahead of the slide.
+    [col.dataset.preloadPrev2, col.dataset.preloadNext2].forEach(function (url) {
+      if (!url || preloadedUrls.has(url)) return;
+      var warm = new Image();
+      warm.addEventListener('load', function () { preloadedUrls.add(url); });
+      warm.src = url;
+    });
   }
 
   function stagedImage(direction) {

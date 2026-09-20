@@ -456,7 +456,7 @@
 
   <div class="detail-body">
 
-    <div class="detail-image-col">
+    <div class="detail-image-col"{% if prev2_id %} data-preload-prev2="{% url 'image-file' prev2_id %}"{% endif %}{% if next2_id %} data-preload-next2="{% url 'image-file' next2_id %}"{% endif %}>
       {% if prev_id %}
         <button class="detail-nav detail-nav-prev"
                 hx-get="{% url 'image-detail' prev_id %}"
