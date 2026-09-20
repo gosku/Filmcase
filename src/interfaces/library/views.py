@@ -9,6 +9,7 @@ from src.application.usecases.library import browse_filesystem as browse_filesys
 from src.application.usecases.library import dataclasses as library_dataclasses
 from src.application.usecases.library import get_folder_removal_preview as get_folder_removal_preview_uc
 from src.application.usecases.library import retry_ignored_images as retry_ignored_images_uc
+from src.application.usecases.library import sync_library_folder as sync_library_folder_uc
 from src.application.usecases.library import trigger_folder_removal as trigger_folder_removal_uc
 from src.application.usecases.library import trigger_folder_sync as trigger_folder_sync_uc
 from src.application.usecases.library import update_library_folder_path as update_library_folder_path_uc
@@ -178,6 +179,25 @@ class LibraryFolderPathUpdate(generic.View):
             return _render_library_list(
                 request,
                 error="Path updated, but no image worker is running to sync it. Start one with 'make worker'.",
+            )
+        return shortcuts.redirect(urls.reverse("library-list"))
+
+
+class LibraryFolderSync(generic.View):
+    """Re-scan a single folder on demand.
+
+    :raises Http404: if no folder with the given ID exists.
+    """
+
+    def post(self, request: http.HttpRequest, folder_id: int) -> http.HttpResponse:
+        try:
+            sync_library_folder_uc.sync_library_folder(folder_id=folder_id)
+        except sync_library_folder_uc.LibraryFolderNotFound:
+            raise http.Http404
+        except sync_library_folder_uc.CeleryWorkerUnavailable:
+            return _render_library_list(
+                request,
+                error="No image worker is running to sync the folder. Start one with 'make worker'.",
             )
         return shortcuts.redirect(urls.reverse("library-list"))
 

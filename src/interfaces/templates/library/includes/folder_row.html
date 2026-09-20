@@ -30,6 +30,10 @@
     {% endif %}
   </td>
   <td class="folder-actions">
+    <form method="post" action="{% url 'library-folder-sync' folder.folder_id %}" class="folder-sync-form">
+      {% csrf_token %}
+      <button type="submit" class="btn-sync">Sync now</button>
+    </form>
     <button
       class="btn-update"
       onclick="openBrowserModal({{ folder.folder_id }}, '{{ folder.path|escapejs }}')"
