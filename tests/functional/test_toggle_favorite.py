@@ -44,8 +44,11 @@ class TestRatingWidgetInDetailView:
         response = client.get(f"/images/{image.id}/")
 
         soup = BeautifulSoup(response.content, "html.parser")
-        all_stars = soup.find_all(class_="detail-rating-star")
-        assert len(all_stars) == 5
+        # Scope to the detail widget: the page also carries the gallery's
+        # (hidden) bulk "Set Rating" modal, which has its own star picker.
+        widget = soup.find(class_="detail-rating")
+        stars = widget.find_all(class_="detail-rating-star")
+        assert len(stars) == 5
 
     @override_settings(IMAGE_MAX_RATING=5)
     def test_clicking_star_returns_widget_with_correct_active_stars(self, client):
