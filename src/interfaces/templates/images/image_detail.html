@@ -711,11 +711,8 @@
     overlay.hidden = false;
     document.querySelector('.gallery-scroll').style.overflow = 'hidden';
 
-    // A navigation slide (if any) has completed with this swap. Clear the
-    // guard and drop any leftover slide overlay from the previous content.
+    // A navigation slide (if any) has completed with this swap.
     sliding = false;
-    var stray = overlay.querySelector('.detail-slide-in');
-    if (stray && stray.parentNode) stray.parentNode.removeChild(stray);
 
     var img = overlay.querySelector('.detail-image');
     if (!img || !img.dataset.fullSrc) return;
@@ -723,14 +720,7 @@
 
     function afterFullLoaded() {
       img.src = fullSrc;
-      var nextUrl = overlay.querySelector('.detail-nav-next')?.dataset.preloadUrl;
-      var prevUrl = overlay.querySelector('.detail-nav-prev')?.dataset.preloadUrl;
-      if (nextUrl && !preloadedUrls.has(nextUrl)) {
-        var n = new Image(); n.onload = function () { preloadedUrls.add(nextUrl); }; n.src = nextUrl;
-      }
-      if (prevUrl && !preloadedUrls.has(prevUrl)) {
-        var p = new Image(); p.onload = function () { preloadedUrls.add(prevUrl); }; p.src = prevUrl;
-      }
+      stageNeighbours();
     }
 
     if (preloadedUrls.has(fullSrc)) { afterFullLoaded(); }
@@ -749,10 +739,7 @@
     var full = new Image();
     full.onload = function () {
       img.src = fullSrc;
-      var nextUrl = overlay.querySelector('.detail-nav-next')?.dataset.preloadUrl;
-      var prevUrl = overlay.querySelector('.detail-nav-prev')?.dataset.preloadUrl;
-      if (nextUrl) { var n = new Image(); n.onload = function () { preloadedUrls.add(nextUrl); }; n.src = nextUrl; }
-      if (prevUrl) { var p = new Image(); p.onload = function () { preloadedUrls.add(prevUrl); }; p.src = prevUrl; }
+      stageNeighbours();
     };
     full.src = fullSrc;
   });
@@ -785,14 +772,20 @@
    * Directional slide transition for next/prev navigation.
    *
    * Navigation still flows through the nav buttons' htmx requests; we play a
-   * slide first (reusing the neighbour image the preload buffer has already
-   * cached) and then let the button fire. Every input shares this path: arrow
+   * slide first, then let the button fire. Every input shares this path: arrow
    * clicks and the Arrow keys route through the click interceptor below, and
    * the mobile finger-following drag drives it directly. It falls back to the
    * plain instant swap under prefers-reduced-motion or where the Web
    * Animations API is missing.
+   *
+   * The neighbour images are mounted off-frame ahead of time (see
+   * stageNeighbours), so the incoming image is already decoded and painted and
+   * slides straight in instead of arriving a frame late and looking empty.
+   * Everything is expressed in percentages of the photo's own width, which is
+   * exactly one slide's distance, so the units line up with the CSS.
    * --------------------------------------------------------------------- */
   var SLIDE_MS = 180;
+  var SNAP_MS = 140;
   var sliding = false;
 
   function slideAnimationsSupported() {
@@ -810,6 +803,8 @@
       direction === 'next' ? '.detail-nav-next' : '.detail-nav-prev');
   }
 
+  function restPercent(direction) { return direction === 'next' ? '100%' : '-100%'; }
+
   // Re-fire the button click, flagged so the interceptor lets htmx handle it.
   function navigateNow(btn) {
     if (!btn) return;
@@ -817,44 +812,72 @@
     btn.click();
   }
 
-  // Build the transient neighbour image, offset one column-width to the side
-  // it will slide in from. Returns null when there is no neighbour.
-  function buildIncoming(col, direction, width) {
-    var btn = detailNavButton(direction);
-    var url = btn && btn.dataset.preloadUrl;
-    if (!url) return null;
-    var img = document.createElement('img');
-    img.className = 'detail-slide-in';
-    img.alt = '';
-    img.src = url;
-    img.style.transform =
-      'translateX(' + (direction === 'next' ? width : -width) + 'px)';
-    col.appendChild(img);
-    return img;
+  // Mount the neighbour images off-frame so the browser fetches, decodes and
+  // paints them before any navigation. Re-run after every swap, since the
+  // column is replaced each time. Doubles as the preload: each staged image
+  // warms the cache for the page it points at.
+  function stageNeighbours() {
+    var overlay = document.getElementById('detail-overlay');
+    var col = overlay && overlay.querySelector('.detail-image-col');
+    if (!col) return;
+    ['prev', 'next'].forEach(function (direction) {
+      if (col.querySelector('.detail-slide-in[data-dir="' + direction + '"]')) return;
+      var btn = detailNavButton(direction);
+      var url = btn && btn.dataset.preloadUrl;
+      if (!url) return;
+      var img = document.createElement('img');
+      img.className = 'detail-slide-in';
+      img.dataset.dir = direction;
+      img.alt = '';
+      img.style.transform = 'translateX(' + restPercent(direction) + ')';
+      img.addEventListener('load', function () { preloadedUrls.add(url); });
+      img.src = url;
+      if (img.decode) { img.decode().catch(function () {}); }
+      col.appendChild(img);
+    });
   }
 
-  function slideElement(el, toPx, duration) {
+  function stagedImage(direction) {
+    var overlay = document.getElementById('detail-overlay');
+    var col = overlay && overlay.querySelector('.detail-image-col');
+    return col ? col.querySelector('.detail-slide-in[data-dir="' + direction + '"]') : null;
+  }
+
+  // Animate translateX between two <length-percentage> strings. `fill:forwards`
+  // holds the end frame; callers that keep the element (a snap-back) settle it
+  // afterwards so animations do not accumulate.
+  function animateX(el, fromX, toX, duration) {
     return el.animate(
-      [{ transform: el.style.transform || 'translateX(0px)' },
-       { transform: 'translateX(' + toPx + 'px)' }],
+      [{ transform: 'translateX(' + fromX + ')' },
+       { transform: 'translateX(' + toX + ')' }],
       { duration: duration, easing: 'ease-out', fill: 'forwards' });
   }
 
-  // Click / keyboard path: slide the current image out, the neighbour in, then
-  // navigate. Falls back to an immediate navigation when there is nothing to
-  // animate.
+  // Animate to `toX` and then write it to the inline style and drop the
+  // animation, leaving a clean resting element (used for snap-backs, whose
+  // elements outlive the gesture). `toX` of '0%' clears the transform.
+  function settleX(el, fromX, toX, duration, done) {
+    var anim = animateX(el, fromX, toX, duration);
+    setTimeout(function () {
+      el.style.transform = toX === '0%' ? '' : 'translateX(' + toX + ')';
+      anim.cancel();
+      if (done) done();
+    }, duration);
+  }
+
+  // Click / keyboard path: slide the current image out, the staged neighbour
+  // in, then navigate. Falls back to an immediate navigation when the neighbour
+  // is not staged (e.g. end of the list).
   function slideThenNavigate(direction, btn) {
     if (sliding) return;
     var overlay = document.getElementById('detail-overlay');
     var col = overlay && overlay.querySelector('.detail-image-col');
     var current = col && col.querySelector('.detail-image');
-    if (!col || !current) { navigateNow(btn); return; }
-    var width = current.getBoundingClientRect().width;
-    var incoming = buildIncoming(col, direction, width);
-    if (!incoming) { navigateNow(btn); return; }   // no neighbour in that way
+    var incoming = stagedImage(direction);
+    if (!current || !incoming) { navigateNow(btn); return; }
     sliding = true;
-    slideElement(current, direction === 'next' ? -width : width, SLIDE_MS);
-    slideElement(incoming, 0, SLIDE_MS);
+    animateX(current, '0%', direction === 'next' ? '-100%' : '100%', SLIDE_MS);
+    animateX(incoming, restPercent(direction), '0%', SLIDE_MS);
     // Drive the navigation on a timer rather than the animation's `finished`
     // promise: a hidden or throttled tab pauses Web Animations, and we must
     // still complete the swap so the view never gets stuck mid-slide.
@@ -889,29 +912,18 @@
     if (!overlay) return;
 
     var active = false, decided = false, horizontal = false, animate = false,
-        direction = null, col = null, current = null, incoming = null,
+        direction = null, current = null, incoming = null,
         width = 0, startX = 0, startY = 0, startT = 0, dx = 0;
 
     function reset() {
       active = false; decided = false; horizontal = false; animate = false;
-      direction = null; col = null; current = null; incoming = null;
+      direction = null; current = null; incoming = null;
       width = 0; dx = 0;
     }
 
-    function removeIncoming(el) {
-      if (el && el.parentNode) el.parentNode.removeChild(el);
-    }
-
-    // Animate `el` back to `toPx` and run `done` afterwards. The cleanup is on
-    // a timer, not the animation's `finished` promise, so a hidden or throttled
-    // tab (which pauses Web Animations) still tidies up.
-    function snapTo(el, toPx, done) {
-      el.animate(
-        [{ transform: el.style.transform || 'translateX(0px)' },
-         { transform: 'translateX(' + toPx + 'px)' }],
-        { duration: 180, easing: 'ease-out' });
-      setTimeout(done, 180);
-    }
+    // Percentage of the photo's width a pixel drag represents; the staged
+    // images are exactly one width wide, so the numbers line up with the CSS.
+    function pctOf(px) { return width ? (px / width * 100) : 0; }
 
     overlay.addEventListener('touchstart', function (e) {
       if (sliding || e.touches.length !== 1) { reset(); return; }
@@ -919,7 +931,6 @@
       if (!c) return;
       current = c.querySelector('.detail-image');
       if (!current) { reset(); return; }
-      col = c;
       active = true; decided = false; horizontal = false;
       animate = slideAnimationsSupported();
       startX = e.touches[0].clientX;
@@ -936,13 +947,13 @@
         if (Math.abs(mx) < 8 && Math.abs(my) < 8) return;   // not moved yet
         decided = true;
         horizontal = Math.abs(mx) > Math.abs(my);
-        if (horizontal && animate) {
-          width = current.getBoundingClientRect().width;
+        if (horizontal) {
           direction = mx < 0 ? 'next' : 'prev';
-          incoming = buildIncoming(col, direction, width);
-          if (!incoming) direction = null;    // end of list: rubber-band only
-        } else if (horizontal) {
-          direction = mx < 0 ? 'next' : 'prev';
+          if (animate) {
+            width = current.getBoundingClientRect().width;
+            incoming = stagedImage(direction);
+            if (!incoming) direction = null;   // end of list: rubber-band only
+          }
         }
       }
       if (!horizontal) return;                 // vertical: leave it to the page
@@ -950,10 +961,11 @@
       dx = mx;
       if (!animate) return;                    // reduced motion: no follow
       if (!incoming) dx = mx * 0.3;            // resistance with no neighbour
-      current.style.transform = 'translateX(' + dx + 'px)';
+      var pct = pctOf(dx);
+      current.style.transform = 'translateX(' + pct + '%)';
       if (incoming) {
-        var base = direction === 'next' ? width : -width;
-        incoming.style.transform = 'translateX(' + (base + dx) + 'px)';
+        var base = direction === 'next' ? 100 : -100;
+        incoming.style.transform = 'translateX(' + (base + pct) + '%)';
       }
     }, { passive: false });
 
@@ -965,10 +977,12 @@
       reset();
 
       if (!wasDecided || !wasHorizontal) {     // a tap or a vertical drag
-        if (cur && cur.style.transform) snapTo(cur, 0, function () { cur.style.transform = ''; });
-        removeIncoming(inc);
+        if (cur) cur.style.transform = '';
         return;
       }
+
+      var pct = w ? (dist / w * 100) : 0;
+      var incBase = dir === 'next' ? 100 : -100;
 
       // Commit on a quarter-width drag, or a shorter fast flick.
       var velocity = Math.abs(dist) / Math.max(elapsed, 1);   // px/ms
@@ -979,19 +993,17 @@
 
       if (committed) {
         sliding = true;
-        slideElement(cur, dir === 'next' ? -w : w, SLIDE_MS);
-        slideElement(inc, 0, SLIDE_MS);
+        animateX(cur, pct + '%', dir === 'next' ? '-100%' : '100%', SLIDE_MS);
+        animateX(inc, (incBase + pct) + '%', '0%', SLIDE_MS);
         var btn = detailNavButton(dir);
         setTimeout(function () { navigateNow(btn); }, SLIDE_MS);
         return;
       }
 
-      // Not committed: snap everything back.
-      if (cur) snapTo(cur, 0, function () { cur.style.transform = ''; });
-      if (inc) {
-        var restBase = dir === 'next' ? w : -w;
-        snapTo(inc, restBase, function () { removeIncoming(inc); });
-      }
+      // Not committed: snap the photo back to rest; the staged neighbour
+      // returns to its off-frame position and stays mounted for next time.
+      if (cur) settleX(cur, pct + '%', '0%', SNAP_MS);
+      if (inc) settleX(inc, (incBase + pct) + '%', restPercent(dir), SNAP_MS);
     }
 
     overlay.addEventListener('touchend', endDrag);

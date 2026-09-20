@@ -153,6 +153,9 @@
     border-radius: 4px;
     z-index: 2;
     pointer-events: none;
+    /* These images sit off-frame, decoded and ready; the hint keeps them on
+       their own layer so sliding them in is a cheap composite, not a repaint. */
+    will-change: transform;
   }
 
   .detail-info-col {
