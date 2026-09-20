@@ -127,6 +127,22 @@
     border-radius: 4px;
   }
 
+  /* Transient neighbour image used only while a next/prev slide plays. It
+     overlays the same content box as .detail-image (the column minus its
+     padding) so both photos render identically. Created and removed by the
+     slide controller in image_detail.html. */
+  .detail-slide-in {
+    position: absolute;
+    top: 1.5rem;
+    right: 1.5rem;
+    bottom: 1.5rem;
+    left: 1.5rem;
+    object-fit: contain;
+    border-radius: 4px;
+    z-index: 2;
+    pointer-events: none;
+  }
+
   .detail-info-col {
     flex: 0 0 30%;
     overflow-y: auto;
@@ -342,6 +358,15 @@
       padding: 0;
     }
 
+    /* The column has no padding here, so the slide overlay fills it edge to
+       edge, matching the photo. */
+    .detail-slide-in {
+      top: 0;
+      right: 0;
+      bottom: 0;
+      left: 0;
+    }
+
     /* Rating + close overlay the top of the image, costing no vertical space. */
     .detail-header {
       position: absolute;
@@ -356,7 +381,8 @@
     .detail-header-spacer { display: none; }
     .detail-rating { margin-right: auto; }
 
-    /* Prev/next arrows are replaced by swipe (see the script). */
+    /* Prev/next arrows are replaced by a swipe gesture (handled in the shell
+       script in image_detail.html). */
     .detail-nav { display: none; }
 
     .detail-info-col {
@@ -930,31 +956,11 @@
 </div>
 
 <script>
-  // Mobile: swipe the photo left/right to go to the next/previous image
-  // (the on-screen arrows are hidden on small screens), and tap the
-  // "Additional EXIF" heading to expand/collapse it.
+  // Tap the "Additional EXIF" heading to expand/collapse it. Next/prev
+  // navigation (arrows, keyboard, and the mobile finger-following swipe) lives
+  // in the persistent shell in image_detail.html, which can coordinate the
+  // slide animation across the htmx swap.
   (function () {
-    var col = document.querySelector('.detail-image-col');
-    if (col) {
-      var prevBtn = col.querySelector('.detail-nav-prev');
-      var nextBtn = col.querySelector('.detail-nav-next');
-      var sx = 0, sy = 0, tracking = false;
-      col.addEventListener('touchstart', function (e) {
-        if (e.touches.length !== 1) { tracking = false; return; }
-        sx = e.touches[0].clientX; sy = e.touches[0].clientY; tracking = true;
-      }, { passive: true });
-      col.addEventListener('touchend', function (e) {
-        if (!tracking) return;
-        tracking = false;
-        var t = e.changedTouches[0];
-        var dx = t.clientX - sx, dy = t.clientY - sy;
-        // Only a clearly horizontal swipe navigates.
-        if (Math.abs(dx) < 50 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
-        if (dx < 0 && nextBtn) nextBtn.click();       // swipe left → next
-        else if (dx > 0 && prevBtn) prevBtn.click();  // swipe right → previous
-      }, { passive: true });
-    }
-
     var exif = document.querySelector('.detail-exif');
     var summary = exif && exif.querySelector('.detail-exif__summary');
     if (summary) {
