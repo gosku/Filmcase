@@ -15,4 +15,5 @@ urlpatterns = [
     # not settings pages and stay under /camera/ and /recipes/.
     path("settings/camera-diagnostics/", camera_views.CameraDiagnostics.as_view(), name="camera-diagnostics"),
     path("settings/preferences/", settings_views.Preferences.as_view(), name="app-settings"),
+    path("settings/thumbnails/generate/", settings_views.GenerateThumbnails.as_view(), name="settings-thumbnails-generate"),
 ]

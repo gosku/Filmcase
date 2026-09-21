@@ -121,6 +121,10 @@
       <div class="banner banner--ok">Preferences saved.</div>
     {% endif %}
 
+    {% if thumbnail_banner %}
+      <div class="banner {% if thumbnail_banner.is_error %}banner--error{% else %}banner--ok{% endif %}">{{ thumbnail_banner.message }}</div>
+    {% endif %}
+
     <form method="post" action="{% url 'app-settings' %}" novalidate>
       {% csrf_token %}
 
@@ -152,5 +156,20 @@
         <button type="submit" class="btn-primary">Save preferences</button>
       </div>
     </form>
+
+    <section class="fieldset">
+      <h2 class="section-title">Thumbnails</h2>
+      <p class="field__help">
+        Pre-generate cached thumbnails for the whole image collection at the widths above, so the
+        gallery is fast from the first visit. New photos are thumbnailed automatically the first
+        time they are viewed, so this is only needed to warm the cache after a large import.
+      </p>
+      <form method="post" action="{% url 'settings-thumbnails-generate' %}">
+        {% csrf_token %}
+        <div class="actions">
+          <button type="submit" class="btn-primary">Generate thumbnails</button>
+        </div>
+      </form>
+    </section>
   </div>
 {% endblock %}

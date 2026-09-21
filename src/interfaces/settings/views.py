@@ -1,8 +1,14 @@
-from django import http, shortcuts
+from collections.abc import Mapping
+from urllib.parse import urlencode
+
+import attrs
+
+from django import http, shortcuts, urls
 from django.conf import settings as django_settings
 from django.forms.boundfield import BoundField
 from django.views import generic
 
+from src.application.usecases.images import trigger_thumbnail_generation as trigger_thumbnail_generation_uc
 from src.application.usecases.settings import get_app_settings as get_app_settings_uc
 from src.application.usecases.settings import update_app_settings as update_app_settings_uc
 from src.interfaces import forms
@@ -21,7 +27,7 @@ class Preferences(generic.View):
 
     def get(self, request: http.HttpRequest) -> http.HttpResponse:
         form = forms.Preferences(initial=self._current_initial())
-        return self._render(request, form)
+        return self._render(request, form, thumbnail_banner=_thumbnail_banner(request))
 
     def post(self, request: http.HttpRequest) -> http.HttpResponse:
         form = forms.Preferences(request.POST)
@@ -44,6 +50,7 @@ class Preferences(generic.View):
         form: forms.Preferences,
         *,
         saved: bool = False,
+        thumbnail_banner: "_ThumbnailBanner | None" = None,
     ) -> http.HttpResponse:
         return shortcuts.render(
             request,
@@ -52,6 +59,7 @@ class Preferences(generic.View):
                 "form": form,
                 "fieldsets": self._fieldsets(form),
                 "saved": saved,
+                "thumbnail_banner": thumbnail_banner,
                 "active_tab": "preferences",
             },
         )
@@ -67,3 +75,65 @@ class Preferences(generic.View):
         for title, keys in django_settings.CONSTANCE_CONFIG_FIELDSETS.items():
             sections.append((title, [form[key.lower()] for key in keys]))
         return sections
+
+
+class GenerateThumbnails(generic.View):
+    """
+    Pre-generate cached thumbnails for the whole collection from the web app,
+    then redirect back to Preferences with a banner describing the outcome.
+    """
+
+    def post(self, request: http.HttpRequest) -> http.HttpResponse:
+        try:
+            summary = trigger_thumbnail_generation_uc.trigger_thumbnail_generation()
+        except trigger_thumbnail_generation_uc.CeleryWorkerUnavailable:
+            return self._redirect({"thumbnails": "no-worker"})
+
+        if summary.ran_in_background:
+            return self._redirect({"thumbnails": "started"})
+        return self._redirect(
+            {"thumbnails": "queued", "enqueued": summary.enqueued, "cached": summary.already_cached}
+        )
+
+    @staticmethod
+    def _redirect(params: Mapping[str, object]) -> http.HttpResponse:
+        return shortcuts.redirect(f"{urls.reverse('app-settings')}?{urlencode(params)}")
+
+
+@attrs.frozen
+class _ThumbnailBanner:
+    message: str
+    is_error: bool
+
+
+def _int_param(request: http.HttpRequest, name: str) -> int:
+    try:
+        return max(0, int(request.GET.get(name, "0")))
+    except (TypeError, ValueError):
+        return 0
+
+
+def _thumbnail_banner(request: http.HttpRequest) -> "_ThumbnailBanner | None":
+    """
+    Build the banner for a thumbnail run's outcome from the redirect's query
+    flags, or None when there is no thumbnail flag on the request.
+    """
+    status = request.GET.get("thumbnails")
+    if status == "no-worker":
+        return _ThumbnailBanner(
+            message="No image worker is running to generate thumbnails. Start one with 'make worker'.",
+            is_error=True,
+        )
+    if status == "started":
+        return _ThumbnailBanner(message="Generating thumbnails in the background.", is_error=False)
+    if status == "queued":
+        enqueued = _int_param(request, "enqueued")
+        cached = _int_param(request, "cached")
+        if enqueued == 0:
+            message = "Thumbnails are already up to date."
+        elif cached:
+            message = f"Queued {enqueued} thumbnails for generation ({cached} already cached)."
+        else:
+            message = f"Queued {enqueued} thumbnails for generation."
+        return _ThumbnailBanner(message=message, is_error=False)
+    return None
