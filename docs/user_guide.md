@@ -581,6 +581,11 @@ Generates thumbnail cache for all images in the database. The web interface crea
 thumbnails on demand, but running this command upfront means the gallery loads at full speed
 from the first visit, with no on-the-fly resizing.
 
+The same run can be triggered from the web app with the **Generate thumbnails** button on
+**Settings > Preferences**, next to the thumbnail width setting. In async mode it queues the work
+for the image worker (which must be running); in lite mode it runs the generation in the
+background. It skips any thumbnail already cached, so it is safe to run again after an import.
+
 ---
 
 ### 4.6 Inspecting camera slots

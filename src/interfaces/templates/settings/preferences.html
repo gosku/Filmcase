@@ -20,15 +20,18 @@
 
     .fieldset { margin-bottom: 2rem; }
     .section-title {
-      font-size: 0.7rem;
+      font-size: 1rem;
       font-weight: 700;
       text-transform: uppercase;
-      letter-spacing: 0.06em;
-      color: #94a3b8;
+      letter-spacing: 0.04em;
+      color: #64748b;
       padding-bottom: 0.5rem;
       margin-bottom: 0.75rem;
       border-bottom: 1px solid var(--color-border);
     }
+
+    .thumbnail-action { padding-top: 1rem; }
+    .thumbnail-action .field__help { margin-top: 0; margin-bottom: 0.75rem; max-width: 34rem; }
 
     .field {
       display: flex;
@@ -121,6 +124,10 @@
       <div class="banner banner--ok">Preferences saved.</div>
     {% endif %}
 
+    {% if thumbnail_banner %}
+      <div class="banner {% if thumbnail_banner.is_error %}banner--error{% else %}banner--ok{% endif %}">{{ thumbnail_banner.message }}</div>
+    {% endif %}
+
     <form method="post" action="{% url 'app-settings' %}" novalidate>
       {% csrf_token %}
 
@@ -128,10 +135,10 @@
         <div class="banner banner--error">{{ form.non_field_errors }}</div>
       {% endif %}
 
-      {% for title, fields in fieldsets %}
+      {% for fieldset in fieldsets %}
         <section class="fieldset">
-          <h2 class="section-title">{{ title }}</h2>
-          {% for field in fields %}
+          <h2 class="section-title">{{ fieldset.title }}</h2>
+          {% for field in fieldset.fields %}
             <div class="field{% if field.errors %} field--error{% endif %}">
               <label class="field__label" for="{{ field.id_for_label }}">{{ field.label }}</label>
               <div class="field__control">
@@ -145,12 +152,28 @@
               </div>
             </div>
           {% endfor %}
+          {% if fieldset.show_thumbnail_action %}
+            <div class="thumbnail-action">
+              <p class="field__help">
+                Pre-generate cached thumbnails for the whole image collection at the widths above, so
+                the gallery is fast from the first visit. New photos are thumbnailed automatically the
+                first time they are viewed, so this is only needed to warm the cache after a large
+                import.
+              </p>
+              {# Posts to its own endpoint via the form below, so it is not part of the settings save. #}
+              <button type="submit" form="generate-thumbnails-form" class="btn-primary">Generate thumbnails</button>
+            </div>
+          {% endif %}
         </section>
       {% endfor %}
 
       <div class="actions">
         <button type="submit" class="btn-primary">Save preferences</button>
       </div>
+    </form>
+
+    <form id="generate-thumbnails-form" method="post" action="{% url 'settings-thumbnails-generate' %}">
+      {% csrf_token %}
     </form>
   </div>
 {% endblock %}
