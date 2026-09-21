@@ -56,6 +56,10 @@ folder was checked and the last time new images were found in it.
 - **Add a folder**: click _Add Folder_ and use the filesystem browser to navigate to the
   directory you want to register. Subfolders are included automatically; you do not need to
   register them separately.
+- **Sync now**: click _Sync now_ on a folder's row to re-scan just that folder on demand,
+  without waiting for the next startup. New photos are imported and missing ones are taken out
+  of the gallery, exactly as an automatic sync does. The row shows the scan's progress while it
+  runs. This is how you pull in photos after un-ignoring them (see below).
 - **Update path**: if you move a folder on disk, click _Update Path_ on its row and pick the
   new location. The folder's sync history is preserved, and the photos inside it keep their
   ratings and favourites: they are recognised at the new location rather than re-imported.
@@ -87,7 +91,8 @@ so on the row.
 
 Images you [remove from the gallery](#212-bulk-actions) that came from inside a folder also appear
 here, under **Removed from the gallery**. Retrying one un-ignores it, so the next sync imports it
-again (its previous rating, favourite and album membership are not restored).
+again (its previous rating, favourite and album membership are not restored). Use _Sync now_ on the
+folder's row to run that sync straight away rather than waiting for the next startup.
 
 ### 1.3 Automatic sync on startup
 

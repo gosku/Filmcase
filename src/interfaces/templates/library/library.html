@@ -104,6 +104,20 @@
 
     .sync-status__bar { width: 120px; height: 0.6rem; }
 
+    .folder-sync-form { margin: 0; }
+
+    .btn-sync {
+      padding: 0.3rem 0.65rem;
+      background: none;
+      border: 1px solid var(--color-accent);
+      border-radius: 4px;
+      font-size: 0.8rem;
+      color: var(--color-accent);
+      cursor: pointer;
+    }
+
+    .btn-sync:hover { background: var(--color-accent); color: #fff; }
+
     .btn-update {
       padding: 0.3rem 0.65rem;
       background: none;
@@ -255,6 +269,7 @@
 
       .folder-actions { justify-content: flex-start; flex-wrap: wrap; gap: 0.6rem; }
 
+      .btn-sync,
       .btn-update,
       .btn-remove {
         min-height: 40px;

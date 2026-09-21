@@ -9,6 +9,7 @@ urlpatterns = [
     path("<int:folder_id>/confirm-delete/", views.LibraryFolderRemoveConfirm.as_view(), name="library-folder-confirm-delete"),
     path("<int:folder_id>/delete/", views.LibraryFolderRemove.as_view(), name="library-folder-delete"),
     path("<int:folder_id>/edit/", views.LibraryFolderPathUpdate.as_view(), name="library-folder-edit"),
+    path("<int:folder_id>/sync/", views.LibraryFolderSync.as_view(), name="library-folder-sync"),
     path("<int:folder_id>/ignored/", views.LibraryFolderIgnoredImages.as_view(), name="library-folder-ignored"),
     path("<int:folder_id>/ignored/retry/", views.LibraryFolderIgnoredImagesRetry.as_view(), name="library-folder-ignored-retry"),
     path("ignored/<int:ignored_id>/retry/", views.LibraryIgnoredImageRetry.as_view(), name="library-ignored-retry"),

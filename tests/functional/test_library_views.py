@@ -299,6 +299,50 @@ class TestLibraryFolderPathUpdate:
 
 
 @pytest.mark.django_db
+class TestLibraryFolderSync:
+    def test_triggers_sync_and_redirects_to_list(self, client, tmp_path):
+        folder = LibraryFolderFactory(path=str(tmp_path))
+
+        with patch(TRIGGER):
+            response = client.post(f"/settings/library/{folder.pk}/sync/")
+
+        assert response.status_code == 302
+        assert response["Location"] == "/settings/library/"
+
+    def test_triggers_sync_for_the_folder(self, client, tmp_path):
+        folder = LibraryFolderFactory(path=str(tmp_path))
+
+        with patch(TRIGGER) as mock_trigger:
+            client.post(f"/settings/library/{folder.pk}/sync/")
+
+        mock_trigger.assert_called_once_with(folder_id=folder.pk)
+
+    def test_returns_404_for_unknown_folder_id(self, client):
+        response = client.post("/settings/library/99999/sync/")
+        assert response.status_code == 404
+
+    def test_shows_error_when_worker_unavailable(self, client, tmp_path):
+        folder = LibraryFolderFactory(path=str(tmp_path))
+
+        with patch(TRIGGER, side_effect=CeleryWorkerUnavailable()):
+            response = client.post(f"/settings/library/{folder.pk}/sync/")
+
+        assert response.status_code == 200
+        soup = BeautifulSoup(response.content, "html.parser")
+        assert soup.find(class_="error-banner") is not None
+
+    def test_folder_row_offers_a_sync_button(self, client, tmp_path):
+        folder = LibraryFolderFactory(path=str(tmp_path))
+
+        response = client.get("/settings/library/")
+
+        soup = BeautifulSoup(response.content, "html.parser")
+        form = soup.find("form", attrs={"action": f"/settings/library/{folder.pk}/sync/"})
+        assert form is not None
+        assert form.find("button", class_="btn-sync") is not None
+
+
+@pytest.mark.django_db
 class TestFilesystemBrowser:
     def test_returns_200_with_default_path(self, client):
         response = client.get("/settings/library/browse/partial/")
