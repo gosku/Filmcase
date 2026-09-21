@@ -91,3 +91,13 @@ class TestPreferencesThumbnailBanner:
         response = client.get(PREFERENCES_URL)
 
         assert "Generating thumbnails" not in response.content.decode()
+
+    def test_generate_button_is_wired_to_its_own_form_not_the_settings_save(self, client):
+        response = client.get(PREFERENCES_URL)
+
+        body = response.content.decode()
+        # The button lives inside the settings section but submits a separate
+        # form, so generating thumbnails never persists the settings form.
+        assert 'form="generate-thumbnails-form"' in body
+        assert 'id="generate-thumbnails-form"' in body
+        assert 'action="/settings/thumbnails/generate/"' in body

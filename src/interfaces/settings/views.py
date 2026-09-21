@@ -65,15 +65,25 @@ class Preferences(generic.View):
         )
 
     @staticmethod
-    def _fieldsets(form: forms.Preferences) -> list[tuple[str, list[BoundField]]]:
+    def _fieldsets(form: forms.Preferences) -> "list[_Fieldset]":
         """
         Group the form's bound fields into the app sections declared in
         ``settings.CONSTANCE_CONFIG_FIELDSETS`` so the page mirrors the rest of
         Filmcase.
+
+        The section that holds ``THUMBNAIL_WIDTHS`` also carries the thumbnail
+        action, so the "Generate thumbnails" button renders at the end of that
+        section rather than the template hard-coding a section name.
         """
-        sections: list[tuple[str, list[BoundField]]] = []
+        sections: list[_Fieldset] = []
         for title, keys in django_settings.CONSTANCE_CONFIG_FIELDSETS.items():
-            sections.append((title, [form[key.lower()] for key in keys]))
+            sections.append(
+                _Fieldset(
+                    title=title,
+                    fields=[form[key.lower()] for key in keys],
+                    show_thumbnail_action="THUMBNAIL_WIDTHS" in keys,
+                )
+            )
         return sections
 
 
@@ -98,6 +108,13 @@ class GenerateThumbnails(generic.View):
     @staticmethod
     def _redirect(params: Mapping[str, object]) -> http.HttpResponse:
         return shortcuts.redirect(f"{urls.reverse('app-settings')}?{urlencode(params)}")
+
+
+@attrs.frozen
+class _Fieldset:
+    title: str
+    fields: list[BoundField]
+    show_thumbnail_action: bool
 
 
 @attrs.frozen
