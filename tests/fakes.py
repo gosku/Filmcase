@@ -189,6 +189,9 @@ class FakePTPDevice:
     def set_property_string(self, code: int, value: str) -> int:
         return self._set(code, str_value=value)
 
+    def supported_properties(self) -> list[int]:
+        return sorted(set(self._int_store) | set(self._str_store))
+
     # ------------------------------------------------------------------
     # Camera identity
     # ------------------------------------------------------------------

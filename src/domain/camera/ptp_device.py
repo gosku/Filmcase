@@ -182,6 +182,15 @@ class PTPDevice(Protocol):
         """
         ...
 
+    def supported_properties(self) -> list[int]:
+        """
+        Device property codes reported by GetDeviceInfo.
+
+        Returns an empty list when the camera does not answer, so callers must
+        treat an empty result as "unknown", not "nothing supported".
+        """
+        ...
+
     @property
     def camera_name(self) -> str:
         """
