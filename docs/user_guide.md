@@ -28,6 +28,7 @@ line (chapter 4). Chapter 5 covers using the web app on a phone or tablet.
     - [3.4.1 Film simulation graph](#341-film-simulation-graph)
       - [3.4.1.1 Exploring a node](#3411-exploring-a-node)
     - [3.4.2 Recipe graph](#342-recipe-graph)
+  - [3.5 Collections](#35-collections)
 - [4 Management Commands](#4-management-commands)
   - [4.1 Running commands](#41-running-commands)
   - [4.2 Syncing the library](#42-syncing-the-library)
@@ -454,6 +455,38 @@ to that recipe's own graph.
 
 ---
 
+### 3.5 Collections
+
+A **collection** is a named, ordered set of recipes. Collections are the third view of the
+**Recipes** section, reached from the **Explorer / Graph / Collections** switch in the sidebar.
+
+![Collections list](images/recipe_collections_listview_desktop.jpg)
+
+The collections list shows one card per collection. Each card carries the collection's name, its
+recipe count, and a visual cue: a mosaic of the best-rated images across the collection's recipes,
+or — when none of those recipes has an imported image yet — a legend of their film-simulation
+logos. The sidebar filters the list by collection name, by a recipe name the collection contains,
+and by film simulation.
+
+Use **New Collection** to create one: give it a name, search for recipes in the left panel and
+**Add** them, then drag the rows in the right panel to set their order. A collection's name must be
+unique (regardless of capitalisation).
+
+![Creating a collection](images/recipe_collections_update_desktop.jpg)
+
+Opening a collection shows its recipes in that order, with **Edit collection** and **Delete
+collection** actions. Deleting a collection removes only the grouping — the recipes and their images
+are kept.
+
+![Collection detail](images/recipe_collections_detailview_desktop.jpg)
+
+On a phone the list and detail adapt to a single column: the filters move behind a **Filters**
+button, and a collection's actions dock to a bar at the bottom of the screen.
+
+![Collections on a phone](images/recipe_collections_mobile.jpg)
+
+---
+
 ## 4 Management Commands
 
 Management commands are run from the terminal and handle tasks that don't belong in the
@@ -636,9 +669,9 @@ the top of the page slides the drawer in over the content; a **Show recipes** bu
 dimmed backdrop, or your browser's back gesture close it again. Filter rows and checkboxes are
 enlarged so they are comfortable to tap.
 
-The **Explorer / Graph** switch sits in that same top bar, next to the Filters button (visible
-above, left), so it stays in one place across both sections. The app's main sections stay reachable
-from the hamburger menu in the header.
+The **Explorer / Graph / Collections** switch sits in that same top bar, next to the Filters button
+(visible above, left), so it stays in one place across the recipe sections. The app's main sections
+stay reachable from the hamburger menu in the header.
 
 ### 5.2 Browsing images and recipes
 
