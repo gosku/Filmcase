@@ -1,0 +1,45 @@
+{% for collection in collections %}
+<a class="collection-card" href="{% url 'recipe-collection-detail' collection.id %}"
+   hx-get="{% url 'recipe-collection-detail' collection.id %}"
+   hx-target="#collection-detail-overlay"
+   hx-push-url="true">
+  {% if collection.mosaic_image_ids %}
+  <div class="collection-card__mosaic collection-card__mosaic--n{{ collection.mosaic_image_ids|length }}">
+    {% for image_id in collection.mosaic_image_ids %}
+    <span class="collection-card__tile" style="background-image: url('/images/file/{{ image_id }}/?width=300');"></span>
+    {% endfor %}
+    <span class="collection-card__scrim"><span class="collection-card__name">{{ collection.name }}</span></span>
+  </div>
+  <div class="collection-card__body">
+    <div class="collection-card__count">{{ collection.recipe_count }} recipe{{ collection.recipe_count|pluralize }}</div>
+    <div class="collection-card__legend-row">
+      {% for fs in collection.film_sims %}
+        {% if fs.logo_filename %}
+        <img class="collection-card__logo-sm" src="/static/images/{{ fs.logo_filename }}" alt="{{ fs.film_simulation }}" title="{{ fs.film_simulation }}">
+        {% else %}
+        <span class="collection-card__logo-text">{{ fs.film_simulation }}</span>
+        {% endif %}
+      {% endfor %}
+    </div>
+  </div>
+  {% else %}
+  <div class="collection-card__legend">
+    {% for fs in collection.film_sims %}
+      {% if fs.logo_filename %}
+      <img class="collection-card__logo" src="/static/images/{{ fs.logo_filename }}" alt="{{ fs.film_simulation }}" title="{{ fs.film_simulation }}">
+      {% else %}
+      <span class="collection-card__logo-text collection-card__logo-text--lg">{{ fs.film_simulation }}</span>
+      {% endif %}
+    {% empty %}
+      <span class="collection-card__empty-legend">No recipes yet</span>
+    {% endfor %}
+  </div>
+  <div class="collection-card__body">
+    <div class="collection-card__name collection-card__name--dark">{{ collection.name }}</div>
+    <div class="collection-card__count">{{ collection.recipe_count }} recipe{{ collection.recipe_count|pluralize }} &middot; no images yet</div>
+  </div>
+  {% endif %}
+</a>
+{% empty %}
+<p class="collection-no-results">No collections match these filters.</p>
+{% endfor %}

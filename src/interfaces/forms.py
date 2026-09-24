@@ -297,3 +297,7 @@ class Preferences(forms.Form):
             sync_image_batch_size=data["sync_image_batch_size"],
             library_ignored_directory_prefixes=data["library_ignored_directory_prefixes"],
         )
+
+
+class Collection(forms.Form):
+    name = forms.CharField(max_length=100)

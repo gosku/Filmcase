@@ -1,0 +1,50 @@
+<div class="cdetail">
+  <header class="cdetail__header">
+    <span class="cdetail__title">{{ collection.name }}</span>
+    <span class="cdetail__count">{{ collection.members|length }} recipe{{ collection.members|length|pluralize }}</span>
+    <a href="{% url 'recipes-collections' %}" class="cdetail__close" title="Close"
+       onclick="event.preventDefault(); (window.closeCollectionDetail || function(){ history.back(); })();">&#x2715;</a>
+  </header>
+
+  <div class="cdetail__body">
+    <div class="cdetail__recipes">
+      <div class="cdetail__section-title">Recipes in order</div>
+      {% for member in collection.members %}
+      <div class="cdetail-row">
+        <span class="cdetail-row__num">{{ forloop.counter }}</span>
+        {% if member.film_sim_logo_filename %}
+        <img class="cdetail-row__logo" src="/static/images/{{ member.film_sim_logo_filename }}" alt="{{ member.film_simulation }}">
+        {% else %}
+        <span class="cdetail-row__logo-text">{{ member.film_simulation }}</span>
+        {% endif %}
+        <div class="cdetail-row__info">
+          <div class="cdetail-row__name">{% if member.name %}{{ member.name }}{% else %}{{ member.film_simulation }} #{{ member.recipe_id }}{% endif %}</div>
+          <div class="cdetail-row__sub">{{ member.film_simulation }} &middot; {{ member.image_count }} image{{ member.image_count|pluralize }}</div>
+        </div>
+      </div>
+      {% empty %}
+      <p class="cdetail-empty">This collection has no recipes yet.</p>
+      {% endfor %}
+    </div>
+
+    <aside class="cdetail__actions">
+      <div class="cdetail__section-title">Actions</div>
+      <a class="cdetail-btn cdetail-btn--primary" href="{% url 'edit-collection' collection.id %}">Edit collection</a>
+      <button type="button" class="cdetail-btn cdetail-btn--danger" data-open-delete>Delete collection</button>
+    </aside>
+  </div>
+</div>
+
+<div class="cdetail-modal-overlay" data-delete-modal hidden>
+  <div class="cdetail-modal" role="dialog" aria-modal="true" aria-labelledby="cdetail-delete-title">
+    <h2 id="cdetail-delete-title">Delete collection</h2>
+    <p>Delete <strong>{{ collection.name }}</strong>? This removes the collection only — its recipes and their images are kept.</p>
+    <form method="post" action="{% url 'delete-collection' collection.id %}">
+      {% csrf_token %}
+      <div class="cdetail-modal__actions">
+        <button type="button" class="cdetail-modal__cancel" data-cancel-delete>Cancel</button>
+        <button type="submit" class="cdetail-modal__confirm">Delete</button>
+      </div>
+    </form>
+  </div>
+</div>

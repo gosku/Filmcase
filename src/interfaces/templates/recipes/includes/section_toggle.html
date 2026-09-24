@@ -1,7 +1,8 @@
 {% comment %}
-Explorer / Graph switch, shared by the recipes explorer, recipe detail and both
-graph pages. Pass active="explorer" or active="graph"; the current section
-renders without an href so it is not a link to where you already are.
+Explorer / Graph / Collections switch, shared by the recipes explorer, recipe
+detail, both graph pages and the collections pages. Pass active="explorer",
+"graph" or "collections"; the current section renders without an href so it is
+not a link to where you already are.
 {% endcomment %}
 <nav class="segmented-toggle">
   {% if active == "explorer" %}
@@ -14,5 +15,11 @@ renders without an href so it is not a link to where you already are.
   <span class="segmented-toggle__option segmented-toggle__option--active">Graph</span>
   {% else %}
   <a href="{% url 'recipes-graph' %}" class="segmented-toggle__option">Graph</a>
+  {% endif %}
+
+  {% if active == "collections" %}
+  <span class="segmented-toggle__option segmented-toggle__option--active">Collections</span>
+  {% else %}
+  <a href="{% url 'recipes-collections' %}" class="segmented-toggle__option">Collections</a>
   {% endif %}
 </nav>

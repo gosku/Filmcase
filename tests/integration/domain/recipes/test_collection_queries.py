@@ -7,6 +7,7 @@ from src.domain.recipes.queries import (
     get_collection_detail,
     get_collection_filter_options,
     get_collection_summaries,
+    get_recipe_editor_options,
     get_recipes_for_collection_editor,
 )
 from tests.factories import (
@@ -229,3 +230,22 @@ class TestGetRecipesForCollectionEditor:
         options = get_recipes_for_collection_editor()
 
         assert [o.name for o in options][:2] == ["Popular", "Quiet"]
+
+
+@pytest.mark.django_db
+class TestGetRecipeEditorOptions:
+    def test_returns_options_in_the_given_id_order(self):
+        first = FujifilmRecipeFactory(name="First")
+        second = FujifilmRecipeFactory(name="Second")
+
+        options = get_recipe_editor_options(recipe_ids=[second.pk, first.pk])
+
+        assert [o.recipe_id for o in options] == [second.pk, first.pk]
+        assert all(o.in_collection for o in options)
+
+    def test_skips_unknown_and_repeated_ids(self):
+        recipe = FujifilmRecipeFactory()
+
+        options = get_recipe_editor_options(recipe_ids=[recipe.pk, recipe.pk, 999999])
+
+        assert [o.recipe_id for o in options] == [recipe.pk]

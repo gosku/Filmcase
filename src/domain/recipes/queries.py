@@ -1383,3 +1383,37 @@ def get_recipes_for_collection_editor(
         )
         for recipe in qs
     ]
+
+
+def get_recipe_editor_options(*, recipe_ids: Sequence[int]) -> list[RecipeOptionData]:
+    """
+    Return option rows for exactly *recipe_ids*, in that order (``in_collection``
+    always True). Unknown or repeated ids are skipped. Used to rebuild the
+    ordered selection in the collection editor, e.g. after a form error.
+    """
+    by_id = {
+        recipe.pk: recipe
+        for recipe in (
+            models.FujifilmRecipe.objects
+            .filter(pk__in=list(recipe_ids))
+            .annotate(image_count=Count("images"))
+        )
+    }
+    ordered: list[RecipeOptionData] = []
+    seen: set[int] = set()
+    for recipe_id in recipe_ids:
+        if recipe_id in seen or recipe_id not in by_id:
+            continue
+        seen.add(recipe_id)
+        recipe = by_id[recipe_id]
+        ordered.append(
+            RecipeOptionData(
+                recipe_id=recipe.pk,
+                name=recipe.name,
+                film_simulation=recipe.film_simulation,
+                film_sim_logo_filename=FILM_SIM_LOGO.get(recipe.film_simulation),
+                image_count=recipe.image_count,
+                in_collection=True,
+            )
+        )
+    return ordered
