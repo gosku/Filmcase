@@ -3,6 +3,7 @@ from datetime import datetime
 from decimal import Decimal
 
 from django.db import models
+from django.db.models.functions import Lower
 from django.utils import timezone
 
 _RECIPE_NAME_MAX_LEN = 25
@@ -327,16 +328,32 @@ class RecipeCard(models.Model):
 
 _GROUP_TYPE_VERSION_LINE = "VERSION_LINE"
 _GROUP_TYPE_FAMILY = "FAMILY"
+_GROUP_TYPE_COLLECTION = "COLLECTION"
 
 
 class RecipeGroup(models.Model):
     GROUP_TYPE_VERSION_LINE = _GROUP_TYPE_VERSION_LINE
     GROUP_TYPE_FAMILY = _GROUP_TYPE_FAMILY
+    GROUP_TYPE_COLLECTION = _GROUP_TYPE_COLLECTION
 
     name = models.CharField(max_length=100, blank=True, default="")
     group_type = models.CharField(max_length=50)
     created_at = models.DateTimeField(default=timezone.now)
     updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [
+            # Collection names are unique case-insensitively. Scoped to
+            # collections so version-line and family groups, whose names are
+            # blank or free to repeat, are untouched.
+            models.UniqueConstraint(
+                Lower("name"),
+                condition=models.Q(group_type=_GROUP_TYPE_COLLECTION),
+                name="unique_collection_name_ci",
+            ),
+        ]
+
+    # Factories
 
     @classmethod
     def new_version_line(cls, *, name: str = "") -> "RecipeGroup":
@@ -345,6 +362,16 @@ class RecipeGroup(models.Model):
     @classmethod
     def new_family(cls, *, name: str) -> "RecipeGroup":
         return cls.objects.create(group_type=_GROUP_TYPE_FAMILY, name=name)
+
+    @classmethod
+    def new_collection(cls, *, name: str) -> "RecipeGroup":
+        return cls.objects.create(group_type=_GROUP_TYPE_COLLECTION, name=name)
+
+    # Mutators
+
+    def set_name(self, *, name: str) -> None:
+        self.name = name
+        self.save(update_fields=["name", "updated_at"])
 
     def __str__(self) -> str:
         return f"#{self.id} {self.group_type} {self.name!r}"
