@@ -96,6 +96,25 @@ class RecipeGroupMemberFactory(factory.django.DjangoModelFactory):
     added_at = factory.LazyFunction(timezone.now)
 
 
+class RecipeCollectionFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = models.RecipeGroup
+
+    group_type = models.RecipeGroup.GROUP_TYPE_COLLECTION
+    name = factory.Sequence(lambda n: f"Collection {n}")
+
+
+class RecipeCollectionMemberFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = models.RecipeGroupMember
+
+    group = factory.SubFactory(RecipeCollectionFactory)
+    recipe = factory.SubFactory(FujifilmRecipeFactory)
+    group_type = models.RecipeGroup.GROUP_TYPE_COLLECTION
+    position = factory.Sequence(lambda n: n)
+    added_at = factory.LazyFunction(timezone.now)
+
+
 class LibraryFolderFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = models.LibraryFolder

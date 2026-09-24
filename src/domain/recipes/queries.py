@@ -10,7 +10,7 @@ import attrs
 from django.core import paginator as django_paginator
 from django.db import models as db_models
 from django.db.models import Case, Count, IntegerField, Max, Min, OuterRef, Q, Subquery, Value, When
-from django.db.models.functions import TruncMonth
+from django.db.models.functions import Lower, TruncMonth
 
 from src.data import models
 from src.domain.images import filter_queries
@@ -1071,3 +1071,315 @@ def get_recipe_list(
     )
     page_obj = django_paginator.Paginator(qs, page_size).get_page(page_number)
     return RecipeListPage(page_obj=page_obj)
+
+
+# ----------------------------------------------------------------------------
+# Recipe collections
+# ----------------------------------------------------------------------------
+
+# Best-rated images shown in a collection card's mosaic before it falls back to
+# the film-simulation logo legend.
+_COLLECTION_MOSAIC_IMAGE_LIMIT = 4
+
+# Cap on the recipe list offered in the collection editor's add panel.
+_COLLECTION_EDITOR_SEARCH_LIMIT = 50
+
+
+@attrs.frozen
+class CollectionNotFound(Exception):
+    collection_id: int
+
+
+@attrs.frozen
+class CollectionFilmSim:
+    film_simulation: str
+    logo_filename: str | None
+
+
+@attrs.frozen
+class CollectionSummaryData:
+    id: int
+    name: str
+    recipe_count: int
+    film_sims: tuple[CollectionFilmSim, ...]
+    mosaic_image_ids: tuple[int, ...]
+
+
+def get_collection_summaries(
+    *,
+    name_search: str = "",
+    recipe_name_search: str = "",
+    film_simulations: Sequence[str] = (),
+) -> list[CollectionSummaryData]:
+    """
+    Return collection cards matching the given filters, ordered by name.
+
+    A collection matches when its name contains *name_search*, it holds a recipe
+    whose name contains *recipe_name_search*, and it holds a recipe of one of
+    *film_simulations* — each filter is applied only when non-empty. Every card
+    carries its recipe count, the distinct film simulations of its recipes (most
+    frequent first, with logo filenames) for the legend, and up to four
+    best-rated images across its recipes for the mosaic. A card with no images
+    yet returns an empty ``mosaic_image_ids`` so the caller renders the
+    logo-only fallback.
+    """
+    groups = models.RecipeGroup.objects.filter(
+        group_type=models.RecipeGroup.GROUP_TYPE_COLLECTION,
+    )
+    if name_search:
+        groups = groups.filter(name__icontains=name_search)
+    if recipe_name_search:
+        groups = groups.filter(members__recipe__name__icontains=recipe_name_search)
+    if film_simulations:
+        groups = groups.filter(members__recipe__film_simulation__in=list(film_simulations))
+    group_rows = list(groups.distinct().order_by(Lower("name"), "pk").values("pk", "name"))
+    if not group_rows:
+        return []
+
+    group_ids = [row["pk"] for row in group_rows]
+    name_by_id = {row["pk"]: row["name"] for row in group_rows}
+
+    members = (
+        models.RecipeGroupMember.objects
+        .filter(group_id__in=group_ids, group_type=models.RecipeGroup.GROUP_TYPE_COLLECTION)
+        .select_related("recipe")
+        .order_by("group_id", "position", "pk")
+    )
+    members_by_group: dict[int, list[models.RecipeGroupMember]] = {}
+    for member in members:
+        members_by_group.setdefault(member.group_id, []).append(member)
+
+    top_image_by_recipe = _top_image_by_recipe(
+        recipe_ids={member.recipe_id for member in members}
+    )
+
+    summaries: list[CollectionSummaryData] = []
+    for group_id in group_ids:
+        group_members = members_by_group.get(group_id, [])
+        summaries.append(
+            CollectionSummaryData(
+                id=group_id,
+                name=name_by_id[group_id],
+                recipe_count=len(group_members),
+                film_sims=_collection_film_sims(group_members),
+                mosaic_image_ids=_collection_mosaic(group_members, top_image_by_recipe),
+            )
+        )
+    return summaries
+
+
+def _top_image_by_recipe(*, recipe_ids: set[int]) -> dict[int, tuple[int, float]]:
+    """
+    Map each recipe id to its best image as ``(image_id, rating)``.
+
+    The best image is the highest-rated, breaking ties by most recent then id —
+    the same ordering the explorer uses for card backgrounds. Recipes with no
+    image are absent from the mapping.
+    """
+    if not recipe_ids:
+        return {}
+    top_id_sq = (
+        models.Image.objects.filter(fujifilm_recipe=OuterRef("pk"))
+        .order_by("-rating", "-taken_at", "id").values("id")[:1]
+    )
+    top_rating_sq = (
+        models.Image.objects.filter(fujifilm_recipe=OuterRef("pk"))
+        .order_by("-rating", "-taken_at", "id").values("rating")[:1]
+    )
+    result: dict[int, tuple[int, float]] = {}
+    for row in (
+        models.FujifilmRecipe.objects.filter(pk__in=recipe_ids)
+        .annotate(top_image_id=Subquery(top_id_sq), top_rating=Subquery(top_rating_sq))
+        .values("pk", "top_image_id", "top_rating")
+    ):
+        if row["top_image_id"] is not None:
+            result[row["pk"]] = (row["top_image_id"], float(row["top_rating"] or 0))
+    return result
+
+
+def _collection_film_sims(
+    members: Sequence[models.RecipeGroupMember],
+) -> tuple[CollectionFilmSim, ...]:
+    counts: dict[str, int] = {}
+    for member in members:
+        film_sim = member.recipe.film_simulation
+        counts[film_sim] = counts.get(film_sim, 0) + 1
+    return tuple(
+        CollectionFilmSim(film_simulation=film_sim, logo_filename=FILM_SIM_LOGO.get(film_sim))
+        for film_sim in sorted(counts, key=lambda fs: (-counts[fs], fs))
+    )
+
+
+def _collection_mosaic(
+    members: Sequence[models.RecipeGroupMember],
+    top_image_by_recipe: Mapping[int, tuple[int, float]],
+) -> tuple[int, ...]:
+    rated: list[tuple[int, float]] = [
+        top_image_by_recipe[member.recipe_id]
+        for member in members
+        if member.recipe_id in top_image_by_recipe
+    ]
+    rated.sort(key=lambda pair: pair[1], reverse=True)
+    mosaic: list[int] = []
+    seen: set[int] = set()
+    for image_id, _rating in rated:
+        if image_id in seen:
+            continue
+        seen.add(image_id)
+        mosaic.append(image_id)
+        if len(mosaic) >= _COLLECTION_MOSAIC_IMAGE_LIMIT:
+            break
+    return tuple(mosaic)
+
+
+@attrs.frozen
+class CollectionFilmSimFacet:
+    value: str
+    count: int
+    available: bool
+    selected: bool
+
+
+@attrs.frozen
+class CollectionFilterOptions:
+    film_simulations: tuple[CollectionFilmSimFacet, ...]
+
+
+def get_collection_filter_options(
+    *, selected_film_simulations: Sequence[str] = (),
+) -> CollectionFilterOptions:
+    """
+    Return the film-simulation facet for the collections sidebar.
+
+    Each option's count is the number of distinct collections holding at least
+    one recipe of that film simulation. A currently selected value with no
+    matches is kept in the list, marked unavailable, so it can be unticked.
+    """
+    counts = {
+        row["recipe__film_simulation"]: row["count"]
+        for row in (
+            models.RecipeGroupMember.objects
+            .filter(group_type=models.RecipeGroup.GROUP_TYPE_COLLECTION)
+            .values("recipe__film_simulation")
+            .annotate(count=Count("group_id", distinct=True))
+        )
+    }
+    selected = set(selected_film_simulations)
+    values = sorted(set(counts) | selected, key=lambda v: (0 if v in counts else 1, v))
+    return CollectionFilterOptions(
+        film_simulations=tuple(
+            CollectionFilmSimFacet(
+                value=value,
+                count=counts.get(value, 0),
+                available=value in counts,
+                selected=value in selected,
+            )
+            for value in values
+        )
+    )
+
+
+@attrs.frozen
+class CollectionMemberData:
+    recipe_id: int
+    name: str
+    film_simulation: str
+    film_sim_logo_filename: str | None
+    image_count: int
+    position: int
+
+
+@attrs.frozen
+class CollectionDetailData:
+    id: int
+    name: str
+    members: tuple[CollectionMemberData, ...]
+
+
+def get_collection_detail(*, collection_id: int) -> CollectionDetailData:
+    """
+    Return the collection with its recipes in stored order.
+
+    :raises CollectionNotFound: If no collection with *collection_id* exists.
+    """
+    try:
+        group = models.RecipeGroup.objects.get(
+            pk=collection_id, group_type=models.RecipeGroup.GROUP_TYPE_COLLECTION,
+        )
+    except models.RecipeGroup.DoesNotExist:
+        raise CollectionNotFound(collection_id=collection_id)
+
+    members = (
+        models.RecipeGroupMember.objects
+        .filter(group_id=group.pk)
+        .select_related("recipe")
+        .annotate(recipe_image_count=Count("recipe__images"))
+        .order_by("position", "pk")
+    )
+    member_data = tuple(
+        CollectionMemberData(
+            recipe_id=member.recipe_id,
+            name=member.recipe.name,
+            film_simulation=member.recipe.film_simulation,
+            film_sim_logo_filename=FILM_SIM_LOGO.get(member.recipe.film_simulation),
+            image_count=member.recipe_image_count,
+            position=member.position if member.position is not None else 0,
+        )
+        for member in members
+    )
+    return CollectionDetailData(id=group.pk, name=group.name, members=member_data)
+
+
+@attrs.frozen
+class RecipeOptionData:
+    recipe_id: int
+    name: str
+    film_simulation: str
+    film_sim_logo_filename: str | None
+    image_count: int
+    in_collection: bool
+
+
+def get_recipes_for_collection_editor(
+    *, name_search: str = "", in_collection_id: int | None = None,
+) -> list[RecipeOptionData]:
+    """
+    Return recipes for the collection editor's add panel, most-used first.
+
+    When *in_collection_id* is given, recipes already in that collection are
+    flagged with ``in_collection=True`` so the panel can mark them as added.
+    """
+    in_collection_ids: set[int] = set()
+    if in_collection_id is not None:
+        in_collection_ids = set(
+            models.RecipeGroupMember.objects
+            .filter(
+                group_id=in_collection_id,
+                group_type=models.RecipeGroup.GROUP_TYPE_COLLECTION,
+            )
+            .values_list("recipe_id", flat=True)
+        )
+
+    qs = models.FujifilmRecipe.objects.annotate(
+        image_count=Count("images"),
+        has_name=Case(
+            When(name="", then=Value(0)),
+            default=Value(1),
+            output_field=IntegerField(),
+        ),
+    )
+    if name_search:
+        qs = qs.filter(Q(name__icontains=name_search))
+    qs = qs.order_by("-has_name", "-image_count", "pk")[:_COLLECTION_EDITOR_SEARCH_LIMIT]
+
+    return [
+        RecipeOptionData(
+            recipe_id=recipe.pk,
+            name=recipe.name,
+            film_simulation=recipe.film_simulation,
+            film_sim_logo_filename=FILM_SIM_LOGO.get(recipe.film_simulation),
+            image_count=recipe.image_count,
+            in_collection=recipe.pk in in_collection_ids,
+        )
+        for recipe in qs
+    ]
