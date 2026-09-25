@@ -2,7 +2,12 @@ import pytest
 from bs4 import BeautifulSoup
 
 from src.data import models
-from tests.factories import FujifilmRecipeFactory, ImageFactory
+from tests.factories import (
+    FujifilmRecipeFactory,
+    ImageFactory,
+    RecipeCollectionFactory,
+    RecipeCollectionMemberFactory,
+)
 
 
 @pytest.mark.django_db
@@ -211,6 +216,59 @@ class TestRecipeDetailCreateVersionButton:
         recipe = FujifilmRecipeFactory()
         link = self._create_version_link(client, recipe)
         assert link["href"] == f"/recipes/{recipe.pk}/create-version/"
+
+
+@pytest.mark.django_db
+class TestRecipeDetailDescription:
+    def test_description_shown_when_set(self, client):
+        recipe = FujifilmRecipeFactory(description="A warm, faded portrait look.")
+
+        response = client.get(f"/recipes/{recipe.pk}/")
+
+        soup = BeautifulSoup(response.content, "html.parser")
+        desc = soup.find(class_="detail-desc")
+        assert desc is not None
+        assert "A warm, faded portrait look." in desc.get_text()
+
+    def test_description_section_hidden_when_blank(self, client):
+        recipe = FujifilmRecipeFactory(description="")
+
+        response = client.get(f"/recipes/{recipe.pk}/")
+
+        soup = BeautifulSoup(response.content, "html.parser")
+        assert soup.find(class_="detail-desc") is None
+
+
+@pytest.mark.django_db
+class TestRecipeDetailCollections:
+    def test_collection_card_links_to_collection_when_recipe_in_one(self, client):
+        recipe = FujifilmRecipeFactory()
+        collection = RecipeCollectionFactory(name="Autumn Portraits")
+        RecipeCollectionMemberFactory(group=collection, recipe=recipe)
+
+        response = client.get(f"/recipes/{recipe.pk}/")
+
+        soup = BeautifulSoup(response.content, "html.parser")
+        card = soup.find("a", class_="rd-col-card")
+        assert card is not None
+        assert card["href"] == f"/recipes/collections/{collection.pk}/"
+        assert "Autumn Portraits" in card.get_text()
+
+    def test_collections_section_hidden_when_recipe_in_no_collection(self, client):
+        recipe = FujifilmRecipeFactory()
+
+        response = client.get(f"/recipes/{recipe.pk}/")
+
+        soup = BeautifulSoup(response.content, "html.parser")
+        assert soup.find(class_="rd-col-grid") is None
+
+    def test_future_related_recipes_comment_does_not_leak(self, client):
+        recipe = FujifilmRecipeFactory()
+        RecipeCollectionMemberFactory(group=RecipeCollectionFactory(), recipe=recipe)
+
+        response = client.get(f"/recipes/{recipe.pk}/")
+
+        assert b"reserved for a future feature" not in response.content
 
 
 def _camera_section(soup: BeautifulSoup):

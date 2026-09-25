@@ -101,10 +101,11 @@
     overflow: hidden;
   }
 
-  /* Left: recipe settings */
+  /* Left: recipe settings. Scrolls so the description and collections sections
+     below the settings grid are reachable without shrinking the settings. */
   .detail-settings-col {
     flex: 1;
-    overflow-y: hidden;
+    overflow-y: auto;
     padding: 2rem 2.5rem;
     color: var(--color-text-primary);
     background: #f8f9fa;
@@ -665,6 +666,94 @@
 
     .detail-sheet-backdrop[hidden] { display: none; }
   }
+
+  /* ------------------------------------ */
+  /* Below-the-fold sections              */
+  /* Description, In collections (+ room  */
+  /* for future Related recipes).         */
+  /* ------------------------------------ */
+
+  .detail-extra {
+    margin-top: 2.25rem;
+    padding-bottom: 1rem;
+  }
+
+  .detail-extra-section { margin-top: 1.75rem; }
+  .detail-extra-section:first-child { margin-top: 0; }
+
+  .detail-desc {
+    margin: 0;
+    max-width: 640px;
+    font-size: 0.92rem;
+    line-height: 1.55;
+    color: #334155;
+    white-space: pre-line;
+  }
+
+  .rd-col-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 0.7rem;
+    max-width: 660px;
+  }
+
+  .rd-col-card {
+    display: flex;
+    align-items: center;
+    gap: 0.85rem;
+    padding: 0.6rem 0.7rem;
+    border: 1px solid var(--color-border);
+    border-radius: 10px;
+    background: #fff;
+    text-decoration: none;
+    color: inherit;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+    transition: border-color 0.15s;
+  }
+
+  .rd-col-card:hover { border-color: #bbb; }
+
+  .rd-col-thumb {
+    flex-shrink: 0;
+    width: 46px;
+    height: 46px;
+    border-radius: 8px;
+    overflow: hidden;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1fr 1fr;
+    gap: 1px;
+    background: #1a1a1a;
+  }
+
+  .rd-col-thumb--n1 { grid-template-columns: 1fr; grid-template-rows: 1fr; }
+  .rd-col-thumb--n2 { grid-template-rows: 1fr; }
+  .rd-col-thumb--n3 .rd-col-tile:first-child { grid-row: span 2; }
+  .rd-col-tile { background: #1a1a1a no-repeat center/cover; }
+
+  .rd-col-thumb--fallback {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--color-bg-surface);
+  }
+
+  .rd-col-thumb-logo { width: 30px; height: 30px; border-radius: 6px; object-fit: cover; }
+  .rd-col-thumb-text { font-size: 0.8rem; font-weight: 700; color: #64748b; }
+
+  .rd-col-info { display: flex; flex-direction: column; min-width: 0; }
+
+  .rd-col-name {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--color-text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .rd-col-count { font-size: 0.76rem; color: var(--color-text-muted); margin-top: 1px; }
+  .rd-col-arrow { margin-left: auto; color: #cbd5e1; flex-shrink: 0; }
 </style>
 
 <div class="detail-overlay">
@@ -1012,6 +1101,58 @@
           </div>
 
         </div>{# /.settings-bottom #}
+
+        {% if recipe.description or collections %}
+        <div class="detail-extra">
+
+          {% if recipe.description %}
+          <section class="detail-extra-section">
+            <h2 class="detail-section-title">Description</h2>
+            <p class="detail-desc">{{ recipe.description }}</p>
+          </section>
+          {% endif %}
+
+          {% if collections %}
+          <section class="detail-extra-section">
+            <h2 class="detail-section-title">In collections</h2>
+            <div class="rd-col-grid">
+              {% for collection in collections %}
+              <a class="rd-col-card" href="{% url 'recipe-collection-detail' collection.id %}">
+                {% if collection.mosaic_image_ids %}
+                <span class="rd-col-thumb rd-col-thumb--n{{ collection.mosaic_image_ids|length }}">
+                  {% for image_id in collection.mosaic_image_ids %}
+                  <span class="rd-col-tile" style="background-image: url('/images/file/{{ image_id }}/?width=200');"></span>
+                  {% endfor %}
+                </span>
+                {% else %}
+                <span class="rd-col-thumb rd-col-thumb--fallback">
+                  {% with fs=collection.film_sims.0 %}
+                    {% if fs.logo_filename %}
+                    <img class="rd-col-thumb-logo" src="/static/images/{{ fs.logo_filename }}" alt="{{ fs.film_simulation }}">
+                    {% else %}
+                    <span class="rd-col-thumb-text">{{ collection.name|slice:":2"|upper }}</span>
+                    {% endif %}
+                  {% endwith %}
+                </span>
+                {% endif %}
+                <span class="rd-col-info">
+                  <span class="rd-col-name">{{ collection.name }}</span>
+                  <span class="rd-col-count">{{ collection.recipe_count }} recipe{{ collection.recipe_count|pluralize }}</span>
+                </span>
+                <svg class="rd-col-arrow" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 6 15 12 9 18"/></svg>
+              </a>
+              {% endfor %}
+            </div>
+          </section>
+          {% endif %}
+
+          {% comment %}
+          Related recipes section is reserved for a future feature; the
+          scrollable area below leaves room for it.
+          {% endcomment %}
+
+        </div>{# /.detail-extra #}
+        {% endif %}
 
       </div><!-- /.detail-fields -->
     </div>
