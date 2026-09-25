@@ -285,3 +285,474 @@
 .push-retry-btn:hover {
     background: var(--color-accent-light);
 }
+
+/* Collection push modal
+   ===================================== */
+
+/* The "Push all to camera" modal. It sits directly in #slot-overlay (so it is
+   its own card) and shows the camera's slots before, the collection's recipes
+   mapped onto them after, and per-recipe progress during a run. Both transports
+   render the same class/data contract: the server template
+   collection_push_modal.html and the JS-built modal in push_collection.js. */
+
+.cpush {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    width: min(900px, calc(100vw - 1.5rem));
+    max-height: calc(100vh - 2rem);
+    overflow: hidden;
+    font-family: sans-serif;
+    background: #ffffff;
+    border-radius: 16px;
+    box-shadow: 0 4px 24px rgba(0, 0, 0, .2);
+}
+
+.cpush--message {
+    min-height: 120px;
+    padding: 2rem;
+}
+
+.cpush__header {
+    flex-shrink: 0;
+    padding: 1.1rem 1.4rem;
+    background: #1e1e1e;
+    color: #ffffff;
+}
+
+.cpush__eyebrow {
+    font-size: .68rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .12em;
+    color: rgba(255, 255, 255, .45);
+}
+
+.cpush__title {
+    margin-top: .2rem;
+    font-size: 1.1rem;
+    font-weight: 700;
+}
+
+.cpush__camera {
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    margin-top: .4rem;
+}
+
+.cpush__camera-name {
+    padding: .25rem .55rem;
+    font-size: .78rem;
+    font-weight: 600;
+    background: rgba(255, 255, 255, .08);
+    border-radius: 6px;
+}
+
+.cpush__slotcount {
+    font-size: .74rem;
+    color: rgba(255, 255, 255, .55);
+}
+
+/* Progress bar, shown once a run starts. */
+.cpush__progress {
+    flex-shrink: 0;
+    padding: .85rem 1.4rem .35rem;
+}
+
+.cpush__progress[hidden] {
+    display: none;
+}
+
+.cpush__progress-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin-bottom: .45rem;
+    font-size: .82rem;
+}
+
+.cpush__progress-head [data-progress-label] {
+    font-weight: 600;
+    color: var(--color-text-primary);
+}
+
+.cpush__progress-head [data-progress-counts] {
+    color: #64748b;
+}
+
+.cpush__progress-track {
+    height: 6px;
+    overflow: hidden;
+    background: #eef1f4;
+    border-radius: 4px;
+}
+
+.cpush__progress-fill {
+    width: 0;
+    height: 100%;
+    background: #2563eb;
+    transition: width .2s;
+}
+
+/* Before / after columns. */
+.cpush__body {
+    display: flex;
+    flex: 1 1 auto;
+    min-height: 0;
+    padding: 1rem 1.4rem;
+    overflow-y: auto;
+}
+
+.cpush__col {
+    flex: 1;
+    min-width: 0;
+}
+
+.cpush__col--after {
+    padding-left: 1.1rem;
+    border-left: 1px solid #eef1f4;
+}
+
+.cpush__col--before {
+    padding-right: 1.1rem;
+}
+
+.cpush__coltitle {
+    margin-bottom: .7rem;
+    font-size: .7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .08em;
+    color: var(--color-text-primary);
+}
+
+.cpush__col--before .cpush__coltitle {
+    color: #94a3b8;
+}
+
+.cpush__hint {
+    font-weight: 500;
+    text-transform: none;
+    letter-spacing: 0;
+    color: #94a3b8;
+}
+
+.cpush__arrow {
+    display: flex;
+    flex: 0 0 34px;
+    align-items: center;
+    justify-content: center;
+    color: #cbd5e1;
+}
+
+.cpush__arrow svg {
+    width: 22px;
+    height: 22px;
+}
+
+/* A read-only "before" slot row. */
+.cpush-slot {
+    display: flex;
+    align-items: center;
+    gap: .7rem;
+    padding: .5rem .35rem;
+    border-bottom: 1px solid #f0f0f0;
+}
+
+.cpush-slot__info {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    min-width: 0;
+}
+
+.cpush-slot__name {
+    overflow: hidden;
+    font-size: .84rem;
+    font-weight: 500;
+    color: #222222;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Badges. */
+.cpush-badge {
+    display: flex;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    width: 1.9rem;
+    height: 1.9rem;
+    font-size: .68rem;
+    font-weight: 700;
+    color: #ffffff;
+    background: #222222;
+    border-radius: 6px;
+}
+
+.cpush-badge--target {
+    background: var(--color-accent);
+}
+
+.cpush-badge--kept {
+    color: #94a3b8;
+    background: #e2e8f0;
+}
+
+/* Film-sim tag, styled like the single-push card's tag (which is scoped to
+   .slot-card, so it needs its own rule here). */
+.cpush .slot-film-tag {
+    margin-top: .2rem;
+    padding: .1rem .35rem;
+    font-size: .66rem;
+    font-weight: 500;
+    color: var(--color-accent);
+    background: var(--color-accent-light);
+    border-radius: 3px;
+}
+
+/* An "after" recipe row. */
+.cpush__list {
+    display: flex;
+    flex-direction: column;
+    gap: .45rem;
+}
+
+.cpush-row {
+    display: flex;
+    align-items: center;
+    gap: .55rem;
+    padding: .5rem .6rem;
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+}
+
+.cpush-row--dragging {
+    opacity: .5;
+    border-color: var(--color-accent);
+}
+
+.cpush-row__handle {
+    display: flex;
+    flex-shrink: 0;
+    align-items: center;
+    color: #cbd5e1;
+    cursor: grab;
+}
+
+.cpush-row__handle svg {
+    width: 14px;
+    height: 14px;
+}
+
+.cpush-row__handle--empty {
+    width: 14px;
+}
+
+.cpush-row__info {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    align-items: flex-start;
+    min-width: 0;
+}
+
+.cpush-row__name {
+    overflow: hidden;
+    font-size: .86rem;
+    font-weight: 600;
+    color: var(--color-text-primary);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 100%;
+}
+
+.cpush-row__replaces,
+.cpush-row__meta {
+    margin-top: .15rem;
+    font-size: .68rem;
+    color: #94a3b8;
+}
+
+/* The "replaces X" line is only needed on the narrow (mobile) layout, where the
+   before column is hidden. */
+.cpush-row__replaces {
+    display: none;
+}
+
+.cpush-row--kept,
+.cpush-row--dropped {
+    background: #fafbfc;
+    border-style: dashed;
+}
+
+.cpush-row--kept .cpush-row__name,
+.cpush-row--dropped .cpush-row__name {
+    font-weight: 500;
+    color: #94a3b8;
+}
+
+.cpush__dropped {
+    margin-top: .8rem;
+}
+
+.cpush__dropped-title {
+    margin-bottom: .45rem;
+    font-size: .68rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    color: #dc2626;
+}
+
+/* Per-recipe status, set live by push_collection.js. */
+.cpush-row__status {
+    display: flex;
+    flex-shrink: 0;
+    align-items: center;
+    gap: .35rem;
+    font-size: .74rem;
+    font-weight: 600;
+}
+
+.cpush-row__status svg {
+    width: 16px;
+    height: 16px;
+}
+
+.cpush-row--sending {
+    border: 2px solid #2563eb;
+    background: #eff6ff;
+}
+
+.cpush-row--sending .cpush-badge--target {
+    background: #2563eb;
+}
+
+.cpush-row--sending .cpush-row__status {
+    color: #2563eb;
+}
+
+.cpush-row--sent .cpush-badge--target {
+    background: #16a34a;
+}
+
+.cpush-row--sent .cpush-row__status {
+    color: #16a34a;
+}
+
+.cpush-row--failed {
+    border-color: #fca5a5;
+    background: #fef2f2;
+}
+
+.cpush-row--failed .cpush-badge--target {
+    background: #dc2626;
+}
+
+.cpush-row--failed .cpush-row__status {
+    color: #dc2626;
+}
+
+.cpush-spin {
+    animation: cpush-spin 1s linear infinite;
+}
+
+@keyframes cpush-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.cpush-row__retry {
+    padding: .25rem .55rem;
+    font-size: .7rem;
+    font-weight: 600;
+    color: #dc2626;
+    background: #ffffff;
+    border: 1px solid #fca5a5;
+    border-radius: 5px;
+    cursor: pointer;
+}
+
+/* Footer. */
+.cpush__footer {
+    display: flex;
+    flex-shrink: 0;
+    gap: .7rem;
+    align-items: center;
+    padding: .9rem 1.4rem;
+    background: #fafbfc;
+    border-top: 1px solid #eef1f4;
+}
+
+.cpush__foot-hint {
+    flex: 1;
+    font-size: .78rem;
+    color: #64748b;
+}
+
+.cpush__cancel {
+    padding: .55rem 1rem;
+    font-size: .85rem;
+    font-weight: 600;
+    color: #475569;
+    background: #ffffff;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    cursor: pointer;
+}
+
+.cpush__start {
+    padding: .55rem 1.1rem;
+    font-size: .85rem;
+    font-weight: 600;
+    color: #ffffff;
+    background: var(--color-accent);
+    border: 1px solid var(--color-accent);
+    border-radius: 6px;
+    cursor: pointer;
+}
+
+.cpush__start:disabled {
+    cursor: default;
+    opacity: .5;
+}
+
+/* Narrow layout: stack into one column, hide the separate "before" list and
+   show what each recipe replaces inline instead. */
+@media (max-width: 640px) {
+    .cpush {
+        width: 100vw;
+        max-height: 92vh;
+        border-radius: 16px 16px 0 0;
+    }
+
+    .cpush__body {
+        flex-direction: column;
+    }
+
+    .cpush__col--before,
+    .cpush__arrow {
+        display: none;
+    }
+
+    .cpush__col--after {
+        padding-left: 0;
+        border-left: none;
+    }
+
+    .cpush-row__replaces {
+        display: block;
+    }
+
+    #slot-overlay {
+        align-items: flex-end;
+    }
+
+    .cpush__footer {
+        padding-bottom: calc(.9rem + env(safe-area-inset-bottom));
+    }
+}

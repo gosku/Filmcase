@@ -10,7 +10,7 @@
     <div class="cdetail__recipes">
       <div class="cdetail__section-title">Recipes in order</div>
       {% for member in collection.members %}
-      <div class="cdetail-row">
+      <div class="cdetail-row" data-recipe-id="{{ member.recipe_id }}" data-film-sim="{{ member.film_simulation }}">
         <span class="cdetail-row__num">{{ forloop.counter }}</span>
         {% if member.film_sim_logo_filename %}
         <img class="cdetail-row__logo" src="/static/images/{{ member.film_sim_logo_filename }}" alt="{{ member.film_simulation }}">
@@ -29,7 +29,17 @@
 
     <aside class="cdetail__actions">
       <div class="cdetail__section-title">Actions</div>
-      <a class="cdetail-btn cdetail-btn--primary" href="{% url 'edit-collection' collection.id %}">Edit collection</a>
+      {% if collection.members %}
+        {% if camera_push_from_browser %}
+        <button type="button" class="cdetail-btn cdetail-btn--primary cdetail-btn--push"
+                data-collection-push data-collection-name="{{ collection.name }}">Push all to camera</button>
+        {% else %}
+        <button type="button" class="cdetail-btn cdetail-btn--primary cdetail-btn--push"
+                hx-get="{% url 'select-collection-slots' collection.id %}"
+                hx-target="#slot-overlay" hx-swap="innerHTML">Push all to camera</button>
+        {% endif %}
+      {% endif %}
+      <a class="cdetail-btn" href="{% url 'edit-collection' collection.id %}">Edit collection</a>
       <button type="button" class="cdetail-btn cdetail-btn--danger" data-open-delete>Delete collection</button>
     </aside>
   </div>
