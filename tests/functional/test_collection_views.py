@@ -1,4 +1,5 @@
 import pytest
+from bs4 import BeautifulSoup
 from django.urls import reverse
 
 from src.data import models
@@ -107,6 +108,22 @@ class TestCollectionDetail:
         )
 
         assert "Push all to camera" not in response.content.decode()
+
+    def test_each_recipe_row_links_to_its_recipe_page(self, client):
+        group = RecipeCollectionFactory(name="Street Mono")
+        recipe_a = FujifilmRecipeFactory(name="Kodak Tri-X")
+        recipe_b = FujifilmRecipeFactory(name="Velvia Punch")
+        RecipeCollectionMemberFactory(group=group, recipe=recipe_a, position=0)
+        RecipeCollectionMemberFactory(group=group, recipe=recipe_b, position=1)
+
+        response = client.get(
+            reverse("recipe-collection-detail", args=[group.pk]), HTTP_HX_REQUEST="true"
+        )
+
+        soup = BeautifulSoup(response.content, "html.parser")
+        links = {a["href"] for a in soup.find_all("a", class_="cdetail-row__link")}
+        assert reverse("recipe-detail", args=[recipe_a.pk]) in links
+        assert reverse("recipe-detail", args=[recipe_b.pk]) in links
 
 
 @pytest.mark.django_db
