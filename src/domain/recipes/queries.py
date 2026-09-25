@@ -592,6 +592,7 @@ class RecipeDetailContext:
     recipe: RecipeData
     is_monochromatic: bool
     settings_editable: bool
+    collections: tuple[CollectionSummaryData, ...]
 
 
 def get_recipe_detail(*, recipe_id: int) -> RecipeDetailContext:
@@ -624,6 +625,7 @@ def get_recipe_detail(*, recipe_id: int) -> RecipeDetailContext:
         recipe=recipe_data,
         is_monochromatic=recipe_data.film_simulation in MONOCHROMATIC_FILM_SIMULATIONS,
         settings_editable=recipe_is_editable(recipe_id=recipe_id),
+        collections=tuple(get_collections_for_recipe(recipe_id=recipe_id)),
     )
 
 

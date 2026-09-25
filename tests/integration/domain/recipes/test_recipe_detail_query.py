@@ -5,7 +5,12 @@ from src.domain.images.filter_queries import SENSOR_NONE_VALUE
 from src.domain.recipes.operations import set_recipe_sensors
 from src.domain.recipes.queries import RecipeData, RecipeDetailContext, get_recipe_detail, get_recipe_gallery_data, get_recipe_sidebar_filter_options
 from src.domain.recipes.constants import MONOCHROMATIC_FILM_SIMULATIONS
-from tests.factories import FujifilmRecipeFactory, ImageFactory
+from tests.factories import (
+    FujifilmRecipeFactory,
+    ImageFactory,
+    RecipeCollectionFactory,
+    RecipeCollectionMemberFactory,
+)
 
 
 @pytest.mark.django_db
@@ -136,6 +141,23 @@ class TestGetRecipeDetail:
         result = get_recipe_detail(recipe_id=recipe.pk)
 
         assert result.recipe.description == ""
+
+    def test_collections_is_empty_when_recipe_in_no_collection(self):
+        recipe = FujifilmRecipeFactory()
+
+        result = get_recipe_detail(recipe_id=recipe.pk)
+
+        assert result.collections == ()
+
+    def test_collections_lists_collections_containing_the_recipe(self):
+        recipe = FujifilmRecipeFactory()
+        group = RecipeCollectionFactory(name="Autumn")
+        RecipeCollectionMemberFactory(group=group, recipe=recipe)
+
+        result = get_recipe_detail(recipe_id=recipe.pk)
+
+        assert [c.name for c in result.collections] == ["Autumn"]
+        assert result.collections[0].id == group.pk
 
     def test_settings_editable_true_when_recipe_has_no_images(self):
         recipe = FujifilmRecipeFactory()
