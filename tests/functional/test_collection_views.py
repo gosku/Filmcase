@@ -73,6 +73,41 @@ class TestCollectionDetail:
 
         assert response.status_code == 404
 
+    def test_server_transport_push_button_targets_the_setup_view(self, client, settings):
+        settings.CAMERA_TRANSPORT = "server"
+        group = RecipeCollectionFactory(name="Street Mono")
+        RecipeCollectionMemberFactory(group=group, recipe=FujifilmRecipeFactory(name="Kodak Tri-X"))
+
+        response = client.get(
+            reverse("recipe-collection-detail", args=[group.pk]), HTTP_HX_REQUEST="true"
+        )
+
+        content = response.content.decode()
+        assert reverse("select-collection-slots", args=[group.pk]) in content
+        assert "data-collection-push" not in content
+
+    def test_browser_transport_push_button_is_client_driven(self, client, settings):
+        settings.CAMERA_TRANSPORT = "browser"
+        group = RecipeCollectionFactory(name="Street Mono")
+        RecipeCollectionMemberFactory(group=group, recipe=FujifilmRecipeFactory(name="Kodak Tri-X"))
+
+        response = client.get(
+            reverse("recipe-collection-detail", args=[group.pk]), HTTP_HX_REQUEST="true"
+        )
+
+        content = response.content.decode()
+        assert "data-collection-push" in content
+        assert reverse("select-collection-slots", args=[group.pk]) not in content
+
+    def test_push_button_is_hidden_for_an_empty_collection(self, client):
+        group = RecipeCollectionFactory(name="Empty set")
+
+        response = client.get(
+            reverse("recipe-collection-detail", args=[group.pk]), HTTP_HX_REQUEST="true"
+        )
+
+        assert "Push all to camera" not in response.content.decode()
+
 
 @pytest.mark.django_db
 class TestCreateCollection:

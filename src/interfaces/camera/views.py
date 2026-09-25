@@ -72,6 +72,154 @@ class SelectSlot(generic.View):
         return shortcuts.render(request, template, {"recipe": self.recipe, "slots": slots})
 
 
+@attrs.frozen
+class _CurrentSlotRow:
+    """A camera slot as it is right now, for the modal's "before" column."""
+
+    label: str      # "C1"
+    name: str       # display name currently stored in the slot ("" if blank)
+    film_sim: str   # current film simulation name ("" if unknown)
+
+
+@attrs.frozen
+class _AssignmentRow:
+    """A collection recipe paired with the slot it will be written to."""
+
+    label: str            # target slot, e.g. "C1"
+    recipe_id: int
+    recipe_name: str
+    film_sim: str         # the recipe's film simulation
+    replaces_name: str    # name currently in that slot ("" if blank), for mobile
+
+
+@attrs.frozen
+class _DroppedRow:
+    """A recipe that will not be written because the camera has fewer slots."""
+
+    recipe_id: int
+    recipe_name: str
+    film_sim: str
+
+
+@attrs.frozen
+class _CollectionPushContext:
+    collection_id: int
+    collection_name: str
+    camera_name: str
+    slot_count: int
+    current_slots: tuple[_CurrentSlotRow, ...]
+    assignments: tuple[_AssignmentRow, ...]
+    untouched: tuple[_CurrentSlotRow, ...]
+    dropped: tuple[_DroppedRow, ...]
+
+    @classmethod
+    def build(
+        cls,
+        *,
+        collection: recipe_queries.CollectionDetailData,
+        camera_name: str,
+        slots: list[camera_queries.SlotState],
+    ) -> "_CollectionPushContext":
+        members_by_id = {member.recipe_id: member for member in collection.members}
+        slots_by_index = {slot.index: slot for slot in slots}
+        plan = recipe_queries.plan_collection_transfer(
+            member_recipe_ids=[member.recipe_id for member in collection.members],
+            slot_count=len(slots),
+        )
+        assignments = tuple(
+            _AssignmentRow(
+                label=f"C{assignment.slot_index}",
+                recipe_id=assignment.recipe_id,
+                recipe_name=members_by_id[assignment.recipe_id].name,
+                film_sim=members_by_id[assignment.recipe_id].film_simulation,
+                replaces_name=slots_by_index[assignment.slot_index].name,
+            )
+            for assignment in plan.assignments
+        )
+        written = len(plan.assignments)
+        untouched = tuple(
+            _CurrentSlotRow(label=f"C{slot.index}", name=slot.name, film_sim=slot.film_sim_name)
+            for slot in slots[written:]
+        )
+        dropped = tuple(
+            _DroppedRow(
+                recipe_id=recipe_id,
+                recipe_name=members_by_id[recipe_id].name,
+                film_sim=members_by_id[recipe_id].film_simulation,
+            )
+            for recipe_id in plan.dropped_recipe_ids
+        )
+        current_slots = tuple(
+            _CurrentSlotRow(label=f"C{slot.index}", name=slot.name, film_sim=slot.film_sim_name)
+            for slot in slots
+        )
+        return cls(
+            collection_id=collection.id,
+            collection_name=collection.name,
+            camera_name=camera_name,
+            slot_count=len(slots),
+            current_slots=current_slots,
+            assignments=assignments,
+            untouched=untouched,
+            dropped=dropped,
+        )
+
+
+class SelectCollectionSlots(generic.View):
+    """
+    Show the "push a whole collection to the camera" modal.
+
+    Reads the camera's model and current slots once, maps the collection's
+    recipes onto the slots in order, and renders the before/after modal. The
+    recipes themselves are written one at a time by the client, reusing the
+    single-recipe push endpoint, so this view never writes to the camera.
+
+    :raises Http404: If no collection with the given id exists.
+    """
+
+    def dispatch(self, request: http.HttpRequest, *args: object, **kwargs: object) -> http.HttpResponseBase:
+        if device_config.is_browser_transport():
+            # As with SelectSlot: a headless server must not reach for a camera
+            # that is plugged into the user's own machine.
+            if request.headers.get("HX-Request"):
+                return shortcuts.render(
+                    request,
+                    "recipes/partials/collection_push_modal.html",
+                    {"error": _WRONG_TRANSPORT_ERROR},
+                )
+            return http.JsonResponse({"error": _WRONG_TRANSPORT_ERROR}, status=400)
+        return super().dispatch(request, *args, **kwargs)
+
+    def get(self, request: http.HttpRequest, collection_id: int) -> http.HttpResponse:
+        is_htmx = request.headers.get("HX-Request")
+        try:
+            collection = recipe_queries.get_collection_detail(collection_id=collection_id)
+        except recipe_queries.CollectionNotFound:
+            raise http.Http404
+
+        try:
+            camera_name, slots = get_camera_slots_uc.get_camera_model_and_slots()
+        except ptp_device.CameraConnectionError as e:
+            error = f"Camera connection error: {e}"
+            if is_htmx:
+                return shortcuts.render(request, "recipes/partials/collection_push_modal.html", {"error": error})
+            return http.JsonResponse({"error": error}, status=503)
+        except ptp_device.CameraWriteError as e:
+            error = f"Camera write error: {e}"
+            if is_htmx:
+                return shortcuts.render(request, "recipes/partials/collection_push_modal.html", {"error": error})
+            return http.JsonResponse({"error": error}, status=500)
+        except Exception:
+            structlog.get_logger().exception("Unexpected error in SelectCollectionSlots.get")
+            error = "Unexpected error happened"
+            if is_htmx:
+                return shortcuts.render(request, "recipes/partials/collection_push_modal.html", {"error": error})
+            return http.JsonResponse({"error": error}, status=500)
+
+        context = _CollectionPushContext.build(collection=collection, camera_name=camera_name, slots=slots)
+        return shortcuts.render(request, "recipes/partials/collection_push_modal.html", {"push": context})
+
+
 class PushRecipeToCamera(generic.View):
     """
     Push a recipe's settings into a selected camera custom slot.

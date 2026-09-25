@@ -6,6 +6,9 @@
   <title>Collections</title>
   <script src="https://unpkg.com/htmx.org@2.0.4" integrity="sha384-HGfztofotfshcF7+8n44JQL2oJmowVChPTg48S+jvZoztPfvwD79OC/LTtG6dMp+" crossorigin="anonymous"></script>
   <link rel="stylesheet" href="/static/css/brand.css">
+  <link rel="stylesheet" href="/static/css/slot-card.css">
+  <script src="/static/js/slot-overlay.js"></script>
+  <script type="module" src="/static/js/camera/interfaces/push_collection.js"></script>
   <link rel="icon" type="image/svg+xml" href="/static/images/favicon.svg">
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -201,13 +204,15 @@
       /* Actions dock to a sticky bar at the bottom of the overlay. */
       .cdetail__actions {
         position: fixed; left: 0; right: 0; bottom: 0; z-index: 150;
-        flex: none; overflow: visible; display: flex; gap: 0.6rem;
+        flex: none; overflow: visible; display: flex; flex-wrap: wrap; gap: 0.6rem;
         padding: 0.75rem 1rem calc(0.75rem + env(safe-area-inset-bottom));
         background: var(--color-bg-page); border-left: none;
         border-top: 1px solid var(--color-border); box-shadow: 0 -6px 20px rgba(15, 23, 42, 0.08);
       }
       .cdetail__actions .cdetail__section-title { display: none; }
       .cdetail-btn { flex: 1; margin-bottom: 0; min-height: 48px; display: flex; align-items: center; justify-content: center; }
+      /* Push leads on its own full-width row above Edit/Delete. */
+      .cdetail-btn--push { flex-basis: 100%; }
     }
   </style>
 </head>
@@ -282,6 +287,9 @@
 
 <div id="collection-detail-overlay"{% if not detail %} hidden{% endif %}>{% if detail %}{% include "recipes/partials/collection_detail.html" with collection=detail %}{% endif %}</div>
 
+<div id="slot-overlay" hidden></div>
+{% if camera_push_from_browser %}{% include "recipes/includes/camera_client_templates.html" %}{% endif %}
+
 <script>
   window.closeCollectionDetail = function () {
     var overlay = document.getElementById('collection-detail-overlay');
@@ -324,6 +332,7 @@
 
   document.addEventListener('keydown', function (e) {
     if (e.key !== 'Escape') return;
+    if (window.SlotOverlay && window.SlotOverlay.isOpen()) { window.SlotOverlay.close(); return; }
     var openModal = document.querySelector('[data-delete-modal]:not([hidden])');
     if (openModal) { openModal.hidden = true; return; }
     var overlay = document.getElementById('collection-detail-overlay');

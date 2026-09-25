@@ -38,10 +38,38 @@ def get_camera_slots() -> list[camera_queries.SlotState]:
                                all retries.
         CameraWriteError:      If the camera rejects a slot cursor write.
     """
+    _, states = _read_model_and_slots()
+    return states
+
+
+def get_camera_model_and_slots() -> tuple[str, list[camera_queries.SlotState]]:
+    """
+    Connect to the camera, read its model name and all custom slot states, then
+    disconnect.
+
+    Same lifecycle and error contract as :func:`get_camera_slots`; used where the
+    caller also needs to show which camera it is talking to (e.g. the collection
+    push modal header). Reading the model costs nothing extra on the open
+    connection.
+
+    Returns:
+        A ``(camera_name, slots)`` pair. ``slots`` is empty for a camera with no
+        custom slots.
+
+    Raises:
+        CameraConnectionError: If the camera is unreachable or a read fails after
+                               all retries.
+        CameraWriteError:      If the camera rejects a slot cursor write.
+    """
+    return _read_model_and_slots()
+
+
+def _read_model_and_slots() -> tuple[str, list[camera_queries.SlotState]]:
     device = device_config.get_device()
     device.connect()
     try:
-        slot_count = camera_queries.custom_slot_count(device.camera_name)
+        camera_name = device.camera_name
+        slot_count = camera_queries.custom_slot_count(camera_name)
         states: list[camera_queries.SlotState] = []
         for idx in range(1, slot_count + 1):
             if idx > 1:
@@ -51,7 +79,7 @@ def get_camera_slots() -> list[camera_queries.SlotState]:
             name = _read_str_with_retry(device, constants.PROP_SLOT_NAME)
             film_sim = _read_int_with_retry(device, constants.CUSTOM_SLOT_CODES["FilmSimulation"])
             states.append(camera_queries.SlotState(index=idx, name=name, film_sim_ptp=film_sim))
-        return states
+        return camera_name, states
     finally:
         device.disconnect()
 

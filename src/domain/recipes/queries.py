@@ -1331,6 +1331,61 @@ def get_collection_detail(*, collection_id: int) -> CollectionDetailData:
 
 
 @attrs.frozen
+class SlotAssignment:
+    """One recipe of a collection paired with the camera slot it will be written to."""
+
+    slot_index: int  # 1-based custom slot number (e.g. 1 for C1)
+    recipe_id: int
+
+
+@attrs.frozen
+class CollectionTransferPlan:
+    """
+    How a collection's ordered recipes map onto a camera's custom slots.
+
+    The i-th recipe goes to slot i. When the collection has fewer recipes than
+    the camera has slots, the trailing slots are left as they are
+    (``untouched_slot_count``); when it has more, the surplus recipes are not
+    written at all (``dropped_recipe_ids``).
+    """
+
+    assignments: tuple[SlotAssignment, ...]
+    dropped_recipe_ids: tuple[int, ...]
+    untouched_slot_count: int
+
+
+def plan_collection_transfer(
+    *, member_recipe_ids: Sequence[int], slot_count: int,
+) -> CollectionTransferPlan:
+    """
+    Map a collection's recipes onto camera slots, in order.
+
+    Args:
+        member_recipe_ids: The collection's recipe ids in the order they should
+                           be written, first recipe to slot 1.
+        slot_count:        Number of custom slots the camera exposes. ``0`` for a
+                           model with no custom slots (or an unrecognised one),
+                           in which case nothing can be written.
+
+    The rules the feature hinges on:
+      - recipes == slots: every recipe is written, nothing left over;
+      - recipes  < slots: the trailing ``untouched_slot_count`` slots are kept;
+      - recipes  > slots: only the first ``slot_count`` recipes are written and
+        the rest land in ``dropped_recipe_ids``.
+    """
+    written_count = min(len(member_recipe_ids), slot_count)
+    assignments = tuple(
+        SlotAssignment(slot_index=index, recipe_id=recipe_id)
+        for index, recipe_id in enumerate(member_recipe_ids[:written_count], start=1)
+    )
+    return CollectionTransferPlan(
+        assignments=assignments,
+        dropped_recipe_ids=tuple(member_recipe_ids[written_count:]),
+        untouched_slot_count=slot_count - written_count,
+    )
+
+
+@attrs.frozen
 class RecipeOptionData:
     recipe_id: int
     name: str
