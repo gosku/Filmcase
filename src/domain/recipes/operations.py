@@ -10,7 +10,8 @@ from src.data import models
 from src.domain.images import dataclasses as image_dataclasses
 from src.domain.images import events
 from src.domain.images import queries as image_queries
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
+from datetime import datetime
 
 from src.domain.recipes import dataclasses as recipe_dataclasses
 from src.domain.recipes import normalization as recipe_normalization
@@ -730,4 +731,150 @@ def remove_recipe(*, recipe_id: int, remove_recipe_card_file: bool) -> None:
         event_type=events.RECIPE_REMOVED,
         recipe_id=recipe_id,
         recipe_name=recipe_name,
+    )
+
+
+# ----------------------------------------------------------------------------
+# Recipe collections
+# ----------------------------------------------------------------------------
+
+
+@attrs.frozen
+class CollectionNameTaken(Exception):
+    """
+    Raised when a collection name collides (case-insensitively) with an existing one.
+    """
+
+    name: str
+
+
+@attrs.frozen
+class RecipeNotFound(Exception):
+    """
+    Raised when a recipe id supplied for a collection does not exist.
+    """
+
+    recipe_id: int
+
+
+def _assert_recipes_exist(recipe_ids: Sequence[int]) -> None:
+    existing = set(
+        models.FujifilmRecipe.objects
+        .filter(pk__in=list(recipe_ids))
+        .values_list("pk", flat=True)
+    )
+    for recipe_id in recipe_ids:
+        if recipe_id not in existing:
+            raise RecipeNotFound(recipe_id=recipe_id)
+
+
+def _create_collection_members(
+    *, group: models.RecipeGroup, recipe_ids: Sequence[int], now: datetime,
+) -> int:
+    """
+    Create ordered members for *recipe_ids*, skipping repeats. Returns the count.
+    """
+    seen: set[int] = set()
+    position = 0
+    for recipe_id in recipe_ids:
+        if recipe_id in seen:
+            continue
+        seen.add(recipe_id)
+        models.RecipeGroupMember.new(
+            group=group,
+            recipe_id=recipe_id,
+            position=position,
+            added_at=now,
+        )
+        position += 1
+    return position
+
+
+def create_collection(*, name: str, recipe_ids: Sequence[int]) -> models.RecipeGroup:
+    """
+    Create a collection named *name* holding *recipe_ids* in the given order.
+
+    :raises RecipeNotFound: If any id in *recipe_ids* is not an existing recipe.
+    :raises CollectionNameTaken: If a collection already uses *name*
+        (case-insensitively).
+    """
+    _assert_recipes_exist(recipe_ids)
+    now = timezone.now()
+    try:
+        with transaction.atomic():
+            group = models.RecipeGroup.new_collection(name=name)
+            recipe_count = _create_collection_members(
+                group=group, recipe_ids=recipe_ids, now=now
+            )
+    except IntegrityError:
+        raise CollectionNameTaken(name=name)
+
+    events.publish_event(
+        event_type=events.COLLECTION_CREATED,
+        collection_id=group.pk,
+        recipe_count=recipe_count,
+    )
+    return group
+
+
+def update_collection(
+    *, collection_id: int, name: str, recipe_ids: Sequence[int],
+) -> models.RecipeGroup:
+    """
+    Rename the collection and replace its membership with *recipe_ids* in order.
+
+    Members are reconciled by rewriting them: recipes no longer listed are
+    dropped, new ones are added, and positions follow the given order.
+
+    :raises CollectionNotFound: If no collection with *collection_id* exists.
+    :raises RecipeNotFound: If any id in *recipe_ids* is not an existing recipe.
+    :raises CollectionNameTaken: If another collection already uses *name*
+        (case-insensitively).
+    """
+    try:
+        group = models.RecipeGroup.objects.get(
+            pk=collection_id, group_type=models.RecipeGroup.GROUP_TYPE_COLLECTION,
+        )
+    except models.RecipeGroup.DoesNotExist:
+        raise recipe_queries.CollectionNotFound(collection_id=collection_id)
+
+    _assert_recipes_exist(recipe_ids)
+    now = timezone.now()
+    try:
+        with transaction.atomic():
+            group.set_name(name=name)
+            group.members.all().delete()
+            recipe_count = _create_collection_members(
+                group=group, recipe_ids=recipe_ids, now=now
+            )
+    except IntegrityError:
+        raise CollectionNameTaken(name=name)
+
+    events.publish_event(
+        event_type=events.COLLECTION_UPDATED,
+        collection_id=group.pk,
+        recipe_count=recipe_count,
+    )
+    return group
+
+
+def delete_collection(*, collection_id: int) -> None:
+    """
+    Delete the collection with *collection_id*, cascading its membership rows.
+
+    The recipes themselves and their images are never touched.
+
+    :raises CollectionNotFound: If no collection with *collection_id* exists.
+    """
+    try:
+        group = models.RecipeGroup.objects.get(
+            pk=collection_id, group_type=models.RecipeGroup.GROUP_TYPE_COLLECTION,
+        )
+    except models.RecipeGroup.DoesNotExist:
+        raise recipe_queries.CollectionNotFound(collection_id=collection_id)
+
+    group.delete()
+    events.publish_event(
+        event_type=events.COLLECTION_DELETED,
+        collection_id=collection_id,
     )

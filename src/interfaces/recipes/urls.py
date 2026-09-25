@@ -1,9 +1,15 @@
 from django.urls import path
 
-from src.interfaces.recipes import views
+from src.interfaces.recipes import collection_views, views
 
 urlpatterns = [
     path("recipes/", views.RecipesExplorer.as_view(), name="recipes-explorer"),
+    path("recipes/collections/", collection_views.CollectionsList.as_view(), name="recipes-collections"),
+    path("recipes/collections/create/", collection_views.CreateCollection.as_view(), name="create-collection"),
+    path("recipes/collections/recipe-search/", collection_views.CollectionRecipeSearch.as_view(), name="collection-recipe-search"),
+    path("recipes/collections/<int:collection_id>/", collection_views.CollectionDetail.as_view(), name="recipe-collection-detail"),
+    path("recipes/collections/<int:collection_id>/edit/", collection_views.EditCollection.as_view(), name="edit-collection"),
+    path("recipes/collections/<int:collection_id>/delete/", collection_views.DeleteCollection.as_view(), name="delete-collection"),
     path("recipes/create/", views.CreateRecipe.as_view(), name="create-recipe"),
     path("recipes/<int:recipe_id>/edit/", views.EditRecipe.as_view(), name="edit-recipe"),
     path("recipes/<int:recipe_id>/create-version/", views.CreateRecipeVersion.as_view(), name="create-recipe-version"),

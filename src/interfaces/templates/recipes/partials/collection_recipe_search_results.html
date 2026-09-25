@@ -1,0 +1,20 @@
+{% for option in recipe_options %}
+<button type="button" class="recipe-option js-add-recipe"
+        data-recipe-id="{{ option.recipe_id }}"
+        data-name="{% if option.name %}{{ option.name }}{% else %}{{ option.film_simulation }} #{{ option.recipe_id }}{% endif %}"
+        data-film-sim="{{ option.film_simulation }}"
+        data-logo="{{ option.film_sim_logo_filename|default:'' }}">
+  {% if option.film_sim_logo_filename %}
+  <img class="recipe-option__logo" src="/static/images/{{ option.film_sim_logo_filename }}" alt="{{ option.film_simulation }}">
+  {% else %}
+  <span class="recipe-option__logo-text">{{ option.film_simulation }}</span>
+  {% endif %}
+  <span class="recipe-option__info">
+    <span class="recipe-option__name">{% if option.name %}{{ option.name }}{% else %}{{ option.film_simulation }} #{{ option.recipe_id }}{% endif %}</span>
+    <span class="recipe-option__sub">{{ option.film_simulation }} &middot; {{ option.image_count }} image{{ option.image_count|pluralize }}</span>
+  </span>
+  <span class="recipe-option__add">+ Add</span>
+</button>
+{% empty %}
+<p class="recipe-option-empty">No recipes match.</p>
+{% endfor %}

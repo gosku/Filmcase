@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Collections</title>
+  <script src="https://unpkg.com/htmx.org@2.0.4" integrity="sha384-HGfztofotfshcF7+8n44JQL2oJmowVChPTg48S+jvZoztPfvwD79OC/LTtG6dMp+" crossorigin="anonymous"></script>
+  <link rel="stylesheet" href="/static/css/brand.css">
+  <link rel="icon" type="image/svg+xml" href="/static/images/favicon.svg">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { display: flex; flex-direction: column; font-family: sans-serif; min-height: 100vh; }
+
+    .content-area { display: flex; flex: 1; align-items: flex-start; }
+
+    .sidebar {
+      width: 320px; min-width: 320px; padding: 1.5rem; align-self: stretch;
+      border-right: 1px solid #e0e0e0; background: var(--color-bg-surface);
+    }
+    .segmented-toggle { margin-bottom: 1.5rem; }
+    .sidebar__search {
+      display: block; width: 100%; padding: 0.5rem 0.6rem; margin-bottom: 1rem;
+      border: 1px solid #cbd5e1; border-radius: 4px; font-size: 0.85rem; color: #334155; background: #fff;
+    }
+    .sidebar__search:focus { outline: none; border-color: var(--color-accent); }
+    .filter-label {
+      display: block; font-weight: 700; font-size: 0.72rem; text-transform: uppercase;
+      letter-spacing: 0.05em; color: #64748b; margin-bottom: 0.5rem;
+    }
+    .filter-checkboxes { display: flex; flex-direction: column; gap: 0.4rem; max-height: 320px; overflow-y: auto; }
+    .filter-option { display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; color: #334155; cursor: pointer; }
+    .filter-option input { accent-color: var(--color-accent); width: 15px; height: 15px; }
+    .filter-option--unavailable { color: #bbb; }
+    .filter-option-count { margin-left: auto; font-size: 0.75rem; color: #94a3b8; }
+    .clear-filters { display: inline-block; margin-top: 1rem; font-size: 0.8rem; color: #6b7280; text-decoration: none; }
+    .clear-filters:hover { color: var(--color-text-primary); }
+
+    .main { flex: 1; min-width: 0; padding: 1.5rem 2rem 3rem; }
+    .main-header { display: flex; align-items: center; margin-bottom: 1.5rem; }
+    .main-header__count { font-size: 0.95rem; font-weight: 600; color: #334155; }
+    .new-collection-btn {
+      margin-left: auto; display: inline-flex; align-items: center; gap: 0.4rem;
+      padding: 0.5rem 1rem; background: var(--color-accent); color: #fff; border-radius: 6px;
+      font-size: 0.85rem; font-weight: 600; text-decoration: none;
+    }
+    .new-collection-btn:hover { background: var(--color-accent-dark); }
+
+    #collection-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1.25rem; }
+
+    .collection-card {
+      display: block; border: 1px solid var(--color-border); border-radius: 12px; overflow: hidden;
+      background: #fff; text-decoration: none; color: inherit; transition: box-shadow 0.15s, transform 0.15s;
+    }
+    .collection-card:hover { box-shadow: 0 6px 20px rgba(15,23,42,0.1); transform: translateY(-2px); }
+
+    .collection-card__mosaic {
+      position: relative; height: 168px; display: grid; gap: 2px; background: #1a1a1a;
+      grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr;
+    }
+    .collection-card__mosaic--n1 { grid-template-columns: 1fr; grid-template-rows: 1fr; }
+    .collection-card__mosaic--n2 { grid-template-rows: 1fr; }
+    .collection-card__mosaic--n3 .collection-card__tile:first-child { grid-row: span 2; }
+    .collection-card__tile { background: #1a1a1a no-repeat center/cover; }
+    .collection-card__scrim {
+      position: absolute; inset: 0; display: flex; align-items: flex-end; padding: 0.75rem;
+      background: linear-gradient(to top, rgba(0,0,0,0.72) 0%, transparent 55%);
+    }
+    .collection-card__name { color: #fff; font-weight: 700; font-size: 1.1rem; }
+    .collection-card__name--dark { color: var(--color-text-primary); }
+
+    .collection-card__legend {
+      height: 168px; background: var(--color-bg-surface); display: flex; flex-wrap: wrap;
+      align-content: center; justify-content: center; gap: 0.75rem; padding: 1.25rem;
+    }
+    .collection-card__logo {
+      width: 52px; height: 52px; border-radius: 8px; object-fit: cover;
+      border: 1px solid var(--color-border); box-shadow: 0 1px 3px rgba(15,23,42,0.1);
+    }
+    .collection-card__logo-text {
+      display: inline-flex; align-items: center; padding: 0.35rem 0.6rem; background: #fff;
+      border: 1px solid var(--color-border); border-radius: 8px; font-size: 0.8rem; font-weight: 600; color: #334155;
+    }
+    .collection-card__logo-text--lg { font-size: 0.9rem; padding: 0.5rem 0.75rem; }
+    .collection-card__empty-legend { color: var(--color-text-muted); font-size: 0.85rem; }
+
+    .collection-card__body { padding: 0.85rem 1rem; }
+    .collection-card__count { font-size: 0.8rem; color: #6b7280; margin-bottom: 0.5rem; }
+    .collection-card__name--dark { font-size: 1.05rem; font-weight: 700; margin-bottom: 0.15rem; }
+    .collection-card__legend-row { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+    .collection-card__logo-sm { width: 28px; height: 28px; border-radius: 5px; object-fit: cover; border: 1px solid var(--color-border); }
+
+    .collection-no-results { grid-column: 1 / -1; color: #888; font-style: italic; }
+
+    /* Mobile-only chrome (filter drawer + sub-bar), hidden on desktop. */
+    .mobile-subbar, .sidebar__mobile-head, .sidebar__done, .filters-backdrop { display: none; }
+
+    @media (max-width: 1024px) and (orientation: portrait), (max-width: 768px) {
+      .content-area { display: block; }
+      .main { padding: 0; }
+      .main-header { padding: 1.25rem 1rem 0; margin-bottom: 1rem; }
+      #collection-grid { padding: 0 1rem 3rem; grid-template-columns: 1fr; }
+
+      /* The filter sidebar becomes an off-canvas drawer. */
+      .sidebar {
+        position: fixed; top: 0; left: 0; bottom: 0; z-index: 160;
+        width: min(88%, 340px); min-width: 0; overflow-y: auto;
+        transform: translateX(-100%); transition: transform 0.25s ease;
+        box-shadow: 8px 0 30px rgba(15, 23, 42, 0.28);
+      }
+      .sidebar--open { transform: translateX(0); }
+      .sidebar .segmented-toggle { display: none; }
+
+      .sidebar__mobile-head {
+        display: flex; align-items: center; justify-content: space-between;
+        margin: -1.5rem -1.5rem 1rem; padding: 1rem 1.5rem 0.75rem;
+        border-bottom: 1px solid #e0e0e0;
+      }
+      .sidebar__mobile-title { font-size: 1.05rem; font-weight: 800; color: #222; }
+      .sidebar__close {
+        display: flex; align-items: center; justify-content: center; width: 36px; height: 36px;
+        background: none; border: none; border-radius: 8px; color: #888; cursor: pointer;
+      }
+      .sidebar__close:hover { background: #f0f0f0; color: #333; }
+
+      .sidebar__done {
+        display: block; position: sticky; bottom: 0; width: 100%; margin-top: 1rem;
+        padding: 0.85rem 1rem; background: var(--color-accent); color: #fff; border: none;
+        border-radius: 10px; font-size: 0.95rem; font-weight: 700; cursor: pointer;
+        box-shadow: 0 -10px 16px rgba(241, 245, 249, 0.95);
+      }
+
+      .filters-backdrop {
+        display: block; position: fixed; inset: 0; z-index: 155; background: rgba(15, 23, 42, 0.5);
+      }
+      .filters-backdrop[hidden] { display: none; }
+
+      /* Sub-bar above the grid: section toggle + a Filters button. */
+      .mobile-subbar {
+        display: flex; align-items: center; gap: 10px; padding: 10px 16px;
+        background: var(--color-bg-page); border-bottom: 1px solid var(--color-border);
+      }
+      .mobile-subbar .segmented-toggle { flex: 1; margin-bottom: 0; }
+      .mobile-subbar .segmented-toggle__option { min-height: 44px; padding: 0 10px; font-size: 0.95rem; }
+      .mobile-filters-btn {
+        display: inline-flex; align-items: center; gap: 8px; height: 50px; padding: 0 16px;
+        background: var(--color-bg-page); color: var(--color-text-primary);
+        border: 1px solid var(--color-border); border-radius: 10px;
+        font-size: 0.95rem; font-weight: 600; cursor: pointer;
+      }
+      .mobile-filters-btn:hover { background: var(--color-bg-surface); }
+
+      /* Touch-friendly filter controls. */
+      .sidebar__search { padding: 0.6rem 0.75rem; font-size: 1rem; }
+      .filter-checkboxes { max-height: none; }
+      .filter-option { min-height: 44px; }
+      .filter-option input { width: 20px; height: 20px; }
+    }
+
+    /* ── Collection detail overlay ─────────────────────────────── */
+    #collection-detail-overlay { position: fixed; inset: 0; z-index: 100; overflow: hidden; }
+    #collection-detail-overlay[hidden] { display: none; }
+
+    .cdetail { display: flex; flex-direction: column; height: 100%; background: var(--color-bg-page); }
+    .cdetail__header { display: flex; align-items: center; gap: 0.9rem; padding: 0.9rem 1.5rem; background: var(--color-bg-surface); border-bottom: 1px solid var(--color-border); flex-shrink: 0; }
+    .cdetail__title { font-size: 1.25rem; font-weight: 700; }
+    .cdetail__count { padding: 0.15rem 0.6rem; background: #e2e8f0; border-radius: 20px; font-size: 0.75rem; font-weight: 600; color: #64748b; }
+    .cdetail__close { margin-left: auto; width: 38px; height: 38px; border-radius: 50%; background: rgba(0,0,0,0.06); display: flex; align-items: center; justify-content: center; color: var(--color-text-primary); text-decoration: none; font-size: 1.1rem; cursor: pointer; }
+    .cdetail__close:hover { background: rgba(0,0,0,0.12); }
+
+    .cdetail__body { display: flex; flex: 1; min-height: 0; }
+    .cdetail__recipes { flex: 1; min-width: 0; overflow-y: auto; padding: 1.75rem 2.25rem; background: #f8f9fa; }
+    .cdetail__section-title { font-size: 0.8rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #6b7280; padding-left: 0.65rem; border-left: 3px solid var(--color-accent); margin-bottom: 1.25rem; }
+    .cdetail-row { display: flex; align-items: center; gap: 1rem; padding: 0.85rem 1.1rem; border: 1px solid var(--color-border); border-radius: 10px; background: #fff; margin-bottom: 0.75rem; max-width: 680px; }
+    .cdetail-row__num { width: 28px; height: 28px; border-radius: 50%; background: var(--color-bg-surface); color: #475569; font-size: 0.8rem; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    .cdetail-row__logo { width: 34px; height: 34px; border-radius: 6px; object-fit: cover; border: 1px solid var(--color-border); flex-shrink: 0; }
+    .cdetail-row__logo-text { font-size: 0.75rem; font-weight: 600; color: #64748b; flex-shrink: 0; }
+    .cdetail-row__info { flex: 1; min-width: 0; }
+    .cdetail-row__name { font-size: 0.95rem; font-weight: 600; }
+    .cdetail-row__sub { font-size: 0.78rem; color: var(--color-text-muted); margin-top: 0.1rem; }
+    .cdetail-empty { color: var(--color-text-muted); font-style: italic; }
+
+    .cdetail__actions { flex: 0 0 340px; overflow-y: auto; padding: 1.75rem 2rem; background: var(--color-bg-surface); border-left: 1px solid var(--color-border); }
+    .cdetail-btn { display: block; width: 100%; text-align: center; padding: 0.7rem 1rem; border-radius: 6px; font-size: 0.9rem; font-weight: 600; text-decoration: none; cursor: pointer; margin-bottom: 0.7rem; border: 1px solid var(--color-border); }
+    .cdetail-btn--primary { background: var(--color-accent); color: #fff; border-color: var(--color-accent); }
+    .cdetail-btn--primary:hover { background: var(--color-accent-dark); }
+    .cdetail-btn--danger { background: #fff; color: var(--color-accent-dark); }
+    .cdetail-btn--danger:hover { background: #fef2f2; }
+
+    .cdetail-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.45); display: flex; align-items: center; justify-content: center; z-index: 300; }
+    .cdetail-modal-overlay[hidden] { display: none; }
+    .cdetail-modal { background: #fff; border-radius: 10px; padding: 1.75rem; width: 420px; max-width: calc(100vw - 2rem); box-shadow: 0 8px 32px rgba(0,0,0,0.18); }
+    .cdetail-modal h2 { font-size: 1.1rem; margin-bottom: 0.5rem; }
+    .cdetail-modal p { font-size: 0.9rem; color: #555; margin-bottom: 1.5rem; line-height: 1.5; }
+    .cdetail-modal__actions { display: flex; justify-content: flex-end; gap: 0.75rem; }
+    .cdetail-modal__cancel { padding: 0.55rem 1.25rem; background: none; border: 1px solid #ccc; border-radius: 6px; font-size: 0.9rem; font-weight: 600; color: #555; cursor: pointer; }
+    .cdetail-modal__confirm { padding: 0.55rem 1.25rem; background: var(--color-accent); border: none; border-radius: 6px; font-size: 0.9rem; font-weight: 600; color: #fff; cursor: pointer; }
+
+    @media (max-width: 900px) {
+      .cdetail__body { flex-direction: column; }
+      .cdetail__recipes { padding: 1.25rem 1rem 6rem; }
+      /* Actions dock to a sticky bar at the bottom of the overlay. */
+      .cdetail__actions {
+        position: fixed; left: 0; right: 0; bottom: 0; z-index: 150;
+        flex: none; overflow: visible; display: flex; gap: 0.6rem;
+        padding: 0.75rem 1rem calc(0.75rem + env(safe-area-inset-bottom));
+        background: var(--color-bg-page); border-left: none;
+        border-top: 1px solid var(--color-border); box-shadow: 0 -6px 20px rgba(15, 23, 42, 0.08);
+      }
+      .cdetail__actions .cdetail__section-title { display: none; }
+      .cdetail-btn { flex: 1; margin-bottom: 0; min-height: 48px; display: flex; align-items: center; justify-content: center; }
+    }
+  </style>
+</head>
+<body>
+
+{% include "_top_nav.html" with active_section="recipes" %}
+
+<div class="content-area">
+  <aside class="sidebar">
+    <div class="sidebar__mobile-head">
+      <span class="sidebar__mobile-title">Filters</span>
+      <button type="button" class="sidebar__close" id="close-filters-btn" aria-label="Close filters">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+          <line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/>
+        </svg>
+      </button>
+    </div>
+    {% include "recipes/includes/section_toggle.html" with active="collections" %}
+    <form id="collection-filter-form"
+          hx-get="{% url 'recipes-collections' %}"
+          hx-trigger="change, input delay:300ms from:.sidebar__search"
+          hx-target="#collection-grid"
+          hx-push-url="true">
+      <label class="filter-label" for="name_search">Collection name</label>
+      <input class="sidebar__search" id="name_search" type="search" name="name_search"
+             placeholder="Search collections…" value="{{ name_search }}">
+
+      <label class="filter-label" for="recipe_name_search">Recipe name</label>
+      <input class="sidebar__search" id="recipe_name_search" type="search" name="recipe_name_search"
+             placeholder="Contains recipe…" value="{{ recipe_name_search }}">
+
+      <span class="filter-label">Film simulation</span>
+      <div class="filter-checkboxes">
+        {% for facet in filter_options.film_simulations %}
+        <label class="filter-option{% if not facet.available %} filter-option--unavailable{% endif %}">
+          <input type="checkbox" name="film_simulation" value="{{ facet.value }}"{% if facet.selected %} checked{% endif %}>
+          <span>{{ facet.value }}</span>
+          <span class="filter-option-count">{{ facet.count }}</span>
+        </label>
+        {% empty %}
+        <span class="filter-option-count">No collections yet</span>
+        {% endfor %}
+      </div>
+    </form>
+    <a class="clear-filters" href="{% url 'recipes-collections' %}">Clear all filters</a>
+    <button type="button" class="sidebar__done" id="close-filters-done">Show collections</button>
+  </aside>
+  <div class="filters-backdrop" id="filters-backdrop" hidden></div>
+
+  <main class="main">
+    <div class="mobile-subbar">
+      {% include "recipes/includes/section_toggle.html" with active="collections" %}
+      <button type="button" class="mobile-filters-btn" id="open-filters-btn">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>
+        </svg>
+        Filters
+      </button>
+    </div>
+    <div class="main-header">
+      <span class="main-header__count">{{ collections|length }} collection{{ collections|length|pluralize }}</span>
+      <a class="new-collection-btn" href="{% url 'create-collection' %}">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        New Collection
+      </a>
+    </div>
+    <div id="collection-grid">
+      {% include "recipes/partials/collection_cards.html" %}
+    </div>
+  </main>
+</div>
+
+<div id="collection-detail-overlay"{% if not detail %} hidden{% endif %}>{% if detail %}{% include "recipes/partials/collection_detail.html" with collection=detail %}{% endif %}</div>
+
+<script>
+  window.closeCollectionDetail = function () {
+    var overlay = document.getElementById('collection-detail-overlay');
+    if (overlay) overlay.hidden = true;
+    var params = new URLSearchParams(window.location.search);
+    history.replaceState(null, '', '{% url 'recipes-collections' %}' + (params.toString() ? '?' + params.toString() : ''));
+  };
+
+  // Preserve the current list filters in the permalink pushed for the overlay.
+  document.body.addEventListener('htmx:beforeHistoryUpdate', function (e) {
+    if (e.detail.target && e.detail.target.id === 'collection-detail-overlay') {
+      var params = new URLSearchParams(window.location.search);
+      if (params.toString()) {
+        e.detail.history.path = e.detail.history.path.split('?')[0] + '?' + params.toString();
+      }
+    }
+  });
+
+  document.body.addEventListener('htmx:afterSwap', function (e) {
+    if (e.detail.target && e.detail.target.id === 'collection-detail-overlay') {
+      e.detail.target.hidden = false;
+    }
+  });
+
+  // Delete confirmation, delegated so it also works for htmx-injected content.
+  document.addEventListener('click', function (e) {
+    if (e.target.closest('[data-open-delete]')) {
+      var open = document.querySelector('[data-delete-modal]');
+      if (open) open.hidden = false;
+      return;
+    }
+    if (e.target.closest('[data-cancel-delete]')) {
+      var cancel = document.querySelector('[data-delete-modal]');
+      if (cancel) cancel.hidden = true;
+      return;
+    }
+    var backdrop = e.target.closest('[data-delete-modal]');
+    if (backdrop && e.target === backdrop) backdrop.hidden = true;
+  });
+
+  document.addEventListener('keydown', function (e) {
+    if (e.key !== 'Escape') return;
+    var openModal = document.querySelector('[data-delete-modal]:not([hidden])');
+    if (openModal) { openModal.hidden = true; return; }
+    var overlay = document.getElementById('collection-detail-overlay');
+    if (overlay && !overlay.hidden) window.closeCollectionDetail();
+  });
+
+  // Mobile filter drawer open/close.
+  (function () {
+    var sidebar = document.querySelector('.sidebar');
+    var openBtn = document.getElementById('open-filters-btn');
+    var backdrop = document.getElementById('filters-backdrop');
+    var closeEls = [
+      document.getElementById('close-filters-btn'),
+      document.getElementById('close-filters-done'),
+    ];
+    if (!sidebar || !openBtn || !backdrop) return;
+
+    function openFilters() { sidebar.classList.add('sidebar--open'); backdrop.hidden = false; }
+    function closeFilters() { sidebar.classList.remove('sidebar--open'); backdrop.hidden = true; }
+
+    openBtn.addEventListener('click', openFilters);
+    backdrop.addEventListener('click', closeFilters);
+    closeEls.forEach(function (el) { if (el) el.addEventListener('click', closeFilters); });
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && sidebar.classList.contains('sidebar--open')) closeFilters();
+    });
+  }());
+</script>
+
+</body>
+</html>

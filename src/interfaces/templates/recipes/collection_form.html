@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% if mode == "edit" %}Edit collection{% else %}New collection{% endif %}</title>
+  <script src="https://unpkg.com/htmx.org@2.0.4" integrity="sha384-HGfztofotfshcF7+8n44JQL2oJmowVChPTg48S+jvZoztPfvwD79OC/LTtG6dMp+" crossorigin="anonymous"></script>
+  <link rel="stylesheet" href="/static/css/brand.css">
+  <link rel="icon" type="image/svg+xml" href="/static/images/favicon.svg">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: sans-serif; color: var(--color-text-primary); background: #fff; }
+
+    .page { max-width: 1100px; margin: 0 auto; padding: 2rem 1.5rem 4rem; }
+    .page-title { font-size: 1.5rem; font-weight: 700; margin-bottom: 1.5rem; }
+
+    .form-error { background: #fef2f2; border: 1px solid #fca5a5; border-radius: 8px; padding: 0.75rem 1rem; color: #b91c1c; font-size: 0.9rem; margin-bottom: 1.25rem; }
+
+    .field { margin-bottom: 1.75rem; max-width: 520px; }
+    .field label { display: block; font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #64748b; margin-bottom: 0.5rem; }
+    .field input[type="text"] { width: 100%; padding: 0.7rem 0.8rem; border: 1px solid #cbd5e1; border-radius: 7px; font-size: 1rem; }
+    .field input[type="text"]:focus { outline: none; border-color: var(--color-accent); }
+    .field-error { color: #b91c1c; font-size: 0.82rem; margin-top: 0.35rem; }
+
+    .panels { display: grid; grid-template-columns: 1fr 1fr; gap: 1.75rem; }
+    .panel { border: 1px solid var(--color-border); border-radius: 12px; overflow: hidden; display: flex; flex-direction: column; }
+    .panel__head { padding: 1rem 1.1rem; border-bottom: 1px solid #eef2f6; }
+    .panel__title { font-size: 0.85rem; font-weight: 700; margin-bottom: 0.6rem; }
+    .panel__hint { margin-left: auto; font-size: 0.75rem; color: var(--color-text-muted); }
+    .panel__head-row { display: flex; align-items: baseline; }
+    .panel__body { padding: 0.85rem; background: #f8f9fa; flex: 1; min-height: 260px; }
+    .panel-search { width: 100%; padding: 0.6rem 0.7rem; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.85rem; }
+    .panel-search:focus { outline: none; border-color: var(--color-accent); }
+
+    .recipe-option { display: flex; align-items: center; gap: 0.75rem; width: 100%; text-align: left; padding: 0.6rem 0.7rem; background: #fff; border: 1px solid var(--color-border); border-radius: 8px; margin-bottom: 0.5rem; cursor: pointer; }
+    .recipe-option:hover { border-color: #bbb; }
+    .recipe-option[disabled] { opacity: 0.5; cursor: default; }
+    .recipe-option__logo { width: 26px; height: 26px; border-radius: 5px; object-fit: cover; border: 1px solid var(--color-border); flex-shrink: 0; }
+    .recipe-option__logo-text { font-size: 0.7rem; font-weight: 600; color: #64748b; flex-shrink: 0; }
+    .recipe-option__info { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+    .recipe-option__name { font-size: 0.9rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .recipe-option__sub { font-size: 0.72rem; color: var(--color-text-muted); }
+    .recipe-option__add { font-size: 0.75rem; font-weight: 700; color: var(--color-accent-dark); background: var(--color-accent-light); padding: 0.3rem 0.6rem; border-radius: 6px; }
+    .recipe-option-empty { color: var(--color-text-muted); font-size: 0.85rem; }
+
+    .sel-list { list-style: none; display: flex; flex-direction: column; gap: 0.5rem; }
+    .sel-row { display: flex; align-items: center; gap: 0.6rem; padding: 0.6rem 0.7rem; background: #fff; border: 1px solid var(--color-border); border-radius: 8px; }
+    .sel-row.dragging { opacity: 0.5; border-color: var(--color-accent); }
+    .sel-row__handle { cursor: grab; color: #cbd5e1; font-size: 1rem; user-select: none; }
+    .sel-row__pos { padding: 0.15rem 0.45rem; background: var(--color-bg-surface); border-radius: 6px; font-size: 0.72rem; font-weight: 700; color: #64748b; }
+    .sel-row__logo { width: 24px; height: 24px; border-radius: 5px; object-fit: cover; border: 1px solid var(--color-border); flex-shrink: 0; }
+    .sel-row__logo-text { font-size: 0.68rem; font-weight: 600; color: #64748b; }
+    .sel-row__name { flex: 1; min-width: 0; font-size: 0.9rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .sel-row__remove { background: none; border: none; color: #cbd5e1; font-size: 1rem; cursor: pointer; }
+    .sel-row__remove:hover { color: var(--color-accent); }
+    .sel-empty { color: var(--color-text-muted); font-size: 0.85rem; padding: 0.5rem; }
+
+    .form-actions { display: flex; justify-content: flex-end; gap: 0.75rem; margin-top: 1.75rem; }
+    .btn-cancel { padding: 0.7rem 1.5rem; background: #fff; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.9rem; font-weight: 600; color: #555; text-decoration: none; }
+    .btn-save { padding: 0.7rem 1.75rem; background: var(--color-accent); border: none; border-radius: 8px; font-size: 0.9rem; font-weight: 600; color: #fff; cursor: pointer; }
+    .btn-save:hover { background: var(--color-accent-dark); }
+
+    @media (max-width: 768px) { .panels { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+
+{% include "_top_nav.html" with active_section="recipes" %}
+
+<div class="page">
+  <h1 class="page-title">{% if mode == "edit" %}Edit collection{% else %}New collection{% endif %}</h1>
+
+  <form method="post" action="{{ form_action }}" id="collection-form">
+    {% csrf_token %}
+
+    {% if form.non_field_errors %}
+    <div class="form-error">{{ form.non_field_errors|join:" " }}</div>
+    {% endif %}
+
+    <div class="field">
+      <label for="id_name">Collection name</label>
+      <input type="text" id="id_name" name="name" value="{{ name_value }}" maxlength="100" autocomplete="off">
+      {% if form.name.errors %}<div class="field-error">{{ form.name.errors|join:" " }}</div>{% endif %}
+    </div>
+
+    <div class="panels">
+      <div class="panel">
+        <div class="panel__head">
+          <div class="panel__title">Add recipes</div>
+          <input class="panel-search" type="search" placeholder="Search recipes by name…"
+                 hx-get="{% url 'collection-recipe-search' %}"
+                 hx-trigger="load, input delay:300ms"
+                 hx-target="#recipe-search-results"
+                 name="name_search" autocomplete="off">
+        </div>
+        <div class="panel__body" id="recipe-search-results"></div>
+      </div>
+
+      <div class="panel">
+        <div class="panel__head panel__head-row">
+          <div class="panel__title">In this collection</div>
+          <div class="panel__hint">drag to reorder</div>
+        </div>
+        <div class="panel__body">
+          <ul class="sel-list" id="selected-list">
+            {% for option in selected_recipes %}
+            <li class="sel-row" draggable="true" data-recipe-id="{{ option.recipe_id }}">
+              <span class="sel-row__handle" aria-hidden="true">&#9776;</span>
+              <span class="sel-row__pos"></span>
+              {% if option.film_sim_logo_filename %}
+              <img class="sel-row__logo" src="/static/images/{{ option.film_sim_logo_filename }}" alt="{{ option.film_simulation }}">
+              {% else %}
+              <span class="sel-row__logo-text">{{ option.film_simulation }}</span>
+              {% endif %}
+              <span class="sel-row__name">{% if option.name %}{{ option.name }}{% else %}{{ option.film_simulation }} #{{ option.recipe_id }}{% endif %}</span>
+              <button type="button" class="sel-row__remove" aria-label="Remove">&#x2715;</button>
+              <input type="hidden" name="recipe_ids" value="{{ option.recipe_id }}">
+            </li>
+            {% endfor %}
+          </ul>
+          <p class="sel-empty" id="sel-empty"{% if selected_recipes %} hidden{% endif %}>No recipes added yet.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="form-actions">
+      <a class="btn-cancel" href="{% if mode == 'edit' %}{% url 'recipe-collection-detail' collection_id %}{% else %}{% url 'recipes-collections' %}{% endif %}">Cancel</a>
+      <button type="submit" class="btn-save">Save collection</button>
+    </div>
+  </form>
+</div>
+
+<script>
+  (function () {
+    var list = document.getElementById('selected-list');
+    var empty = document.getElementById('sel-empty');
+    var results = document.getElementById('recipe-search-results');
+
+    function selectedIds() {
+      return Array.prototype.map.call(list.querySelectorAll('.sel-row'), function (r) { return r.dataset.recipeId; });
+    }
+
+    function refresh() {
+      var rows = list.querySelectorAll('.sel-row');
+      empty.hidden = rows.length > 0;
+      Array.prototype.forEach.call(rows, function (row, i) {
+        row.querySelector('.sel-row__pos').textContent = i + 1;
+      });
+      markResults();
+    }
+
+    function markResults() {
+      var ids = selectedIds();
+      Array.prototype.forEach.call(results.querySelectorAll('.js-add-recipe'), function (btn) {
+        var added = ids.indexOf(btn.dataset.recipeId) !== -1;
+        btn.disabled = added;
+        btn.querySelector('.recipe-option__add').textContent = added ? '✓ Added' : '+ Add';
+      });
+    }
+
+    function makeRow(data) {
+      var li = document.createElement('li');
+      li.className = 'sel-row';
+      li.draggable = true;
+      li.dataset.recipeId = data.recipeId;
+      var logo = data.logo
+        ? '<img class="sel-row__logo" src="/static/images/' + data.logo + '" alt="">'
+        : '<span class="sel-row__logo-text">' + data.filmSim + '</span>';
+      li.innerHTML =
+        '<span class="sel-row__handle" aria-hidden="true">☰</span>' +
+        '<span class="sel-row__pos"></span>' + logo +
+        '<span class="sel-row__name"></span>' +
+        '<button type="button" class="sel-row__remove" aria-label="Remove">✕</button>' +
+        '<input type="hidden" name="recipe_ids" value="' + data.recipeId + '">';
+      li.querySelector('.sel-row__name').textContent = data.name;
+      return li;
+    }
+
+    // Add from search results (event delegation survives htmx swaps).
+    results.addEventListener('click', function (e) {
+      var btn = e.target.closest('.js-add-recipe');
+      if (!btn || btn.disabled) return;
+      if (selectedIds().indexOf(btn.dataset.recipeId) !== -1) return;
+      list.appendChild(makeRow({
+        recipeId: btn.dataset.recipeId,
+        name: btn.dataset.name,
+        filmSim: btn.dataset.filmSim,
+        logo: btn.dataset.logo,
+      }));
+      refresh();
+    });
+
+    // Remove.
+    list.addEventListener('click', function (e) {
+      var rm = e.target.closest('.sel-row__remove');
+      if (!rm) return;
+      rm.closest('.sel-row').remove();
+      refresh();
+    });
+
+    // Drag to reorder.
+    var dragging = null;
+    list.addEventListener('dragstart', function (e) {
+      dragging = e.target.closest('.sel-row');
+      if (dragging) dragging.classList.add('dragging');
+    });
+    list.addEventListener('dragend', function () {
+      if (dragging) dragging.classList.remove('dragging');
+      dragging = null;
+      refresh();
+    });
+    list.addEventListener('dragover', function (e) {
+      e.preventDefault();
+      if (!dragging) return;
+      var after = null;
+      var rows = list.querySelectorAll('.sel-row:not(.dragging)');
+      for (var i = 0; i < rows.length; i++) {
+        var box = rows[i].getBoundingClientRect();
+        if (e.clientY < box.top + box.height / 2) { after = rows[i]; break; }
+      }
+      if (after) list.insertBefore(dragging, after); else list.appendChild(dragging);
+    });
+
+    document.body.addEventListener('htmx:afterSwap', function (e) {
+      if (e.target.id === 'recipe-search-results') markResults();
+    });
+
+    refresh();
+  }());
+</script>
+
+</body>
+</html>

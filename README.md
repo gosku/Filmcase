@@ -16,6 +16,7 @@ Read more about it in our [documentation index](docs/index.md).
 - **Generate shareable recipe cards** so other Fujifilm shooters can import your recipes
 - **Import recipes** from a Fujifilm JPEG or a shared recipe card (QR code)
 - **Explore relationships between recipes** through an interactive graph, compare differences side by side, and trace how your recipes evolved from one another
+- **Group recipes into named, ordered collections** and browse them with their own filters
 - View full-resolution images with their complete recipe and EXIF data
 - Rate images (0–5 stars) individually or in bulk from the command line
 - Sort the gallery by rating to surface your best shots first
