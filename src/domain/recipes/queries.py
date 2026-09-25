@@ -539,6 +539,7 @@ class RecipeData:
     monochromatic_color_magenta_green: object = None  # Decimal | None
     cover_image_id: int | None = None              # most popular image for card background
     film_sim_logo_filename: str | None = None      # from FILM_SIM_LOGO mapping
+    description: str = ""
     # Populated only by ``get_recipe_detail`` (one DB hit for the M2M plus a
     # pure lookup for bodies). Other producers default these to empty tuples
     # so list-view callers don't pay the extra query per recipe.
@@ -571,6 +572,7 @@ def _to_recipe_data(recipe: models.FujifilmRecipe) -> RecipeData:
         monochromatic_color_magenta_green=recipe.monochromatic_color_magenta_green,
         cover_image_id=recipe.cover_image_id or getattr(recipe, "fallback_cover_image_id", None),
         film_sim_logo_filename=FILM_SIM_LOGO.get(recipe.film_simulation),
+        description=recipe.description,
     )
 
 

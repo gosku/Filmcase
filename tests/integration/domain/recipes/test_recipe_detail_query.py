@@ -123,6 +123,20 @@ class TestGetRecipeDetail:
         assert r.color_chrome_effect == "Strong"
         assert r.white_balance == "Daylight"
 
+    def test_description_is_returned(self):
+        recipe = FujifilmRecipeFactory(description="A warm, faded portrait look.")
+
+        result = get_recipe_detail(recipe_id=recipe.pk)
+
+        assert result.recipe.description == "A warm, faded portrait look."
+
+    def test_description_is_empty_string_when_blank(self):
+        recipe = FujifilmRecipeFactory(description="")
+
+        result = get_recipe_detail(recipe_id=recipe.pk)
+
+        assert result.recipe.description == ""
+
     def test_settings_editable_true_when_recipe_has_no_images(self):
         recipe = FujifilmRecipeFactory()
 
