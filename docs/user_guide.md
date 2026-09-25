@@ -261,6 +261,11 @@ changed; once it has images, only the name is editable, so the camera settings s
 to the historical shooting data tied to those photos. When a recipe is locked this way, you
 can instead fork it into a new version (see [Distribution & versions](#333-distribution--versions)).
 
+The settings sit at the top so the essentials are visible without scrolling. Scroll down for
+more about the recipe: its **description**, when one has been set, and an **In collections**
+section listing the collections the recipe belongs to as small cards — click one to open that
+collection. The collections section only appears when the recipe is in at least one collection.
+
 The most important tools on this page are described below.
 
 #### 3.3.1 Send recipe to camera
@@ -474,7 +479,8 @@ unique (regardless of capitalisation).
 
 ![Creating a collection](images/recipe_collections_update_desktop.jpg)
 
-Opening a collection shows its recipes in that order, with **Push all to camera**, **Edit
+Opening a collection shows its recipes in that order, each row carrying a **View recipe** link
+to that recipe's detail page, with **Push all to camera**, **Edit
 collection** and **Delete collection** actions. Deleting a collection removes only the grouping —
 the recipes and their images are kept.
 
