@@ -1,0 +1,107 @@
+{% comment %}
+The "push a whole collection to the camera" modal (server transport).
+
+Swapped into #slot-overlay by the "Push all to camera" button. The recipes are
+written one at a time by push_collection.js, which reuses the single-recipe push
+endpoint; this template only lays out the before/after view and the per-recipe
+status hooks the script updates. The browser-transport variant lives as inert
+<template>s in recipes/includes/camera_client_templates.html and must keep the
+same class and data-* contract.
+{% endcomment %}
+{% if error %}
+<div id="collection-push" class="cpush cpush--message">
+  <button class="slot-card-close" onclick="closeSlotOverlay()" title="Close">&#x2715;</button>
+  <p class="slot-error">{{ error }}</p>
+</div>
+{% else %}
+<div id="collection-push" class="cpush"
+     data-collection-id="{{ push.collection_id }}"
+     data-csrf="{{ csrf_token }}"
+     data-slot-count="{{ push.slot_count }}">
+  <div class="cpush__header">
+    <button class="slot-card-close" onclick="closeSlotOverlay()" title="Close">&#x2715;</button>
+    <p class="cpush__eyebrow">Push collection to camera</p>
+    <p class="cpush__title">{{ push.collection_name }}</p>
+    <p class="cpush__camera"><span class="cpush__camera-name">{{ push.camera_name }}</span><span class="cpush__slotcount">{{ push.slot_count }} slot{{ push.slot_count|pluralize }}</span></p>
+  </div>
+
+  <div class="cpush__progress" data-progress hidden>
+    <div class="cpush__progress-head">
+      <span data-progress-label>Transferring&hellip;</span>
+      <span data-progress-counts></span>
+    </div>
+    <div class="cpush__progress-track"><div class="cpush__progress-fill" data-progress-fill></div></div>
+  </div>
+
+  <div class="cpush__body">
+    <div class="cpush__col cpush__col--before">
+      <p class="cpush__coltitle">Camera now</p>
+      {% for slot in push.current_slots %}
+      <div class="cpush-slot">
+        <span class="cpush-badge">{{ slot.label }}</span>
+        <span class="cpush-slot__info">
+          <span class="cpush-slot__name">{{ slot.name|default:"—" }}</span>
+          {% if slot.film_sim %}<span class="slot-film-tag">{{ slot.film_sim }}</span>{% endif %}
+        </span>
+      </div>
+      {% endfor %}
+    </div>
+
+    <div class="cpush__arrow" aria-hidden="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="13 6 19 12 13 18"></polyline></svg>
+    </div>
+
+    <div class="cpush__col cpush__col--after">
+      <p class="cpush__coltitle">After transfer <span class="cpush__hint" data-reorder-hint>drag to reorder</span></p>
+      <div class="cpush__list" data-transfer-list>
+        {% for row in push.assignments %}
+        <div class="cpush-row" draggable="true"
+             data-recipe-id="{{ row.recipe_id }}"
+             data-payload-url="{% url 'recipe-camera-payload' recipe_id=row.recipe_id %}">
+          <span class="cpush-row__handle" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="currentColor"><circle cx="9" cy="6" r="1.6"/><circle cx="15" cy="6" r="1.6"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="18" r="1.6"/><circle cx="15" cy="18" r="1.6"/></svg>
+          </span>
+          <span class="cpush-badge cpush-badge--target" data-slot-badge>{{ row.label }}</span>
+          <span class="cpush-row__info">
+            <span class="cpush-row__name">{{ row.recipe_name }}</span>
+            <span class="slot-film-tag">{{ row.film_sim }}</span>
+            <span class="cpush-row__replaces" data-replaces>replaces {{ row.replaces_name|default:"empty" }}</span>
+          </span>
+          <span class="cpush-row__status" data-status></span>
+        </div>
+        {% endfor %}
+        {% for row in push.untouched %}
+        <div class="cpush-row cpush-row--kept">
+          <span class="cpush-row__handle cpush-row__handle--empty" aria-hidden="true"></span>
+          <span class="cpush-badge cpush-badge--kept">{{ row.label }}</span>
+          <span class="cpush-row__info">
+            <span class="cpush-row__name">{{ row.name|default:"—" }}</span>
+            <span class="cpush-row__meta">kept &middot; unchanged</span>
+          </span>
+        </div>
+        {% endfor %}
+      </div>
+
+      {% if push.dropped %}
+      <div class="cpush__dropped">
+        <p class="cpush__dropped-title">Won&rsquo;t fit &mdash; not transferred</p>
+        {% for row in push.dropped %}
+        <div class="cpush-row cpush-row--dropped">
+          <span class="cpush-row__info">
+            <span class="cpush-row__name">{{ row.recipe_name }}</span>
+            <span class="slot-film-tag">{{ row.film_sim }}</span>
+          </span>
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="cpush__footer">
+    <span class="cpush__foot-hint" data-foot-hint>{{ push.assignments|length }} recipe{{ push.assignments|length|pluralize }} will be written to slots, one at a time.</span>
+    <button type="button" class="cpush__cancel" onclick="closeSlotOverlay()" data-cancel>Cancel</button>
+    <button type="button" class="cpush__start" data-start{% if not push.assignments %} disabled{% endif %}>Transfer {{ push.assignments|length }} recipe{{ push.assignments|length|pluralize }}</button>
+  </div>
+</div>
+{% endif %}
