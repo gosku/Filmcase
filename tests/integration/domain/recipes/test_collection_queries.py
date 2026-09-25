@@ -7,6 +7,7 @@ from src.domain.recipes.queries import (
     get_collection_detail,
     get_collection_filter_options,
     get_collection_summaries,
+    get_collections_for_recipe,
     get_recipe_editor_options,
     get_recipes_for_collection_editor,
 )
@@ -127,6 +128,75 @@ class TestGetCollectionSummaries:
         (summary,) = get_collection_summaries()
 
         assert summary.mosaic_image_ids == ()
+
+
+@pytest.mark.django_db
+class TestGetCollectionsForRecipe:
+    def test_returns_empty_when_recipe_in_no_collection(self):
+        recipe = FujifilmRecipeFactory()
+
+        assert get_collections_for_recipe(recipe_id=recipe.pk) == []
+
+    def test_returns_collection_containing_the_recipe(self):
+        recipe = FujifilmRecipeFactory()
+        group = RecipeCollectionFactory(name="Autumn")
+        RecipeCollectionMemberFactory(group=group, recipe=recipe)
+
+        (summary,) = get_collections_for_recipe(recipe_id=recipe.pk)
+
+        assert summary.id == group.pk
+        assert summary.name == "Autumn"
+
+    def test_excludes_collections_without_the_recipe(self):
+        recipe = FujifilmRecipeFactory()
+        member_group = RecipeCollectionFactory(name="Has It")
+        RecipeCollectionMemberFactory(group=member_group, recipe=recipe)
+        other_group = RecipeCollectionFactory(name="Other")
+        RecipeCollectionMemberFactory(group=other_group, recipe=FujifilmRecipeFactory())
+
+        summaries = get_collections_for_recipe(recipe_id=recipe.pk)
+
+        assert [s.name for s in summaries] == ["Has It"]
+
+    def test_orders_collections_by_name_case_insensitively(self):
+        recipe = FujifilmRecipeFactory()
+        for name in ["beta", "Alpha", "gamma"]:
+            group = RecipeCollectionFactory(name=name)
+            RecipeCollectionMemberFactory(group=group, recipe=recipe)
+
+        summaries = get_collections_for_recipe(recipe_id=recipe.pk)
+
+        assert [s.name for s in summaries] == ["Alpha", "beta", "gamma"]
+
+    def test_counts_all_recipes_in_the_collection(self):
+        recipe = FujifilmRecipeFactory()
+        group = RecipeCollectionFactory(name="Set")
+        RecipeCollectionMemberFactory(group=group, recipe=recipe, position=0)
+        RecipeCollectionMemberFactory(group=group, recipe=FujifilmRecipeFactory(), position=1)
+
+        (summary,) = get_collections_for_recipe(recipe_id=recipe.pk)
+
+        assert summary.recipe_count == 2
+
+    def test_mosaic_holds_best_rated_images_across_the_collection(self):
+        recipe = FujifilmRecipeFactory()
+        group = RecipeCollectionFactory(name="Set")
+        RecipeCollectionMemberFactory(group=group, recipe=recipe, position=0)
+        image = ImageFactory(fujifilm_recipe=recipe, rating=5)
+
+        (summary,) = get_collections_for_recipe(recipe_id=recipe.pk)
+
+        assert list(summary.mosaic_image_ids) == [image.pk]
+
+    def test_mosaic_is_empty_and_legend_falls_back_when_no_images(self):
+        recipe = FujifilmRecipeFactory(film_simulation="Provia")
+        group = RecipeCollectionFactory(name="Set")
+        RecipeCollectionMemberFactory(group=group, recipe=recipe)
+
+        (summary,) = get_collections_for_recipe(recipe_id=recipe.pk)
+
+        assert summary.mosaic_image_ids == ()
+        assert [fs.film_simulation for fs in summary.film_sims] == ["Provia"]
 
 
 @pytest.mark.django_db

@@ -1170,6 +1170,62 @@ def get_collection_summaries(
     return summaries
 
 
+def get_collections_for_recipe(*, recipe_id: int) -> list[CollectionSummaryData]:
+    """
+    Return the collections that contain *recipe_id*, ordered by name.
+
+    Each card carries the same data as ``get_collection_summaries`` — its recipe
+    count, the distinct film simulations of its recipes (most frequent first,
+    with logo filenames) for the legend, and up to four best-rated images across
+    its recipes for the mosaic. A collection with no images yet returns an empty
+    ``mosaic_image_ids`` so the caller renders the logo-only fallback. Returns an
+    empty list when the recipe belongs to no collection.
+    """
+    group_rows = list(
+        models.RecipeGroup.objects
+        .filter(
+            group_type=models.RecipeGroup.GROUP_TYPE_COLLECTION,
+            members__recipe_id=recipe_id,
+        )
+        .distinct()
+        .order_by(Lower("name"), "pk")
+        .values("pk", "name")
+    )
+    if not group_rows:
+        return []
+
+    group_ids = [row["pk"] for row in group_rows]
+    name_by_id = {row["pk"]: row["name"] for row in group_rows}
+
+    members = (
+        models.RecipeGroupMember.objects
+        .filter(group_id__in=group_ids, group_type=models.RecipeGroup.GROUP_TYPE_COLLECTION)
+        .select_related("recipe")
+        .order_by("group_id", "position", "pk")
+    )
+    members_by_group: dict[int, list[models.RecipeGroupMember]] = {}
+    for member in members:
+        members_by_group.setdefault(member.group_id, []).append(member)
+
+    top_image_by_recipe = _top_image_by_recipe(
+        recipe_ids={member.recipe_id for member in members}
+    )
+
+    summaries: list[CollectionSummaryData] = []
+    for group_id in group_ids:
+        group_members = members_by_group.get(group_id, [])
+        summaries.append(
+            CollectionSummaryData(
+                id=group_id,
+                name=name_by_id[group_id],
+                recipe_count=len(group_members),
+                film_sims=_collection_film_sims(group_members),
+                mosaic_image_ids=_collection_mosaic(group_members, top_image_by_recipe),
+            )
+        )
+    return summaries
+
+
 def _top_image_by_recipe(*, recipe_ids: set[int]) -> dict[int, tuple[int, float]]:
     """
     Map each recipe id to its best image as ``(image_id, rating)``.
