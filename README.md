@@ -11,7 +11,7 @@ Read more about it in our [documentation index](docs/index.md).
 ## Features
 
 - Import Fujifilm JPEGs to **build your image catalog and recipe collection**, then browse them in a filterable gallery
-- **Push your recipes to your camera**'s custom slots over USB
+- **Push your recipes to your camera**'s custom slots over USB, one at a time or a whole collection in slot order
 - Browse and search your recipe collection with faceted filtering by film simulation, dynamic range, grain, and more
 - **Generate shareable recipe cards** so other Fujifilm shooters can import your recipes
 - **Import recipes** from a Fujifilm JPEG or a shared recipe card (QR code)

@@ -474,11 +474,28 @@ unique (regardless of capitalisation).
 
 ![Creating a collection](images/recipe_collections_update_desktop.jpg)
 
-Opening a collection shows its recipes in that order, with **Edit collection** and **Delete
-collection** actions. Deleting a collection removes only the grouping — the recipes and their images
-are kept.
+Opening a collection shows its recipes in that order, with **Push all to camera**, **Edit
+collection** and **Delete collection** actions. Deleting a collection removes only the grouping —
+the recipes and their images are kept.
 
 ![Collection detail](images/recipe_collections_detailview_desktop.jpg)
+
+**Push all to camera** writes the whole collection to the camera's custom slots in one pass: the
+first recipe to C1, the second to C2, and so on. Clicking it reads the connected camera and opens a
+modal showing the slots as they are now next to what they will become. If the collection has fewer
+recipes than the camera has slots, the trailing slots are left untouched; if it has more, only the
+first N fit and the rest are marked as not transferred. You can drag the rows to change which recipe
+lands in which slot before starting.
+
+![Push a collection to the camera](images/recipe_collection_push_all_camera.jpg)
+
+The recipes are then written one at a time, in slot order, and each row is marked as it goes — sent,
+sending, waiting, or failed — so a single recipe that fails to write does not stop the others, and
+any failed recipe can be retried on its own. As with a single-recipe push, the write happens over
+USB from the Filmcase host, or over WebUSB from your own browser, depending on how the camera
+transport is configured.
+
+![A collection transfer in progress](images/recipe_collection_push_all_camera_progress.jpg)
 
 On a phone the list and detail adapt to a single column: the filters move behind a **Filters**
 button, and a collection's actions dock to a bar at the bottom of the screen.
