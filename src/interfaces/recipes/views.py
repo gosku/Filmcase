@@ -104,7 +104,12 @@ class RecipeDetail(generic.View):
             detail = recipe_queries.get_recipe_detail(recipe_id=recipe_id)
         except models.FujifilmRecipe.DoesNotExist:
             raise http.Http404
-        ctx = {"recipe": detail.recipe, "is_monochromatic": detail.is_monochromatic, "settings_editable": detail.settings_editable}
+        ctx = {
+            "recipe": detail.recipe,
+            "is_monochromatic": detail.is_monochromatic,
+            "settings_editable": detail.settings_editable,
+            "collections": detail.collections,
+        }
         if request.headers.get("HX-Request"):
             return shortcuts.render(request, "recipes/partials/recipe_detail.html", ctx)
         return shortcuts.render(request, "recipes/recipe_detail.html", ctx)
