@@ -539,6 +539,7 @@ class RecipeData:
     monochromatic_color_magenta_green: object = None  # Decimal | None
     cover_image_id: int | None = None              # most popular image for card background
     film_sim_logo_filename: str | None = None      # from FILM_SIM_LOGO mapping
+    description: str = ""
     # Populated only by ``get_recipe_detail`` (one DB hit for the M2M plus a
     # pure lookup for bodies). Other producers default these to empty tuples
     # so list-view callers don't pay the extra query per recipe.
@@ -571,6 +572,7 @@ def _to_recipe_data(recipe: models.FujifilmRecipe) -> RecipeData:
         monochromatic_color_magenta_green=recipe.monochromatic_color_magenta_green,
         cover_image_id=recipe.cover_image_id or getattr(recipe, "fallback_cover_image_id", None),
         film_sim_logo_filename=FILM_SIM_LOGO.get(recipe.film_simulation),
+        description=recipe.description,
     )
 
 
@@ -590,6 +592,7 @@ class RecipeDetailContext:
     recipe: RecipeData
     is_monochromatic: bool
     settings_editable: bool
+    collections: tuple[CollectionSummaryData, ...]
 
 
 def get_recipe_detail(*, recipe_id: int) -> RecipeDetailContext:
@@ -622,6 +625,7 @@ def get_recipe_detail(*, recipe_id: int) -> RecipeDetailContext:
         recipe=recipe_data,
         is_monochromatic=recipe_data.film_simulation in MONOCHROMATIC_FILM_SIMULATIONS,
         settings_editable=recipe_is_editable(recipe_id=recipe_id),
+        collections=tuple(get_collections_for_recipe(recipe_id=recipe_id)),
     )
 
 
@@ -1133,6 +1137,62 @@ def get_collection_summaries(
     if film_simulations:
         groups = groups.filter(members__recipe__film_simulation__in=list(film_simulations))
     group_rows = list(groups.distinct().order_by(Lower("name"), "pk").values("pk", "name"))
+    if not group_rows:
+        return []
+
+    group_ids = [row["pk"] for row in group_rows]
+    name_by_id = {row["pk"]: row["name"] for row in group_rows}
+
+    members = (
+        models.RecipeGroupMember.objects
+        .filter(group_id__in=group_ids, group_type=models.RecipeGroup.GROUP_TYPE_COLLECTION)
+        .select_related("recipe")
+        .order_by("group_id", "position", "pk")
+    )
+    members_by_group: dict[int, list[models.RecipeGroupMember]] = {}
+    for member in members:
+        members_by_group.setdefault(member.group_id, []).append(member)
+
+    top_image_by_recipe = _top_image_by_recipe(
+        recipe_ids={member.recipe_id for member in members}
+    )
+
+    summaries: list[CollectionSummaryData] = []
+    for group_id in group_ids:
+        group_members = members_by_group.get(group_id, [])
+        summaries.append(
+            CollectionSummaryData(
+                id=group_id,
+                name=name_by_id[group_id],
+                recipe_count=len(group_members),
+                film_sims=_collection_film_sims(group_members),
+                mosaic_image_ids=_collection_mosaic(group_members, top_image_by_recipe),
+            )
+        )
+    return summaries
+
+
+def get_collections_for_recipe(*, recipe_id: int) -> list[CollectionSummaryData]:
+    """
+    Return the collections that contain *recipe_id*, ordered by name.
+
+    Each card carries the same data as ``get_collection_summaries`` — its recipe
+    count, the distinct film simulations of its recipes (most frequent first,
+    with logo filenames) for the legend, and up to four best-rated images across
+    its recipes for the mosaic. A collection with no images yet returns an empty
+    ``mosaic_image_ids`` so the caller renders the logo-only fallback. Returns an
+    empty list when the recipe belongs to no collection.
+    """
+    group_rows = list(
+        models.RecipeGroup.objects
+        .filter(
+            group_type=models.RecipeGroup.GROUP_TYPE_COLLECTION,
+            members__recipe_id=recipe_id,
+        )
+        .distinct()
+        .order_by(Lower("name"), "pk")
+        .values("pk", "name")
+    )
     if not group_rows:
         return []
 

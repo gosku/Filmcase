@@ -21,6 +21,9 @@
           <div class="cdetail-row__name">{% if member.name %}{{ member.name }}{% else %}{{ member.film_simulation }} #{{ member.recipe_id }}{% endif %}</div>
           <div class="cdetail-row__sub">{{ member.film_simulation }} &middot; {{ member.image_count }} image{{ member.image_count|pluralize }}</div>
         </div>
+        <a class="cdetail-row__link" href="{% url 'recipe-detail' member.recipe_id %}">View recipe
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 6 15 12 9 18"/></svg>
+        </a>
       </div>
       {% empty %}
       <p class="cdetail-empty">This collection has no recipes yet.</p>
