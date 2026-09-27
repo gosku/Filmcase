@@ -668,9 +668,9 @@
   }
 
   /* ------------------------------------ */
-  /* Below-the-fold sections              */
-  /* Description, In collections (+ room  */
-  /* for future Related recipes).         */
+  /* Below-the-fold sections:             */
+  /* Description, In collections, and     */
+  /* the related-recipes list.            */
   /* ------------------------------------ */
 
   .detail-extra {
@@ -754,6 +754,81 @@
 
   .rd-col-count { font-size: 0.76rem; color: var(--color-text-muted); margin-top: 1px; }
   .rd-col-arrow { margin-left: auto; color: #cbd5e1; flex-shrink: 0; }
+
+  /* Related recipes — poster cards */
+  .rr-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.9rem;
+    max-width: 660px;
+  }
+  .rr-card {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    border: 1px solid var(--color-border);
+    border-radius: 14px;
+    background: #fff;
+    overflow: hidden;
+    text-decoration: none;
+    color: inherit;
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
+    transition: border-color 0.15s, box-shadow 0.15s;
+  }
+  .rr-card:hover { border-color: #cbd5e1; box-shadow: 0 3px 10px rgba(15, 23, 42, 0.10); }
+  .rr-hero {
+    position: relative;
+    height: 150px;
+    display: grid;
+    gap: 2px;
+    background: #1a1a1a;
+  }
+  .rr-hero--n0, .rr-hero--n1 { grid-template-columns: 1fr; grid-template-rows: 1fr; }
+  .rr-hero--n2 { grid-template-columns: 1fr 1fr; grid-template-rows: 1fr; }
+  .rr-hero--n3 { grid-template-columns: 2fr 1fr; grid-template-rows: 1fr 1fr; }
+  .rr-hero--n3 .rr-hero-tile:first-child { grid-row: span 2; }
+  .rr-hero-tile { background: #1a1a1a no-repeat center/cover; }
+  .rr-hero--fallback {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--color-bg-surface);
+  }
+  .rr-hero-logo { width: 44px; height: 44px; border-radius: 8px; object-fit: cover; }
+  .rr-hero-text { font-size: 1.1rem; font-weight: 700; color: #64748b; }
+  .rr-body { display: flex; align-items: center; justify-content: space-between; gap: 0.7rem; padding: 0.7rem 0.8rem 0.85rem; }
+  .rr-body-main { display: flex; flex-direction: column; gap: 0.4rem; min-width: 0; flex: 1; }
+  .rr-filmsim { display: flex; align-items: center; gap: 0.4rem; }
+  .rr-filmsim-logo { width: 20px; height: 20px; border-radius: 5px; object-fit: cover; flex-shrink: 0; }
+  .rr-filmsim-name { font-size: 0.78rem; color: var(--color-text-muted); }
+  .rr-card-name {
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--color-text-primary);
+    line-height: 1.25;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .rr-gauge { display: flex; flex-direction: column; align-items: center; gap: 0.3rem; flex-shrink: 0; }
+  .rr-ring {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    border: 4px solid var(--color-accent);
+    background: #fff;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+  }
+  .rr-ring-pct { font-size: 0.95rem; font-weight: 800; color: var(--color-text-primary); }
+  .rr-ring-unit { font-size: 0.5rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--color-text-muted); margin-top: 2px; }
+  .rr-gauge-label { font-size: 0.62rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--color-accent); text-align: center; }
+  @media (max-width: 768px) {
+    .rr-grid { grid-template-columns: 1fr; }
+  }
 </style>
 
 <div class="detail-overlay">
@@ -1102,7 +1177,7 @@
 
         </div>{# /.settings-bottom #}
 
-        {% if recipe.description or collections %}
+        {% if recipe.description or collections or related_recipes %}
         <div class="detail-extra">
 
           {% if recipe.description %}
@@ -1146,10 +1221,48 @@
           </section>
           {% endif %}
 
-          {% comment %}
-          Related recipes section is reserved for a future feature; the
-          scrollable area below leaves room for it.
-          {% endcomment %}
+          {% if related_recipes %}
+          <section class="detail-extra-section">
+            <h2 class="detail-section-title">Related recipes</h2>
+            <div class="rr-grid">
+              {% for related in related_recipes %}
+              <a class="rr-card" href="{% url 'recipe-detail' recipe_id=related.id %}">
+                <span class="rr-hero rr-hero--n{{ related.image_ids|length }}">
+                  {% for image_id in related.image_ids %}
+                  <span class="rr-hero-tile" style="background-image: url('/images/file/{{ image_id }}/?width=600');"></span>
+                  {% empty %}
+                  <span class="rr-hero-tile rr-hero--fallback">
+                    {% if related.film_sim_logo_filename %}
+                    <img class="rr-hero-logo" src="/static/images/{{ related.film_sim_logo_filename }}" alt="{{ related.film_simulation }}">
+                    {% else %}
+                    <span class="rr-hero-text">{{ related.name|slice:":2"|upper }}</span>
+                    {% endif %}
+                  </span>
+                  {% endfor %}
+                </span>
+                <span class="rr-body">
+                  <span class="rr-body-main">
+                    <span class="rr-filmsim">
+                      {% if related.film_sim_logo_filename %}
+                      <img class="rr-filmsim-logo" src="/static/images/{{ related.film_sim_logo_filename }}" alt="">
+                      {% endif %}
+                      <span class="rr-filmsim-name">{{ related.film_simulation }}</span>
+                    </span>
+                    <span class="rr-card-name">{{ related.name }}</span>
+                  </span>
+                  <span class="rr-gauge">
+                    <span class="rr-ring">
+                      <span class="rr-ring-pct">{% widthratio related.similarity 1 100 %}%</span>
+                      <span class="rr-ring-unit">match</span>
+                    </span>
+                    <span class="rr-gauge-label">{{ related.closeness_label }}</span>
+                  </span>
+                </span>
+              </a>
+              {% endfor %}
+            </div>
+          </section>
+          {% endif %}
 
         </div>{# /.detail-extra #}
         {% endif %}
