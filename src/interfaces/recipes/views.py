@@ -109,6 +109,7 @@ class RecipeDetail(generic.View):
             "is_monochromatic": detail.is_monochromatic,
             "settings_editable": detail.settings_editable,
             "collections": detail.collections,
+            "related_recipes": detail.related_recipes,
         }
         if request.headers.get("HX-Request"):
             return shortcuts.render(request, "recipes/partials/recipe_detail.html", ctx)

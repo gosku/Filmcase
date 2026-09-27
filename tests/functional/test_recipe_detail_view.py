@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 import pytest
 from bs4 import BeautifulSoup
 
@@ -367,3 +369,56 @@ class TestRecipeDetailViewCameraSection:
 
         toggleable = section.find_all("div", class_="js-camera-row-badges")
         assert len(toggleable) == 2  # sensors row + bodies row
+
+
+def _related_recipe(**overrides):
+    """Create a saved recipe with the white-balance shift pinned so similarity
+    distances are driven only by the fields under test."""
+    defaults = {"white_balance_red": 0, "white_balance_blue": 0}
+    defaults.update(overrides)
+    return FujifilmRecipeFactory(**defaults)
+
+
+def _related_names(response) -> list[str]:
+    """Names shown in the Related recipes section, in render order."""
+    soup = BeautifulSoup(response.content, "html.parser")
+    heading = soup.find("h2", string="Related recipes")
+    if heading is None:
+        return []
+    section = heading.find_parent("section")
+    return [el.get_text(strip=True) for el in section.select(".rr-card-name")]
+
+
+@pytest.mark.django_db
+class TestRecipeDetailRelatedRecipes:
+    def test_lists_named_related_recipes_in_similarity_order(self, client):
+        reference = _related_recipe(film_simulation="Classic Chrome", color=Decimal("2.0"), sharpness=Decimal("0.0"))
+        near = _related_recipe(name="Near twin", film_simulation="Classic Chrome", color=Decimal("2.0"), sharpness=Decimal("-1.0"))
+        other_colour = _related_recipe(name="Velvia pick", film_simulation="Velvia", color=Decimal("2.0"), white_balance_red=1)
+        black_and_white = _related_recipe(name="Acros pick", film_simulation="Acros STD", monochromatic_color_warm_cool=Decimal("0.0"), white_balance_red=2)
+
+        response = client.get(f"/recipes/{reference.pk}/")
+
+        assert response.status_code == 200
+        assert [r.id for r in response.context["related_recipes"]] == [near.pk, other_colour.pk, black_and_white.pk]
+        assert _related_names(response) == ["Near twin", "Velvia pick", "Acros pick"]
+
+    def test_excludes_the_reference_and_unnamed_recipes(self, client):
+        reference = _related_recipe(name="Reference", film_simulation="Classic Chrome", color=Decimal("2.0"))
+        _related_recipe(name="Named neighbour", film_simulation="Classic Chrome", color=Decimal("2.0"), sharpness=Decimal("-1.0"))
+        _related_recipe(name="", film_simulation="Classic Chrome", color=Decimal("3.0"), white_balance_red=3)
+
+        response = client.get(f"/recipes/{reference.pk}/")
+
+        names = _related_names(response)
+        assert names == ["Named neighbour"]
+        assert "Reference" not in names
+
+    def test_section_absent_when_no_named_related_recipes(self, client):
+        reference = _related_recipe(film_simulation="Provia")
+        _related_recipe(name="", film_simulation="Provia", white_balance_red=1)
+
+        response = client.get(f"/recipes/{reference.pk}/")
+
+        assert response.context["related_recipes"] == ()
+        assert _related_names(response) == []

@@ -266,6 +266,17 @@ more about the recipe: its **description**, when one has been set, and an **In c
 section listing the collections the recipe belongs to as small cards — click one to open that
 collection. The collections section only appears when the recipe is in at least one collection.
 
+Below those is a **Related recipes** section: the most similar named recipes to the one you are
+viewing, most similar first, shown as cards with a few of the recipe's photos, its film
+simulation, and how close a match it is — both a percentage and a plain-language label such as
+"Very close". Similarity is based on how close the two recipes' settings are, so these are the
+nearest looks in your library; click one to jump straight to it. Other versions of the recipe
+you are viewing are left out, since the version history already links those, and any other
+recipe that has versions appears only once, as its closest version, so the list stays varied.
+The section is hidden when there are no named recipes to relate to.
+
+![Related recipes](images/recipe_related_recipes.jpg)
+
 The most important tools on this page are described below.
 
 #### 3.3.1 Send recipe to camera
