@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections import defaultdict
 from collections.abc import Mapping, Sequence
 from typing import TYPE_CHECKING
 
@@ -16,6 +17,7 @@ from src.data import models
 from src.domain.images import filter_queries
 from src.domain.recipes import normalization as recipe_normalization
 from src.domain.recipes import sensors as recipe_sensors
+from src.domain.recipes import similarity as recipe_similarity
 from src.domain.recipes.constants import FILM_SIM_LOGO, MONOCHROMATIC_FILM_SIMULATIONS
 from src.domain.images import dataclasses as image_dataclasses
 
@@ -587,12 +589,148 @@ def recipe_is_editable(*, recipe_id: int) -> bool:
     return not models.Image.objects.filter(fujifilm_recipe_id=recipe_id).exists()
 
 
+def _version_line_recipe_ids(*, recipe_id: int) -> frozenset[int]:
+    """
+    Return the ids of every recipe sharing *recipe_id*'s version line, or an empty
+    set when it belongs to no version line.
+    """
+    member = models.RecipeGroupMember.objects.filter(
+        recipe_id=recipe_id,
+        group_type=models.RecipeGroup.GROUP_TYPE_VERSION_LINE,
+    ).first()
+    if member is None:
+        return frozenset()
+    return frozenset(
+        models.RecipeGroupMember.objects
+        .filter(group_id=member.group_id, group_type=models.RecipeGroup.GROUP_TYPE_VERSION_LINE)
+        .values_list("recipe_id", flat=True)
+    )
+
+
+_RELATED_MOSAIC_SIZE = 3
+
+
+def _top_image_ids_by_recipe(*, recipe_ids: Sequence[int], per_recipe: int) -> dict[int, tuple[int, ...]]:
+    """
+    Map each recipe id to its best up-to-*per_recipe* image ids (rating desc, then
+    most recent). Recipes with no images are simply absent from the result.
+    """
+    if not recipe_ids:
+        return {}
+    buckets: dict[int, list[int]] = defaultdict(list)
+    rows = (
+        models.Image.objects
+        .filter(fujifilm_recipe_id__in=recipe_ids)
+        .order_by("-rating", "-taken_at", "id")
+        .values_list("fujifilm_recipe_id", "id")
+    )
+    for recipe_id, image_id in rows:
+        bucket = buckets[recipe_id]
+        if len(bucket) < per_recipe:
+            bucket.append(image_id)
+    return {recipe_id: tuple(ids) for recipe_id, ids in buckets.items()}
+
+
+@attrs.frozen
+class RelatedRecipeData:
+    id: int
+    name: str
+    film_simulation: str
+    film_sim_logo_filename: str | None
+    cover_image_id: int | None
+    # Up to _RELATED_MOSAIC_SIZE image ids for the card's photo mosaic, best first.
+    image_ids: tuple[int, ...]
+    similarity: float
+    # Plain-language closeness word derived from ``similarity`` (e.g. "Very close").
+    closeness_label: str
+
+
+def get_related_named_recipes(*, recipe_id: int, limit: int = 4) -> tuple[RelatedRecipeData, ...]:
+    """
+    Return the *limit* named recipes most similar to *recipe_id*, most similar first.
+
+    Excluded: unnamed recipes, the recipe itself, and any recipe in the same version
+    line (those are already reachable through the version history and would only
+    crowd out genuinely different neighbours). Every *other* version line is
+    collapsed to its single most similar member, so the results span distinct
+    recipes rather than several versions of one. Recipes in no version line each
+    stand on their own. Similarity is the ADR 019 metric, computed in the database
+    by :func:`src.domain.recipes.similarity.annotate_similarity`. Each result
+    carries its cover image (the explicit cover if set, otherwise the highest-rated
+    image).
+
+    :raises models.FujifilmRecipe.DoesNotExist: If no recipe with *recipe_id* exists.
+    """
+    reference = models.FujifilmRecipe.objects.get(pk=recipe_id)
+    version_line_recipe_ids = _version_line_recipe_ids(recipe_id=recipe_id)
+    cover_subquery = (
+        models.Image.objects.filter(fujifilm_recipe=OuterRef("pk"))
+        .order_by("-rating", "-taken_at", "id")
+        .values("id")[:1]
+    )
+    version_line_subquery = (
+        models.RecipeGroupMember.objects
+        .filter(recipe=OuterRef("pk"), group_type=models.RecipeGroup.GROUP_TYPE_VERSION_LINE)
+        .values("group_id")[:1]
+    )
+    candidates = (
+        models.FujifilmRecipe.objects
+        .exclude(pk=recipe_id)
+        .exclude(name="")
+        .exclude(pk__in=version_line_recipe_ids)
+        .annotate(
+            fallback_cover_image_id=Subquery(cover_subquery),
+            version_line_group_id=Subquery(version_line_subquery),
+        )
+    )
+    # Walk the ranked candidates and keep the most similar recipe per version
+    # line (standalone recipes, with no line, are each kept), stopping at *limit*.
+    ranked: list[models.FujifilmRecipe] = []
+    seen_version_lines: set[int] = set()
+    ordered = recipe_similarity.annotate_similarity(candidates, reference=reference).order_by("-similarity", "pk")
+    for recipe in ordered.iterator():
+        group_id = getattr(recipe, "version_line_group_id", None)
+        if group_id is not None:
+            if group_id in seen_version_lines:
+                continue
+            seen_version_lines.add(group_id)
+        ranked.append(recipe)
+        if len(ranked) >= limit:
+            break
+
+    images_by_recipe = _top_image_ids_by_recipe(
+        recipe_ids=[recipe.pk for recipe in ranked],
+        per_recipe=_RELATED_MOSAIC_SIZE,
+    )
+
+    results: list[RelatedRecipeData] = []
+    for recipe in ranked:
+        cover_image_id = recipe.cover_image_id or getattr(recipe, "fallback_cover_image_id", None)
+        # The mosaic leads with the recipe's cover, then its other best shots.
+        mosaic = images_by_recipe.get(recipe.pk, ())
+        if cover_image_id is not None and cover_image_id not in mosaic:
+            mosaic = (cover_image_id, *mosaic)
+        similarity = float(getattr(recipe, "similarity"))
+        results.append(RelatedRecipeData(
+            id=recipe.pk,
+            name=recipe.name,
+            film_simulation=recipe.film_simulation,
+            film_sim_logo_filename=FILM_SIM_LOGO.get(recipe.film_simulation),
+            cover_image_id=cover_image_id,
+            image_ids=mosaic[:_RELATED_MOSAIC_SIZE],
+            similarity=similarity,
+            closeness_label=recipe_similarity.closeness_label(similarity),
+        ))
+    return tuple(results)
+
+
 @attrs.frozen
 class RecipeDetailContext:
     recipe: RecipeData
     is_monochromatic: bool
     settings_editable: bool
     collections: tuple[CollectionSummaryData, ...]
+    related_recipes: tuple[RelatedRecipeData, ...]
 
 
 def get_recipe_detail(*, recipe_id: int) -> RecipeDetailContext:
@@ -626,6 +764,7 @@ def get_recipe_detail(*, recipe_id: int) -> RecipeDetailContext:
         is_monochromatic=recipe_data.film_simulation in MONOCHROMATIC_FILM_SIMULATIONS,
         settings_editable=recipe_is_editable(recipe_id=recipe_id),
         collections=tuple(get_collections_for_recipe(recipe_id=recipe_id)),
+        related_recipes=get_related_named_recipes(recipe_id=recipe_id, limit=4),
     )
 
 
