@@ -5,6 +5,7 @@ from collections.abc import Iterable, Mapping, Sequence
 import attrs
 
 from src.data import models
+from src.domain.recipes import similarity as recipe_similarity
 
 # Recipe fields compared when computing Hamming distance between two recipes.
 # Each field counts as one unit of distance when its value differs.
@@ -52,7 +53,15 @@ def hamming_distance(
 class RecipeTreeNode:
     id: int
     label: str
+    # Hamming distance from the root (number of fields differing). This drives
+    # the node's ring radius and the spanning-tree topology (ADR 002).
     distance: int
+    # Overall similarity to the root in [0, 1] (1.0 is the root itself). Shown as
+    # the node's closeness badge; it does not affect the layout.
+    similarity: float
+    # Plain-language band for `similarity` (e.g. "Very close"), from
+    # `similarity.closeness_label`.
+    closeness_label: str
     image_count: int
     # False when the recipe has no name and `label` is the "#<pk>" fallback.
     is_named: bool
@@ -74,27 +83,6 @@ class RecipeTreeData:
     root_id: int | None
     nodes: tuple[RecipeTreeNode, ...]
     edges: tuple[RecipeTreeEdge, ...]
-
-
-def recipes_within_distance(
-    *,
-    root: models.FujifilmRecipe,
-    all_recipes: Iterable[models.FujifilmRecipe],
-    max_distance: int,
-) -> list[models.FujifilmRecipe]:
-    """
-    Return *root* plus every recipe whose Hamming distance from it is strictly
-    less than *max_distance*.
-
-    The root is always included, even when *max_distance* is zero, so the result
-    is never empty and always usable as a candidate set for `build_recipe_tree`.
-    """
-    within = [root]
-    within.extend(
-        recipe for recipe in all_recipes
-        if recipe.pk != root.pk and hamming_distance(a=root, b=recipe) < max_distance
-    )
-    return within
 
 
 def named_recipes(
@@ -123,31 +111,34 @@ def build_recipe_tree(
     root: models.FujifilmRecipe,
     candidates: Sequence[models.FujifilmRecipe],
     image_counts: Mapping[int, int],
+    identity_weight: float = recipe_similarity.A,
+    extras_weight: float = recipe_similarity.B,
 ) -> RecipeTreeData:
     """
     Build a shortest-path spanning tree over *candidates*, rooted at *root*.
 
     The caller decides which recipes are candidates: all recipes sharing a film
-    simulation, or everything within a maximum distance of the root. Every
+    simulation, or everything at least similar enough to the root. Every
     candidate ends up in the tree, so the graph never contains isolated islands.
     *root* is included whether or not it appears in *candidates*.
 
-    Each node is connected to a parent satisfying the shortest-path constraint
+    The topology is **Hamming distance** (ADR 002): a node's ring radius is its
+    Hamming distance from the root, and each node is connected to a parent
+    satisfying the shortest-path constraint
     `dist(root, P) + dist(P, node) == dist(root, node)`, so summing the edge
     distances along any root to node path gives the node's true Hamming distance
     from the root. Among all valid parents the one minimising the direct edge
-    distance is chosen, producing the most chain-like structure available.
+    distance is chosen, producing the most chain-like structure available. When
+    no parent satisfies the constraint the node is attached to the nearest in-tree
+    node and its edge is marked `is_exact=False` (drawn dashed).
 
-    When no parent satisfies the constraint the node is attached to the nearest
-    node already in the tree and its edge is marked `is_exact=False`. Path sums
-    through such an edge exceed the true distance, so callers should present
-    them differently.
+    Each node *also* carries its overall `similarity` to the root (ADR 019), shown
+    as a closeness badge. Similarity does not affect the layout; it only annotates
+    the node. The *identity_weight* / *extras_weight* are the ADR 019 A/B knobs,
+    passed through from the runtime settings so the badge agrees with the panel.
 
     Nodes are processed in ascending distance-from-root order, which guarantees
     every candidate parent is already in the tree when a node is attached.
-
-    Node `distance` is `hamming_distance(root, node)`, not hop depth.
-    Edge `distance` is the Hamming distance between the two connected recipes.
     """
     recipes = list(candidates)
     if all(recipe.pk != root.pk for recipe in recipes):
@@ -157,6 +148,16 @@ def build_recipe_tree(
 
     dist_from_root: dict[int, int] = {
         recipe.pk: (0 if recipe.pk == root.pk else hamming_distance(a=root, b=recipe))
+        for recipe in recipes
+    }
+    similarity_to_root: dict[int, float] = {
+        recipe.pk: (
+            1.0
+            if recipe.pk == root.pk
+            else recipe_similarity.compute_similarity(
+                a=root, b=recipe, identity_weight=identity_weight, extras_weight=extras_weight,
+            )
+        )
         for recipe in recipes
     }
 
@@ -208,6 +209,8 @@ def build_recipe_tree(
             id=recipe.pk,
             label=recipe.name or f"#{recipe.pk}",
             distance=dist_from_root[recipe.pk],
+            similarity=similarity_to_root[recipe.pk],
+            closeness_label=recipe_similarity.closeness_label(similarity_to_root[recipe.pk]),
             image_count=image_counts.get(recipe.pk, 0),
             is_named=bool(recipe.name),
         )

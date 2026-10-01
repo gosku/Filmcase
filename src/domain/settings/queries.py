@@ -100,8 +100,18 @@ def get_recipe_explorer_page_size() -> int:
     return value
 
 
-def get_recipe_graph_max_distance() -> int:
-    value: int = config.RECIPE_GRAPH_MAX_DISTANCE
+def get_recipe_graph_min_similarity() -> float:
+    value: float = config.RECIPE_GRAPH_MIN_SIMILARITY
+    return value
+
+
+def get_recipe_similarity_identity_weight() -> float:
+    value: float = config.RECIPE_SIMILARITY_IDENTITY_WEIGHT
+    return value
+
+
+def get_recipe_similarity_extras_weight() -> float:
+    value: float = config.RECIPE_SIMILARITY_EXTRAS_WEIGHT
     return value
 
 
@@ -166,9 +176,11 @@ def get_app_settings() -> AppSettings:
         camera_retry_backoff_s=get_camera_retry_backoff_s(),
         camera_usb_timeout_ms=get_camera_usb_timeout_ms(),
         recipe_explorer_page_size=get_recipe_explorer_page_size(),
-        recipe_graph_max_distance=get_recipe_graph_max_distance(),
+        recipe_graph_min_similarity=get_recipe_graph_min_similarity(),
         recipe_card_aperture_scrim_top_opacity=get_recipe_card_aperture_scrim_top_opacity(),
         recipe_card_aperture_scrim_bottom_opacity=get_recipe_card_aperture_scrim_bottom_opacity(),
+        recipe_similarity_identity_weight=get_recipe_similarity_identity_weight(),
+        recipe_similarity_extras_weight=get_recipe_similarity_extras_weight(),
         gallery_page_size=get_gallery_page_size(),
         image_max_rating=get_image_max_rating(),
         thumbnail_widths=get_thumbnail_widths(),

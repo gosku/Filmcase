@@ -26,9 +26,20 @@
     <div class="graph-sidebar__section">
       <div class="graph-sidebar__label">Reference recipe</div>
       <p class="sidebar-recipe-name">{{ recipe_name }}</p>
-      <p class="sidebar-meta">Max distance: {{ max_distance }}</p>
     </div>
     {% endif %}
+
+    <div class="graph-sidebar__section graph-threshold">
+      <div class="graph-sidebar__label">Show recipes</div>
+      <p class="graph-threshold__value">Similar or closer &middot; <b id="threshold-value">&ge; {{ min_similarity_pct }}%</b></p>
+      <input type="range" class="graph-threshold__slider" id="similarity-threshold"
+             min="0" max="100" step="5" value="{{ min_similarity_pct }}"
+             aria-label="Minimum similarity">
+      <div class="graph-threshold__scale">
+        <span>Loosely related</span>
+        <span>Identical</span>
+      </div>
+    </div>
 
     <div id="graph-sidebar-body" class="graph-sidebar__body">
       {% include "recipes/includes/graph_sidebar_body.html" %}
@@ -72,6 +83,7 @@
 <script id="init-data" type="application/json">
   {
     "named_only": {% if named_only %}true{% else %}false{% endif %},
+    "min_similarity_pct": {{ min_similarity_pct }},
     "root_id": {% if root_id %}{{ root_id }}{% else %}null{% endif %},
     "root_label": "{{ root_label|escapejs }}",
     "elements": {{ graph_elements_json|safe }}
@@ -84,14 +96,15 @@
   (function () {
     var initData = JSON.parse(document.getElementById("init-data").textContent);
     var namedOnly = initData.named_only;
+    var minSimilarityPct = initData.min_similarity_pct;
 
-    function graphUrl(recipeId, named) {
-      var url = "/recipes/graph/" + recipeId + "/";
-      return named ? url + "?named=1" : url;
+    function graphUrl(recipeId, named, minPct) {
+      var url = "/recipes/graph/" + recipeId + "/?min_similarity=" + minPct;
+      return named ? url + "&named=1" : url;
     }
 
-    function loadGraph(recipeId, named, rootLabel) {
-      var url = graphUrl(recipeId, named);
+    function loadGraph(recipeId, named, minPct) {
+      var url = graphUrl(recipeId, named, minPct);
       fetch(url, {headers: {"Accept": "application/json"}})
         .then(function (response) { return response.json(); })
         .then(function (data) {
@@ -114,13 +127,29 @@
       rootLabel: initData.root_label,
       // Re-root onto the selected recipe without a page reload.
       onSelectedGraphRequested: function (nodeId) {
-        loadGraph(nodeId, namedOnly);
+        loadGraph(nodeId, namedOnly, minSimilarityPct);
       },
       onNamedOnlyChanged: function (nextNamedOnly) {
         namedOnly = nextNamedOnly;
-        loadGraph(graph.getRootId(), namedOnly);
+        loadGraph(graph.getRootId(), namedOnly, minSimilarityPct);
       },
     });
+
+    // The similarity slider re-filters the neighbourhood. The label tracks the
+    // drag live; the graph reloads once the value settles.
+    var thresholdSlider = document.getElementById("similarity-threshold");
+    var thresholdValue = document.getElementById("threshold-value");
+    if (thresholdSlider) {
+      thresholdSlider.addEventListener("input", function () {
+        if (thresholdValue) {
+          thresholdValue.innerHTML = "≥ " + thresholdSlider.value + "%";
+        }
+      });
+      thresholdSlider.addEventListener("change", function () {
+        minSimilarityPct = Number(thresholdSlider.value);
+        loadGraph(graph.getRootId(), namedOnly, minSimilarityPct);
+      });
+    }
 
     if (window.RecipeGraphMobile) {
       window.RecipeGraphMobile.setup(graph.cy);

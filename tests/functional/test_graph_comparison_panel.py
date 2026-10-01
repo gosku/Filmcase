@@ -252,3 +252,77 @@ class TestGraphPagesRenderThePanelOnLoad:
         )
 
         assert "graph-panel__header" in json.loads(response.content)["panel_html"]
+
+
+@pytest.mark.django_db
+class TestComparisonPanelSimilarityHeadline:
+    def test_headline_shows_score_and_closeness(self, client):
+        reference = _recipe(color_chrome_effect="Off")
+        compared = _recipe(color_chrome_effect="Strong")
+
+        response = _get(client, reference, compared)
+
+        headline = _soup(response).find(class_="graph-similarity")
+        assert headline is not None
+        score = headline.find(class_="graph-similarity__score").get_text(strip=True)
+        assert score.endswith("%")
+        assert headline.find(class_="graph-similarity__badge").get_text(strip=True)
+
+    def test_headline_shows_the_identity_and_extras_split(self, client):
+        reference = _recipe(color_chrome_effect="Off")
+        compared = _recipe(color_chrome_effect="Strong")
+
+        response = _get(client, reference, compared)
+
+        values = [
+            el.get_text(strip=True)
+            for el in _soup(response).find_all(class_="graph-similarity__round-value")
+        ]
+        assert len(values) == 2
+        assert all(v.endswith("%") for v in values)
+
+    def test_reference_only_panel_has_no_headline(self, client):
+        reference = _recipe()
+
+        response = _get(client, reference)
+
+        assert _soup(response).find(class_="graph-similarity") is None
+
+
+@pytest.mark.django_db
+class TestComparisonPanelSimilarityInfo:
+    def _popover(self, response):
+        return _soup(response).find(class_="graph-similarity__info-popover")
+
+    def test_compared_panel_has_an_info_popover(self, client):
+        reference = _recipe(color_chrome_effect="Off")
+        compared = _recipe(color_chrome_effect="Strong")
+
+        response = _get(client, reference, compared)
+
+        soup = _soup(response)
+        assert soup.find(class_="graph-similarity__info-btn") is not None
+        popover = self._popover(response)
+        assert popover is not None
+        # At most two short paragraphs, defining Identity and Extras.
+        assert len(popover.find_all("p")) == 2
+        text = popover.get_text()
+        assert "Identity" in text
+        assert "Extras" in text
+
+    def test_info_popover_links_to_adr_019(self, client):
+        reference = _recipe(color_chrome_effect="Off")
+        compared = _recipe(color_chrome_effect="Strong")
+
+        response = _get(client, reference, compared)
+
+        link = self._popover(response).find("a")
+        assert link is not None
+        assert "019-recipe-similarity-metric" in link["href"]
+
+    def test_reference_only_panel_has_no_info_popover(self, client):
+        reference = _recipe()
+
+        response = _get(client, reference)
+
+        assert self._popover(response) is None

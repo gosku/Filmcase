@@ -162,3 +162,44 @@ class TestComputeSimilarity:
         a = _recipe(film_simulation="Acros STD", monochromatic_color_warm_cool=Decimal("0.0"), monochromatic_color_magenta_green=Decimal("0.0"))
         b = _recipe(film_simulation="Acros STD", monochromatic_color_warm_cool=Decimal("2.0"), monochromatic_color_magenta_green=Decimal("0.0"))
         assert similarity.compute_similarity(a=a, b=b) > 0.98
+
+    def test_custom_weights_change_the_score(self) -> None:
+        # Two recipes sharing identity but differing on extras land at the identity
+        # weight when extras are ignored (extras_weight 0), and higher when extras
+        # count. This is exactly the runtime A/B knob.
+        v2 = _recipe(**_PORTRA_V2)
+        v3 = _recipe(**_PORTRA_V3)
+        identity_only = similarity.compute_similarity(a=v2, b=v3, identity_weight=1.0, extras_weight=0.0)
+        balanced = similarity.compute_similarity(a=v2, b=v3, identity_weight=0.7, extras_weight=0.3)
+        assert identity_only == pytest.approx(1.0, abs=1e-9)
+        assert identity_only > balanced
+
+
+class TestComputeSimilarityBreakdown:
+    def test_similarity_matches_the_scalar_helper(self) -> None:
+        a = _recipe(**_PORTRA_V2)
+        b = _recipe(**_TRI_X)
+        breakdown = similarity.compute_similarity_breakdown(a=a, b=b)
+        assert breakdown.similarity == pytest.approx(similarity.compute_similarity(a=a, b=b))
+
+    def test_identical_recipes_score_one_on_both_rounds(self) -> None:
+        a = _recipe(**_PORTRA_V2)
+        breakdown = similarity.compute_similarity_breakdown(a=a, b=a)
+        assert breakdown.identity_score == pytest.approx(1.0)
+        assert breakdown.extras_score == pytest.approx(1.0)
+        assert breakdown.similarity == pytest.approx(1.0)
+
+    def test_shared_identity_gives_full_identity_score(self) -> None:
+        # v2/v3 share every identity field and differ only on extras.
+        v2 = _recipe(**_PORTRA_V2)
+        v3 = _recipe(**_PORTRA_V3)
+        breakdown = similarity.compute_similarity_breakdown(a=v2, b=v3)
+        assert breakdown.identity_score == pytest.approx(1.0)
+        assert breakdown.extras_score < 1.0
+
+    def test_combines_rounds_with_the_given_weights(self) -> None:
+        v2 = _recipe(**_PORTRA_V2)
+        tri_x = _recipe(**_TRI_X)
+        breakdown = similarity.compute_similarity_breakdown(a=v2, b=tri_x, identity_weight=0.6, extras_weight=0.4)
+        expected = breakdown.identity_score * (0.6 + 0.4 * breakdown.extras_score)
+        assert breakdown.similarity == pytest.approx(expected)

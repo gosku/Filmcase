@@ -84,13 +84,18 @@ class TestRecipesGraphView:
         assert str(provia.pk) in node_ids
         assert str(velvia.pk) not in node_ids
 
-    def test_node_data_includes_distance(self, client):
+    def test_node_data_includes_distance_and_closeness(self, client):
         FujifilmRecipeFactory(film_simulation="Provia")
 
         response = _get(client, film_sim="Provia")
 
         node = _nodes(response)[0]
+        # The layout is driven by distance; the closeness fields ride along for
+        # the node badge.
         assert "distance" in node["data"]
+        assert "similarity" in node["data"]
+        assert "similarity_pct" in node["data"]
+        assert "closeness_label" in node["data"]
 
     def test_root_node_has_is_root_true(self, client):
         FujifilmRecipeFactory(film_simulation="Provia")
@@ -446,7 +451,7 @@ class TestRecipeGraphJson:
         assert data["root_label"] == f"#{recipe.pk}"
 
     def test_json_path_sums_match_node_distances(self, client):
-        # The invariant the per-recipe graph previously broke, checked end to end.
+        # The Hamming invariant, checked end to end through the JSON payload.
         root = _recipe(grain_roughness="Off", grain_size="Off", color_chrome_effect="Off")
         _recipe(grain_roughness="Strong", grain_size="Off", color_chrome_effect="Off")
         _recipe(grain_roughness="Strong", grain_size="Large", color_chrome_effect="Off")
@@ -466,6 +471,8 @@ class TestRecipeGraphJson:
             e["data"]["target"]: e["data"]["distance"]
             for e in data["elements"] if "source" in e["data"]
         }
+        # Nodes also carry their closeness to the root for the badge.
+        assert all("similarity_pct" in e["data"] for e in data["elements"] if "source" not in e["data"])
 
         for node_id in node_distance:
             pk = node_id
@@ -474,3 +481,44 @@ class TestRecipeGraphJson:
                 total += edge_distance[pk]
                 pk = parent_of[pk]
             assert total == node_distance[node_id]
+
+
+@pytest.mark.django_db
+class TestRecipeGraphSimilarityThreshold:
+    def test_slider_is_rendered_with_the_default_floor(self, client):
+        recipe = _recipe()
+
+        response = client.get(f"/recipes/graph/{recipe.pk}/")
+
+        body = response.content.decode()
+        assert 'id="similarity-threshold"' in body
+        # The default RECIPE_GRAPH_MIN_SIMILARITY is 0.8 -> 80%.
+        assert response.context["min_similarity_pct"] == 80
+
+    def test_a_full_floor_prunes_every_neighbour(self, client):
+        root = _recipe(color_chrome_effect="Off")
+        _recipe(color_chrome_effect="Strong")
+
+        response = client.get(
+            f"/recipes/graph/{root.pk}/",
+            {"min_similarity": "100"},
+            HTTP_ACCEPT="application/json",
+        )
+
+        data = json.loads(response.content)
+        node_ids = {e["data"]["id"] for e in data["elements"] if "source" not in e["data"]}
+        assert node_ids == {str(root.pk)}
+
+    def test_a_zero_floor_keeps_neighbours(self, client):
+        root = _recipe(color_chrome_effect="Off")
+        neighbour = _recipe(color_chrome_effect="Strong")
+
+        response = client.get(
+            f"/recipes/graph/{root.pk}/",
+            {"min_similarity": "0"},
+            HTTP_ACCEPT="application/json",
+        )
+
+        data = json.loads(response.content)
+        node_ids = {e["data"]["id"] for e in data["elements"] if "source" not in e["data"]}
+        assert str(neighbour.pk) in node_ids

@@ -45,6 +45,11 @@ Context: recipes_by_usage, root_id, named_only, comparing (bool).
               data-recipe-id="{{ row.id }}">
         <span class="graph-recipe-list__dot"></span>
         <span class="graph-recipe-list__name">{{ row.label }}</span>
+        {% if row.is_reference %}
+        <span class="graph-recipe-list__chip graph-recipe-list__chip--root">root</span>
+        {% else %}
+        <span class="graph-recipe-list__chip graph-recipe-list__chip--{{ row.closeness_label|slugify }}">{{ row.similarity_pct }}%</span>
+        {% endif %}
         <span class="graph-recipe-list__uses">{{ row.uses_display }}</span>
       </button>
     </li>

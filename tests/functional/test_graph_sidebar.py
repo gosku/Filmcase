@@ -209,3 +209,37 @@ class TestGraphSidebarIsReRenderedForFilterChanges:
 
         data = json.loads(response.content)
         assert "graph-recipe-list" in data["sidebar_html"]
+
+
+@pytest.mark.django_db
+class TestGraphSidebarClosenessChips:
+    def _chip(self, row):
+        return row.find(class_="graph-recipe-list__chip")
+
+    def test_non_reference_rows_show_a_closeness_percentage(self, client):
+        root = _recipe(name="Root", color_chrome_effect="Off")
+        ImageFactory.create_batch(5, fujifilm_recipe=root)
+        _recipe(name="Neighbour", color_chrome_effect="Strong")
+
+        response = client.get("/recipes/graph/", {"film_sim": _DEFAULT_SIM})
+
+        rows = _rows(response)
+        neighbour = next(r for r in rows if r.find(class_="graph-recipe-list__name").get_text(strip=True) == "Neighbour")
+        chip = self._chip(neighbour)
+        assert chip is not None
+        assert chip.get_text(strip=True).endswith("%")
+
+    def test_reference_row_shows_the_root_chip(self, client):
+        root = _recipe(name="Root", color_chrome_effect="Off")
+        ImageFactory.create_batch(5, fujifilm_recipe=root)
+        _recipe(name="Neighbour", color_chrome_effect="Strong")
+
+        response = client.get("/recipes/graph/", {"film_sim": _DEFAULT_SIM})
+
+        reference_row = next(
+            r for r in _rows(response)
+            if "graph-recipe-list__row--reference" in r.get("class", [])
+        )
+        chip = self._chip(reference_row)
+        assert chip is not None
+        assert chip.get_text(strip=True) == "root"

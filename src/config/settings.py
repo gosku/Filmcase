@@ -87,9 +87,11 @@ STATIC_FILES_DIR = BASE_DIR / "src/interfaces/static"  # directory served at /st
 GALLERY_PAGE_SIZE: int = env.int("GALLERY_PAGE_SIZE", default=24)  # number of images shown per page in the gallery view
 RECIPE_EXPLORER_PAGE_SIZE: int = env.int("RECIPE_EXPLORER_PAGE_SIZE", default=24)  # number of recipes shown per page in the recipe explorer
 IMAGE_MAX_RATING: int = env.int("IMAGE_MAX_RATING", default=5)  # maximum star rating a user can assign to an image (1–N)
-RECIPE_GRAPH_MAX_DISTANCE: int = env.int("RECIPE_GRAPH_MAX_DISTANCE", default=7)  # maximum Hamming distance for an edge to appear in the recipe relationship graph
+RECIPE_GRAPH_MIN_SIMILARITY: float = env.float("RECIPE_GRAPH_MIN_SIMILARITY", default=0.8)  # default similarity floor (0–1) for a recipe to appear in the per-recipe neighbourhood graph
 RECIPE_CARD_APERTURE_SCRIM_TOP_OPACITY: int = env.int("RECIPE_CARD_APERTURE_SCRIM_TOP_OPACITY", default=20)  # % opacity of the Aperture card's darkening scrim at the top (0–100)
 RECIPE_CARD_APERTURE_SCRIM_BOTTOM_OPACITY: int = env.int("RECIPE_CARD_APERTURE_SCRIM_BOTTOM_OPACITY", default=60)  # % opacity of the Aperture card's darkening scrim at the bottom (0–100)
+RECIPE_SIMILARITY_IDENTITY_WEIGHT: float = env.float("RECIPE_SIMILARITY_IDENTITY_WEIGHT", default=0.7)  # weight of the identity round in the recipe similarity score (ADR 019 "A"; identity + extras should sum to 1)
+RECIPE_SIMILARITY_EXTRAS_WEIGHT: float = env.float("RECIPE_SIMILARITY_EXTRAS_WEIGHT", default=0.3)  # weight the extras round adds on top of identity in the recipe similarity score (ADR 019 "B")
 CAMERA_VERIFY_WRITES: bool = env.bool("CAMERA_VERIFY_WRITES", default=False)  # set to False to skip read-back verification after writing
 
 # Camera I/O policy — timing (seconds) and retry behaviour.
@@ -206,9 +208,11 @@ CONSTANCE_CONFIG: dict[str, tuple[object, str, type]] = {
     "CAMERA_RETRY_BACKOFF_S": (CAMERA_RETRY_BACKOFF_S, "Base back-off in seconds between camera retries; it doubles each attempt.", float),
     "CAMERA_USB_TIMEOUT_MS": (CAMERA_USB_TIMEOUT_MS, "How long in milliseconds one USB transfer may take before the camera is treated as unresponsive.", int),
     "RECIPE_EXPLORER_PAGE_SIZE": (RECIPE_EXPLORER_PAGE_SIZE, "Number of recipes shown per page in the recipe explorer.", int),
-    "RECIPE_GRAPH_MAX_DISTANCE": (RECIPE_GRAPH_MAX_DISTANCE, "Maximum difference between two recipes for them to be linked in the recipe graph. Higher values draw more connections.", int),
+    "RECIPE_GRAPH_MIN_SIMILARITY": (RECIPE_GRAPH_MIN_SIMILARITY, "Default minimum similarity (0-1) a recipe needs to the focused recipe to appear in its neighbourhood graph. Lower values draw in more distant recipes. Viewers can override it with the graph's slider.", float),
     "RECIPE_CARD_APERTURE_SCRIM_TOP_OPACITY": (RECIPE_CARD_APERTURE_SCRIM_TOP_OPACITY, "Opacity percentage (0-100) of the darkening gradient at the top of the Aperture recipe card.", int),
     "RECIPE_CARD_APERTURE_SCRIM_BOTTOM_OPACITY": (RECIPE_CARD_APERTURE_SCRIM_BOTTOM_OPACITY, "Opacity percentage (0-100) of the darkening gradient at the bottom of the Aperture recipe card.", int),
+    "RECIPE_SIMILARITY_IDENTITY_WEIGHT": (RECIPE_SIMILARITY_IDENTITY_WEIGHT, "How much a recipe's core look (film simulation, white balance, tone, colour) drives the similarity score (0-1). Higher makes identity differences dominate. Should sum to 1 with the extras weight below.", float),
+    "RECIPE_SIMILARITY_EXTRAS_WEIGHT": (RECIPE_SIMILARITY_EXTRAS_WEIGHT, "How much the secondary settings (dynamic range, grain, sharpness, noise) move the similarity score on top of identity (0-1). Should sum to 1 with the identity weight above.", float),
     "GALLERY_PAGE_SIZE": (GALLERY_PAGE_SIZE, "Number of images shown per page in the gallery.", int),
     "IMAGE_MAX_RATING": (IMAGE_MAX_RATING, "Highest star rating that can be given to an image.", int),
     "THUMBNAIL_WIDTHS": (_THUMBNAIL_WIDTHS_DEFAULT, "Comma-separated thumbnail widths in pixels to generate and cache (e.g. '600,1200'). Changing this does not regenerate or clear thumbnails already on disk: existing images keep their current widths until you regenerate them with the Generate thumbnails button below or the generate_thumbnails command.", str),
@@ -221,9 +225,11 @@ CONSTANCE_CONFIG: dict[str, tuple[object, str, type]] = {
 CONSTANCE_CONFIG_FIELDSETS: dict[str, tuple[str, ...]] = {
     "Recipes": (
         "RECIPE_EXPLORER_PAGE_SIZE",
-        "RECIPE_GRAPH_MAX_DISTANCE",
+        "RECIPE_GRAPH_MIN_SIMILARITY",
         "RECIPE_CARD_APERTURE_SCRIM_TOP_OPACITY",
         "RECIPE_CARD_APERTURE_SCRIM_BOTTOM_OPACITY",
+        "RECIPE_SIMILARITY_IDENTITY_WEIGHT",
+        "RECIPE_SIMILARITY_EXTRAS_WEIGHT",
     ),
     "Images": (
         "GALLERY_PAGE_SIZE",

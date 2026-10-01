@@ -25,6 +25,7 @@ from collections.abc import Iterable
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
+import attrs
 from django.db.models import Case, F, FloatField, Q, Value, When
 from django.db.models.expressions import Combinable, ExpressionWrapper
 from django.db.models.functions import Abs, Cast, Sqrt
@@ -41,9 +42,10 @@ if TYPE_CHECKING:
 # ---------------------------------------------------------------------------
 
 # Identity is the ceiling; extras can only move the score within the band it
-# allows: final = identity * (A + B * extras), with A + B = 1.
-# These two are runtime-tunable in ADR 019; kept as constants until the
-# django-constance wiring lands.
+# allows: final = identity * (A + B * extras), with A + B = 1. These are the
+# defaults; live callers pass the runtime-tunable django-constance values
+# (RECIPE_SIMILARITY_IDENTITY_WEIGHT / _EXTRAS_WEIGHT) so tests and the pure
+# oracle stay database-free while production honours the settings.
 A: float = 0.7
 B: float = 0.3
 
@@ -290,9 +292,30 @@ def _score(contributions: list[tuple[float, float]]) -> float:
     return 1.0 - numerator / denominator
 
 
-def compute_similarity(*, a: models.FujifilmRecipe, b: models.FujifilmRecipe) -> float:
+@attrs.frozen
+class SimilarityBreakdown:
     """
-    Return the similarity in ``[0, 1]`` between two recipes (``1.0`` identical).
+    The similarity score and the two round scores it is built from.
+
+    ``similarity`` is ``identity_score * (identity_weight + extras_weight *
+    extras_score)``. The round scores are exposed so callers can show how
+    identity and extras each contributed (the graph comparison panel does).
+    """
+
+    similarity: float
+    identity_score: float
+    extras_score: float
+
+
+def compute_similarity_breakdown(
+    *,
+    a: models.FujifilmRecipe,
+    b: models.FujifilmRecipe,
+    identity_weight: float = A,
+    extras_weight: float = B,
+) -> SimilarityBreakdown:
+    """
+    Return the similarity between two recipes with its identity/extras rounds.
 
     This is the reference implementation. `annotate_similarity` computes the
     same value in the database; the two are cross-checked in the tests.
@@ -350,7 +373,33 @@ def compute_similarity(*, a: models.FujifilmRecipe, b: models.FujifilmRecipe) ->
     _accumulate(extras, grain, EFFECT_WEIGHT)
     extras_score = _score(extras)
 
-    return identity_score * (A + B * extras_score)
+    similarity = identity_score * (identity_weight + extras_weight * extras_score)
+    return SimilarityBreakdown(
+        similarity=similarity,
+        identity_score=identity_score,
+        extras_score=extras_score,
+    )
+
+
+def compute_similarity(
+    *,
+    a: models.FujifilmRecipe,
+    b: models.FujifilmRecipe,
+    identity_weight: float = A,
+    extras_weight: float = B,
+) -> float:
+    """
+    Return the similarity in ``[0, 1]`` between two recipes (``1.0`` identical).
+
+    Thin wrapper over `compute_similarity_breakdown` for callers that only need
+    the final score.
+    """
+    return compute_similarity_breakdown(
+        a=a,
+        b=b,
+        identity_weight=identity_weight,
+        extras_weight=extras_weight,
+    ).similarity
 
 
 # ---------------------------------------------------------------------------
@@ -499,13 +548,17 @@ def annotate_similarity(
     queryset: QuerySet[models.FujifilmRecipe],
     *,
     reference: models.FujifilmRecipe,
+    identity_weight: float = A,
+    extras_weight: float = B,
 ) -> QuerySet[models.FujifilmRecipe]:
     """
     Annotate each recipe in *queryset* with a ``similarity`` float in ``[0, 1]``
     measuring how similar it is to *reference* (``1.0`` identical).
 
     The whole score is computed in the database, so callers can order and slice
-    without pulling every recipe into Python.
+    without pulling every recipe into Python. *identity_weight* and
+    *extras_weight* default to the module constants; live callers pass the
+    runtime django-constance values so the DB result matches the Python oracle.
     """
     identity_num: list[Combinable] = []
     identity_den: list[Combinable] = []
@@ -579,7 +632,7 @@ def annotate_similarity(
 
     identity_score = _wrap(_f(1.0) - _wrap(_sum(identity_num) / _sum(identity_den)))
     extras_score = _wrap(_f(1.0) - _wrap(_sum(extras_num) / _sum(extras_den)))
-    similarity = _wrap(identity_score * (_f(A) + _f(B) * extras_score))
+    similarity = _wrap(identity_score * (_f(identity_weight) + _f(extras_weight) * extras_score))
 
     return queryset.annotate(similarity=similarity)
 
@@ -605,6 +658,30 @@ def most_similar_recipes(
     if limit is not None:
         queryset = queryset[:limit]
     return queryset
+
+
+def recipes_at_least_similar(
+    *,
+    reference: models.FujifilmRecipe,
+    min_similarity: float,
+    identity_weight: float = A,
+    extras_weight: float = B,
+) -> list[models.FujifilmRecipe]:
+    """
+    Return every recipe (other than *reference*) whose similarity to *reference*
+    is at least *min_similarity*.
+
+    The filter runs in the database via `annotate_similarity`, so the whole
+    collection is never pulled into Python. This is the graph neighbourhood's
+    candidate cut, replacing the Hamming max-distance filter.
+    """
+    queryset = annotate_similarity(
+        models.FujifilmRecipe.objects.exclude(pk=reference.pk),
+        reference=reference,
+        identity_weight=identity_weight,
+        extras_weight=extras_weight,
+    ).filter(similarity__gte=min_similarity)  # type: ignore[misc]  # `similarity` is an annotation, not a model field
+    return list(queryset)
 
 
 def similarity_between(*, recipe_id_a: int, recipe_id_b: int) -> float:

@@ -6,7 +6,8 @@ from src.application.usecases.recipes.build_graph import (
     build_recipe_neighbourhood,
     build_recipe_network,
 )
-from src.domain.recipes.graph import RecipeTreeData, hamming_distance
+from src.domain.recipes.graph import RecipeTreeData
+from src.domain.recipes.similarity import compute_similarity
 from tests.factories import FujifilmRecipeFactory, ImageFactory
 
 
@@ -195,7 +196,7 @@ class TestBuildRecipeNeighbourhood:
     def test_returns_frozen_result(self):
         root = _recipe()
 
-        result = build_recipe_neighbourhood(root=root, max_distance=4)
+        result = build_recipe_neighbourhood(root=root, min_similarity=0.0)
 
         assert isinstance(result, RecipeNeighbourhoodResult)
         assert isinstance(result.graph_data, RecipeTreeData)
@@ -203,7 +204,7 @@ class TestBuildRecipeNeighbourhood:
     def test_root_is_the_given_recipe(self):
         root = _recipe()
 
-        result = build_recipe_neighbourhood(root=root, max_distance=4)
+        result = build_recipe_neighbourhood(root=root, min_similarity=0.0)
 
         assert result.graph_data.root_id == root.pk
 
@@ -211,7 +212,7 @@ class TestBuildRecipeNeighbourhood:
         root = _recipe()
         root.name = "My Provia"
 
-        result = build_recipe_neighbourhood(root=root, max_distance=4)
+        result = build_recipe_neighbourhood(root=root, min_similarity=0.0)
 
         assert result.root_label == "My Provia"
 
@@ -219,40 +220,46 @@ class TestBuildRecipeNeighbourhood:
         root = _recipe()
         assert root.name == ""
 
-        result = build_recipe_neighbourhood(root=root, max_distance=4)
+        result = build_recipe_neighbourhood(root=root, min_similarity=0.0)
 
         assert result.root_label == f"#{root.pk}"
 
-    def test_max_distance_is_echoed_back(self):
+    def test_min_similarity_is_echoed_back(self):
         root = _recipe()
 
-        result = build_recipe_neighbourhood(root=root, max_distance=5)
+        result = build_recipe_neighbourhood(root=root, min_similarity=0.6)
 
-        assert result.max_distance == 5
+        assert result.min_similarity == 0.6
 
     def test_nearby_recipe_is_included(self):
         root = _recipe(grain_roughness="Off")
         close = _recipe(grain_roughness="Strong")
 
-        result = build_recipe_neighbourhood(root=root, max_distance=4)
+        result = build_recipe_neighbourhood(root=root, min_similarity=0.0)
 
         assert close.pk in {n.id for n in result.graph_data.nodes}
 
-    def test_recipe_beyond_max_distance_is_excluded(self):
-        root = _recipe(grain_roughness="Off", grain_size="Off", color_chrome_effect="Off")
-        far = _recipe(grain_roughness="Strong", grain_size="Large", color_chrome_effect="Strong")
-        assert hamming_distance(a=root, b=far) == 3
+    def test_recipe_below_the_similarity_floor_is_excluded(self):
+        root = _recipe(film_simulation="Provia", color_chrome_effect="Off")
+        near = _recipe(film_simulation="Provia", color_chrome_effect="Strong")  # extras only
+        far = _recipe(film_simulation="Acros STD")  # colour to B&W: a large drop
 
-        result = build_recipe_neighbourhood(root=root, max_distance=3)
+        near_score = compute_similarity(a=root, b=near)
+        far_score = compute_similarity(a=root, b=far)
+        floor = (near_score + far_score) / 2
 
-        assert far.pk not in {n.id for n in result.graph_data.nodes}
+        result = build_recipe_neighbourhood(root=root, min_similarity=floor)
+
+        node_ids = {n.id for n in result.graph_data.nodes}
+        assert near.pk in node_ids
+        assert far.pk not in node_ids
 
     def test_recipes_from_other_film_simulations_are_included(self):
         # Unlike the film-sim network, the neighbourhood spans film simulations.
         root = _recipe(film_simulation="Provia")
         other_sim = _recipe(film_simulation="Velvia")
 
-        result = build_recipe_neighbourhood(root=root, max_distance=4)
+        result = build_recipe_neighbourhood(root=root, min_similarity=0.0)
 
         assert other_sim.pk in {n.id for n in result.graph_data.nodes}
 
@@ -260,7 +267,7 @@ class TestBuildRecipeNeighbourhood:
         root = _recipe()
         ImageFactory.create_batch(3, fujifilm_recipe=root)
 
-        result = build_recipe_neighbourhood(root=root, max_distance=4)
+        result = build_recipe_neighbourhood(root=root, min_similarity=0.0)
 
         node = next(n for n in result.graph_data.nodes if n.id == root.pk)
         assert node.image_count == 3
@@ -268,7 +275,7 @@ class TestBuildRecipeNeighbourhood:
     def test_solo_root_produces_a_single_node_and_no_edges(self):
         root = _recipe()
 
-        result = build_recipe_neighbourhood(root=root, max_distance=4)
+        result = build_recipe_neighbourhood(root=root, min_similarity=0.0)
 
         assert len(result.graph_data.nodes) == 1
         assert result.graph_data.edges == ()
@@ -280,7 +287,7 @@ class TestBuildRecipeNeighbourhood:
         named.save()
         unnamed = _recipe(grain_size="Large")
 
-        result = build_recipe_neighbourhood(root=root, max_distance=4, named_only=True)
+        result = build_recipe_neighbourhood(root=root, min_similarity=0.0, named_only=True)
 
         node_ids = {n.id for n in result.graph_data.nodes}
         assert named.pk in node_ids
@@ -290,7 +297,7 @@ class TestBuildRecipeNeighbourhood:
         root = _recipe(grain_roughness="Off")
         unnamed = _recipe(grain_roughness="Strong")
 
-        result = build_recipe_neighbourhood(root=root, max_distance=4)
+        result = build_recipe_neighbourhood(root=root, min_similarity=0.0)
 
         assert unnamed.pk in {n.id for n in result.graph_data.nodes}
         assert result.named_only is False
@@ -299,17 +306,28 @@ class TestBuildRecipeNeighbourhood:
         root = _recipe()
         assert root.name == ""
 
-        result = build_recipe_neighbourhood(root=root, max_distance=4, named_only=True)
+        result = build_recipe_neighbourhood(root=root, min_similarity=0.0, named_only=True)
 
         assert result.graph_data.root_id == root.pk
 
+    def test_nodes_carry_similarity_to_the_root(self):
+        root = _recipe(color_chrome_effect="Off")
+        other = _recipe(color_chrome_effect="Strong")
+
+        result = build_recipe_neighbourhood(root=root, min_similarity=0.0)
+
+        similarity = {n.id: n.similarity for n in result.graph_data.nodes}
+        assert similarity[root.pk] == pytest.approx(1.0)
+        assert similarity[other.pk] == pytest.approx(compute_similarity(a=root, b=other))
+
     def test_path_sums_match_distance_from_root(self):
-        # The invariant that the per-recipe graph previously broke.
+        # The layout is Hamming: the edge distances along each node's path to the
+        # root sum to the node's own distance from the root.
         root = _recipe(grain_roughness="Off", grain_size="Off", color_chrome_effect="Off")
         a = _recipe(grain_roughness="Strong", grain_size="Off", color_chrome_effect="Off")
         b = _recipe(grain_roughness="Strong", grain_size="Large", color_chrome_effect="Off")
 
-        result = build_recipe_neighbourhood(root=root, max_distance=4)
+        result = build_recipe_neighbourhood(root=root, min_similarity=0.0)
 
         parent_of = {e.target: e.source for e in result.graph_data.edges}
         distance_of = {e.target: e.distance for e in result.graph_data.edges}
