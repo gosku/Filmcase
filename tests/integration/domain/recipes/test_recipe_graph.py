@@ -7,8 +7,8 @@ from src.domain.recipes.graph import (
     build_recipe_tree,
     hamming_distance,
     named_recipes,
-    recipes_within_distance,
 )
+from src.domain.recipes.similarity import closeness_label, compute_similarity
 from tests.factories import FujifilmRecipeFactory
 
 
@@ -73,65 +73,6 @@ class TestHammingDistance:
         base = FujifilmRecipeFactory(white_balance_red=0, white_balance_blue=0)
         other = FujifilmRecipeFactory(white_balance_red=2, white_balance_blue=-3)
         assert hamming_distance(a=base, b=other) == 2
-
-
-# ---------------------------------------------------------------------------
-# recipes_within_distance
-# ---------------------------------------------------------------------------
-
-@pytest.mark.django_db
-class TestRecipesWithinDistance:
-    def test_root_is_always_included(self):
-        root = _recipe()
-        within = recipes_within_distance(root=root, all_recipes=[root], max_distance=4)
-        assert [r.pk for r in within] == [root.pk]
-
-    def test_root_is_included_even_when_max_distance_is_zero(self):
-        root = _recipe()
-        within = recipes_within_distance(root=root, all_recipes=[root], max_distance=0)
-        assert [r.pk for r in within] == [root.pk]
-
-    def test_root_is_included_when_absent_from_all_recipes(self):
-        root = _recipe()
-        within = recipes_within_distance(root=root, all_recipes=[], max_distance=4)
-        assert [r.pk for r in within] == [root.pk]
-
-    def test_nearby_recipe_is_included(self):
-        root = _recipe(grain_roughness="Off")
-        close = _recipe(grain_roughness="Strong")
-        within = recipes_within_distance(root=root, all_recipes=[root, close], max_distance=4)
-        assert close.pk in {r.pk for r in within}
-
-    def test_recipe_at_max_distance_is_excluded(self):
-        # The boundary is strict: a recipe exactly max_distance away is dropped.
-        root = _recipe(grain_roughness="Off", grain_size="Off")
-        two_away = _recipe(grain_roughness="Strong", grain_size="Large")
-        assert hamming_distance(a=root, b=two_away) == 2
-
-        within = recipes_within_distance(root=root, all_recipes=[root, two_away], max_distance=2)
-        assert two_away.pk not in {r.pk for r in within}
-
-    def test_recipe_just_inside_max_distance_is_included(self):
-        root = _recipe(grain_roughness="Off", grain_size="Off")
-        two_away = _recipe(grain_roughness="Strong", grain_size="Large")
-        assert hamming_distance(a=root, b=two_away) == 2
-
-        within = recipes_within_distance(root=root, all_recipes=[root, two_away], max_distance=3)
-        assert two_away.pk in {r.pk for r in within}
-
-    def test_other_film_simulations_are_eligible(self):
-        # Unlike the film-sim graph, this candidate set spans film simulations.
-        root = _recipe(film_simulation="Provia")
-        other_sim = _recipe(film_simulation="Velvia")
-        assert hamming_distance(a=root, b=other_sim) == 1
-
-        within = recipes_within_distance(root=root, all_recipes=[root, other_sim], max_distance=4)
-        assert other_sim.pk in {r.pk for r in within}
-
-    def test_root_is_not_duplicated_when_present_in_all_recipes(self):
-        root = _recipe()
-        within = recipes_within_distance(root=root, all_recipes=[root, root], max_distance=4)
-        assert [r.pk for r in within] == [root.pk]
 
 
 # ---------------------------------------------------------------------------
@@ -259,6 +200,22 @@ class TestBuildRecipeTreeNodes:
         graph = build_recipe_tree(root=root, candidates=[root, n2, n3], image_counts={})
         node = next(n for n in graph.nodes if n.id == n3.pk)
         assert node.distance == 2  # hamming_distance(root, n3), not hop count
+
+    def test_root_carries_full_similarity(self):
+        # The layout is Hamming, but each node also carries its closeness badge.
+        root = _recipe()
+        graph = build_recipe_tree(root=root, candidates=[root], image_counts={})
+        node = next(n for n in graph.nodes if n.id == root.pk)
+        assert node.similarity == pytest.approx(1.0)
+        assert node.closeness_label == "Very close"
+
+    def test_node_carries_similarity_to_root(self):
+        root = _recipe(color_chrome_effect="Off")
+        other = _recipe(color_chrome_effect="Strong")
+        graph = build_recipe_tree(root=root, candidates=[root, other], image_counts={})
+        node = next(n for n in graph.nodes if n.id == other.pk)
+        assert node.similarity == pytest.approx(compute_similarity(a=root, b=other))
+        assert node.closeness_label == closeness_label(node.similarity)
 
     def test_includes_nodes_at_any_distance_with_no_cutoff(self):
         # The builder itself applies no cutoff; callers pre-filter candidates.
@@ -431,10 +388,10 @@ class TestBuildRecipeTreeEdges:
         for recipe in [a, b, c]:
             assert _path_sum(graph, recipe.pk) == hamming_distance(a=root, b=recipe)
 
-    def test_path_sum_holds_for_a_candidate_set_truncated_by_max_distance(self):
-        # This is the per-recipe graph's situation: candidates are cut off at a
-        # maximum distance, so some intermediate recipes are missing. The invariant
-        # must still hold for every node reached through an exact edge.
+    def test_path_sum_holds_for_a_truncated_candidate_set(self):
+        # This is the per-recipe graph's situation: candidates are cut off (here
+        # by the similarity floor), so some intermediate recipes are missing. The
+        # invariant must still hold for every node reached through an exact edge.
         root = _recipe(
             grain_roughness="Off", grain_size="Off",
             color_chrome_effect="Off", color_chrome_fx_blue="Off",
@@ -447,21 +404,15 @@ class TestBuildRecipeTreeEdges:
             grain_roughness="Strong", grain_size="Large",
             color_chrome_effect="Off", color_chrome_fx_blue="Off",
         )
-        far = _recipe(
-            grain_roughness="Strong", grain_size="Large",
-            color_chrome_effect="Strong", color_chrome_fx_blue="Strong",
-        )
-        all_recipes = [root, near, mid, far]
-
-        candidates = recipes_within_distance(root=root, all_recipes=all_recipes, max_distance=3)
-        assert far.pk not in {r.pk for r in candidates}  # distance 4, cut off
+        # `far` (distance 4 from root) is deliberately left out of the candidates.
+        candidates = [root, near, mid]
 
         graph = build_recipe_tree(root=root, candidates=candidates, image_counts={})
 
         for node in graph.nodes:
             if node.id == root.pk:
                 continue
-            recipe = next(r for r in all_recipes if r.pk == node.id)
+            recipe = next(r for r in candidates if r.pk == node.id)
             assert _path_sum(graph, node.id) == hamming_distance(a=root, b=recipe)
 
     def test_edges_are_exact_when_the_shortest_path_constraint_holds(self):
