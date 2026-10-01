@@ -1074,11 +1074,83 @@ body {
    ===================================== */
 
 .graph-similarity {
+    position: relative;
     margin-top: 14px;
     padding: 13px 15px;
     border: 1px solid #d9ecdf;
     border-radius: 11px;
     background: #f4faf5;
+}
+
+/* Info popover: a native <details> so it survives the panel being re-rendered
+   and needs no JavaScript. */
+
+.graph-similarity__info {
+    position: absolute;
+    top: 10px;
+    right: 11px;
+}
+
+.graph-similarity__info-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    color: #6b8a74;
+    background: transparent;
+    cursor: pointer;
+    list-style: none;
+}
+
+.graph-similarity__info-btn::-webkit-details-marker {
+    display: none;
+}
+
+.graph-similarity__info-btn:hover {
+    color: #166534;
+    background: rgba(22, 101, 52, .08);
+}
+
+.graph-similarity__info[open] .graph-similarity__info-btn {
+    color: #166534;
+    background: rgba(22, 101, 52, .12);
+}
+
+.graph-similarity__info-popover {
+    position: absolute;
+    top: 26px;
+    right: 0;
+    z-index: 20;
+    width: 278px;
+    max-width: 82vw;
+    padding: 12px 14px;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    background: #ffffff;
+    box-shadow: 0 8px 24px rgba(20, 30, 45, .14);
+    font-size: 12px;
+    line-height: 1.5;
+    color: #4b5563;
+    text-align: left;
+}
+
+.graph-similarity__info-popover p {
+    margin: 0;
+}
+
+.graph-similarity__info-popover p + p {
+    margin-top: 9px;
+}
+
+.graph-similarity__info-popover b {
+    color: #1f2937;
+}
+
+.graph-similarity__info-popover a {
+    color: var(--color-accent);
+    font-weight: 600;
 }
 
 .graph-similarity__head {

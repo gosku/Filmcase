@@ -287,3 +287,42 @@ class TestComparisonPanelSimilarityHeadline:
         response = _get(client, reference)
 
         assert _soup(response).find(class_="graph-similarity") is None
+
+
+@pytest.mark.django_db
+class TestComparisonPanelSimilarityInfo:
+    def _popover(self, response):
+        return _soup(response).find(class_="graph-similarity__info-popover")
+
+    def test_compared_panel_has_an_info_popover(self, client):
+        reference = _recipe(color_chrome_effect="Off")
+        compared = _recipe(color_chrome_effect="Strong")
+
+        response = _get(client, reference, compared)
+
+        soup = _soup(response)
+        assert soup.find(class_="graph-similarity__info-btn") is not None
+        popover = self._popover(response)
+        assert popover is not None
+        # At most two short paragraphs, defining Identity and Extras.
+        assert len(popover.find_all("p")) == 2
+        text = popover.get_text()
+        assert "Identity" in text
+        assert "Extras" in text
+
+    def test_info_popover_links_to_adr_019(self, client):
+        reference = _recipe(color_chrome_effect="Off")
+        compared = _recipe(color_chrome_effect="Strong")
+
+        response = _get(client, reference, compared)
+
+        link = self._popover(response).find("a")
+        assert link is not None
+        assert "019-recipe-similarity-metric" in link["href"]
+
+    def test_reference_only_panel_has_no_info_popover(self, client):
+        reference = _recipe()
+
+        response = _get(client, reference)
+
+        assert self._popover(response) is None

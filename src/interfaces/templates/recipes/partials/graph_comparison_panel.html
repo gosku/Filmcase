@@ -40,6 +40,27 @@ Context: reference, compared, properties, path_nodes, compare_images_url.
   </div>
 
   <div class="graph-similarity graph-similarity--{{ similarity.closeness_label|slugify }}">
+    <details class="graph-similarity__info">
+      <summary class="graph-similarity__info-btn" title="How is this calculated?" aria-label="How is this calculated?">
+        <svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true">
+          <circle cx="8" cy="8" r="7" fill="none" stroke="currentColor" stroke-width="1.6"/>
+          <circle cx="8" cy="4.7" r="1" fill="currentColor"/>
+          <rect x="7.2" y="6.9" width="1.6" height="4.8" rx="0.8" fill="currentColor"/>
+        </svg>
+      </summary>
+      <div class="graph-similarity__info-popover" role="note">
+        <p>This is the similarity rate. It measures how alike the two recipes are overall, from 0
+        to 100%, weighing each setting by how much it differs <em>and</em> how much that setting
+        matters to the look. For example, a change to the film simulation counts for far more than
+        a tweak to noise reduction.</p>
+        <p><b>Identity</b> is the closeness of the core look (film simulation, white balance, tone
+        and colour); it sets the ceiling. <b>Extras</b> is the closeness of the secondary settings
+        (dynamic range, grain, sharpness, noise), which can only nudge the score within that
+        ceiling. Full method in
+        <a href="https://github.com/gosku/Filmcase/blob/main/docs/ADRs/019-recipe-similarity-metric.md"
+           target="_blank" rel="noopener">ADR 019</a>.</p>
+      </div>
+    </details>
     <div class="graph-similarity__head">
       <span class="graph-similarity__score">{{ similarity.similarity_pct }}%</span>
       <span class="graph-similarity__badge">{{ similarity.closeness_label }}</span>
