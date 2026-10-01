@@ -54,6 +54,11 @@ to behave like a strict distance (see [The similarity score](#7-the-similarity-s
 measure exists because Hamming is too coarse for the "Related recipes" ranking, not to replace
 it in the graph. Whether the graph later switches to this measure is left for another day.
 
+> **Update.** [ADR 020](020-recipe-graph-similarity-metric.md) later brings this measure into the
+> graph, but not its layout: the graph keeps its Hamming topology, and similarity drives the
+> neighbourhood filter, a per-node closeness badge, the sidebar chips and the comparison-panel
+> headline.
+
 ---
 
 ## 2. How the measure works

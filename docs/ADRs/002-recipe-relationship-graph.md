@@ -3,6 +3,12 @@
 **Status**: Accepted
 **Date**: 2026-04-05
 
+> **Note.** The Hamming layout and topology below still stand. Two things changed later, in
+> [ADR 020](020-recipe-graph-similarity-metric.md): the per-recipe neighbourhood cut is now a
+> **similarity floor** (`RECIPE_GRAPH_MIN_SIMILARITY` with a slider) rather than the
+> `RECIPE_GRAPH_MAX_DISTANCE` described here, and each node additionally shows its overall
+> similarity to the root as a closeness badge.
+
 ---
 
 ## Problem

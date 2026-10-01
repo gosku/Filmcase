@@ -399,10 +399,12 @@ graph. This view shows all your recipes for a given film simulation as a connect
 so you can see at a glance how similar or different they are from one another.
 
 The graph picks the recipe you have shot with the most for that film simulation as the
-**reference node** and places it at the centre. All other recipes radiate outward: the
-further a recipe sits from the centre, the more settings it differs from the reference.
-Recipes that are one or two changes away cluster close in; recipes with many differences
-sit further out.
+**reference node** and places it at the centre. All other recipes radiate outward by how many
+settings differ from the reference: the further a recipe sits from the centre, the more
+settings differ. Recipes that are one or two changes away cluster close in; recipes with many
+differences sit further out. Each node also shows its overall **closeness** to the reference as
+a percentage inside the circle, a quick read on how alike the two look overall, which weighs how
+much each setting differs and how much it matters rather than just counting the differences.
 
 A **Film Simulation** dropdown in the left sidebar lets you switch to a different film
 simulation without leaving the page.
@@ -412,10 +414,10 @@ shot with each. Clicking a name does exactly what clicking its node does. A **Na
 recipes only** switch above the list hides the recipes you have not named yet, which is
 usually most of them; the reference recipe always stays, named or not.
 
-Most connections are drawn as solid lines. A **dashed** line is a warning: it means the
-recipe could not be placed on an exact path from the reference, so adding up the numbers
-along its route will overstate how far it really is from the centre. Its ring position is
-still correct.
+Most connections are drawn as solid lines, each carrying a small number: how many settings
+differ between the two recipes it joins. A **dashed** line is a warning: it means the recipe
+could not be placed on an exact path from the reference, so adding up the numbers along its
+route will overstate how far it really is from the centre. Its ring position is still correct.
 
 ![Film simulation recipe graph](images/film_sim_recipe_graph.jpg)
 
@@ -426,6 +428,9 @@ every setting, grouped into categories, with the film simulation and image count
 
 Clicking any node fills that panel in with a comparison. The panel shows:
 
+- **A similarity headline** showing the overall similarity as a percentage and a
+  plain-language closeness word, with a breakdown into how alike the two recipes are on their
+  core look (Identity) versus their secondary settings (Extras).
 - **Every setting, with the changed ones highlighted.** A changed row shows both values
   inline, reference first and the compared recipe's value after the arrow. Unchanged rows
   stay in place but recede, so you can see the whole recipe and the differences at once.
@@ -456,18 +461,17 @@ described above. It works like the film simulation graph but with three differen
    that happen to use different film simulations, they still appear as neighbours if they
    are close enough.
 
-3. **A maximum distance limit applies.** Only recipes within a certain number of
-   differences from the reference are shown (normally 7). Recipes further away than that
-   threshold are excluded, keeping the graph focused on genuinely nearby recipes rather
-   than pulling in the entire collection.
+3. **A similarity floor applies.** Only recipes at least a certain similarity to the
+   reference are shown (normally 80%). A **Show recipes** slider in the sidebar lets you
+   raise or lower that floor: drag it up to focus on the closest handful, or down to pull
+   in more distant relatives. This keeps the graph focused on genuinely nearby recipes
+   rather than pulling in the entire collection.
 
-   Because this cutoff can leave out a recipe that another one would have connected
-   through, dashed connections show up more often here than on the film simulation graph.
-
-Everything else works the same way: nodes radiate outward by distance, the sidebar lists
-the recipes in the graph with the same Named recipes only switch, and clicking a node fills in
-the same panel with differences, path breakdown, image comparison, and the option to jump
-to that recipe's own graph.
+Everything else works the same way: nodes radiate outward by how many settings differ, each
+node shows its closeness to the reference, the sidebar lists the recipes in the graph (with
+their closeness and the same Named recipes only switch), and clicking a node fills in the same
+panel with differences, path breakdown, image comparison, and the option to jump to that
+recipe's own graph.
 
 ---
 
