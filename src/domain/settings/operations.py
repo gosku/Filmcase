@@ -44,9 +44,11 @@ def update_app_settings(*, values: AppSettings) -> None:
     config.CAMERA_RETRY_BACKOFF_S = values.camera_retry_backoff_s
     config.CAMERA_USB_TIMEOUT_MS = values.camera_usb_timeout_ms
     config.RECIPE_EXPLORER_PAGE_SIZE = values.recipe_explorer_page_size
-    config.RECIPE_GRAPH_MAX_DISTANCE = values.recipe_graph_max_distance
+    config.RECIPE_GRAPH_MIN_SIMILARITY = values.recipe_graph_min_similarity
     config.RECIPE_CARD_APERTURE_SCRIM_TOP_OPACITY = values.recipe_card_aperture_scrim_top_opacity
     config.RECIPE_CARD_APERTURE_SCRIM_BOTTOM_OPACITY = values.recipe_card_aperture_scrim_bottom_opacity
+    config.RECIPE_SIMILARITY_IDENTITY_WEIGHT = values.recipe_similarity_identity_weight
+    config.RECIPE_SIMILARITY_EXTRAS_WEIGHT = values.recipe_similarity_extras_weight
     config.GALLERY_PAGE_SIZE = values.gallery_page_size
     config.IMAGE_MAX_RATING = values.image_max_rating
     config.THUMBNAIL_WIDTHS = _serialize_widths(values.thumbnail_widths)
@@ -68,9 +70,11 @@ def update_app_settings(*, values: AppSettings) -> None:
         camera_retry_backoff_s=values.camera_retry_backoff_s,
         camera_usb_timeout_ms=values.camera_usb_timeout_ms,
         recipe_explorer_page_size=values.recipe_explorer_page_size,
-        recipe_graph_max_distance=values.recipe_graph_max_distance,
+        recipe_graph_min_similarity=values.recipe_graph_min_similarity,
         recipe_card_aperture_scrim_top_opacity=values.recipe_card_aperture_scrim_top_opacity,
         recipe_card_aperture_scrim_bottom_opacity=values.recipe_card_aperture_scrim_bottom_opacity,
+        recipe_similarity_identity_weight=values.recipe_similarity_identity_weight,
+        recipe_similarity_extras_weight=values.recipe_similarity_extras_weight,
         gallery_page_size=values.gallery_page_size,
         image_max_rating=values.image_max_rating,
         thumbnail_widths=_serialize_widths(values.thumbnail_widths),

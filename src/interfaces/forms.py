@@ -194,9 +194,11 @@ class Preferences(forms.Form):
     camera_usb_timeout_ms = forms.IntegerField(validators=_POSITIVE)
     # Recipes
     recipe_explorer_page_size = forms.IntegerField(validators=_POSITIVE)
-    recipe_graph_max_distance = forms.IntegerField(validators=_NON_NEGATIVE)
+    recipe_graph_min_similarity = forms.FloatField(validators=_FRACTION)
     recipe_card_aperture_scrim_top_opacity = forms.IntegerField(validators=_PERCENT)
     recipe_card_aperture_scrim_bottom_opacity = forms.IntegerField(validators=_PERCENT)
+    recipe_similarity_identity_weight = forms.FloatField(validators=_FRACTION)
+    recipe_similarity_extras_weight = forms.FloatField(validators=_FRACTION)
     # Images
     gallery_page_size = forms.IntegerField(validators=_POSITIVE)
     image_max_rating = forms.IntegerField(validators=_POSITIVE)
@@ -232,9 +234,11 @@ class Preferences(forms.Form):
             "camera_retry_backoff_s": values.camera_retry_backoff_s,
             "camera_usb_timeout_ms": values.camera_usb_timeout_ms,
             "recipe_explorer_page_size": values.recipe_explorer_page_size,
-            "recipe_graph_max_distance": values.recipe_graph_max_distance,
+            "recipe_graph_min_similarity": values.recipe_graph_min_similarity,
             "recipe_card_aperture_scrim_top_opacity": values.recipe_card_aperture_scrim_top_opacity,
             "recipe_card_aperture_scrim_bottom_opacity": values.recipe_card_aperture_scrim_bottom_opacity,
+            "recipe_similarity_identity_weight": values.recipe_similarity_identity_weight,
+            "recipe_similarity_extras_weight": values.recipe_similarity_extras_weight,
             "gallery_page_size": values.gallery_page_size,
             "image_max_rating": values.image_max_rating,
             "thumbnail_widths": ",".join(str(width) for width in values.thumbnail_widths),
@@ -286,9 +290,11 @@ class Preferences(forms.Form):
             camera_retry_backoff_s=data["camera_retry_backoff_s"],
             camera_usb_timeout_ms=data["camera_usb_timeout_ms"],
             recipe_explorer_page_size=data["recipe_explorer_page_size"],
-            recipe_graph_max_distance=data["recipe_graph_max_distance"],
+            recipe_graph_min_similarity=data["recipe_graph_min_similarity"],
             recipe_card_aperture_scrim_top_opacity=data["recipe_card_aperture_scrim_top_opacity"],
             recipe_card_aperture_scrim_bottom_opacity=data["recipe_card_aperture_scrim_bottom_opacity"],
+            recipe_similarity_identity_weight=data["recipe_similarity_identity_weight"],
+            recipe_similarity_extras_weight=data["recipe_similarity_extras_weight"],
             gallery_page_size=data["gallery_page_size"],
             image_max_rating=data["image_max_rating"],
             thumbnail_widths=data["thumbnail_widths"],

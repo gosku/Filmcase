@@ -26,9 +26,11 @@ class AppSettings:
     camera_retry_backoff_s: float
     camera_usb_timeout_ms: int
     recipe_explorer_page_size: int
-    recipe_graph_max_distance: int
+    recipe_graph_min_similarity: float
     recipe_card_aperture_scrim_top_opacity: int
     recipe_card_aperture_scrim_bottom_opacity: int
+    recipe_similarity_identity_weight: float
+    recipe_similarity_extras_weight: float
     gallery_page_size: int
     image_max_rating: int
     thumbnail_widths: tuple[int, ...]
