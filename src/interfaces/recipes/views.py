@@ -36,6 +36,7 @@ from src.domain.recipes import dataclasses as recipe_dataclasses
 from src.domain.recipes import graph as recipe_graph
 from src.domain.recipes import operations as recipe_operations
 from src.domain.recipes import queries as recipe_queries
+from src.domain.recipes import similarity as recipe_similarity
 from src.domain.settings import queries as settings_queries
 from src.domain.recipes.cards.designs import aperture as aperture_design
 from src.domain.recipes.cards.designs import base as card_designs
@@ -306,6 +307,9 @@ def _cyto_elements(*, graph_data: recipe_graph.RecipeTreeData) -> list[dict[str,
                 "id": str(node.id),
                 "label": node.label,
                 "distance": node.distance,
+                "similarity": node.similarity,
+                "similarity_pct": round(node.similarity * 100),
+                "closeness_label": node.closeness_label,
                 "image_count": node.image_count,
                 "is_root": node.id == graph_data.root_id,
                 "is_named": node.is_named,
@@ -338,6 +342,8 @@ class GraphRecipeRow:
     label: str
     is_reference: bool
     uses_display: str
+    similarity_pct: int
+    closeness_label: str
 
     @classmethod
     def from_nodes(
@@ -352,6 +358,8 @@ class GraphRecipeRow:
                 is_reference=node.id == root_id,
                 # django.contrib.humanize is not installed, so group here.
                 uses_display=f"{node.image_count:,}",
+                similarity_pct=round(node.similarity * 100),
+                closeness_label=node.closeness_label,
             )
             for node in nodes
         ]
@@ -381,6 +389,23 @@ def _named_only(request: http.HttpRequest) -> bool:
     Absent means off, so the graph shows every recipe unless asked otherwise.
     """
     return request.GET.get("named") in {"1", "true", "on"}
+
+
+def _min_similarity(request: http.HttpRequest) -> float:
+    """
+    Read the neighbourhood graph's similarity floor from the query string.
+
+    The slider sends a whole percentage (0-100); absent or unparseable falls
+    back to the configured default. The result is clamped to ``[0, 1]``.
+    """
+    raw = request.GET.get("min_similarity")
+    if raw is None:
+        return settings_queries.get_recipe_graph_min_similarity()
+    try:
+        percent = float(raw)
+    except ValueError:
+        return settings_queries.get_recipe_graph_min_similarity()
+    return max(0.0, min(1.0, percent / 100.0))
 
 
 class RecipesGraph(generic.View):
@@ -454,7 +479,7 @@ class RecipeGraph(generic.View):
     def get(self, request: http.HttpRequest, recipe_id: int) -> http.HttpResponse:
         result = build_graph_uc.build_recipe_neighbourhood(
             root=self.recipe,
-            max_distance=settings_queries.get_recipe_graph_max_distance(),
+            min_similarity=_min_similarity(request),
             named_only=_named_only(request),
         )
         cyto_elements = _cyto_elements(graph_data=result.graph_data)
@@ -480,7 +505,7 @@ class RecipeGraph(generic.View):
         return shortcuts.render(request, "recipes/recipe_graph.html", {
             "root_id": result.graph_data.root_id,
             "graph_elements_json": json.dumps(cyto_elements),
-            "max_distance": result.max_distance,
+            "min_similarity_pct": round(result.min_similarity * 100),
             "root_label": result.root_label,
             "panel_html": panel_html,
             "recipe_name": result.root_label,
@@ -799,6 +824,35 @@ def _panel_recipe(recipe: models.FujifilmRecipe, *, image_count: int | None = No
     return PanelRecipe(id=recipe.pk, label=recipe.name or f"#{recipe.pk}", meta=meta)
 
 
+@_attrs.frozen
+class SimilarityHeadline:
+    """
+    The similarity headline the comparison panel shows above the field diff.
+    """
+
+    similarity_pct: int
+    closeness_label: str
+    identity_pct: int
+    extras_pct: int
+
+
+def _similarity_headline(
+    *, reference: models.FujifilmRecipe, compared: models.FujifilmRecipe,
+) -> SimilarityHeadline:
+    breakdown = recipe_similarity.compute_similarity_breakdown(
+        a=reference,
+        b=compared,
+        identity_weight=settings_queries.get_recipe_similarity_identity_weight(),
+        extras_weight=settings_queries.get_recipe_similarity_extras_weight(),
+    )
+    return SimilarityHeadline(
+        similarity_pct=round(breakdown.similarity * 100),
+        closeness_label=recipe_similarity.closeness_label(breakdown.similarity),
+        identity_pct=round(breakdown.identity_score * 100),
+        extras_pct=round(breakdown.extras_score * 100),
+    )
+
+
 def render_comparison_panel(
     *,
     request: http.HttpRequest,
@@ -832,6 +886,7 @@ def render_comparison_panel(
             "reference": _panel_recipe(reference),
             "compared": _panel_recipe(compared),
             "properties": properties,
+            "similarity": _similarity_headline(reference=reference, compared=compared),
             # A single hop needs no breakdown: the property list above already
             # says everything that changed.
             "path_nodes": path_nodes if len(path_nodes) > 2 else (),

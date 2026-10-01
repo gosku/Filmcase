@@ -39,6 +39,25 @@ Context: reference, compared, properties, path_nodes, compare_images_url.
     </div>
   </div>
 
+  <div class="graph-similarity graph-similarity--{{ similarity.closeness_label|slugify }}">
+    <div class="graph-similarity__head">
+      <span class="graph-similarity__score">{{ similarity.similarity_pct }}%</span>
+      <span class="graph-similarity__badge">{{ similarity.closeness_label }}</span>
+    </div>
+    <div class="graph-similarity__rounds">
+      <div class="graph-similarity__round">
+        <span class="graph-similarity__round-label">Identity</span>
+        <span class="graph-similarity__bar"><span class="graph-similarity__bar-fill" style="width: {{ similarity.identity_pct }}%"></span></span>
+        <b class="graph-similarity__round-value">{{ similarity.identity_pct }}%</b>
+      </div>
+      <div class="graph-similarity__round">
+        <span class="graph-similarity__round-label">Extras</span>
+        <span class="graph-similarity__bar"><span class="graph-similarity__bar-fill" style="width: {{ similarity.extras_pct }}%"></span></span>
+        <b class="graph-similarity__round-value">{{ similarity.extras_pct }}%</b>
+      </div>
+    </div>
+  </div>
+
   <div class="segmented-toggle segmented-toggle--subtle graph-panel__filter" id="property-filter">
     <button type="button" class="segmented-toggle__option segmented-toggle__option--active"
             data-properties="all">All properties</button>

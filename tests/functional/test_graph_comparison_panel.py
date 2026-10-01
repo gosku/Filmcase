@@ -252,3 +252,38 @@ class TestGraphPagesRenderThePanelOnLoad:
         )
 
         assert "graph-panel__header" in json.loads(response.content)["panel_html"]
+
+
+@pytest.mark.django_db
+class TestComparisonPanelSimilarityHeadline:
+    def test_headline_shows_score_and_closeness(self, client):
+        reference = _recipe(color_chrome_effect="Off")
+        compared = _recipe(color_chrome_effect="Strong")
+
+        response = _get(client, reference, compared)
+
+        headline = _soup(response).find(class_="graph-similarity")
+        assert headline is not None
+        score = headline.find(class_="graph-similarity__score").get_text(strip=True)
+        assert score.endswith("%")
+        assert headline.find(class_="graph-similarity__badge").get_text(strip=True)
+
+    def test_headline_shows_the_identity_and_extras_split(self, client):
+        reference = _recipe(color_chrome_effect="Off")
+        compared = _recipe(color_chrome_effect="Strong")
+
+        response = _get(client, reference, compared)
+
+        values = [
+            el.get_text(strip=True)
+            for el in _soup(response).find_all(class_="graph-similarity__round-value")
+        ]
+        assert len(values) == 2
+        assert all(v.endswith("%") for v in values)
+
+    def test_reference_only_panel_has_no_headline(self, client):
+        reference = _recipe()
+
+        response = _get(client, reference)
+
+        assert _soup(response).find(class_="graph-similarity") is None

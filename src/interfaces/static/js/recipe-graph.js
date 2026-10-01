@@ -37,6 +37,8 @@ window.RecipeGraph = (function () {
   var EDGE_COLOR_FAR = "#94a3b8";
   var PATH_COLOR = "#ef4444";
   var CANVAS_COLOR = "#f5f5f5";
+  // Colour of the closeness percentage drawn inside each node.
+  var BADGE_TEXT_COLOR = "#e8edf3";
 
   // The compared node wears an accent ring, matching the sidebar legend's
   // "Selected to compare" swatch.
@@ -307,6 +309,63 @@ window.RecipeGraph = (function () {
       wheelSensitivity: 0.15,
       style: BASE_STYLE,
       layout: makePresetLayout(buildRadialPositions(elements, rootId), applyRadialLabels),
+    });
+
+    /* --- Closeness badge (canvas overlay) --- */
+
+    // A transparent canvas laid over the graph draws the similarity percentage
+    // inside each node. Cytoscape allows only one label per node, which the name
+    // already uses, so the badge is drawn here instead. It is purely a label:
+    // the layout stays driven by Hamming distance.
+    if (!container.style.position) {
+      container.style.position = "relative";
+    }
+    var overlay = document.createElement("canvas");
+    overlay.style.position = "absolute";
+    overlay.style.top = "0";
+    overlay.style.left = "0";
+    overlay.style.pointerEvents = "none";
+    container.appendChild(overlay);
+    var overlayCtx = overlay.getContext("2d");
+
+    function sizeOverlay() {
+      var dpr = window.devicePixelRatio || 1;
+      overlay.width = container.clientWidth * dpr;
+      overlay.height = container.clientHeight * dpr;
+      overlay.style.width = container.clientWidth + "px";
+      overlay.style.height = container.clientHeight + "px";
+      overlayCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+    sizeOverlay();
+
+    function drawBadges() {
+      overlayCtx.clearRect(0, 0, overlay.width, overlay.height);
+      overlayCtx.save();
+      overlayCtx.textAlign = "center";
+      overlayCtx.textBaseline = "middle";
+      cy.nodes().forEach(function (node) {
+        var pct = node.data("similarity_pct");
+        if (pct === undefined || pct === null) {
+          return;
+        }
+        var diameter = node.renderedOuterWidth();
+        if (diameter < 16) {
+          return;
+        }
+        var position = node.renderedPosition();
+        var isRoot = rootId !== null && node.data("id") === rootId;
+        overlayCtx.fillStyle = isRoot ? "#ffffff" : BADGE_TEXT_COLOR;
+        var fontSize = Math.max(7, Math.min(11, diameter * 0.34));
+        overlayCtx.font = "700 " + fontSize + "px system-ui, sans-serif";
+        overlayCtx.fillText(pct + "%", position.x, position.y + 0.5);
+      });
+      overlayCtx.restore();
+    }
+
+    cy.on("render", drawBadges);
+    window.addEventListener("resize", function () {
+      sizeOverlay();
+      drawBadges();
     });
 
     /* --- Labels and node styling --- */
