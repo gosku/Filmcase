@@ -118,3 +118,37 @@ class TestSimilarityBetween:
         backward = similarity.similarity_between(recipe_id_a=b.pk, recipe_id_b=a.pk)
 
         assert forward == pytest.approx(backward, abs=1e-9)
+
+
+@pytest.mark.django_db
+class TestRecipesAtLeastSimilar:
+    def test_keeps_recipes_at_or_above_the_floor_and_drops_the_rest(self) -> None:
+        reference = _recipe(film_simulation="Classic Chrome", color=Decimal("2.0"))
+        near = _recipe(film_simulation="Classic Chrome", color=Decimal("2.0"), sharpness=Decimal("-1.0"))
+        far = _recipe(film_simulation="Acros Yellow", monochromatic_color_warm_cool=Decimal("3.0"))
+
+        near_score = similarity.compute_similarity(a=reference, b=near)
+        far_score = similarity.compute_similarity(a=reference, b=far)
+        floor = (near_score + far_score) / 2
+
+        kept = similarity.recipes_at_least_similar(reference=reference, min_similarity=floor)
+
+        kept_ids = {recipe.pk for recipe in kept}
+        assert near.pk in kept_ids
+        assert far.pk not in kept_ids
+
+    def test_excludes_the_reference_itself(self) -> None:
+        reference = _recipe(film_simulation="Velvia", color=Decimal("1.0"))
+        _recipe(film_simulation="Velvia", color=Decimal("2.0"))
+
+        kept = similarity.recipes_at_least_similar(reference=reference, min_similarity=0.0)
+
+        assert reference.pk not in {recipe.pk for recipe in kept}
+
+    def test_a_floor_of_zero_keeps_every_other_recipe(self) -> None:
+        reference = _recipe(film_simulation="Provia")
+        others = [_recipe(film_simulation="Provia", white_balance_red=shift) for shift in range(1, 4)]
+
+        kept = similarity.recipes_at_least_similar(reference=reference, min_similarity=0.0)
+
+        assert {recipe.pk for recipe in kept} == {recipe.pk for recipe in others}

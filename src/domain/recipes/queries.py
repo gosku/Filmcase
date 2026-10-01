@@ -20,6 +20,7 @@ from src.domain.recipes import sensors as recipe_sensors
 from src.domain.recipes import similarity as recipe_similarity
 from src.domain.recipes.constants import FILM_SIM_LOGO, MONOCHROMATIC_FILM_SIMULATIONS
 from src.domain.images import dataclasses as image_dataclasses
+from src.domain.settings import queries as settings_queries
 
 
 # Recipe fields available for comparison and graph computation.
@@ -687,7 +688,12 @@ def get_related_named_recipes(*, recipe_id: int, limit: int = 4) -> tuple[Relate
     # line (standalone recipes, with no line, are each kept), stopping at *limit*.
     ranked: list[models.FujifilmRecipe] = []
     seen_version_lines: set[int] = set()
-    ordered = recipe_similarity.annotate_similarity(candidates, reference=reference).order_by("-similarity", "pk")
+    ordered = recipe_similarity.annotate_similarity(
+        candidates,
+        reference=reference,
+        identity_weight=settings_queries.get_recipe_similarity_identity_weight(),
+        extras_weight=settings_queries.get_recipe_similarity_extras_weight(),
+    ).order_by("-similarity", "pk")
     for recipe in ordered.iterator():
         group_id = getattr(recipe, "version_line_group_id", None)
         if group_id is not None:
