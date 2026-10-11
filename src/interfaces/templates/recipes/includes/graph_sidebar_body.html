@@ -3,7 +3,7 @@ Legend plus the recipe list, shared by both graph pages. Re-rendered on its own
 and swapped in when the film simulation or the named-only filter changes, so it
 must not depend on anything outside this context.
 
-Context: recipes_by_usage, root_id, named_only, comparing (bool).
+Context: recipes_by_similarity, root_id, named_only, comparing (bool).
 {% endcomment %}
 <div class="graph-sidebar__section">
   <div class="graph-sidebar__label">Legend</div>
@@ -29,7 +29,7 @@ Context: recipes_by_usage, root_id, named_only, comparing (bool).
 
 <div class="graph-sidebar__section graph-sidebar__section--list">
   <div class="graph-sidebar__label">
-    Recipes in graph <span class="graph-sidebar__count">&middot; {{ recipes_by_usage|length }}</span>
+    Recipes in graph <span class="graph-sidebar__count">&middot; {{ recipes_by_similarity|length }}</span>
   </div>
 
   <label class="toggle-switch graph-sidebar__filter" for="named-only-toggle">
@@ -38,7 +38,7 @@ Context: recipes_by_usage, root_id, named_only, comparing (bool).
   </label>
 
   <ul class="graph-recipe-list" id="graph-recipe-list">
-    {% for row in recipes_by_usage %}
+    {% for row in recipes_by_similarity %}
     <li>
       <button type="button"
               class="graph-recipe-list__row{% if row.is_reference %} graph-recipe-list__row--reference{% endif %}"

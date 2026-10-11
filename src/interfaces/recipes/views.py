@@ -377,7 +377,7 @@ def _render_graph_sidebar(
     """
     return loader.render_to_string(
         "recipes/includes/graph_sidebar_body.html",
-        {"recipes_by_usage": rows, "named_only": named_only, "comparing": comparing},
+        {"recipes_by_similarity": rows, "named_only": named_only, "comparing": comparing},
         request=request,
     )
 
@@ -438,7 +438,7 @@ class RecipesGraph(generic.View):
             )
         sidebar_html = _render_graph_sidebar(
             request=request,
-            rows=GraphRecipeRow.from_nodes(result.recipes_by_usage, root_id),
+            rows=GraphRecipeRow.from_nodes(result.recipes_by_similarity, root_id),
             named_only=result.named_only,
         )
 
@@ -457,7 +457,7 @@ class RecipesGraph(generic.View):
             "active_film_simulation": result.active_film_simulation,
             "root_label": root_label,
             "named_only": result.named_only,
-            "recipes_by_usage": GraphRecipeRow.from_nodes(result.recipes_by_usage, root_id),
+            "recipes_by_similarity": GraphRecipeRow.from_nodes(result.recipes_by_similarity, root_id),
             "comparing": False,
             "panel_html": panel_html,
         })
@@ -489,7 +489,7 @@ class RecipeGraph(generic.View):
         sidebar_html = _render_graph_sidebar(
             request=request,
             rows=GraphRecipeRow.from_nodes(
-                result.recipes_by_usage, result.graph_data.root_id,
+                result.recipes_by_similarity, result.graph_data.root_id,
             ),
             named_only=result.named_only,
         )
@@ -510,8 +510,8 @@ class RecipeGraph(generic.View):
             "panel_html": panel_html,
             "recipe_name": result.root_label,
             "named_only": result.named_only,
-            "recipes_by_usage": GraphRecipeRow.from_nodes(
-                result.recipes_by_usage, result.graph_data.root_id,
+            "recipes_by_similarity": GraphRecipeRow.from_nodes(
+                result.recipes_by_similarity, result.graph_data.root_id,
             ),
             "comparing": False,
         })
