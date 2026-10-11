@@ -135,38 +135,59 @@ class TestBuildRecipeNetwork:
         assert result.graph_data.root_id == unnamed_root.pk
         assert unnamed_root.pk in {n.id for n in result.graph_data.nodes}
 
-    def test_recipes_by_usage_is_ordered_most_used_first(self):
-        quiet = FujifilmRecipeFactory(film_simulation="Provia", name="Quiet", grain_roughness="Off")
-        busy = FujifilmRecipeFactory(film_simulation="Provia", name="Busy", grain_roughness="Strong")
+    def test_recipes_by_similarity_orders_closest_first(self):
+        # The root leads (most-used), then recipes by how close they are to it.
+        # A less-used but more similar recipe outranks a busier, more distant one.
+        root = FujifilmRecipeFactory(film_simulation="Provia", name="Root", highlight=0, white_balance_red=0)
+        near = FujifilmRecipeFactory(film_simulation="Provia", name="Near", highlight=1, white_balance_red=0)
+        far = FujifilmRecipeFactory(film_simulation="Provia", name="Far", highlight=4, white_balance_red=0)
+        ImageFactory.create_batch(9, fujifilm_recipe=root)
+        ImageFactory.create_batch(1, fujifilm_recipe=near)
+        ImageFactory.create_batch(5, fujifilm_recipe=far)
+
+        result = build_recipe_network(film_simulation="Provia")
+
+        assert [row.id for row in result.recipes_by_similarity] == [root.pk, near.pk, far.pk]
+
+    def test_recipes_by_similarity_breaks_ties_on_usage(self):
+        # Equally similar recipes fall back to most-used first. The two non-root
+        # recipes sit the same numeric distance either side of the root, so they
+        # are equally similar to it but remain distinct rows.
+        root = FujifilmRecipeFactory(film_simulation="Provia", name="Root", highlight=1, white_balance_red=0)
+        busy = FujifilmRecipeFactory(film_simulation="Provia", name="Busy", highlight=3, white_balance_red=0)
+        quiet = FujifilmRecipeFactory(film_simulation="Provia", name="Quiet", highlight=-1, white_balance_red=0)
+        ImageFactory.create_batch(9, fujifilm_recipe=root)
+        ImageFactory.create_batch(5, fujifilm_recipe=busy)
         ImageFactory.create_batch(2, fujifilm_recipe=quiet)
-        ImageFactory.create_batch(9, fujifilm_recipe=busy)
 
         result = build_recipe_network(film_simulation="Provia")
 
-        assert [row.id for row in result.recipes_by_usage] == [busy.pk, quiet.pk]
+        assert [row.id for row in result.recipes_by_similarity] == [root.pk, busy.pk, quiet.pk]
 
-    def test_recipes_by_usage_breaks_ties_on_label(self):
-        # Unused recipes all share a count of zero, so without a tie-break the
-        # sidebar order would wander between requests.
-        FujifilmRecipeFactory(film_simulation="Provia", name="Zulu", grain_roughness="Off")
-        FujifilmRecipeFactory(film_simulation="Provia", name="Alpha", grain_roughness="Strong")
+    def test_recipes_by_similarity_breaks_ties_on_label(self):
+        # Equally similar, equally used recipes all share a count of zero, so
+        # without the label tie-break the sidebar order would wander between
+        # requests. The two leaves sit the same distance either side of the root.
+        FujifilmRecipeFactory(film_simulation="Provia", name="Root", highlight=1, white_balance_red=0)
+        FujifilmRecipeFactory(film_simulation="Provia", name="Zulu", highlight=3, white_balance_red=0)
+        FujifilmRecipeFactory(film_simulation="Provia", name="Alpha", highlight=-1, white_balance_red=0)
 
         result = build_recipe_network(film_simulation="Provia")
 
-        assert [row.label for row in result.recipes_by_usage] == ["Alpha", "Zulu"]
+        assert [row.label for row in result.recipes_by_similarity] == ["Root", "Alpha", "Zulu"]
 
-    def test_recipes_by_usage_covers_every_node(self):
+    def test_recipes_by_similarity_covers_every_node(self):
         FujifilmRecipeFactory(film_simulation="Provia", grain_roughness="Off")
         FujifilmRecipeFactory(film_simulation="Provia", grain_roughness="Strong")
 
         result = build_recipe_network(film_simulation="Provia")
 
-        assert {row.id for row in result.recipes_by_usage} == {n.id for n in result.graph_data.nodes}
+        assert {row.id for row in result.recipes_by_similarity} == {n.id for n in result.graph_data.nodes}
 
-    def test_recipes_by_usage_is_empty_when_no_recipes(self):
+    def test_recipes_by_similarity_is_empty_when_no_recipes(self):
         result = build_recipe_network(film_simulation="Provia")
 
-        assert result.recipes_by_usage == ()
+        assert result.recipes_by_similarity == ()
 
     def test_edges_connect_recipes_within_film_sim(self):
         r1 = FujifilmRecipeFactory(film_simulation="Provia", grain_roughness="Off", white_balance_red=0, white_balance_blue=0)

@@ -21,7 +21,7 @@ class RecipeNetworkResult:
     film_simulations: tuple[str, ...]
     active_film_simulation: str
     named_only: bool
-    recipes_by_usage: tuple[recipe_graph.RecipeTreeNode, ...]
+    recipes_by_similarity: tuple[recipe_graph.RecipeTreeNode, ...]
 
 
 @attrs.frozen
@@ -30,19 +30,22 @@ class RecipeNeighbourhoodResult:
     root_label: str
     min_similarity: float
     named_only: bool
-    recipes_by_usage: tuple[recipe_graph.RecipeTreeNode, ...]
+    recipes_by_similarity: tuple[recipe_graph.RecipeTreeNode, ...]
 
 
-def _by_usage(
+def _by_similarity(
     nodes: tuple[recipe_graph.RecipeTreeNode, ...],
 ) -> tuple[recipe_graph.RecipeTreeNode, ...]:
     """
-    Order graph nodes for the sidebar list: most-used first, then by label.
+    Order graph nodes for the sidebar list: closest to the root first.
 
-    The label tie-break keeps the order stable across requests when several
-    recipes share an image count, which is common for unused recipes.
+    Sorted by descending similarity to the root (the root itself is 1.0, so it
+    leads the list). Ties fall back to most-used, then label, which keeps the
+    order stable across requests when several recipes are equally similar.
     """
-    return tuple(sorted(nodes, key=lambda node: (-node.image_count, node.label)))
+    return tuple(
+        sorted(nodes, key=lambda node: (-node.similarity, -node.image_count, node.label))
+    )
 
 
 def build_recipe_network(
@@ -71,7 +74,7 @@ def build_recipe_network(
             film_simulations=film_simulations,
             active_film_simulation=film_simulation,
             named_only=named_only,
-            recipes_by_usage=(),
+            recipes_by_similarity=(),
         )
 
     image_counts = recipe_queries.get_image_counts_for_film_simulation(film_simulation=film_simulation)
@@ -95,7 +98,7 @@ def build_recipe_network(
         film_simulations=film_simulations,
         active_film_simulation=film_simulation,
         named_only=named_only,
-        recipes_by_usage=_by_usage(graph_data.nodes),
+        recipes_by_similarity=_by_similarity(graph_data.nodes),
     )
 
 
@@ -143,5 +146,5 @@ def build_recipe_neighbourhood(
         root_label=root.name or f"#{root.pk}",
         min_similarity=min_similarity,
         named_only=named_only,
-        recipes_by_usage=_by_usage(graph_data.nodes),
+        recipes_by_similarity=_by_similarity(graph_data.nodes),
     )
