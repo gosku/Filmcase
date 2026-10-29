@@ -6,7 +6,11 @@ every camera-acceptable value passes without error.  Negative tests verify
 that out-of-range or malformed values raise RecipeValidationError with the
 correct field name.
 """
+import attrs
 import pytest
+
+from src.domain.camera import profiles
+from src.domain.camera import validation
 
 from src.data.camera.constants import (
     CUSTOM_SLOT_CCE_PTP,
@@ -470,3 +474,32 @@ def test_grain_size_omitted_when_roughness_off(size):
 @pytest.mark.parametrize("value", [None, ""])
 def test_color_omitted_for_mono_sim(sim, value):
     validate_recipe_for_camera(_make_recipe(film_simulation=sim, color=value))
+
+
+# ---------------------------------------------------------------------------
+# validate_recipe_for_profile: the allowed values come from the profile
+# ---------------------------------------------------------------------------
+
+
+class TestValidateRecipeForProfile:
+    def test_rejects_film_sim_absent_from_profile(self):
+        # A profile whose film-sim set omits Velvia must reject a Velvia recipe,
+        # even though the default per-property profile accepts it.
+        restricted = attrs.evolve(
+            profiles.PER_PROPERTY_PROFILE,
+            supported_film_simulations=frozenset(("Provia",)),
+        )
+        with pytest.raises(RecipeValidationError) as exc_info:
+            validation.validate_recipe_for_profile(
+                _make_recipe(film_simulation="Velvia"), profile=restricted
+            )
+        assert exc_info.value.field == "film_simulation"
+
+    def test_accepts_film_sim_present_in_profile(self):
+        restricted = attrs.evolve(
+            profiles.PER_PROPERTY_PROFILE,
+            supported_film_simulations=frozenset(("Provia", "Velvia")),
+        )
+        validation.validate_recipe_for_profile(
+            _make_recipe(film_simulation="Velvia"), profile=restricted
+        )
