@@ -74,12 +74,23 @@ never heard of is still driven on the common path rather than rejected. A precis
 per-model support list can be introduced later; for now every camera is assumed
 supported.
 
-### The profile stays serializable, for the browser
+### The refactor is applied to both implementations
 
-ADR 016 serves the browser the encoding tables so the two transports never
-diverge. The profile is kept as plain data for the same reason: when the X-T2
-path runs over WebUSB, the browser is served the resolved profile and mirrors the
-same strategy, with no second source of truth.
+The browser client (ADR 016) is a second implementation of the same read and
+push algorithm, not just a consumer of served data, so the strategy seam is
+opened on both sides in this change. The JavaScript gains a `domain/strategies.js`
+with a `PerPropertyStrategy` and `getStrategy`, and its use cases become thin
+delegators, mirroring the Python one for one. This is what lets the X-T2
+backup-over-WebUSB strategy slot into the browser in the follow-up exactly as the
+X-T2 backup-over-PTP strategy slots into the server: a refactor that touched only
+Python would leave the browser unable to gain the second strategy without first
+doing this same refactor under the pressure of the new feature.
+
+Where the Python strategy reads a model's capabilities from a `CameraProfile`,
+the client reads them from the served config, which ADR 016 already keeps as the
+single source of truth for both transports. The client has a served vendor layer
+in place of a data layer, so the served config is the client's profile; there is
+no separate client-side profile object to keep in step.
 
 ---
 
@@ -96,21 +107,23 @@ it.
 ### What it costs
 
 The push algorithm and the per-property slot read moved out of the use cases into
-the strategy, so `RecipeWriteError` now lives in the domain (where the strategy
-raises it) and is re-exported by the push use case for its public contract. This
-is a behaviour-preserving move; the existing camera tests pass unchanged, which is
-the proof.
+the strategy, on both sides, so `RecipeWriteError` now lives in the domain (where
+the strategy raises it) and is re-exported by the push use case for its public
+contract, in both the Python and the JavaScript. This is a behaviour-preserving
+move; the existing camera tests pass unchanged on both sides, which is the proof.
 
 ### What is deferred
 
-This change (PR 1) is the refactor only. The X-T2 strategy, the backup codec, the
-blob transport opcodes (`GetObject`/`SendObject`, both retried and lost-ack
-tolerant), the global-white-balance push feasibility, and collection push as a
-first-class use case all land in the follow-up. Until then the `CameraStrategy`
-Protocol carries only the three methods the per-property path needs
-(`read_slots`, `validate_recipe`, `push_recipe`); it grows the backup-oriented
-methods (`read_slot_recipe`, `validate_backup`, collection push) when their
-callers arrive, so nothing is dead code.
+This change (PR 1) is the refactor only, on both the server and the browser. The
+X-T2 strategy (as a backup read-modify-restore over PTP on the server and over
+WebUSB in the browser), the backup codec, the blob transport opcodes
+(`GetObject`/`SendObject`, both retried and lost-ack tolerant), the
+global-white-balance push feasibility, and collection push as a first-class use
+case all land in the follow-up. Until then the `CameraStrategy` surface carries
+only the methods the per-property path needs (`read_slots`, `validate_recipe`,
+`push_recipe`); it grows the backup-oriented methods (`read_slot_recipe`,
+`validate_backup`, collection push) when their callers arrive, so nothing is dead
+code.
 
 `get_camera_status` keeps its own tolerant slot read (it returns blanks for a
 body that does not serve a field, rather than retrying), because that read has
