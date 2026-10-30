@@ -6,11 +6,10 @@ which transport strategy drives it.  Capability differences between models live
 here as data, so the validation and strategy code reads from one description
 rather than branching on the model name.
 
-Today there is a single profile, the per-property one shared by the X-S10 and
-every other body that exposes the custom-slot PTP property interface.  The X-T2
-backup-blob profile, and a per-model registry keyed on the camera name, arrive
-with the X-T2 strategy; see
-investigation/add_xt2_support/04_camera_strategy_architecture.md.
+Two profiles exist: the per-property one shared by the X-S10 and every other
+body that exposes the custom-slot PTP property interface, and the X-T2
+backup-blob profile.  A per-model registry keyed on the camera name resolves one
+or the other, defaulting to per-property for any unmapped model.
 
 Profiles are keyed per model, not per sensor: two bodies on the same sensor can
 differ (e.g. the X-T4 has more film simulations than the X-T3).
@@ -23,6 +22,7 @@ from collections.abc import Set
 import attrs
 
 from src.data.camera import constants
+from src.data.camera import constants_xt2
 
 
 class CameraInterface(enum.Enum):
@@ -31,9 +31,13 @@ class CameraInterface(enum.Enum):
 
     PER_PROPERTY: the custom-slot PTP property interface (X-S10, X-T3+): a slot
     cursor selects a slot and each recipe field is its own device property.
+
+    BACKUP_BLOB: no per-slot interface (X-T2 and older); recipes live inside the
+    settings backup blob, read and written whole.
     """
 
     PER_PROPERTY = "per_property"
+    BACKUP_BLOB = "backup_blob"
 
 
 @attrs.frozen
@@ -79,14 +83,40 @@ PER_PROPERTY_PROFILE: CameraProfile = CameraProfile(
 )
 
 
+# The X-T2 backup-blob profile. Capability sets are derived from constants_xt2
+# so they cannot drift from the codec's own maps. Recipe validation for this
+# model is the bespoke map_recipe (which drops unsupported fields and reports
+# them), not validate_recipe_for_profile, so these sets are a descriptor of what
+# the model accepts rather than the validation input the per-property path uses.
+XT2_PROFILE: CameraProfile = CameraProfile(
+    interface=CameraInterface.BACKUP_BLOB,
+    supported_film_simulations=frozenset(constants_xt2.FILM_SIMULATION_BY_BYTE.values()),
+    supported_white_balance_modes=frozenset(constants_xt2.WHITE_BALANCE_BY_SELECTOR.values()),
+    supported_dynamic_ranges=frozenset(constants_xt2.DYNAMIC_RANGE_BY_BYTE.values()),
+    supported_dr_priorities=frozenset(("Off",)),           # no D-Range Priority on the X-T2
+    supported_color_chrome_effects=frozenset(("Off",)),    # no Color Chrome Effect
+    supported_color_chrome_fx_blues=frozenset(("Off",)),   # no Color Chrome FX Blue
+    supported_grain_roughnesses=frozenset(constants_xt2.GRAIN_ROUGHNESS_BY_BYTE.values()),
+    grain_sizes_when_off=frozenset(),                      # grain has no size on the X-T2
+    grain_sizes_when_on=frozenset(),
+    supported_high_iso_nr_values=frozenset(range(-4, 5)),
+)
+
+# Models whose profile is not the per-property default. Keyed per model, not per
+# sensor: the X-T2 field map is X-T2 specific, so only the X-T2 opts into it.
+_PROFILES_BY_MODEL: dict[str, CameraProfile] = {
+    "X-T2": XT2_PROFILE,
+}
+
+
 def get_profile(camera_model: str) -> CameraProfile:
     """
     Return the capability profile for a camera model.
 
-    In PR 1 every model, known or not, resolves to the per-property profile:
-    the current code assumes the per-property interface for any connected
-    camera, so this preserves that behaviour.  A per-model registry keyed on
-    *camera_model* is introduced with the X-T2 backup-blob profile, which is the
-    first profile that differs.
+    An explicit allow-list: only models listed here get a non-default profile.
+    Every other model, known or unknown, falls back to the per-property profile,
+    which is the safer default even for bodies whose constants differ slightly
+    (e.g. an X-T3 lacking Classic Negative); the backup-blob path is opt-in per
+    model because its byte layout is X-T2 specific.
     """
-    return PER_PROPERTY_PROFILE
+    return _PROFILES_BY_MODEL.get(camera_model, PER_PROPERTY_PROFILE)
