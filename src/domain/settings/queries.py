@@ -95,6 +95,11 @@ def get_camera_usb_timeout_ms() -> int:
     return value
 
 
+def get_camera_restore_timeout_ms() -> int:
+    value: int = config.CAMERA_RESTORE_TIMEOUT_MS
+    return value
+
+
 def get_recipe_explorer_page_size() -> int:
     value: int = config.RECIPE_EXPLORER_PAGE_SIZE
     return value

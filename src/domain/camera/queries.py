@@ -320,6 +320,7 @@ class ClientCameraSettings:
     CAMERA_MAX_RETRIES: int
     CAMERA_RETRY_BACKOFF_S: float
     CAMERA_USB_TIMEOUT_MS: int
+    CAMERA_RESTORE_TIMEOUT_MS: int
 
 
 def client_camera_settings() -> ClientCameraSettings:
@@ -340,6 +341,7 @@ def client_camera_settings() -> ClientCameraSettings:
         CAMERA_MAX_RETRIES=settings_queries.get_camera_max_retries(),
         CAMERA_RETRY_BACKOFF_S=settings_queries.get_camera_retry_backoff_s(),
         CAMERA_USB_TIMEOUT_MS=settings_queries.get_camera_usb_timeout_ms(),
+        CAMERA_RESTORE_TIMEOUT_MS=settings_queries.get_camera_restore_timeout_ms(),
     )
 
 
