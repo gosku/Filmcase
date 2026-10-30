@@ -285,3 +285,31 @@ class TestSlotCursorRetry:
 
         with pytest.raises(CameraConnectionError):
             _push()
+
+
+@pytest.mark.django_db
+class TestKnownModelShortCircuitsDiscovery:
+    def _tracking_device_cls(self):
+        class _TrackingDevice(FakePTPDevice):
+            def __init__(self, **kwargs):
+                super().__init__(**kwargs)
+                self.camera_name_reads = 0
+
+            @property
+            def camera_name(self) -> str:
+                self.camera_name_reads += 1
+                return super().camera_name
+
+        return _TrackingDevice
+
+    def test_known_model_skips_reading_camera_name(self, settings):
+        device = self._tracking_device_cls()(camera_name="X-S10")
+        settings.PTP_DEVICE = lambda: device
+        push_recipe_to_camera(_make_recipe(), slot_index=1, known_model="X-S10")
+        assert device.camera_name_reads == 0
+
+    def test_camera_name_read_when_model_not_known(self, settings):
+        device = self._tracking_device_cls()(camera_name="X-S10")
+        settings.PTP_DEVICE = lambda: device
+        push_recipe_to_camera(_make_recipe(), slot_index=1)
+        assert device.camera_name_reads >= 1

@@ -1,53 +1,41 @@
 """
 Application-layer use case for pushing a recipe to a Fujifilm camera.
+
+Orchestrates the connection lifecycle and resolves the per-model strategy that
+performs the write.  The write algorithm itself lives in the strategy.
 """
 from __future__ import annotations
 
-import time
-
 from src.data import models
-from src.data.camera import constants
 from src.domain.camera import device_config
-from src.domain.camera import operations as camera_operations
-from src.domain.camera import ptp_device
-from src.domain.camera import queries as camera_queries
+from src.domain.camera import strategies
 from src.domain.recipes import queries as recipe_queries
-from src.domain.settings import queries as settings_queries
 
-_CODE_TO_PROP_NAME: dict[int, str] = {
-    constants.PROP_SLOT_NAME: "SlotName",
-    **{code: name for name, code in constants.CUSTOM_SLOT_CODES.items()},
-}
-
-
-class RecipeWriteError(Exception):
-    """
-    Raised when one or more properties could not be written or verified.
-    """
-
-    def __init__(self, failed_properties: list[str]) -> None:
-        self.failed_properties = failed_properties
-        super().__init__(
-            f"Recipe write incomplete: {len(failed_properties)} property/properties failed "
-            f"({failed_properties})"
-        )
+# Re-exported so callers keep importing the exception from the use case.  It is
+# raised by the strategy (domain), where the push algorithm now lives.
+RecipeWriteError = strategies.RecipeWriteError
 
 
 def push_recipe_to_camera(
     recipe: models.FujifilmRecipe,
     *,
     slot_index: int,
+    known_model: str | None = None,
 ) -> None:
     """
     Push a film simulation recipe to a custom C-slot on the connected camera.
 
     The device is obtained from device_config (settings.PTP_DEVICE).
-    Connection and disconnection are managed internally.
+    Connection and disconnection are managed internally; the model-specific write
+    is delegated to the resolved strategy.
 
     Args:
         recipe:      The recipe to write.  ``recipe.name`` must be a non-blank
                      string of at most 25 ASCII characters.
         slot_index:  1-based custom slot number (e.g. 1 for C1).
+        known_model: The camera model, when the caller already learned it, so the
+                     strategy can be resolved without rediscovering it.  When
+                     None, the model is read from the connected device.
 
     Raises:
         RecipeValidationError: If any recipe field (including name) is invalid.
@@ -61,69 +49,8 @@ def push_recipe_to_camera(
     device = device_config.get_device()
     device.connect()
     try:
-        # --- Step 1: set slot cursor (retried, mirroring the WebUSB port) ---
-        try:
-            camera_operations.set_cursor_with_retry(
-                device, constants.PROP_SLOT_CURSOR, slot_index
-            )
-        except ptp_device.CameraWriteError as exc:
-            # A refusal is reported as a connection failure, as the WebUSB port
-            # also does: nothing has been written yet, so there is no partly
-            # applied recipe to describe and the user only needs to know it did
-            # not start.
-            raise ptp_device.CameraConnectionError(
-                f"Failed to set slot cursor to slot {slot_index} (rc={exc.rc})"
-            ) from exc
-
-        time.sleep(settings_queries.get_camera_pre_write_delay_s())
-
-        # --- Step 2: validate recipe and translate to PTP values ---
-        # Validation happens here, before any writes, so an invalid recipe never
-        # touches the camera.
-        ptp_items = camera_queries.recipe_to_ptp_values(recipe_data).items()
-
-        # --- Step 3: write all properties (slot name first, then recipe properties) ---
-        failed_codes: list[int] = [constants.PROP_SLOT_NAME, *(code for code, _ in ptp_items)]
-        written: list[tuple[int, str | int]] = []  # (code, value) pairs that reported success
-
-        # Build the unified write sequence.  The slot name is a string property
-        # and is written first; recipe properties are all integers.
-        all_writes: list[tuple[int, str | int]] = [
-            (constants.PROP_SLOT_NAME, recipe_data.name),
-            *ptp_items,
-        ]
-
-        for code, value in all_writes:
-            time.sleep(settings_queries.get_camera_pre_write_delay_s())   # 50 ms before write
-
-            try:
-                camera_operations.set_prop_with_retry(device, code, value)
-            except ptp_device.CameraConnectionError:
-                raise  # camera is gone; abort the entire write sequence
-            except ptp_device.CameraWriteError:
-                pass  # camera rejected this property; continue with the rest
-            else:
-                failed_codes.remove(code)
-                written.append((code, value))
-
-            time.sleep(settings_queries.get_camera_post_write_delay_s())  # 200 ms after write
-
-        # --- Step 4: verify written properties ---
-        if settings_queries.get_camera_verify_writes():
-            # GrainEffect Off is written as a sentinel; the camera normalises it to
-            # 6 or 7 (retaining the last-remembered grain size), so the read-back
-            # never matches the written value. Skip verification for that case.
-            grain_code = constants.CUSTOM_SLOT_CODES["GrainEffect"]
-            verifiable = [
-                (c, v)
-                for c, v in written
-                if not (c == grain_code and v == camera_queries.GRAIN_OFF_SENTINEL)
-            ]
-            verification_failures = camera_operations.verify_written_properties(device, verifiable)
-            failed_codes.extend(verification_failures)
-
-        if failed_codes:
-            failed_properties = [_CODE_TO_PROP_NAME.get(c, hex(c)) for c in failed_codes]
-            raise RecipeWriteError(failed_properties)
+        camera_name = known_model or device.camera_name
+        strategy = strategies.get_strategy(camera_name)
+        strategy.push_recipe(device, recipe_data, slot_index=slot_index)
     finally:
         device.disconnect()
