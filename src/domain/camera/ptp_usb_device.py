@@ -51,8 +51,23 @@ _PTP_RESPONSE = 0x0003
 _OC_GET_DEVICE_INFO       = 0x1001
 _OC_OPEN_SESSION          = 0x1002
 _OC_CLOSE_SESSION         = 0x1003
+# These four are standard PTP object-transfer opcodes, used here to read and
+# restore the settings backup blob (object handle 0). That backup read/restore
+# path is only proven on the X-T2; whether other Fujifilm bodies expose their
+# settings backup the same way is unverified, so do not assume it generalises.
+_OC_GET_OBJECT_INFO       = 0x1008
+_OC_GET_OBJECT            = 0x1009
+_OC_SEND_OBJECT_INFO      = 0x100C
+_OC_SEND_OBJECT           = 0x100D
 _OC_GET_DEVICE_PROP_VALUE = 0x1015
 _OC_SET_DEVICE_PROP_VALUE = 0x1016
+
+# The settings backup is addressed as object handle 0 (matches libfuji and the
+# proven read/restore). SendObjectInfo describes it with a 1088-byte ObjectInfo
+# whose only meaningful fields are the first 12 bytes; the rest is zero.
+_BACKUP_HANDLE       = 0x00000000
+_OBJ_FORMAT_BACKUP   = 0x5000
+_OBJECT_INFO_LEN     = 1088
 
 # ---------------------------------------------------------------------------
 # PTP response codes
@@ -418,6 +433,136 @@ class PTPUSBDevice:
     @property
     def camera_name(self) -> str:
         return self._camera_name
+
+    # ------------------------------------------------------------------
+    # Whole-backup transport (X-T2 and other pre-X-T3 bodies)
+    # ------------------------------------------------------------------
+
+    def get_backup(self) -> bytes:
+        """
+        Read the settings-backup blob via GetObjectInfo(0x1008) + GetObject(0x1009).
+
+        Retries on transport failure like the property reads do.
+        """
+        last_err: ptp_device.CameraConnectionError = ptp_device.CameraConnectionError(
+            "No retries attempted"
+        )
+        for attempt in range(self._prop_max_retries):
+            if attempt > 0:
+                time.sleep(self._retry_backoff_s * (2 ** (attempt - 1)))
+            try:
+                # GetObjectInfo primes the transfer; its payload is not needed here.
+                self._object_op(_OC_GET_OBJECT_INFO, _BACKUP_HANDLE)
+                rc, blob = self._object_op(_OC_GET_OBJECT, _BACKUP_HANDLE)
+                self._check_rc(rc, "GetObject(backup)")
+                if not blob:
+                    raise ptp_device.CameraConnectionError("GetObject returned no data")
+                camera_events.publish_event(
+                    event_type=camera_events.PTP_BACKUP_READ_SUCCEEDED,
+                    size=len(blob),
+                )
+                return blob
+            except ptp_device.CameraConnectionError as e:
+                camera_events.publish_event(
+                    event_type=camera_events.PTP_BACKUP_READ_FAILED,
+                    attempt=f"{attempt + 1}/{self._prop_max_retries}",
+                    error=str(e),
+                )
+                last_err = e
+        raise last_err
+
+    def restore_backup(self, blob: bytes) -> None:
+        """
+        Restore the blob via SendObjectInfo(0x100C) + SendObject(0x100D), data-out.
+
+        The status read uses CAMERA_RESTORE_TIMEOUT_MS because a settings commit
+        takes seconds. The restore is not auto-retried (re-sending a settings
+        commit is riskier than confirming by read-back); a lost status ack raises
+        RestoreAckTimeout so the caller can decide from a read-back.
+        """
+        restore_timeout = settings_queries.get_camera_restore_timeout_ms()
+        saved_timeout = self._usb_timeout_ms
+        self._usb_timeout_ms = restore_timeout
+        try:
+            # SendObjectInfo: minimal ObjectInfo (storage 0, format 0x5000,
+            # protection 0, compressed_size = len), rest zero.
+            info = bytearray(_OBJECT_INFO_LEN)
+            struct.pack_into("<IHHI", info, 0, 0, _OBJ_FORMAT_BACKUP, 0, len(blob))
+            tx = self._next_tx()
+            self._send(_command_packet(_OC_SEND_OBJECT_INFO, tx, 0, _BACKUP_HANDLE))
+            self._send(_data_packet(_OC_SEND_OBJECT_INFO, tx, bytes(info)))
+            rc = self._read_restore_ack("SendObjectInfo")
+            if rc != _RC_OK:
+                raise ptp_device.CameraWriteError(_OC_SEND_OBJECT_INFO, len(blob), rc)
+
+            # SendObject: the raw blob, verbatim (no transform, no checksum).
+            tx = self._next_tx()
+            self._send(_command_packet(_OC_SEND_OBJECT, tx))
+            self._send(_data_packet(_OC_SEND_OBJECT, tx, blob))
+            rc = self._read_restore_ack("SendObject")
+            if rc != _RC_OK:
+                raise ptp_device.CameraWriteError(_OC_SEND_OBJECT, len(blob), rc)
+        except ptp_device.CameraWriteError as e:
+            camera_events.publish_event(
+                event_type=camera_events.PTP_BACKUP_RESTORE_FAILED,
+                rc=f"0x{e.rc:04X}",
+            )
+            raise
+        else:
+            camera_events.publish_event(
+                event_type=camera_events.PTP_BACKUP_RESTORE_SUCCEEDED,
+                size=len(blob),
+            )
+        finally:
+            self._usb_timeout_ms = saved_timeout
+
+    def _object_op(self, code: int, *params: int) -> tuple[int, bytes]:
+        """
+        Run an operation with a data-in phase (GetObjectInfo / GetObject).
+
+        Returns ``(response_code, payload)`` with the data container header
+        stripped. The X-T2 backup is a fixed 5660-byte object that fits in one
+        USB read (well under the 64 KiB buffer), so a data phase spanning reads
+        is treated as unexpected rather than drained.
+        """
+        assert self._ep_in is not None
+        tx = self._next_tx()
+        self._send(_command_packet(code, tx, *params))
+        first = self._read_in()
+        _, ptype, _, _ = struct.unpack_from("<IHHI", first, 0)
+        if ptype != _PTP_DATA:
+            # No data phase: the first container is the response itself.
+            return _parse_response(first)[0], b""
+        length = struct.unpack_from("<I", first, 0)[0]
+        if len(first) < length:
+            raise ptp_device.CameraConnectionError(
+                f"Object data phase spanned multiple USB reads "
+                f"({len(first)} of {length} bytes); unexpected for the X-T2 backup."
+            )
+        payload = first[12:length]
+        resp = self._read_in()
+        return _parse_response(resp)[0], payload
+
+    def _read_in(self) -> bytes:
+        assert self._ep_in is not None
+        try:
+            return bytes(self._ep_in.read(_READ_BUFFER, timeout=self._usb_timeout_ms))
+        except usb.core.USBError as e:
+            raise ptp_device.CameraConnectionError(f"USB read failed: {e}") from e
+
+    def _read_restore_ack(self, step: str) -> int:
+        """
+        Read the status response after a restore step, mapping a timeout to
+        RestoreAckTimeout so the caller can confirm by read-back.
+        """
+        assert self._ep_in is not None
+        try:
+            raw = bytes(self._ep_in.read(64, timeout=self._usb_timeout_ms))
+        except usb.core.USBError as e:
+            raise ptp_device.RestoreAckTimeout(
+                f"{step} status read timed out: {e}"
+            ) from e
+        return _parse_response(raw)[0]
 
     # ------------------------------------------------------------------
     # Internal helpers
