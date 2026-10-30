@@ -79,14 +79,14 @@ PER_PROPERTY_PROFILE: CameraProfile = CameraProfile(
 )
 
 
-def get_profile(camera_name: str) -> CameraProfile:
+def get_profile(camera_model: str) -> CameraProfile:
     """
     Return the capability profile for a camera model.
 
     In PR 1 every model, known or not, resolves to the per-property profile:
     the current code assumes the per-property interface for any connected
     camera, so this preserves that behaviour.  A per-model registry keyed on
-    *camera_name* is introduced with the X-T2 backup-blob profile, which is the
+    *camera_model* is introduced with the X-T2 backup-blob profile, which is the
     first profile that differs.
     """
     return PER_PROPERTY_PROFILE

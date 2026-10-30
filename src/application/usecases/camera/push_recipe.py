@@ -20,7 +20,7 @@ def push_recipe_to_camera(
     recipe: models.FujifilmRecipe,
     *,
     slot_index: int,
-    known_model: str | None = None,
+    camera_model: str | None = None,
 ) -> None:
     """
     Push a film simulation recipe to a custom C-slot on the connected camera.
@@ -33,9 +33,9 @@ def push_recipe_to_camera(
         recipe:      The recipe to write.  ``recipe.name`` must be a non-blank
                      string of at most 25 ASCII characters.
         slot_index:  1-based custom slot number (e.g. 1 for C1).
-        known_model: The camera model, when the caller already learned it, so the
-                     strategy can be resolved without rediscovering it.  When
-                     None, the model is read from the connected device.
+        camera_model: The camera model, when the caller already learned it, so the
+                      strategy can be resolved without rediscovering it.  When
+                      None, the model is read from the connected device.
 
     Raises:
         RecipeValidationError: If any recipe field (including name) is invalid.
@@ -49,8 +49,8 @@ def push_recipe_to_camera(
     device = device_config.get_device()
     device.connect()
     try:
-        camera_name = known_model or device.camera_name
-        strategy = strategies.get_strategy(camera_name)
+        camera_model = camera_model or device.camera_name
+        strategy = strategies.get_strategy(camera_model)
         strategy.push_recipe(device, recipe_data, slot_index=slot_index)
     finally:
         device.disconnect()

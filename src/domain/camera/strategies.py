@@ -205,7 +205,7 @@ class PerPropertyStrategy:
             raise RecipeWriteError(failed_properties)
 
 
-def get_strategy(camera_name: str) -> CameraStrategy:
+def get_strategy(camera_model: str) -> CameraStrategy:
     """
     Return the strategy that drives a camera model.
 
@@ -213,7 +213,7 @@ def get_strategy(camera_name: str) -> CameraStrategy:
     interface that exists yet); the X-T2 backup-blob strategy is selected here,
     on the profile's interface, when it lands.
     """
-    profile = profiles.get_profile(camera_name)
+    profile = profiles.get_profile(camera_model)
     return PerPropertyStrategy(profile=profile)
 
 
