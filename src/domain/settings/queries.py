@@ -180,6 +180,7 @@ def get_app_settings() -> AppSettings:
         camera_max_retries=get_camera_max_retries(),
         camera_retry_backoff_s=get_camera_retry_backoff_s(),
         camera_usb_timeout_ms=get_camera_usb_timeout_ms(),
+        camera_restore_timeout_ms=get_camera_restore_timeout_ms(),
         recipe_explorer_page_size=get_recipe_explorer_page_size(),
         recipe_graph_min_similarity=get_recipe_graph_min_similarity(),
         recipe_card_aperture_scrim_top_opacity=get_recipe_card_aperture_scrim_top_opacity(),

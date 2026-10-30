@@ -136,6 +136,7 @@ class TestGetAppSettings:
             camera_max_retries=4,
             camera_retry_backoff_s=0.16,
             camera_usb_timeout_ms=2000,
+            camera_restore_timeout_ms=20000,
             recipe_explorer_page_size=30,
             recipe_graph_min_similarity=0.55,
             recipe_card_aperture_scrim_top_opacity=25,

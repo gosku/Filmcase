@@ -15,6 +15,7 @@ def _valid_payload(**overrides: str) -> dict[str, str]:
         "camera_max_retries": "3",
         "camera_retry_backoff_s": "0.15",
         "camera_usb_timeout_ms": "1500",
+        "camera_restore_timeout_ms": "15000",
         "recipe_explorer_page_size": "24",
         "recipe_graph_min_similarity": "0.5",
         "recipe_card_aperture_scrim_top_opacity": "20",
