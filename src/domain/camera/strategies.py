@@ -7,23 +7,26 @@ a recipe, and pushing a recipe.  A use case resolves a strategy from the camera
 model (via :func:`get_strategy`) and delegates to it, staying thin: it handles
 only the connection lifecycle and error translation.
 
-Today there is one strategy, PerPropertyStrategy, for bodies that expose the
-custom-slot PTP property interface (X-S10, X-T3+).  The X-T2 backup-blob strategy
-arrives in a follow-up; the Protocol then grows the methods it needs
-(read_slot_recipe, validate_backup, collection push).  See
-investigation/add_xt2_support/04_camera_strategy_architecture.md.
+Two strategies exist: PerPropertyStrategy for bodies with the custom-slot PTP
+property interface (X-S10, X-T3+), and BackupBlobStrategy for bodies with no such
+interface (X-T2 and older), whose recipes live in the settings backup blob read
+and written whole.
 """
 from __future__ import annotations
 
 import time
+from collections.abc import Sequence
 from typing import Callable
 from typing import Protocol
+from typing import TypeAlias
 from typing import TypeVar
 from typing import runtime_checkable
 
 import attrs
 
 from src.data.camera import constants
+from src.data.camera import constants_xt2
+from src.domain.camera import xt2_backup
 from src.domain.camera import operations as camera_operations
 from src.domain.camera import profiles
 from src.domain.camera import ptp_device
@@ -33,6 +36,10 @@ from src.domain.images import dataclasses as image_dataclasses
 from src.domain.settings import queries as settings_queries
 
 _T = TypeVar("_T")
+
+# A recipe paired with the 1-based slot it will be written to, for a collection
+# push.
+CollectionAssignment: TypeAlias = tuple[int, image_dataclasses.FujifilmRecipeData]
 
 # Maps a PTP property code back to its readable name, for RecipeWriteError.
 _CODE_TO_PROP_NAME: dict[int, str] = {
@@ -55,6 +62,38 @@ class RecipeWriteError(Exception):
             f"Recipe write incomplete: {len(failed_properties)} property/properties failed "
             f"({failed_properties})"
         )
+
+
+class BackupValidationError(Exception):
+    """
+    Raised when the camera's backup blob does not strictly validate.
+
+    Editing it by offset would be unsafe, so the push refuses before any write.
+    """
+
+    def __init__(self, errors: tuple[str, ...]) -> None:
+        self.errors = errors
+        super().__init__(f"Backup failed validation: {len(errors)} error(s)")
+
+
+class PushNotFeasibleError(Exception):
+    """
+    Raised when a push cannot go ahead without retuning a kept slot's white
+    balance (the X-T2 global-WB constraint).
+    """
+
+    def __init__(self, conflicts: tuple[str, ...]) -> None:
+        self.conflicts = conflicts
+        super().__init__("; ".join(conflicts) if conflicts else "Push not feasible")
+
+
+@attrs.frozen
+class SlotFeasibility:
+    """Whether a given recipe can be pushed into one slot, for the picker UI."""
+
+    slot_index: int        # 1-based
+    feasible: bool
+    reason: str            # empty when feasible
 
 
 @runtime_checkable
@@ -96,6 +135,35 @@ class CameraStrategy(Protocol):
         :raises CameraConnectionError: If the camera becomes unreachable.
         :raises CameraWriteError: If the camera rejects a critical write.
         :raises RecipeWriteError: If one or more properties failed to write/verify.
+        """
+        ...
+
+    def push_collection(
+        self, device: ptp_device.PTPDevice, assignments: Sequence[CollectionAssignment]
+    ) -> None:
+        """
+        Write several recipes to their assigned slots.
+
+        Per-property bodies write each slot in turn; the X-T2 edits one blob with
+        all the assignments and restores once.
+
+        :raises RecipeWriteError: If a write failed or did not verify.
+        :raises CameraConnectionError / CameraWriteError: On transport failure.
+        """
+        ...
+
+    def slot_feasibility(
+        self,
+        device: ptp_device.PTPDevice,
+        recipe: image_dataclasses.FujifilmRecipeData,
+        *,
+        slot_count: int,
+    ) -> list[SlotFeasibility]:
+        """
+        For each slot (1..slot_count), whether *recipe* could be pushed into it.
+
+        Per-property bodies are always feasible; the X-T2 reflects the global-WB
+        constraint so the picker can grey out conflicting slots.
         """
         ...
 
@@ -204,16 +272,144 @@ class PerPropertyStrategy:
             failed_properties = [_CODE_TO_PROP_NAME.get(c, hex(c)) for c in failed_codes]
             raise RecipeWriteError(failed_properties)
 
+    def push_collection(
+        self, device: ptp_device.PTPDevice, assignments: Sequence[CollectionAssignment]
+    ) -> None:
+        # Each slot is independent on a per-property body, so writing them in
+        # turn is the whole of it (the server analogue of the client's loop).
+        for slot_index, recipe in assignments:
+            self.push_recipe(device, recipe, slot_index=slot_index)
+
+    def slot_feasibility(
+        self,
+        device: ptp_device.PTPDevice,
+        recipe: image_dataclasses.FujifilmRecipeData,
+        *,
+        slot_count: int,
+    ) -> list[SlotFeasibility]:
+        # No shared-WB constraint on a per-property body: every slot is feasible.
+        return [SlotFeasibility(slot_index=idx, feasible=True, reason="") for idx in range(1, slot_count + 1)]
+
+
+@attrs.frozen
+class BackupBlobStrategy:
+    """
+    Strategy for bodies with no per-slot interface (X-T2 and older).
+
+    Reads, edits and restores the whole settings backup blob: the recipes live
+    at fixed byte offsets inside it. The codec in src.domain.camera.xt2_backup
+    does the pure byte work; this composes it over a connected device.
+    """
+
+    profile: profiles.CameraProfile
+
+    def read_slots(
+        self, device: ptp_device.PTPDevice, *, slot_count: int
+    ) -> list[camera_queries.SlotState]:
+        return xt2_backup.decode_slot_states(device.get_backup())
+
+    def validate_recipe(self, recipe: image_dataclasses.FujifilmRecipeData) -> None:
+        # map_recipe raises RecipeNotRepresentable on a value the X-T2 lacks; the
+        # dropped-field report it also produces is surfaced at push time.
+        xt2_backup.map_recipe(recipe)
+
+    def push_recipe(
+        self,
+        device: ptp_device.PTPDevice,
+        recipe: image_dataclasses.FujifilmRecipeData,
+        *,
+        slot_index: int,
+    ) -> None:
+        blob = self._validated_backup(device)
+        mapping = xt2_backup.map_recipe(recipe)
+        feasibility = xt2_backup.check_feasibility(blob, slot_index - 1, mapping)
+        if not feasibility.ok:
+            raise PushNotFeasibleError(feasibility.conflicts)
+        edited = xt2_backup.apply_recipe(blob, slot_index - 1, mapping)
+        self._restore_and_verify(device, edited)
+
+    def push_collection(
+        self, device: ptp_device.PTPDevice, assignments: Sequence[CollectionAssignment]
+    ) -> None:
+        blob = self._validated_backup(device)
+        mapped = [(slot_index - 1, xt2_backup.map_recipe(recipe)) for slot_index, recipe in assignments]
+        feasibility = xt2_backup.check_collection_feasibility(blob, mapped)
+        if not feasibility.ok:
+            raise PushNotFeasibleError(feasibility.conflicts)
+        edited = xt2_backup.apply_recipes(blob, mapped)
+        self._restore_and_verify(device, edited)
+
+    def slot_feasibility(
+        self,
+        device: ptp_device.PTPDevice,
+        recipe: image_dataclasses.FujifilmRecipeData,
+        *,
+        slot_count: int,
+    ) -> list[SlotFeasibility]:
+        blob = device.get_backup()
+        try:
+            mapping = xt2_backup.map_recipe(recipe)
+        except xt2_backup.RecipeNotRepresentable as exc:
+            reason = f"The X-T2 does not support {exc.field} = {exc.value!r}."
+            return [SlotFeasibility(slot_index=idx, feasible=False, reason=reason)
+                    for idx in range(1, slot_count + 1)]
+        feasibilities: list[SlotFeasibility] = []
+        for idx in range(1, slot_count + 1):
+            feasibility = xt2_backup.check_feasibility(blob, idx - 1, mapping)
+            feasibilities.append(
+                SlotFeasibility(
+                    slot_index=idx,
+                    feasible=feasibility.ok,
+                    reason="" if feasibility.ok else "; ".join(feasibility.conflicts),
+                )
+            )
+        return feasibilities
+
+    def _validated_backup(self, device: ptp_device.PTPDevice) -> bytes:
+        blob = device.get_backup()
+        report = xt2_backup.validate_backup(blob)
+        if not report.ok:
+            raise BackupValidationError(report.errors)
+        return blob
+
+    def _restore_and_verify(self, device: ptp_device.PTPDevice, edited: bytes) -> None:
+        verify = settings_queries.get_camera_verify_writes()
+        try:
+            device.restore_backup(edited)
+        except ptp_device.RestoreAckTimeout:
+            # The write may well have applied; only confirm by read-back. With
+            # verification off there is no way to confirm, so surface the failure.
+            if not verify:
+                raise
+        if verify:
+            result = xt2_backup.verify_round_trip(device.get_backup(), edited)
+            if not result.ok:
+                raise RecipeWriteError(sorted(_affected_slot_labels(result.mismatches)))
+
+
+def _affected_slot_labels(mismatches: tuple[int, ...]) -> set[str]:
+    """Name the regions a round-trip mismatch touched, for RecipeWriteError."""
+    labels: set[str] = set()
+    slots_end = constants_xt2.SLOT0_OFFSET + constants_xt2.SLOT_SIZE * constants_xt2.SLOT_COUNT
+    for offset in mismatches:
+        if constants_xt2.SLOT0_OFFSET <= offset < slots_end:
+            labels.add(f"C{(offset - constants_xt2.SLOT0_OFFSET) // constants_xt2.SLOT_SIZE + 1}")
+        else:
+            labels.add("header")
+    return labels or {"backup"}
+
 
 def get_strategy(camera_model: str) -> CameraStrategy:
     """
     Return the strategy that drives a camera model.
 
-    In PR 1 every model resolves to the per-property strategy (the only
-    interface that exists yet); the X-T2 backup-blob strategy is selected here,
-    on the profile's interface, when it lands.
+    Resolves the model's profile and returns the strategy for its interface:
+    the per-property strategy for the custom-slot PTP interface, the backup-blob
+    strategy for bodies whose recipes live in the settings backup (X-T2).
     """
     profile = profiles.get_profile(camera_model)
+    if profile.interface is profiles.CameraInterface.BACKUP_BLOB:
+        return BackupBlobStrategy(profile=profile)
     return PerPropertyStrategy(profile=profile)
 
 

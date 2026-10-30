@@ -109,3 +109,165 @@ class TestPerPropertyStrategyPushRecipe:
         device = FakePTPDevice(set_rejection_codes={constants.PROP_SLOT_CURSOR: 0x2005})
         with pytest.raises(CameraConnectionError):
             self._strategy().push_recipe(device, _make_recipe(), slot_index=1)
+
+
+# ---------------------------------------------------------------------------
+# BackupBlobStrategy (X-T2) and the collection / feasibility surface
+# ---------------------------------------------------------------------------
+
+from pathlib import Path  # noqa: E402
+
+from src.data.camera import constants_xt2  # noqa: E402
+from src.domain.camera import xt2_backup  # noqa: E402
+from src.domain.camera.ptp_device import RestoreAckTimeout  # noqa: E402
+
+_PRISTINE = (
+    Path(__file__).resolve().parents[3] / "fixtures" / "camera" / "xt2_backup_pristine.bin"
+).read_bytes()
+
+
+def _xt2_recipe(**overrides: object) -> FujifilmRecipeData:
+    # Underwater is a WB entry no pristine slot uses, so a push to any slot is
+    # feasible by default; override white_balance to force a conflict.
+    base: dict[str, object] = {"film_simulation": "Classic Chrome", "white_balance": "Underwater"}
+    base.update(overrides)
+    return _make_recipe(**base)
+
+
+def _xt2_device(**kwargs: object) -> FakePTPDevice:
+    return FakePTPDevice(camera_name="X-T2", backup=_PRISTINE, **kwargs)
+
+
+class TestGetStrategyBackupBlob:
+    def test_x_t2_resolves_to_backup_blob_strategy(self) -> None:
+        assert isinstance(strategies.get_strategy("X-T2"), strategies.BackupBlobStrategy)
+
+    def test_other_models_stay_per_property(self) -> None:
+        assert isinstance(strategies.get_strategy("X-S10"), strategies.PerPropertyStrategy)
+
+
+class TestBackupBlobReadSlots:
+    def test_reads_seven_slots_from_the_backup(self) -> None:
+        strategy = strategies.get_strategy("X-T2")
+        states = strategy.read_slots(_xt2_device(), slot_count=7)
+        assert [s.index for s in states] == [1, 2, 3, 4, 5, 6, 7]
+        assert states[1].name == "KODACHROME 2"
+
+
+class TestBackupBlobPushRecipe:
+    def _strategy(self) -> strategies.BackupBlobStrategy:
+        return strategies.BackupBlobStrategy(profile=profiles.XT2_PROFILE)
+
+    def test_feasible_push_restores_once_and_verifies(self, settings) -> None:
+        settings.CAMERA_VERIFY_WRITES = True
+        device = _xt2_device()
+        self._strategy().push_recipe(device, _xt2_recipe(name="NEW"), slot_index=1)
+        assert len(device.restored_blobs) == 1
+        # The restored blob has the recipe in C1.
+        assert xt2_backup.decode_slot_recipe(device.restored_blobs[0], 1).name == "NEW"
+
+    def test_infeasible_wb_conflict_raises_before_writing(self, settings) -> None:
+        settings.CAMERA_VERIFY_WRITES = True
+        device = _xt2_device()
+        # Auto is shared by pristine slots; a new Auto shift would retune them.
+        recipe = _make_recipe(white_balance="Auto", white_balance_red=5, white_balance_blue=5)
+        with pytest.raises(strategies.PushNotFeasibleError):
+            self._strategy().push_recipe(device, recipe, slot_index=1)
+        assert device.restored_blobs == []
+
+    def test_unrepresentable_film_sim_raises(self) -> None:
+        device = _xt2_device()
+        with pytest.raises(xt2_backup.RecipeNotRepresentable):
+            self._strategy().push_recipe(device, _xt2_recipe(film_simulation="Eterna"), slot_index=1)
+        assert device.restored_blobs == []
+
+    def test_invalid_backup_refuses_to_write(self) -> None:
+        device = FakePTPDevice(camera_name="X-T2", backup=b"\x00" * 5660)
+        with pytest.raises(strategies.BackupValidationError):
+            self._strategy().push_recipe(device, _xt2_recipe(), slot_index=1)
+        assert device.restored_blobs == []
+
+    def test_verify_mismatch_raises_recipe_write_error(self, settings) -> None:
+        settings.CAMERA_VERIFY_WRITES = True
+        # The camera "stores" a different film-sim byte in C1 than was pushed.
+        drift = {constants_xt2.SLOT0_OFFSET + constants_xt2.OFF_FILM_SIMULATION: 0x00}
+        device = _xt2_device(restore_drift=drift)
+        with pytest.raises(strategies.RecipeWriteError):
+            self._strategy().push_recipe(device, _xt2_recipe(film_simulation="Velvia"), slot_index=1)
+
+    def test_lost_ack_with_verify_confirms_by_readback(self, settings) -> None:
+        settings.CAMERA_VERIFY_WRITES = True
+        device = _xt2_device(restore_ack_times_out=True)
+        # The fake stores the blob before raising, so the read-back matches.
+        self._strategy().push_recipe(device, _xt2_recipe(name="OK"), slot_index=1)
+
+    def test_lost_ack_without_verify_raises(self, settings) -> None:
+        settings.CAMERA_VERIFY_WRITES = False
+        device = _xt2_device(restore_ack_times_out=True)
+        with pytest.raises(RestoreAckTimeout):
+            self._strategy().push_recipe(device, _xt2_recipe(), slot_index=1)
+
+
+class TestBackupBlobPushCollection:
+    def _strategy(self) -> strategies.BackupBlobStrategy:
+        return strategies.BackupBlobStrategy(profile=profiles.XT2_PROFILE)
+
+    def test_pushes_all_in_one_restore(self, settings) -> None:
+        settings.CAMERA_VERIFY_WRITES = True
+        device = _xt2_device()
+        # Underwater and Fluorescent 3 are WB entries no kept slot uses.
+        assignments = [
+            (1, _xt2_recipe(name="A", white_balance="Underwater")),
+            (2, _xt2_recipe(name="B", white_balance="Fluorescent 3")),
+        ]
+        self._strategy().push_collection(device, assignments)
+        assert len(device.restored_blobs) == 1  # one blob, one restore
+
+    def test_conflicting_collection_raises(self, settings) -> None:
+        settings.CAMERA_VERIFY_WRITES = True
+        device = _xt2_device()
+        assignments = [
+            (1, _xt2_recipe(white_balance="Underwater", white_balance_red=3)),
+            (2, _xt2_recipe(white_balance="Underwater", white_balance_red=-3)),
+        ]
+        with pytest.raises(strategies.PushNotFeasibleError):
+            self._strategy().push_collection(device, assignments)
+        assert device.restored_blobs == []
+
+
+class TestBackupBlobSlotFeasibility:
+    def _strategy(self) -> strategies.BackupBlobStrategy:
+        return strategies.BackupBlobStrategy(profile=profiles.XT2_PROFILE)
+
+    def test_free_wb_is_feasible_for_every_slot(self) -> None:
+        result = self._strategy().slot_feasibility(_xt2_device(), _xt2_recipe(), slot_count=7)
+        assert all(f.feasible for f in result)
+
+    def test_shared_wb_conflict_marks_slots_infeasible_with_a_reason(self) -> None:
+        recipe = _make_recipe(white_balance="Auto", white_balance_red=5, white_balance_blue=5)
+        result = self._strategy().slot_feasibility(_xt2_device(), recipe, slot_count=7)
+        infeasible = [f for f in result if not f.feasible]
+        assert infeasible
+        assert all(f.reason for f in infeasible)
+
+    def test_unrepresentable_recipe_greys_out_all_slots(self) -> None:
+        recipe = _xt2_recipe(film_simulation="Eterna")
+        result = self._strategy().slot_feasibility(_xt2_device(), recipe, slot_count=7)
+        assert all(not f.feasible for f in result)
+
+
+class TestPerPropertyCollectionAndFeasibility:
+    def _strategy(self) -> strategies.PerPropertyStrategy:
+        return strategies.PerPropertyStrategy(profile=profiles.PER_PROPERTY_PROFILE)
+
+    def test_push_collection_writes_each_assignment(self) -> None:
+        device = FakePTPDevice()
+        self._strategy().push_collection(device, [(1, _make_recipe()), (2, _make_recipe())])
+        # The last write landed; a FakePTPDevice stores by code, so this just
+        # confirms the loop ran without error and wrote the film simulation.
+        assert device.get_property_int(_FILM_SIM_CODE) != 0
+
+    def test_slot_feasibility_all_feasible(self) -> None:
+        result = self._strategy().slot_feasibility(FakePTPDevice(), _make_recipe(), slot_count=4)
+        assert [f.slot_index for f in result] == [1, 2, 3, 4]
+        assert all(f.feasible for f in result)
