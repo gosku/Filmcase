@@ -13,7 +13,7 @@ from tests.fakes import FakePTPDevice
 
 
 def _run():
-    return get_camera_slots()
+    return get_camera_slots().slots
 
 
 # ---------------------------------------------------------------------------

@@ -53,7 +53,7 @@ class SelectSlot(generic.View):
     def get(self, request: http.HttpRequest, recipe_id: int) -> http.HttpResponse:
         is_htmx = request.headers.get("HX-Request")
         try:
-            states = get_camera_slots_uc.get_camera_slots()
+            states = get_camera_slots_uc.get_camera_slots().slots
         except ptp_device.CameraConnectionError as e:
             if is_htmx:
                 return shortcuts.render(request, "recipes/_select_slot_partial.html", {"recipe": self.recipe, "slots": [], "error": f"Camera connection error: {e}"})
@@ -198,7 +198,8 @@ class SelectCollectionSlots(generic.View):
             raise http.Http404
 
         try:
-            camera_name, slots = get_camera_slots_uc.get_camera_model_and_slots()
+            camera_slots = get_camera_slots_uc.get_camera_model_and_slots()
+            camera_name, slots = camera_slots.camera_model, camera_slots.slots
         except ptp_device.CameraConnectionError as e:
             error = f"Camera connection error: {e}"
             if is_htmx:
