@@ -240,20 +240,26 @@ class TestBackupBlobSlotFeasibility:
         return strategies.BackupBlobStrategy(profile=profiles.XT2_PROFILE)
 
     def test_free_wb_is_feasible_for_every_slot(self) -> None:
-        result = self._strategy().slot_feasibility(_xt2_device(), _xt2_recipe(), slot_count=7)
-        assert all(f.feasible for f in result)
+        result = self._strategy().plan_feasibility(_xt2_device(), _xt2_recipe(), slot_count=7)
+        assert all(f.feasible for f in result.slots)
 
     def test_shared_wb_conflict_marks_slots_infeasible_with_a_reason(self) -> None:
         recipe = _make_recipe(white_balance="Auto", white_balance_red=5, white_balance_blue=5)
-        result = self._strategy().slot_feasibility(_xt2_device(), recipe, slot_count=7)
-        infeasible = [f for f in result if not f.feasible]
+        result = self._strategy().plan_feasibility(_xt2_device(), recipe, slot_count=7)
+        infeasible = [f for f in result.slots if not f.feasible]
         assert infeasible
         assert all(f.reason for f in infeasible)
 
     def test_unrepresentable_recipe_greys_out_all_slots(self) -> None:
         recipe = _xt2_recipe(film_simulation="Eterna")
-        result = self._strategy().slot_feasibility(_xt2_device(), recipe, slot_count=7)
-        assert all(not f.feasible for f in result)
+        result = self._strategy().plan_feasibility(_xt2_device(), recipe, slot_count=7)
+        assert all(not f.feasible for f in result.slots)
+
+    def test_reports_fields_the_x_t2_drops(self) -> None:
+        recipe = _xt2_recipe(clarity="3", color_chrome_effect="Strong")
+        result = self._strategy().plan_feasibility(_xt2_device(), recipe, slot_count=7)
+        assert all(f.feasible for f in result.slots)
+        assert result.dropped_fields == ("Clarity", "Color Chrome Effect")
 
 
 class TestPerPropertyCollectionAndFeasibility:
@@ -267,7 +273,8 @@ class TestPerPropertyCollectionAndFeasibility:
         # confirms the loop ran without error and wrote the film simulation.
         assert device.get_property_int(_FILM_SIM_CODE) != 0
 
-    def test_slot_feasibility_all_feasible(self) -> None:
-        result = self._strategy().slot_feasibility(FakePTPDevice(), _make_recipe(), slot_count=4)
-        assert [f.slot_index for f in result] == [1, 2, 3, 4]
-        assert all(f.feasible for f in result)
+    def test_plan_feasibility_all_feasible_and_drops_nothing(self) -> None:
+        result = self._strategy().plan_feasibility(FakePTPDevice(), _make_recipe(), slot_count=4)
+        assert [f.slot_index for f in result.slots] == [1, 2, 3, 4]
+        assert all(f.feasible for f in result.slots)
+        assert result.dropped_fields == ()

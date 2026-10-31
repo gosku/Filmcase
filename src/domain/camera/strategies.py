@@ -96,6 +96,21 @@ class SlotFeasibility:
     reason: str            # empty when feasible
 
 
+@attrs.frozen
+class RecipeFeasibility:
+    """
+    How a recipe would push to a model, for the picker UI.
+
+    ``slots`` is the per-slot grey-out verdict. ``dropped_fields`` names the
+    recipe's fields the model silently drops (empty for a per-property body,
+    which keeps every field); it is shown as a warning before the push, never a
+    failure.
+    """
+
+    slots: list[SlotFeasibility]
+    dropped_fields: tuple[str, ...]
+
+
 @runtime_checkable
 class CameraStrategy(Protocol):
     """
@@ -152,18 +167,20 @@ class CameraStrategy(Protocol):
         """
         ...
 
-    def slot_feasibility(
+    def plan_feasibility(
         self,
         device: ptp_device.PTPDevice,
         recipe: image_dataclasses.FujifilmRecipeData,
         *,
         slot_count: int,
-    ) -> list[SlotFeasibility]:
+    ) -> RecipeFeasibility:
         """
-        For each slot (1..slot_count), whether *recipe* could be pushed into it.
+        How *recipe* would push to this model: the per-slot grey-out verdict and
+        the fields the model drops.
 
-        Per-property bodies are always feasible; the X-T2 reflects the global-WB
-        constraint so the picker can grey out conflicting slots.
+        Per-property bodies are always feasible and drop nothing; the X-T2
+        reflects the global-WB constraint so the picker can grey out conflicting
+        slots, and reports the fields it lacks so the picker can warn.
         """
         ...
 
@@ -280,15 +297,17 @@ class PerPropertyStrategy:
         for slot_index, recipe in assignments:
             self.push_recipe(device, recipe, slot_index=slot_index)
 
-    def slot_feasibility(
+    def plan_feasibility(
         self,
         device: ptp_device.PTPDevice,
         recipe: image_dataclasses.FujifilmRecipeData,
         *,
         slot_count: int,
-    ) -> list[SlotFeasibility]:
-        # No shared-WB constraint on a per-property body: every slot is feasible.
-        return [SlotFeasibility(slot_index=idx, feasible=True, reason="") for idx in range(1, slot_count + 1)]
+    ) -> RecipeFeasibility:
+        # No shared-WB constraint and nothing dropped on a per-property body:
+        # every slot is feasible and every field is kept.
+        slots = [SlotFeasibility(slot_index=idx, feasible=True, reason="") for idx in range(1, slot_count + 1)]
+        return RecipeFeasibility(slots=slots, dropped_fields=())
 
 
 @attrs.frozen
@@ -339,31 +358,35 @@ class BackupBlobStrategy:
         edited = xt2_backup.apply_recipes(blob, mapped)
         self._restore_and_verify(device, edited)
 
-    def slot_feasibility(
+    def plan_feasibility(
         self,
         device: ptp_device.PTPDevice,
         recipe: image_dataclasses.FujifilmRecipeData,
         *,
         slot_count: int,
-    ) -> list[SlotFeasibility]:
+    ) -> RecipeFeasibility:
         blob = device.get_backup()
         try:
             mapping = xt2_backup.map_recipe(recipe)
-        except xt2_backup.RecipeNotRepresentable as exc:
-            reason = f"The X-T2 does not support {exc.field} = {exc.value!r}."
-            return [SlotFeasibility(slot_index=idx, feasible=False, reason=reason)
-                    for idx in range(1, slot_count + 1)]
-        feasibilities: list[SlotFeasibility] = []
+        except xt2_backup.RecipeNotRepresentable:
+            # The recipe cannot be pushed at all, so no slot is feasible and there
+            # is nothing to report as dropped. A recipe this camera has no film
+            # simulation for needs no spelling out, so the picker greys every slot
+            # with no note: the empty reason leaves nothing to show.
+            slots = [SlotFeasibility(slot_index=idx, feasible=False, reason="")
+                     for idx in range(1, slot_count + 1)]
+            return RecipeFeasibility(slots=slots, dropped_fields=())
+        slots = []
         for idx in range(1, slot_count + 1):
             feasibility = xt2_backup.check_feasibility(blob, idx - 1, mapping)
-            feasibilities.append(
+            slots.append(
                 SlotFeasibility(
                     slot_index=idx,
                     feasible=feasibility.ok,
                     reason="" if feasibility.ok else "; ".join(feasibility.conflicts),
                 )
             )
-        return feasibilities
+        return RecipeFeasibility(slots=slots, dropped_fields=mapping.dropped)
 
     def _validated_backup(self, device: ptp_device.PTPDevice) -> bytes:
         blob = device.get_backup()
