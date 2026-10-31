@@ -19,7 +19,11 @@
  * the client's profile.
  */
 
-import { CameraConnectionError, CameraWriteError } from "../vendor/ptp_device.js";
+import {
+  CameraConnectionError,
+  CameraWriteError,
+  RestoreAckTimeout,
+} from "../vendor/ptp_device.js";
 import {
   SLOT_PROGRESS,
   SLOT_RETRY,
@@ -32,6 +36,20 @@ import {
   verifyWrittenProperties,
 } from "./operations.js";
 import { makeSlotState, ptpValueItems, recipeToPtpValues } from "./queries.js";
+import {
+  RecipeNotRepresentable,
+  applyRecipe,
+  applyRecipes,
+  checkCollectionFeasibility,
+  checkFeasibility,
+  decodeSlotStates,
+  mapRecipe,
+  prepareXt2,
+  validateBackup,
+  verifyRoundTrip,
+} from "./xt2_backup.js";
+
+export { RecipeNotRepresentable } from "./xt2_backup.js";
 
 /** Raised when one or more properties could not be written or verified. */
 export class RecipeWriteError extends Error {
@@ -44,6 +62,26 @@ export class RecipeWriteError extends Error {
     );
     this.name = "RecipeWriteError";
     this.failedProperties = failedProperties;
+  }
+}
+
+/** Raised when a backup blob does not strictly validate, so editing is unsafe. */
+export class BackupValidationError extends Error {
+  /** @param {string[]} errors */
+  constructor(errors) {
+    super(`Backup failed validation: ${errors.length} error(s)`);
+    this.name = "BackupValidationError";
+    this.errors = errors;
+  }
+}
+
+/** Raised when a push would retune a kept slot's shared white balance (X-T2). */
+export class PushNotFeasibleError extends Error {
+  /** @param {string[]} conflicts */
+  constructor(conflicts) {
+    super(conflicts.length ? conflicts.join("; ") : "Push not feasible");
+    this.name = "PushNotFeasibleError";
+    this.conflicts = conflicts;
   }
 }
 
@@ -264,18 +302,212 @@ export class PerPropertyStrategy {
       );
     }
   }
+
+  /**
+   * Write each assignment to its slot in turn (the server analogue of the
+   * client's loop). Each slot is independent on a per-property body.
+   *
+   * @param {import("../vendor/ptp_device.js").CameraDevice} device
+   * @param {Array<[number, object]>} assignments 1-based slot index, recipe
+   * @param {object} options
+   * @param {{config: object, sleep: Function}} options.runtime
+   * @returns {Promise<void>}
+   */
+  async pushCollection(device, assignments, { runtime }) {
+    for (const [slotIndex, recipe] of assignments) {
+      await this.pushRecipe(device, recipe, { slotIndex, runtime });
+    }
+  }
+
+  /**
+   * Every slot is feasible and nothing is dropped on a per-property body.
+   *
+   * @returns {Promise<{slots: Array<{slotIndex: number, feasible: boolean, reason: string}>, droppedFields: string[]}>}
+   */
+  async planFeasibility(device, recipe, { slotCount }) {
+    const slots = [];
+    for (let idx = 1; idx <= slotCount; idx += 1) {
+      slots.push({ slotIndex: idx, feasible: true, reason: "" });
+    }
+    return { slots, droppedFields: [] };
+  }
+
+  /**
+   * Any collection is feasible on a per-property body.
+   *
+   * @returns {Promise<{ok: boolean, conflicts: string[], droppedFields: string[], unrepresentable: object[]}>}
+   */
+  async collectionFeasibility() {
+    return { ok: true, conflicts: [], droppedFields: [], unrepresentable: [] };
+  }
+}
+
+/**
+ * Name the slot regions a round-trip mismatch touched, for RecipeWriteError.
+ *
+ * @param {number[]} mismatches
+ * @param {object} X prepared X-T2 layout
+ * @returns {string[]}
+ */
+function _affectedSlotLabels(mismatches, X) {
+  const labels = new Set();
+  const slotsEnd = X.slot0Offset + X.slotSize * X.slotCount;
+  for (const offset of mismatches) {
+    if (offset >= X.slot0Offset && offset < slotsEnd) {
+      labels.add(`C${Math.floor((offset - X.slot0Offset) / X.slotSize) + 1}`);
+    } else {
+      labels.add("header");
+    }
+  }
+  return labels.size ? [...labels].sort() : ["backup"];
+}
+
+/**
+ * Strategy for bodies with no per-slot interface (X-T2 and older).
+ *
+ * Reads, edits and restores the whole settings backup blob; the codec in
+ * ./xt2_backup.js does the pure byte work and this composes it over a connected
+ * device. Ports src/domain/camera/strategies.py BackupBlobStrategy.
+ */
+export class BackupBlobStrategy {
+  /** @param {object} xt2Layout prepared layout from prepareXt2() */
+  constructor(xt2Layout) {
+    this._X = xt2Layout;
+  }
+
+  async readSlots(device, { runtime }) {
+    const encodings = runtime.config.encodings;
+    const blob = await device.getBackup();
+    return decodeSlotStates(blob, this._X, encodings).map((row) => makeSlotState(row, encodings));
+  }
+
+  async pushRecipe(device, recipe, { slotIndex, runtime }) {
+    const blob = await this._validatedBackup(device);
+    const mapping = mapRecipe(recipe, this._X);
+    const feasibility = checkFeasibility(blob, slotIndex - 1, mapping, this._X);
+    if (!feasibility.ok) throw new PushNotFeasibleError(feasibility.conflicts);
+    const edited = applyRecipe(blob, slotIndex - 1, mapping, this._X);
+    await this._restoreAndVerify(device, edited, runtime);
+  }
+
+  async pushCollection(device, assignments, { runtime }) {
+    const blob = await this._validatedBackup(device);
+    const mapped = assignments.map(([slotIndex, recipe]) => [slotIndex - 1, mapRecipe(recipe, this._X)]);
+    const feasibility = checkCollectionFeasibility(blob, mapped, this._X);
+    if (!feasibility.ok) throw new PushNotFeasibleError(feasibility.conflicts);
+    const edited = applyRecipes(blob, mapped, this._X);
+    await this._restoreAndVerify(device, edited, runtime);
+  }
+
+  async planFeasibility(device, recipe, { slotCount }) {
+    const blob = await device.getBackup();
+    let mapping;
+    try {
+      mapping = mapRecipe(recipe, this._X);
+    } catch (error) {
+      if (error instanceof RecipeNotRepresentable) {
+        // A recipe this camera has no film simulation for needs no spelling out,
+        // so the picker greys every slot with no note: the empty reason leaves
+        // nothing to show.
+        const slots = [];
+        for (let idx = 1; idx <= slotCount; idx += 1) {
+          slots.push({ slotIndex: idx, feasible: false, reason: "" });
+        }
+        return { slots, droppedFields: [] };
+      }
+      throw error;
+    }
+    const slots = [];
+    for (let idx = 1; idx <= slotCount; idx += 1) {
+      const feasibility = checkFeasibility(blob, idx - 1, mapping, this._X);
+      slots.push({
+        slotIndex: idx,
+        feasible: feasibility.ok,
+        reason: feasibility.ok ? "" : feasibility.conflicts.join("; "),
+      });
+    }
+    return { slots, droppedFields: mapping.dropped };
+  }
+
+  async collectionFeasibility(device, assignments) {
+    const blob = await device.getBackup();
+    if (!validateBackup(blob, this._X).ok) {
+      return {
+        ok: false,
+        conflicts: ["The camera's settings backup could not be read."],
+        droppedFields: [],
+        unrepresentable: [],
+      };
+    }
+    const mapped = [];
+    const unrepresentable = [];
+    const dropped = [];
+    for (const [slotIndex, recipe] of assignments) {
+      let mapping;
+      try {
+        mapping = mapRecipe(recipe, this._X);
+      } catch (error) {
+        if (error instanceof RecipeNotRepresentable) {
+          unrepresentable.push({ slotIndex, field: error.field, value: String(error.value) });
+          continue;
+        }
+        throw error;
+      }
+      for (const field of mapping.dropped) {
+        if (!dropped.includes(field)) dropped.push(field);
+      }
+      mapped.push([slotIndex - 1, mapping]);
+    }
+    const feasibility = checkCollectionFeasibility(blob, mapped, this._X);
+    return {
+      ok: feasibility.ok && unrepresentable.length === 0,
+      conflicts: feasibility.conflicts,
+      droppedFields: dropped,
+      unrepresentable,
+    };
+  }
+
+  async _validatedBackup(device) {
+    const blob = await device.getBackup();
+    const report = validateBackup(blob, this._X);
+    if (!report.ok) throw new BackupValidationError(report.errors);
+    return blob;
+  }
+
+  async _restoreAndVerify(device, edited, runtime) {
+    const verify = runtime.config.settings.CAMERA_VERIFY_WRITES;
+    try {
+      await device.restoreBackup(edited);
+    } catch (error) {
+      // A lost ack may still have applied; only a read-back can confirm. With
+      // verification off there is no way to confirm, so surface the failure.
+      if (!(error instanceof RestoreAckTimeout) || !verify) throw error;
+    }
+    if (verify) {
+      const result = verifyRoundTrip(await device.getBackup(), edited, this._X);
+      if (!result.ok) throw new RecipeWriteError(_affectedSlotLabels(result.mismatches, this._X));
+    }
+  }
 }
 
 /**
  * Return the strategy that drives a camera model.
  *
- * In PR 1 every model resolves to the per-property strategy (the only interface
- * that exists yet); the X-T2 backup-blob strategy is selected here, on the
- * served interface, when it lands.
+ * Resolves the model's interface from the served profile (the same allow-list
+ * get_profile uses on the server): a backup-blob body gets the backup strategy,
+ * every other model the per-property one.
  *
  * @param {string} cameraName The model reported by the connected device.
- * @returns {PerPropertyStrategy}
+ * @param {object} config The served client config (settings/encodings/profile).
+ * @returns {PerPropertyStrategy|BackupBlobStrategy}
  */
-export function getStrategy(cameraName) {
+export function getStrategy(cameraName, config) {
+  const profile = config && config.profile;
+  const interfaceByModel = (profile && profile.interface_by_model) || {};
+  const defaultInterface = (profile && profile.default_interface) || "per_property";
+  const iface = interfaceByModel[cameraName] ?? defaultInterface;
+  if (iface === "backup_blob") {
+    return new BackupBlobStrategy(prepareXt2(profile.xt2));
+  }
   return new PerPropertyStrategy();
 }

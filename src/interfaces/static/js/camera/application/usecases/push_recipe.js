@@ -12,10 +12,15 @@
 
 import { getStrategy } from "../../domain/strategies.js";
 
-// Re-exported so the interfaces layer keeps importing the exception from the
-// use case. It is raised by the strategy (domain), where the push algorithm now
-// lives.
-export { RecipeWriteError } from "../../domain/strategies.js";
+// Re-exported so the interfaces layer keeps importing the push errors from the
+// use case. They are raised by the strategy (domain), where the push algorithm
+// lives; RecipeWriteError applies to every model, the rest to the X-T2 path.
+export {
+  BackupValidationError,
+  PushNotFeasibleError,
+  RecipeNotRepresentable,
+  RecipeWriteError,
+} from "../../domain/strategies.js";
 
 /**
  * Write a recipe to a custom slot.
@@ -32,6 +37,6 @@ export { RecipeWriteError } from "../../domain/strategies.js";
  * @throws {RecipeWriteError} Some properties did not write or verify.
  */
 export async function pushRecipeToCamera(device, recipe, { slotIndex, runtime }) {
-  const strategy = getStrategy(device.cameraName);
+  const strategy = getStrategy(device.cameraName, runtime.config);
   return strategy.pushRecipe(device, recipe, { slotIndex, runtime });
 }

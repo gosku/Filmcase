@@ -27,7 +27,7 @@ import { getStrategy } from "../../domain/strategies.js";
  * @returns {Promise<Array<{index: number, name: string, filmSimPtp: number, filmSimName: string}>>}
  */
 export async function getCameraSlots(device, runtime) {
-  const strategy = getStrategy(device.cameraName);
+  const strategy = getStrategy(device.cameraName, runtime.config);
   const slotCount = customSlotCount(device.cameraName, runtime.config.encodings);
   return strategy.readSlots(device, { slotCount, runtime });
 }
