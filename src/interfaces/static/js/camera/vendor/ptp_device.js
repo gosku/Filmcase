@@ -19,6 +19,21 @@ export class CameraConnectionError extends Error {
   }
 }
 
+/**
+ * Raised when a backup restore's status ack is lost (the read timed out).
+ *
+ * Ports src/domain/camera/ptp_device.py RestoreAckTimeout. The write may well
+ * have applied, so the caller confirms by read-back rather than re-sending a
+ * settings commit. A CameraConnectionError, so existing handlers still catch it.
+ */
+export class RestoreAckTimeout extends CameraConnectionError {
+  /** @param {string} message */
+  constructor(message) {
+    super(message);
+    this.name = "RestoreAckTimeout";
+  }
+}
+
 /** Raised when the camera actively rejects a property write (non-zero rc). */
 export class CameraWriteError extends Error {
   /**
