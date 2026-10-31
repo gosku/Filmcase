@@ -87,6 +87,13 @@ class PushNotFeasibleError(Exception):
         super().__init__("; ".join(conflicts) if conflicts else "Push not feasible")
 
 
+# A push can also fail because the recipe holds a value the model cannot
+# represent at all (raised by the backup-blob codec, propagated through
+# push_recipe/push_collection). Re-exported here so a use case importing from the
+# strategy layer has every push error in one place.
+RecipeNotRepresentable = xt2_backup.RecipeNotRepresentable
+
+
 @attrs.frozen
 class SlotFeasibility:
     """Whether a given recipe can be pushed into one slot, for the picker UI."""

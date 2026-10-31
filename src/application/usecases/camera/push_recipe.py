@@ -11,9 +11,16 @@ from src.domain.camera import device_config
 from src.domain.camera import strategies
 from src.domain.recipes import queries as recipe_queries
 
-# Re-exported so callers keep importing the exception from the use case.  It is
-# raised by the strategy (domain), where the push algorithm now lives.
+# Re-exported so callers keep importing the push errors from the use case.  They
+# are raised by the strategy (domain), where the push algorithm lives.
+# RecipeWriteError applies to every model; the rest arise only on the backup-blob
+# (X-T2) path, where a push can be refused before any write (the backup does not
+# validate, the global white balance makes it infeasible) or the recipe holds a
+# value the model cannot represent.
 RecipeWriteError = strategies.RecipeWriteError
+BackupValidationError = strategies.BackupValidationError
+PushNotFeasibleError = strategies.PushNotFeasibleError
+RecipeNotRepresentable = strategies.RecipeNotRepresentable
 
 
 def push_recipe_to_camera(
@@ -44,6 +51,14 @@ def push_recipe_to_camera(
         CameraWriteError:      If the camera rejects a critical write.
         RecipeWriteError:      If one or more properties failed to write or verify.
                                ``exc.failed_properties`` lists the property names.
+        RecipeNotRepresentable: If the recipe holds a value the model cannot store
+                               (e.g. a film simulation the X-T2 lacks); nothing is
+                               written. ``exc.field`` / ``exc.value`` name it.
+        BackupValidationError: (backup-blob models) If the camera's settings backup
+                               does not validate, so editing it would be unsafe.
+        PushNotFeasibleError:  (backup-blob models) If the push would retune a kept
+                               slot's shared white balance. ``exc.conflicts`` says
+                               which.
     """
     recipe_data = recipe_queries.recipe_from_db(recipe=recipe)
     device = device_config.get_device()
