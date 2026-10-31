@@ -109,6 +109,63 @@
       line-height: 1;
       flex-shrink: 0;
     }
+
+    .slot-dropped-note {
+      margin: 0.5rem 1.5rem 0;
+      padding: 0.5rem 0.6rem;
+      font-size: 0.78rem;
+      line-height: 1.35;
+      color: #92400e;
+      background: #fef3c7;
+      border-radius: 6px;
+    }
+
+    .slot-row:disabled { cursor: not-allowed; opacity: 0.5; }
+    .slot-row:disabled:hover { background: transparent; }
+
+    .slot-conflict { margin: 0.5rem 1.5rem 0; }
+
+    .slot-conflict-summary {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.5rem;
+      padding: 0.5rem 0.6rem;
+      font-size: 0.78rem;
+      line-height: 1.35;
+      color: #92400e;
+      background: #fef3c7;
+      border-radius: 6px;
+      cursor: pointer;
+      list-style: none;
+    }
+
+    .slot-conflict-summary::-webkit-details-marker { display: none; }
+
+    .slot-conflict-info {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      width: 1.1rem;
+      height: 1.1rem;
+      border-radius: 50%;
+      background: #92400e;
+      color: #fef3c7;
+      font-size: 0.72rem;
+      font-style: italic;
+      font-weight: 700;
+    }
+
+    .slot-conflict-detail {
+      margin: 0.3rem 0 0;
+      padding: 0.5rem 0.6rem;
+      font-size: 0.75rem;
+      line-height: 1.4;
+      color: #92400e;
+      background: #fff7e6;
+      border-radius: 6px;
+    }
   </style>
 </head>
 <body>
@@ -118,8 +175,23 @@
       <p class="recipe-name">{{ recipe.name }}</p>
     </div>
 
+    {% if conflict_detail %}
+    <details class="slot-conflict">
+      <summary class="slot-conflict-summary">
+        <span class="slot-conflict-text">{{ conflict_summary }}</span>
+        <span class="slot-conflict-info" aria-hidden="true">i</span>
+      </summary>
+      <p class="slot-conflict-detail">{{ conflict_detail }}</p>
+    </details>
+    {% endif %}
+
+    {% if dropped_fields %}
+    <p class="slot-dropped-note">This camera has no control for {{ dropped_fields|join:", " }}; {% if dropped_fields|length == 1 %}it{% else %}they{% endif %} will not be pushed.</p>
+    {% endif %}
+
     <div class="slot-list">
       {% for slot in slots %}
+      {% if slot.feasible %}
       <form method="post" action="{% url 'push-recipe-to-camera' recipe_id=recipe.id slot=slot.label %}">
         {% csrf_token %}
         <button type="submit" class="slot-row">
@@ -131,6 +203,15 @@
           <span class="slot-chevron">›</span>
         </button>
       </form>
+      {% else %}
+      <button type="button" class="slot-row" disabled title="{{ slot.reason }}">
+        <span class="slot-badge">{{ slot.label }}</span>
+        <span class="slot-info">
+          <span class="slot-name">{{ slot.name|default:"—" }}</span>
+          {% if slot.film_sim %}<span class="slot-film-tag">{{ slot.film_sim }}</span>{% endif %}
+        </span>
+      </button>
+      {% endif %}
       {% endfor %}
     </div>
   </div>

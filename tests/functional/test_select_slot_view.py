@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import pytest
 from bs4 import BeautifulSoup
 
@@ -5,6 +7,10 @@ from src.data.camera import constants
 from src.domain.camera.ptp_device import CameraConnectionError, CameraWriteError
 from tests.factories import FujifilmRecipeFactory
 from tests.fakes import FakePTPDevice
+
+_PRISTINE = (
+    Path(__file__).resolve().parents[1] / "fixtures" / "camera" / "xt2_backup_pristine.bin"
+).read_bytes()
 
 
 def _recipe(**kwargs):
@@ -83,6 +89,77 @@ class TestSelectSlotView:
 
         assert response.status_code == 500
         assert response.json() == {"error": "Unexpected error happened"}
+
+
+@pytest.mark.django_db
+class TestSelectSlotViewXT2:
+    def _xt2(self, settings):
+        settings.PTP_DEVICE = lambda: FakePTPDevice(camera_name="X-T2", backup=_PRISTINE)
+
+    def test_dropped_fields_are_announced(self, client, settings):
+        self._xt2(settings)
+        recipe = FujifilmRecipeFactory(name="XT2", film_simulation="Classic Chrome",
+                                       white_balance="Underwater", sharpness=0, high_iso_nr=0,
+                                       clarity=3)
+
+        response = client.get(f"/recipes/{recipe.id}/push/")
+
+        assert response.status_code == 200
+        assert "Clarity" in BeautifulSoup(response.content, "html.parser").get_text()
+
+    def test_conflicting_slots_are_disabled(self, client, settings):
+        self._xt2(settings)
+        # A new Auto shift would retune the pristine slots that share Auto.
+        recipe = _recipe(name="Clash", film_simulation="Classic Chrome",
+                         white_balance="Auto", white_balance_red=5, white_balance_blue=5)
+
+        response = client.get(f"/recipes/{recipe.id}/push/")
+
+        soup = BeautifulSoup(response.content, "html.parser")
+        assert soup.select("button.slot-row[disabled]")
+
+    def test_shared_wb_conflict_shows_one_note_with_expandable_detail(self, client, settings):
+        self._xt2(settings)
+        # Auto is shared by two pristine slots, so no slot is free: the summary
+        # says so, and the full reason sits behind the (i).
+        recipe = _recipe(name="Clash", film_simulation="Classic Chrome",
+                         white_balance="Auto", white_balance_red=5, white_balance_blue=5)
+
+        response = client.get(f"/recipes/{recipe.id}/push/")
+
+        soup = BeautifulSoup(response.content, "html.parser")
+        notes = soup.select("details.slot-conflict")
+        assert len(notes) == 1
+        assert "can't be pushed to any slot" in notes[0].select_one(".slot-conflict-summary").get_text()
+        assert "white balance" in notes[0].select_one(".slot-conflict-detail").get_text().lower()
+        # The reason no longer repeats inside every greyed slot.
+        assert soup.select(".slot-reason") == []
+
+    def test_sole_wb_user_conflict_offers_to_replace_that_slot(self, client, settings):
+        self._xt2(settings)
+        # Shade is used by exactly one pristine slot (C3), so the recipe can go
+        # there and nowhere else; the summary points at that slot.
+        recipe = _recipe(name="Shady", film_simulation="Classic Chrome",
+                         white_balance="Shade", white_balance_red=5, white_balance_blue=5)
+
+        response = client.get(f"/recipes/{recipe.id}/push/")
+
+        soup = BeautifulSoup(response.content, "html.parser")
+        note = soup.select_one("details.slot-conflict .slot-conflict-summary")
+        assert note.get_text(strip=True).startswith("This recipe can only replace C3")
+
+    def test_unrepresentable_recipe_greys_every_slot_with_no_note(self, client, settings):
+        self._xt2(settings)
+        # Classic Negative is not a film simulation the X-T2 has at all. An
+        # incompatible recipe needs no explanation, so no note is shown.
+        recipe = _recipe(name="Superia", film_simulation="Classic Negative")
+
+        response = client.get(f"/recipes/{recipe.id}/push/")
+
+        soup = BeautifulSoup(response.content, "html.parser")
+        assert soup.select(".slot-conflict") == []
+        assert soup.select(".slot-dropped-note") == []
+        assert not soup.select("button.slot-row:not([disabled])")
 
 
 @pytest.mark.django_db

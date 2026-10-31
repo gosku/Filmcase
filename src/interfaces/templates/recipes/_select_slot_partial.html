@@ -8,7 +8,20 @@
   {% if error %}
     <p class="slot-error">{{ error }}</p>
   {% else %}
+    {% if conflict_detail %}
+    <details class="slot-conflict">
+      <summary class="slot-conflict-summary">
+        <span class="slot-conflict-text">{{ conflict_summary }}</span>
+        <span class="slot-conflict-info" aria-hidden="true">i</span>
+      </summary>
+      <p class="slot-conflict-detail">{{ conflict_detail }}</p>
+    </details>
+    {% endif %}
+    {% if dropped_fields %}
+    <p class="slot-dropped-note">This camera has no control for {{ dropped_fields|join:", " }}; {% if dropped_fields|length == 1 %}it{% else %}they{% endif %} will not be pushed.</p>
+    {% endif %}
     {% for slot in slots %}
+    {% if slot.feasible %}
     <button type="button" class="slot-row"
             hx-post="{% url 'push-recipe-to-camera' recipe_id=recipe.id slot=slot.label %}"
             hx-target="#slot-card"
@@ -21,6 +34,15 @@
       </span>
       <span class="slot-chevron">›</span>
     </button>
+    {% else %}
+    <div class="slot-row slot-row--disabled" title="{{ slot.reason }}" aria-disabled="true">
+      <span class="slot-badge">{{ slot.label }}</span>
+      <span class="slot-info">
+        <span class="slot-name">{{ slot.name|default:"—" }}</span>
+        {% if slot.film_sim %}<span class="slot-film-tag">{{ slot.film_sim }}</span>{% endif %}
+      </span>
+    </div>
+    {% endif %}
     {% endfor %}
   {% endif %}
 </div>

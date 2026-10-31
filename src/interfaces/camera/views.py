@@ -53,7 +53,7 @@ class SelectSlot(generic.View):
     def get(self, request: http.HttpRequest, recipe_id: int) -> http.HttpResponse:
         is_htmx = request.headers.get("HX-Request")
         try:
-            states = get_camera_slots_uc.get_camera_slots().slots
+            camera_slots = get_camera_slots_uc.get_camera_slots(recipe=self.recipe)
         except ptp_device.CameraConnectionError as e:
             if is_htmx:
                 return shortcuts.render(request, "recipes/_select_slot_partial.html", {"recipe": self.recipe, "slots": [], "error": f"Camera connection error: {e}"})
@@ -67,9 +67,46 @@ class SelectSlot(generic.View):
             if is_htmx:
                 return shortcuts.render(request, "recipes/_select_slot_partial.html", {"recipe": self.recipe, "slots": [], "error": "Unexpected error happened"})
             return http.JsonResponse({"error": "Unexpected error happened"}, status=500)
-        slots = [{"label": f"C{s.index}", "name": s.name, "film_sim": s.film_sim_name} for s in states]
+        feasibility_by_slot = {f.slot_index: f for f in camera_slots.feasibility}
+        slots = [
+            {
+                "label": f"C{s.index}",
+                "name": s.name,
+                "film_sim": s.film_sim_name,
+                # Without a feasibility verdict (no target recipe) every slot is
+                # pushable; with one, a backup-blob body may disable some.
+                "feasible": feasibility_by_slot[s.index].feasible if s.index in feasibility_by_slot else True,
+                "reason": feasibility_by_slot[s.index].reason if s.index in feasibility_by_slot else "",
+            }
+            for s in camera_slots.slots
+        ]
+        # Every blocked slot carries the same reason, so the picker shows one
+        # conflict note above the list: a short summary, with the full reason
+        # behind a click-to-open (i). The summary reads off which slots stay
+        # pushable; an incompatible recipe (empty reason) shows no note at all.
+        conflict_detail = next(
+            (s["reason"] for s in slots if not s["feasible"] and s["reason"]), ""
+        )
+        conflict_summary = ""
+        if conflict_detail:
+            pushable = [s["label"] for s in slots if s["feasible"]]
+            conflict_summary = (
+                f"This recipe can only replace {pushable[0]}."
+                if len(pushable) == 1
+                else "This recipe can't be pushed to any slot."
+            )
         template = "recipes/_select_slot_partial.html" if is_htmx else "recipes/select_slot.html"
-        return shortcuts.render(request, template, {"recipe": self.recipe, "slots": slots})
+        return shortcuts.render(
+            request,
+            template,
+            {
+                "recipe": self.recipe,
+                "slots": slots,
+                "dropped_fields": camera_slots.dropped_fields,
+                "conflict_summary": conflict_summary,
+                "conflict_detail": conflict_detail,
+            },
+        )
 
 
 @attrs.frozen
