@@ -432,8 +432,7 @@ def client_camera_encodings() -> ClientCameraEncodings:
 #
 # This is not cosmetic.  WhiteBalanceColorTemperature must be written before
 # WhiteBalanceRed and WhiteBalanceBlue, or the camera resets both shifts to 0
-# when it applies the colour temperature.  See
-# docs/investigation/wb_shift_reset_on_kelvin.md.
+# when it applies the colour temperature (proven on hardware).
 #
 # Module level rather than inline in items() because the browser transport runs
 # the same sequence and is served this list, so both sides order their writes

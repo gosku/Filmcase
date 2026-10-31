@@ -77,7 +77,7 @@ class TestClientCameraEncodings:
 
     def test_write_order_puts_colour_temperature_before_the_shifts(self) -> None:
         # Writing the shifts first makes the camera zero them when the colour
-        # temperature lands.  See docs/investigation/wb_shift_reset_on_kelvin.md.
+        # temperature lands (proven on hardware).
         order = camera_queries.WRITE_ORDER
 
         assert order.index("WhiteBalanceColorTemperature") < order.index("WhiteBalanceRed")
