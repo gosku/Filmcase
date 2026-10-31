@@ -120,3 +120,19 @@ def get_profile(camera_model: str) -> CameraProfile:
     model because its byte layout is X-T2 specific.
     """
     return _PROFILES_BY_MODEL.get(camera_model, PER_PROPERTY_PROFILE)
+
+
+# The interface a model with no explicit profile resolves to; served to the
+# client so its getStrategy falls back exactly as get_profile does here.
+DEFAULT_INTERFACE: str = PER_PROPERTY_PROFILE.interface.value
+
+
+def interface_by_model() -> dict[str, str]:
+    """
+    Map each explicitly-profiled model to its interface value.
+
+    For the client config: the browser resolves a strategy from the camera model
+    the same way :func:`get_profile` does, so it is served this allow-list plus
+    :data:`DEFAULT_INTERFACE` for everything not in it.
+    """
+    return {model: profile.interface.value for model, profile in _PROFILES_BY_MODEL.items()}

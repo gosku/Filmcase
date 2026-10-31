@@ -10,13 +10,13 @@ URL = "/camera/client-config.json"
 
 
 class TestCameraClientConfig:
-    def test_serves_the_settings_and_encodings(self, client):
+    def test_serves_the_settings_encodings_and_profile(self, client):
         response = client.get(URL)
 
         assert response.status_code == 200
         assert response["Content-Type"] == "application/json"
         payload = json.loads(response.content)
-        assert set(payload) == {"settings", "encodings"}
+        assert set(payload) == {"settings", "encodings", "profile"}
 
     def test_settings_keys_are_the_django_setting_names_verbatim(self, client):
         # The browser runs a port of the same push sequence, so a reader
@@ -80,6 +80,23 @@ class TestCameraClientConfig:
         payload = json.loads(client.get(URL).content)
 
         assert set(payload["encodings"]["nr_to_ptp"]) == {"-4", "-3", "-2", "-1", "0", "1", "2", "3", "4"}
+
+    def test_profile_maps_the_x_t2_to_the_backup_blob_interface(self, client):
+        payload = json.loads(client.get(URL).content)
+
+        profile = payload["profile"]
+        assert profile["interface_by_model"]["X-T2"] == "backup_blob"
+        assert profile["default_interface"] == "per_property"
+
+    def test_profile_carries_the_x_t2_byte_layout_for_the_codec(self, client):
+        payload = json.loads(client.get(URL).content)
+
+        xt2 = payload["profile"]["xt2"]
+        assert xt2["blob_size"] == 5660
+        assert xt2["slot_count"] == 7
+        # Byte-keyed maps arrive with string keys (JSON) for the client to parse.
+        assert xt2["film_simulation_by_byte"]["13"] == "Classic Chrome"
+        assert xt2["off"]["film_simulation"] == 0x45
 
     def test_is_not_cached(self, client):
         # Timing values are tuning an operator may change between requests, and

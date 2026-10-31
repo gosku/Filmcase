@@ -440,6 +440,9 @@ class CameraClientConfig(generic.View):
         payload = {
             "settings": attrs.asdict(camera_queries.client_camera_settings()),
             "encodings": attrs.asdict(camera_queries.client_camera_encodings()),
+            # The resolved interface per model plus the X-T2 byte layout, so the
+            # browser can run the backup-blob strategy itself.
+            "profile": camera_queries.client_camera_profile(),
         }
         response = http.JsonResponse(payload)
         # The timing settings are tuning values an operator may change between
