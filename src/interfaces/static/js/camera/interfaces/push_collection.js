@@ -602,11 +602,12 @@ async function openBrowserModal(button) {
   let cameraName = "Camera";
   let slots;
   try {
-    slots = await withCamera(config, (device) => {
+    const read = await withCamera(config, (device) => {
       // The reported model, which is also what getStrategy resolves on.
       cameraName = device.cameraName || cameraName;
       return getCameraSlots(device, runtimeFor(config));
     });
+    slots = read.slots;
   } catch (error) {
     const message = describe(error);
     if (message === null) {

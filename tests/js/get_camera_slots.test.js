@@ -84,7 +84,7 @@ describe("getCameraSlots", () => {
   it("reads one state per slot the model offers", async () => {
     const device = new SlotAwareDevice(FOUR_SLOTS, { cameraName: "X-S10" });
 
-    const states = await getCameraSlots(device, runtime());
+    const { slots: states } = await getCameraSlots(device, runtime());
 
     assert.equal(states.length, 4);
     assert.deepEqual(states.map((s) => s.index), [1, 2, 3, 4]);
@@ -93,7 +93,7 @@ describe("getCameraSlots", () => {
   it("returns the name and film simulation of each slot", async () => {
     const device = new SlotAwareDevice(FOUR_SLOTS, { cameraName: "X-S10" });
 
-    const states = await getCameraSlots(device, runtime());
+    const { slots: states } = await getCameraSlots(device, runtime());
 
     assert.deepEqual(states.map((s) => s.name), ["Portra", "Acros", "", "Eterna"]);
     assert.deepEqual(states.map((s) => s.filmSimName), [
@@ -144,7 +144,7 @@ describe("getCameraSlots", () => {
   it("returns nothing for a model with no custom slots", async () => {
     const device = new SlotAwareDevice(FOUR_SLOTS, { cameraName: "X-H9" });
 
-    const states = await getCameraSlots(device, runtime());
+    const { slots: states } = await getCameraSlots(device, runtime());
 
     assert.deepEqual(states, []);
     assert.deepEqual(device.cursors, []);
@@ -155,7 +155,7 @@ describe("getCameraSlots", () => {
     // nowhere useful and the user is told nothing happened.
     const device = new SlotAwareDevice(FOUR_SLOTS, { cameraName: "" });
 
-    assert.deepEqual(await getCameraSlots(device, runtime()), []);
+    assert.deepEqual((await getCameraSlots(device, runtime())).slots, []);
   });
 
   it("retries a transport failure and carries on", async () => {
@@ -164,7 +164,7 @@ describe("getCameraSlots", () => {
       setFailuresBeforeSuccess: { [PROP_SLOT_CURSOR]: 2 },
     });
 
-    const states = await getCameraSlots(device, runtime());
+    const { slots: states } = await getCameraSlots(device, runtime());
 
     assert.equal(states.length, 4);
   });
@@ -216,9 +216,19 @@ describe("getCameraSlots", () => {
     const slots = [{ name: "Mystery", filmSim: 99 }, ...FOUR_SLOTS.slice(1)];
     const device = new SlotAwareDevice(slots, { cameraName: "X-S10" });
 
-    const states = await getCameraSlots(device, runtime());
+    const { slots: states } = await getCameraSlots(device, runtime());
 
     assert.equal(states[0].filmSimName, "Unknown(99)");
     assert.equal(states[1].filmSimName, "Acros STD");
+  });
+
+  it("reports all slots feasible and nothing dropped for a per-property recipe", async () => {
+    const device = new SlotAwareDevice(FOUR_SLOTS, { cameraName: "X-S10" });
+
+    const read = await getCameraSlots(device, runtime(), { recipe: { film_simulation: "Provia" } });
+
+    assert.equal(read.feasibility.length, 4);
+    assert.ok(read.feasibility.every((f) => f.feasible));
+    assert.deepEqual(read.droppedFields, []);
   });
 });
