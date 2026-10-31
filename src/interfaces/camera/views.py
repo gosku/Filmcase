@@ -7,6 +7,7 @@ from django.views import generic
 
 from src.application.usecases.camera import get_camera_slots as get_camera_slots_uc
 from src.application.usecases.camera import get_collection_push_feasibility as collection_feasibility_uc
+from src.application.usecases.camera import push_collection as push_collection_uc
 from src.application.usecases.camera import push_recipe as push_recipe_uc
 from src.data import models
 from src.domain.camera import device_config
@@ -349,6 +350,76 @@ class PushRecipeToCamera(generic.View):
         if is_htmx:
             return shortcuts.render(request, "recipes/_push_result_partial.html", {"success": True, "message": f"Recipe saved to {slot}"})
         return http.JsonResponse({"message": f"Recipe saved in {slot}"})
+
+
+class PushCollectionToCamera(generic.View):
+    """
+    Push a whole collection to the camera in one server-side operation.
+
+    For the server transport. A backup-blob body (X-T2) must edit one settings
+    backup and restore it once, which the client-side per-recipe loop cannot do,
+    so the whole push runs here through ``push_collection_to_camera``.
+
+    :raises Http404: if no collection with the given id exists.
+    """
+
+    def dispatch(self, request: http.HttpRequest, *args: object, **kwargs: object) -> http.HttpResponseBase:
+        if device_config.is_browser_transport():
+            if request.headers.get("HX-Request"):
+                return shortcuts.render(
+                    request,
+                    "recipes/_collection_push_result_partial.html",
+                    {"error": _WRONG_TRANSPORT_ERROR, "collection_id": kwargs["collection_id"]},
+                )
+            return http.JsonResponse({"error": _WRONG_TRANSPORT_ERROR}, status=400)
+        return super().dispatch(request, *args, **kwargs)
+
+    def post(self, request: http.HttpRequest, collection_id: int) -> http.HttpResponse:
+        is_htmx = bool(request.headers.get("HX-Request"))
+        try:
+            push_collection_uc.push_collection_to_camera(collection_id=collection_id)
+        except push_collection_uc.CollectionNotFound:
+            raise http.Http404
+        except push_collection_uc.RecipeNotRepresentable as e:
+            error = f"A recipe can't be stored on this camera ({e.field} {e.value}). Nothing was written."
+            return self._error(request, is_htmx, collection_id, error, status=400, can_retry=False)
+        except push_collection_uc.PushNotFeasibleError as e:
+            error = f"{'; '.join(e.conflicts)} Nothing was written."
+            return self._error(request, is_htmx, collection_id, error, status=400, can_retry=False)
+        except push_collection_uc.BackupValidationError:
+            error = "The camera's settings backup couldn't be read, so nothing was written."
+            return self._error(request, is_htmx, collection_id, error, status=500, can_retry=False)
+        except push_collection_uc.RecipeWriteError as e:
+            error = f"Some settings couldn't be saved ({', '.join(e.failed_properties)}). Please try again."
+            return self._error(request, is_htmx, collection_id, error, status=500)
+        except ptp_device.CameraConnectionError:
+            error = "No camera found. Make sure it's connected via USB and set to PC Connection or RAW CONV. mode."
+            return self._error(request, is_htmx, collection_id, error, status=503)
+        except ptp_device.CameraWriteError:
+            error = "The camera rejected a write operation. Please try again."
+            return self._error(request, is_htmx, collection_id, error, status=500)
+        except Exception:
+            structlog.get_logger().exception("Unexpected error in PushCollectionToCamera.post")
+            error = "An unexpected error occurred. Please try again."
+            return self._error(request, is_htmx, collection_id, error, status=500)
+        if is_htmx:
+            return shortcuts.render(request, "recipes/_collection_push_result_partial.html", {"success": True, "message": "Collection saved to the camera"})
+        return http.JsonResponse({"message": "Collection saved to the camera"})
+
+    def _error(
+        self,
+        request: http.HttpRequest,
+        is_htmx: bool,
+        collection_id: int,
+        error: str,
+        *,
+        status: int,
+        can_retry: bool = True,
+    ) -> http.HttpResponse:
+        if is_htmx:
+            context = {"collection_id": collection_id, "error": error, "can_retry": can_retry}
+            return shortcuts.render(request, "recipes/_collection_push_result_partial.html", context)
+        return http.JsonResponse({"error": error}, status=status)
 
 
 class CameraClientConfig(generic.View):

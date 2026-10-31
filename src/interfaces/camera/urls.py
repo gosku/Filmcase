@@ -6,6 +6,7 @@ urlpatterns = [
     path("recipes/<int:recipe_id>/push/", views.SelectSlot.as_view(), name="select-push-slot"),
     path("recipes/collections/<int:collection_id>/push/", views.SelectCollectionSlots.as_view(), name="select-collection-slots"),
     path("recipes/<int:recipe_id>/push/<str:slot>/", views.PushRecipeToCamera.as_view(), name="push-recipe-to-camera"),
+    path("recipes/collections/<int:collection_id>/push/do/", views.PushCollectionToCamera.as_view(), name="push-collection-to-camera"),
     path("camera/client-config.json", views.CameraClientConfig.as_view(), name="camera-client-config"),
     path("recipes/<int:recipe_id>/camera-payload.json", views.RecipeCameraPayload.as_view(), name="recipe-camera-payload"),
 ]
