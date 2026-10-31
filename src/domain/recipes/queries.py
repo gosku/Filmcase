@@ -147,6 +147,21 @@ def recipe_from_db(*, recipe: models.FujifilmRecipe) -> image_dataclasses.Fujifi
     )
 
 
+def recipe_data_by_ids(
+    *, recipe_ids: Sequence[int]
+) -> dict[int, image_dataclasses.FujifilmRecipeData]:
+    """
+    Load several recipes as FujifilmRecipeData, keyed by id.
+
+    For callers that have a set of recipe ids (e.g. a collection's members) and
+    need the full recipe data for each, without an N+1 on the sensors M2M. Ids
+    that match no recipe are absent from the result; order is the caller's to
+    impose from ``recipe_ids``.
+    """
+    recipes = models.FujifilmRecipe.objects.filter(pk__in=recipe_ids).prefetch_related("sensors")
+    return {recipe.pk: recipe_from_db(recipe=recipe) for recipe in recipes}
+
+
 @attrs.frozen
 class RecipeUsageStats:
     recipe_id: int
