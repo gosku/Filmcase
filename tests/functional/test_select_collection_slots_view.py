@@ -146,6 +146,21 @@ class TestSelectCollectionSlotsXT2:
         assert soup.select_one(".cpush__warnings[data-infeasible]") is not None
         assert soup.select_one("[data-start]").has_attr("disabled")
 
+    def test_modal_marks_a_single_operation_push(self, client, settings):
+        self._xt2(settings)
+        collection = _collection_of([
+            FujifilmRecipeFactory(name="Ok", film_simulation="Classic Chrome",
+                                  white_balance="Underwater", sharpness=0, high_iso_nr=0, clarity=0),
+        ])
+
+        response = _get(client, collection.id)
+
+        soup = BeautifulSoup(response.content, "html.parser")
+        modal = soup.select_one("#collection-push")
+        assert modal.has_attr("data-single-push-url")
+        start = soup.select_one("[data-start]")
+        assert start["hx-post"] == f"/recipes/collections/{collection.id}/push/do/"
+
     def test_dropped_fields_are_announced_but_transfer_stays_enabled(self, client, settings):
         self._xt2(settings)
         collection = _collection_of([

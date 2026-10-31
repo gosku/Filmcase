@@ -24,6 +24,8 @@ import { CameraConnectionError, CameraWriteError } from "../vendor/ptp_device.js
 import { RecipeValidationError } from "../domain/validation.js";
 import { getCameraSlots } from "../application/usecases/get_camera_slots.js";
 import {
+  PushNotFeasibleError,
+  RecipeNotRepresentable,
   RecipeWriteError,
   pushRecipeToCamera,
 } from "../application/usecases/push_recipe.js";
@@ -202,6 +204,12 @@ function describe(error, slotLabel) {
     // Worth naming the field: this one is fixable in the app rather than by
     // fiddling with the camera.
     return `This recipe can't be written to the camera: ${error.field} is not valid.`;
+  }
+  if (error instanceof RecipeNotRepresentable) {
+    return `This camera can't store ${error.field} ${error.value}. Nothing was written.`;
+  }
+  if (error instanceof PushNotFeasibleError) {
+    return `${error.conflicts.join("; ")} Nothing was written.`;
   }
   if (error instanceof CameraConnectionError) {
     // The card says something a user can act on, which loses the detail. Log

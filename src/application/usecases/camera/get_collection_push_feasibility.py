@@ -38,6 +38,9 @@ class CollectionPushFeasibility:
     conflicts: tuple[str, ...]
     dropped_fields: tuple[str, ...]
     unrepresentable: tuple[UnrepresentableRecipe, ...]
+    # Whether the whole collection must be pushed as one operation (a backup-blob
+    # body edits one settings backup and restores once) rather than slot by slot.
+    single_operation: bool
 
 
 def get_collection_push_feasibility(
@@ -63,6 +66,7 @@ def get_collection_push_feasibility(
     try:
         camera_model = camera_model or device.camera_name
         strategy = strategies.get_strategy(camera_model)
+        single_operation = isinstance(strategy, strategies.BackupBlobStrategy)
         slot_count = camera_queries.custom_slot_count(camera_model)
         slots = strategy.read_slots(device, slot_count=slot_count)
         plan = recipe_queries.plan_collection_transfer(
@@ -96,4 +100,5 @@ def get_collection_push_feasibility(
         conflicts=feasibility.conflicts,
         dropped_fields=feasibility.dropped_fields,
         unrepresentable=unrepresentable,
+        single_operation=single_operation,
     )

@@ -42,6 +42,7 @@ class TestPerPropertyCollectionFeasibility:
         assert result.dropped_fields == ()
         assert result.unrepresentable == ()
         assert len(result.slots) == 4
+        assert result.single_operation is False
 
 
 @pytest.mark.django_db
@@ -61,6 +62,7 @@ class TestBackupBlobCollectionFeasibility:
         assert result.ok
         assert result.conflicts == ()
         assert result.unrepresentable == ()
+        assert result.single_operation is True
 
     def test_unrepresentable_recipe_is_reported_by_id(self, settings):
         settings.PTP_DEVICE = lambda: FakePTPDevice(camera_name="X-T2", backup=_PRISTINE)

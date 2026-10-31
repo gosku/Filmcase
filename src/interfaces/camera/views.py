@@ -164,6 +164,9 @@ class _CollectionPushContext:
     conflicts: tuple[str, ...]
     dropped_fields: tuple[str, ...]
     unrepresentable: tuple[_UnrepresentableRow, ...]
+    # True when the whole collection is pushed in one server operation (X-T2),
+    # rather than one recipe per slot.
+    single_operation: bool
 
     @classmethod
     def build(
@@ -228,6 +231,7 @@ class _CollectionPushContext:
             conflicts=feasibility.conflicts,
             dropped_fields=feasibility.dropped_fields,
             unrepresentable=unrepresentable,
+            single_operation=feasibility.single_operation,
         )
 
 
