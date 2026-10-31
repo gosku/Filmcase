@@ -262,9 +262,58 @@ class TestBackupBlobSlotFeasibility:
         assert result.dropped_fields == ("Clarity", "Color Chrome Effect")
 
 
+class TestBackupBlobCollectionFeasibility:
+    def _strategy(self) -> strategies.BackupBlobStrategy:
+        return strategies.BackupBlobStrategy(profile=profiles.XT2_PROFILE)
+
+    def test_feasible_collection_is_ok(self) -> None:
+        assignments = [(1, _xt2_recipe()), (2, _xt2_recipe(white_balance="Fluorescent 3"))]
+        result = self._strategy().collection_feasibility(_xt2_device(), assignments)
+        assert result.ok
+        assert result.conflicts == ()
+        assert result.unrepresentable == ()
+
+    def test_shared_wb_conflict_is_not_ok_with_a_reason(self) -> None:
+        recipe = _make_recipe(white_balance="Auto", white_balance_red=5, white_balance_blue=5)
+        result = self._strategy().collection_feasibility(_xt2_device(), [(1, recipe)])
+        assert not result.ok
+        assert result.conflicts
+
+    def test_unrepresentable_recipe_is_reported_by_slot(self) -> None:
+        assignments = [(1, _xt2_recipe()), (2, _xt2_recipe(film_simulation="Eterna"))]
+        result = self._strategy().collection_feasibility(_xt2_device(), assignments)
+        assert not result.ok
+        assert len(result.unrepresentable) == 1
+        assert result.unrepresentable[0].slot_index == 2
+        assert result.unrepresentable[0].field == "film_simulation"
+
+    def test_dropped_fields_are_unioned_across_the_collection(self) -> None:
+        assignments = [
+            (1, _xt2_recipe(clarity="3")),
+            (2, _xt2_recipe(white_balance="Fluorescent 3", color_chrome_effect="Strong")),
+        ]
+        result = self._strategy().collection_feasibility(_xt2_device(), assignments)
+        assert "Clarity" in result.dropped_fields
+        assert "Color Chrome Effect" in result.dropped_fields
+
+    def test_invalid_backup_is_not_ok(self) -> None:
+        device = FakePTPDevice(camera_name="X-T2", backup=b"\x00" * 5660)
+        result = self._strategy().collection_feasibility(device, [(1, _xt2_recipe())])
+        assert not result.ok
+        assert result.conflicts
+
+
 class TestPerPropertyCollectionAndFeasibility:
     def _strategy(self) -> strategies.PerPropertyStrategy:
         return strategies.PerPropertyStrategy(profile=profiles.PER_PROPERTY_PROFILE)
+
+    def test_collection_feasibility_is_always_ok(self) -> None:
+        result = self._strategy().collection_feasibility(
+            FakePTPDevice(), [(1, _make_recipe()), (2, _make_recipe())]
+        )
+        assert result.ok
+        assert result.dropped_fields == ()
+        assert result.unrepresentable == ()
 
     def test_push_collection_writes_each_assignment(self) -> None:
         device = FakePTPDevice()

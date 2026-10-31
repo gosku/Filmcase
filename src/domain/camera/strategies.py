@@ -118,6 +118,34 @@ class RecipeFeasibility:
     dropped_fields: tuple[str, ...]
 
 
+@attrs.frozen
+class UnrepresentableAssignment:
+    """A collection recipe the model cannot store, by its target slot."""
+
+    slot_index: int        # 1-based
+    field: str
+    value: str
+
+
+@attrs.frozen
+class CollectionFeasibility:
+    """
+    Whether a whole collection could be pushed, for the collection modal.
+
+    ``ok`` is the overall verdict: no recipe is unrepresentable and no shared
+    white balance conflicts. ``conflicts`` explains any white-balance clash,
+    ``dropped_fields`` is the union of the fields the model drops across the
+    collection, and ``unrepresentable`` names the recipes the model cannot store
+    at all (by target slot). A per-property body is always ``ok`` and drops
+    nothing.
+    """
+
+    ok: bool
+    conflicts: tuple[str, ...]
+    dropped_fields: tuple[str, ...]
+    unrepresentable: tuple[UnrepresentableAssignment, ...]
+
+
 @runtime_checkable
 class CameraStrategy(Protocol):
     """
@@ -188,6 +216,18 @@ class CameraStrategy(Protocol):
         Per-property bodies are always feasible and drop nothing; the X-T2
         reflects the global-WB constraint so the picker can grey out conflicting
         slots, and reports the fields it lacks so the picker can warn.
+        """
+        ...
+
+    def collection_feasibility(
+        self, device: ptp_device.PTPDevice, assignments: Sequence[CollectionAssignment]
+    ) -> CollectionFeasibility:
+        """
+        Whether the whole collection could be pushed, for the collection modal.
+
+        Reads without writing: reports shared white-balance conflicts, the fields
+        the model drops across the collection, and the recipes it cannot store at
+        all. Per-property bodies are always feasible and drop nothing.
         """
         ...
 
@@ -316,6 +356,13 @@ class PerPropertyStrategy:
         slots = [SlotFeasibility(slot_index=idx, feasible=True, reason="") for idx in range(1, slot_count + 1)]
         return RecipeFeasibility(slots=slots, dropped_fields=())
 
+    def collection_feasibility(
+        self, device: ptp_device.PTPDevice, assignments: Sequence[CollectionAssignment]
+    ) -> CollectionFeasibility:
+        # A per-property body keeps every field and has no shared-WB constraint,
+        # so any collection is feasible.
+        return CollectionFeasibility(ok=True, conflicts=(), dropped_fields=(), unrepresentable=())
+
 
 @attrs.frozen
 class BackupBlobStrategy:
@@ -394,6 +441,41 @@ class BackupBlobStrategy:
                 )
             )
         return RecipeFeasibility(slots=slots, dropped_fields=mapping.dropped)
+
+    def collection_feasibility(
+        self, device: ptp_device.PTPDevice, assignments: Sequence[CollectionAssignment]
+    ) -> CollectionFeasibility:
+        blob = device.get_backup()
+        if not xt2_backup.validate_backup(blob).ok:
+            return CollectionFeasibility(
+                ok=False,
+                conflicts=("The camera's settings backup could not be read.",),
+                dropped_fields=(),
+                unrepresentable=(),
+            )
+        mapped: list[tuple[int, xt2_backup.Xt2Mapping]] = []
+        unrepresentable: list[UnrepresentableAssignment] = []
+        dropped: list[str] = []
+        for slot_index, recipe in assignments:
+            try:
+                mapping = xt2_backup.map_recipe(recipe)
+            except xt2_backup.RecipeNotRepresentable as exc:
+                unrepresentable.append(
+                    UnrepresentableAssignment(slot_index=slot_index, field=exc.field, value=str(exc.value))
+                )
+                continue
+            for field in mapping.dropped:
+                if field not in dropped:
+                    dropped.append(field)
+            mapped.append((slot_index - 1, mapping))
+        # Only the recipes that map can be checked for a shared-WB clash.
+        feasibility = xt2_backup.check_collection_feasibility(blob, mapped)
+        return CollectionFeasibility(
+            ok=feasibility.ok and not unrepresentable,
+            conflicts=feasibility.conflicts,
+            dropped_fields=tuple(dropped),
+            unrepresentable=tuple(unrepresentable),
+        )
 
     def _validated_backup(self, device: ptp_device.PTPDevice) -> bytes:
         blob = device.get_backup()
