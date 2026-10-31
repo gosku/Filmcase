@@ -678,6 +678,37 @@
     color: #dc2626;
 }
 
+/* Feasibility warnings for the collection push (e.g. the X-T2 shared-WB clash
+   or fields the camera cannot store). */
+.cpush__warnings {
+    margin: 0 1.25rem;
+    padding: .6rem .7rem;
+    font-size: .78rem;
+    line-height: 1.4;
+    color: #92400e;
+    background: #fef3c7;
+    border-radius: 8px;
+}
+
+.cpush__warnings[data-infeasible] {
+    color: #991b1b;
+    background: #fee2e2;
+}
+
+.cpush__warn {
+    margin: 0;
+}
+
+.cpush__warn--block + .cpush__warn,
+.cpush__warn + .cpush__warn {
+    margin-top: .35rem;
+}
+
+.cpush__warn-list {
+    margin: .25rem 0 0;
+    padding-left: 1.1rem;
+}
+
 /* Per-recipe status, set live by push_collection.js. */
 .cpush-row__status {
     display: flex;

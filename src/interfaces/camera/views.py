@@ -6,6 +6,7 @@ from django import shortcuts
 from django.views import generic
 
 from src.application.usecases.camera import get_camera_slots as get_camera_slots_uc
+from src.application.usecases.camera import get_collection_push_feasibility as collection_feasibility_uc
 from src.application.usecases.camera import push_recipe as push_recipe_uc
 from src.data import models
 from src.domain.camera import device_config
@@ -139,6 +140,15 @@ class _DroppedRow:
 
 
 @attrs.frozen
+class _UnrepresentableRow:
+    """A recipe the camera cannot store at all (e.g. a film sim the X-T2 lacks)."""
+
+    recipe_name: str
+    field: str
+    value: str
+
+
+@attrs.frozen
 class _CollectionPushContext:
     collection_id: int
     collection_name: str
@@ -148,15 +158,21 @@ class _CollectionPushContext:
     assignments: tuple[_AssignmentRow, ...]
     untouched: tuple[_CurrentSlotRow, ...]
     dropped: tuple[_DroppedRow, ...]
+    # Whether the push can proceed on this model, and why not when it cannot.
+    feasible: bool
+    conflicts: tuple[str, ...]
+    dropped_fields: tuple[str, ...]
+    unrepresentable: tuple[_UnrepresentableRow, ...]
 
     @classmethod
     def build(
         cls,
         *,
         collection: recipe_queries.CollectionDetailData,
-        camera_name: str,
-        slots: list[camera_queries.SlotState],
+        feasibility: "collection_feasibility_uc.CollectionPushFeasibility",
     ) -> "_CollectionPushContext":
+        camera_name = feasibility.camera_model
+        slots = feasibility.slots
         members_by_id = {member.recipe_id: member for member in collection.members}
         slots_by_index = {slot.index: slot for slot in slots}
         plan = recipe_queries.plan_collection_transfer(
@@ -190,6 +206,14 @@ class _CollectionPushContext:
             _CurrentSlotRow(label=f"C{slot.index}", name=slot.name, film_sim=slot.film_sim_name)
             for slot in slots
         )
+        unrepresentable = tuple(
+            _UnrepresentableRow(
+                recipe_name=members_by_id[item.recipe_id].name,
+                field=item.field,
+                value=item.value,
+            )
+            for item in feasibility.unrepresentable
+        )
         return cls(
             collection_id=collection.id,
             collection_name=collection.name,
@@ -199,6 +223,10 @@ class _CollectionPushContext:
             assignments=assignments,
             untouched=untouched,
             dropped=dropped,
+            feasible=feasibility.ok,
+            conflicts=feasibility.conflicts,
+            dropped_fields=feasibility.dropped_fields,
+            unrepresentable=unrepresentable,
         )
 
 
@@ -235,8 +263,9 @@ class SelectCollectionSlots(generic.View):
             raise http.Http404
 
         try:
-            camera_slots = get_camera_slots_uc.get_camera_model_and_slots()
-            camera_name, slots = camera_slots.camera_model, camera_slots.slots
+            feasibility = collection_feasibility_uc.get_collection_push_feasibility(
+                collection_id=collection_id
+            )
         except ptp_device.CameraConnectionError as e:
             error = f"Camera connection error: {e}"
             if is_htmx:
@@ -254,7 +283,7 @@ class SelectCollectionSlots(generic.View):
                 return shortcuts.render(request, "recipes/partials/collection_push_modal.html", {"error": error})
             return http.JsonResponse({"error": error}, status=500)
 
-        context = _CollectionPushContext.build(collection=collection, camera_name=camera_name, slots=slots)
+        context = _CollectionPushContext.build(collection=collection, feasibility=feasibility)
         return shortcuts.render(request, "recipes/partials/collection_push_modal.html", {"push": context})
 
 

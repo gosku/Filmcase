@@ -98,10 +98,29 @@ same class and data-* contract.
     </div>
   </div>
 
+  {% if not push.feasible or push.dropped_fields %}
+  <div class="cpush__warnings" data-feasibility {% if not push.feasible %}data-infeasible{% endif %}>
+    {% if push.unrepresentable %}
+    <p class="cpush__warn cpush__warn--block">These recipes can&rsquo;t be stored on this camera:</p>
+    <ul class="cpush__warn-list">
+      {% for row in push.unrepresentable %}
+      <li>{{ row.recipe_name }} &mdash; {{ row.field }} {{ row.value }}</li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+    {% for conflict in push.conflicts %}
+    <p class="cpush__warn cpush__warn--block">{{ conflict }}</p>
+    {% endfor %}
+    {% if push.dropped_fields %}
+    <p class="cpush__warn">This camera has no control for {{ push.dropped_fields|join:", " }}; {% if push.dropped_fields|length == 1 %}it{% else %}they{% endif %} will not be transferred.</p>
+    {% endif %}
+  </div>
+  {% endif %}
+
   <div class="cpush__footer">
     <span class="cpush__foot-hint" data-foot-hint>{{ push.assignments|length }} recipe{{ push.assignments|length|pluralize }} will be written to slots, one at a time.</span>
     <button type="button" class="cpush__cancel" onclick="closeSlotOverlay()" data-cancel>Cancel</button>
-    <button type="button" class="cpush__start" data-start{% if not push.assignments %} disabled{% endif %}>Transfer {{ push.assignments|length }} recipe{{ push.assignments|length|pluralize }}</button>
+    <button type="button" class="cpush__start" data-start{% if not push.assignments or not push.feasible %} disabled{% endif %}>Transfer {{ push.assignments|length }} recipe{{ push.assignments|length|pluralize }}</button>
   </div>
 </div>
 {% endif %}
