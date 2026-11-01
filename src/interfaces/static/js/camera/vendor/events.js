@@ -21,6 +21,10 @@ export const PTP_WRITE_FAILED = "camera.ptp_write.failed";
 export const PTP_WRITE_SUCCEEDED = "camera.ptp_write.succeeded";
 export const PTP_READ_FAILED = "camera.ptp_read.failed";
 export const PTP_READ_SUCCEEDED = "camera.ptp_read.succeeded";
+export const PTP_BACKUP_READ_SUCCEEDED = "camera.ptp_backup_read.succeeded";
+export const PTP_BACKUP_READ_FAILED = "camera.ptp_backup_read.failed";
+export const PTP_BACKUP_RESTORE_SUCCEEDED = "camera.ptp_backup_restore.succeeded";
+export const PTP_BACKUP_RESTORE_FAILED = "camera.ptp_backup_restore.failed";
 
 // Session lifecycle. These have no Python counterpart, and are here because the
 // server has a log and the browser does not: without them a failure to open,

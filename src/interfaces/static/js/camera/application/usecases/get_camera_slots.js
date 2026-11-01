@@ -16,18 +16,28 @@ import { customSlotCount } from "../../domain/queries.js";
 import { getStrategy } from "../../domain/strategies.js";
 
 /**
- * Read every custom slot the camera model offers.
+ * Read every custom slot the camera model offers, with optional push feasibility.
  *
- * Returns an empty list for a model with no custom slots, or one the server
- * does not know: offering slots that may not exist would invite a write into
- * nothing.
+ * Mirrors src/application/usecases/camera/get_camera_slots.py: the slots come
+ * back empty for a model with no custom slots, or one the served config does not
+ * know. When a target recipe is given, the read also reports whether that recipe
+ * could be pushed into each slot and which of its fields the model would drop,
+ * so the picker can grey out conflicting slots and warn before a push; without
+ * one, `feasibility` is empty and `droppedFields` is `[]`.
  *
  * @param {import("../../vendor/ptp_device.js").CameraDevice} device Connected.
  * @param {{config: object, sleep: (seconds: number) => Promise<void>}} runtime
- * @returns {Promise<Array<{index: number, name: string, filmSimPtp: number, filmSimName: string}>>}
+ * @param {object} [options]
+ * @param {object|null} [options.recipe] A recipe to assess feasibility against.
+ * @returns {Promise<{slots: Array<{index: number, name: string, filmSimPtp: number, filmSimName: string}>, feasibility: Array<{slotIndex: number, feasible: boolean, reason: string}>, droppedFields: string[]}>}
  */
-export async function getCameraSlots(device, runtime) {
-  const strategy = getStrategy(device.cameraName);
+export async function getCameraSlots(device, runtime, { recipe = null } = {}) {
+  const strategy = getStrategy(device.cameraName, runtime.config);
   const slotCount = customSlotCount(device.cameraName, runtime.config.encodings);
-  return strategy.readSlots(device, { slotCount, runtime });
+  const slots = await strategy.readSlots(device, { slotCount, runtime });
+  if (!recipe) {
+    return { slots, feasibility: [], droppedFields: [] };
+  }
+  const plan = await strategy.planFeasibility(device, recipe, { slotCount, runtime });
+  return { slots, feasibility: plan.slots, droppedFields: plan.droppedFields };
 }

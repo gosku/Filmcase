@@ -7,23 +7,26 @@ a recipe, and pushing a recipe.  A use case resolves a strategy from the camera
 model (via :func:`get_strategy`) and delegates to it, staying thin: it handles
 only the connection lifecycle and error translation.
 
-Today there is one strategy, PerPropertyStrategy, for bodies that expose the
-custom-slot PTP property interface (X-S10, X-T3+).  The X-T2 backup-blob strategy
-arrives in a follow-up; the Protocol then grows the methods it needs
-(read_slot_recipe, validate_backup, collection push).  See
-investigation/add_xt2_support/04_camera_strategy_architecture.md.
+Two strategies exist: PerPropertyStrategy for bodies with the custom-slot PTP
+property interface (X-S10, X-T3+), and BackupBlobStrategy for bodies with no such
+interface (X-T2 and older), whose recipes live in the settings backup blob read
+and written whole.
 """
 from __future__ import annotations
 
 import time
+from collections.abc import Sequence
 from typing import Callable
 from typing import Protocol
+from typing import TypeAlias
 from typing import TypeVar
 from typing import runtime_checkable
 
 import attrs
 
 from src.data.camera import constants
+from src.data.camera import constants_xt2
+from src.domain.camera import xt2_backup
 from src.domain.camera import operations as camera_operations
 from src.domain.camera import profiles
 from src.domain.camera import ptp_device
@@ -33,6 +36,10 @@ from src.domain.images import dataclasses as image_dataclasses
 from src.domain.settings import queries as settings_queries
 
 _T = TypeVar("_T")
+
+# A recipe paired with the 1-based slot it will be written to, for a collection
+# push.
+CollectionAssignment: TypeAlias = tuple[int, image_dataclasses.FujifilmRecipeData]
 
 # Maps a PTP property code back to its readable name, for RecipeWriteError.
 _CODE_TO_PROP_NAME: dict[int, str] = {
@@ -55,6 +62,88 @@ class RecipeWriteError(Exception):
             f"Recipe write incomplete: {len(failed_properties)} property/properties failed "
             f"({failed_properties})"
         )
+
+
+class BackupValidationError(Exception):
+    """
+    Raised when the camera's backup blob does not strictly validate.
+
+    Editing it by offset would be unsafe, so the push refuses before any write.
+    """
+
+    def __init__(self, errors: tuple[str, ...]) -> None:
+        self.errors = errors
+        super().__init__(f"Backup failed validation: {len(errors)} error(s)")
+
+
+class PushNotFeasibleError(Exception):
+    """
+    Raised when a push cannot go ahead without retuning a kept slot's white
+    balance (the X-T2 global-WB constraint).
+    """
+
+    def __init__(self, conflicts: tuple[str, ...]) -> None:
+        self.conflicts = conflicts
+        super().__init__("; ".join(conflicts) if conflicts else "Push not feasible")
+
+
+# A push can also fail because the recipe holds a value the model cannot
+# represent at all (raised by the backup-blob codec, propagated through
+# push_recipe/push_collection). Re-exported here so a use case importing from the
+# strategy layer has every push error in one place.
+RecipeNotRepresentable = xt2_backup.RecipeNotRepresentable
+
+
+@attrs.frozen
+class SlotFeasibility:
+    """Whether a given recipe can be pushed into one slot, for the picker UI."""
+
+    slot_index: int        # 1-based
+    feasible: bool
+    reason: str            # empty when feasible
+
+
+@attrs.frozen
+class RecipeFeasibility:
+    """
+    How a recipe would push to a model, for the picker UI.
+
+    ``slots`` is the per-slot grey-out verdict. ``dropped_fields`` names the
+    recipe's fields the model silently drops (empty for a per-property body,
+    which keeps every field); it is shown as a warning before the push, never a
+    failure.
+    """
+
+    slots: list[SlotFeasibility]
+    dropped_fields: tuple[str, ...]
+
+
+@attrs.frozen
+class UnrepresentableAssignment:
+    """A collection recipe the model cannot store, by its target slot."""
+
+    slot_index: int        # 1-based
+    field: str
+    value: str
+
+
+@attrs.frozen
+class CollectionFeasibility:
+    """
+    Whether a whole collection could be pushed, for the collection modal.
+
+    ``ok`` is the overall verdict: no recipe is unrepresentable and no shared
+    white balance conflicts. ``conflicts`` explains any white-balance clash,
+    ``dropped_fields`` is the union of the fields the model drops across the
+    collection, and ``unrepresentable`` names the recipes the model cannot store
+    at all (by target slot). A per-property body is always ``ok`` and drops
+    nothing.
+    """
+
+    ok: bool
+    conflicts: tuple[str, ...]
+    dropped_fields: tuple[str, ...]
+    unrepresentable: tuple[UnrepresentableAssignment, ...]
 
 
 @runtime_checkable
@@ -96,6 +185,49 @@ class CameraStrategy(Protocol):
         :raises CameraConnectionError: If the camera becomes unreachable.
         :raises CameraWriteError: If the camera rejects a critical write.
         :raises RecipeWriteError: If one or more properties failed to write/verify.
+        """
+        ...
+
+    def push_collection(
+        self, device: ptp_device.PTPDevice, assignments: Sequence[CollectionAssignment]
+    ) -> None:
+        """
+        Write several recipes to their assigned slots.
+
+        Per-property bodies write each slot in turn; the X-T2 edits one blob with
+        all the assignments and restores once.
+
+        :raises RecipeWriteError: If a write failed or did not verify.
+        :raises CameraConnectionError / CameraWriteError: On transport failure.
+        """
+        ...
+
+    def plan_feasibility(
+        self,
+        device: ptp_device.PTPDevice,
+        recipe: image_dataclasses.FujifilmRecipeData,
+        *,
+        slot_count: int,
+    ) -> RecipeFeasibility:
+        """
+        How *recipe* would push to this model: the per-slot grey-out verdict and
+        the fields the model drops.
+
+        Per-property bodies are always feasible and drop nothing; the X-T2
+        reflects the global-WB constraint so the picker can grey out conflicting
+        slots, and reports the fields it lacks so the picker can warn.
+        """
+        ...
+
+    def collection_feasibility(
+        self, device: ptp_device.PTPDevice, assignments: Sequence[CollectionAssignment]
+    ) -> CollectionFeasibility:
+        """
+        Whether the whole collection could be pushed, for the collection modal.
+
+        Reads without writing: reports shared white-balance conflicts, the fields
+        the model drops across the collection, and the recipes it cannot store at
+        all. Per-property bodies are always feasible and drop nothing.
         """
         ...
 
@@ -204,16 +336,192 @@ class PerPropertyStrategy:
             failed_properties = [_CODE_TO_PROP_NAME.get(c, hex(c)) for c in failed_codes]
             raise RecipeWriteError(failed_properties)
 
+    def push_collection(
+        self, device: ptp_device.PTPDevice, assignments: Sequence[CollectionAssignment]
+    ) -> None:
+        # Each slot is independent on a per-property body, so writing them in
+        # turn is the whole of it (the server analogue of the client's loop).
+        for slot_index, recipe in assignments:
+            self.push_recipe(device, recipe, slot_index=slot_index)
 
-def get_strategy(camera_name: str) -> CameraStrategy:
+    def plan_feasibility(
+        self,
+        device: ptp_device.PTPDevice,
+        recipe: image_dataclasses.FujifilmRecipeData,
+        *,
+        slot_count: int,
+    ) -> RecipeFeasibility:
+        # No shared-WB constraint and nothing dropped on a per-property body:
+        # every slot is feasible and every field is kept.
+        slots = [SlotFeasibility(slot_index=idx, feasible=True, reason="") for idx in range(1, slot_count + 1)]
+        return RecipeFeasibility(slots=slots, dropped_fields=())
+
+    def collection_feasibility(
+        self, device: ptp_device.PTPDevice, assignments: Sequence[CollectionAssignment]
+    ) -> CollectionFeasibility:
+        # A per-property body keeps every field and has no shared-WB constraint,
+        # so any collection is feasible.
+        return CollectionFeasibility(ok=True, conflicts=(), dropped_fields=(), unrepresentable=())
+
+
+@attrs.frozen
+class BackupBlobStrategy:
+    """
+    Strategy for bodies with no per-slot interface (X-T2 and older).
+
+    Reads, edits and restores the whole settings backup blob: the recipes live
+    at fixed byte offsets inside it. The codec in src.domain.camera.xt2_backup
+    does the pure byte work; this composes it over a connected device.
+    """
+
+    profile: profiles.CameraProfile
+
+    def read_slots(
+        self, device: ptp_device.PTPDevice, *, slot_count: int
+    ) -> list[camera_queries.SlotState]:
+        return xt2_backup.decode_slot_states(device.get_backup())
+
+    def validate_recipe(self, recipe: image_dataclasses.FujifilmRecipeData) -> None:
+        # map_recipe raises RecipeNotRepresentable on a value the X-T2 lacks; the
+        # dropped-field report it also produces is surfaced at push time.
+        xt2_backup.map_recipe(recipe)
+
+    def push_recipe(
+        self,
+        device: ptp_device.PTPDevice,
+        recipe: image_dataclasses.FujifilmRecipeData,
+        *,
+        slot_index: int,
+    ) -> None:
+        blob = self._validated_backup(device)
+        mapping = xt2_backup.map_recipe(recipe)
+        feasibility = xt2_backup.check_feasibility(blob, slot_index - 1, mapping)
+        if not feasibility.ok:
+            raise PushNotFeasibleError(feasibility.conflicts)
+        edited = xt2_backup.apply_recipe(blob, slot_index - 1, mapping)
+        self._restore_and_verify(device, edited)
+
+    def push_collection(
+        self, device: ptp_device.PTPDevice, assignments: Sequence[CollectionAssignment]
+    ) -> None:
+        blob = self._validated_backup(device)
+        mapped = [(slot_index - 1, xt2_backup.map_recipe(recipe)) for slot_index, recipe in assignments]
+        feasibility = xt2_backup.check_collection_feasibility(blob, mapped)
+        if not feasibility.ok:
+            raise PushNotFeasibleError(feasibility.conflicts)
+        edited = xt2_backup.apply_recipes(blob, mapped)
+        self._restore_and_verify(device, edited)
+
+    def plan_feasibility(
+        self,
+        device: ptp_device.PTPDevice,
+        recipe: image_dataclasses.FujifilmRecipeData,
+        *,
+        slot_count: int,
+    ) -> RecipeFeasibility:
+        blob = device.get_backup()
+        try:
+            mapping = xt2_backup.map_recipe(recipe)
+        except xt2_backup.RecipeNotRepresentable:
+            # The recipe cannot be pushed at all, so no slot is feasible and there
+            # is nothing to report as dropped. A recipe this camera has no film
+            # simulation for needs no spelling out, so the picker greys every slot
+            # with no note: the empty reason leaves nothing to show.
+            slots = [SlotFeasibility(slot_index=idx, feasible=False, reason="")
+                     for idx in range(1, slot_count + 1)]
+            return RecipeFeasibility(slots=slots, dropped_fields=())
+        slots = []
+        for idx in range(1, slot_count + 1):
+            feasibility = xt2_backup.check_feasibility(blob, idx - 1, mapping)
+            slots.append(
+                SlotFeasibility(
+                    slot_index=idx,
+                    feasible=feasibility.ok,
+                    reason="" if feasibility.ok else "; ".join(feasibility.conflicts),
+                )
+            )
+        return RecipeFeasibility(slots=slots, dropped_fields=mapping.dropped)
+
+    def collection_feasibility(
+        self, device: ptp_device.PTPDevice, assignments: Sequence[CollectionAssignment]
+    ) -> CollectionFeasibility:
+        blob = device.get_backup()
+        if not xt2_backup.validate_backup(blob).ok:
+            return CollectionFeasibility(
+                ok=False,
+                conflicts=("The camera's settings backup could not be read.",),
+                dropped_fields=(),
+                unrepresentable=(),
+            )
+        mapped: list[tuple[int, xt2_backup.Xt2Mapping]] = []
+        unrepresentable: list[UnrepresentableAssignment] = []
+        dropped: list[str] = []
+        for slot_index, recipe in assignments:
+            try:
+                mapping = xt2_backup.map_recipe(recipe)
+            except xt2_backup.RecipeNotRepresentable as exc:
+                unrepresentable.append(
+                    UnrepresentableAssignment(slot_index=slot_index, field=exc.field, value=str(exc.value))
+                )
+                continue
+            for field in mapping.dropped:
+                if field not in dropped:
+                    dropped.append(field)
+            mapped.append((slot_index - 1, mapping))
+        # Only the recipes that map can be checked for a shared-WB clash.
+        feasibility = xt2_backup.check_collection_feasibility(blob, mapped)
+        return CollectionFeasibility(
+            ok=feasibility.ok and not unrepresentable,
+            conflicts=feasibility.conflicts,
+            dropped_fields=tuple(dropped),
+            unrepresentable=tuple(unrepresentable),
+        )
+
+    def _validated_backup(self, device: ptp_device.PTPDevice) -> bytes:
+        blob = device.get_backup()
+        report = xt2_backup.validate_backup(blob)
+        if not report.ok:
+            raise BackupValidationError(report.errors)
+        return blob
+
+    def _restore_and_verify(self, device: ptp_device.PTPDevice, edited: bytes) -> None:
+        verify = settings_queries.get_camera_verify_writes()
+        try:
+            device.restore_backup(edited)
+        except ptp_device.RestoreAckTimeout:
+            # The write may well have applied; only confirm by read-back. With
+            # verification off there is no way to confirm, so surface the failure.
+            if not verify:
+                raise
+        if verify:
+            result = xt2_backup.verify_round_trip(device.get_backup(), edited)
+            if not result.ok:
+                raise RecipeWriteError(sorted(_affected_slot_labels(result.mismatches)))
+
+
+def _affected_slot_labels(mismatches: tuple[int, ...]) -> set[str]:
+    """Name the regions a round-trip mismatch touched, for RecipeWriteError."""
+    labels: set[str] = set()
+    slots_end = constants_xt2.SLOT0_OFFSET + constants_xt2.SLOT_SIZE * constants_xt2.SLOT_COUNT
+    for offset in mismatches:
+        if constants_xt2.SLOT0_OFFSET <= offset < slots_end:
+            labels.add(f"C{(offset - constants_xt2.SLOT0_OFFSET) // constants_xt2.SLOT_SIZE + 1}")
+        else:
+            labels.add("header")
+    return labels or {"backup"}
+
+
+def get_strategy(camera_model: str) -> CameraStrategy:
     """
     Return the strategy that drives a camera model.
 
-    In PR 1 every model resolves to the per-property strategy (the only
-    interface that exists yet); the X-T2 backup-blob strategy is selected here,
-    on the profile's interface, when it lands.
+    Resolves the model's profile and returns the strategy for its interface:
+    the per-property strategy for the custom-slot PTP interface, the backup-blob
+    strategy for bodies whose recipes live in the settings backup (X-T2).
     """
-    profile = profiles.get_profile(camera_name)
+    profile = profiles.get_profile(camera_model)
+    if profile.interface is profiles.CameraInterface.BACKUP_BLOB:
+        return BackupBlobStrategy(profile=profile)
     return PerPropertyStrategy(profile=profile)
 
 

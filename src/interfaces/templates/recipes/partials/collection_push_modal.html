@@ -17,7 +17,8 @@ same class and data-* contract.
 <div id="collection-push" class="cpush"
      data-collection-id="{{ push.collection_id }}"
      data-csrf="{{ csrf_token }}"
-     data-slot-count="{{ push.slot_count }}">
+     data-slot-count="{{ push.slot_count }}"
+     {% if push.single_operation %}data-single-push-url="{% url 'push-collection-to-camera' collection_id=push.collection_id %}"{% endif %}>
   <div class="cpush__header">
     <button class="slot-card-close" onclick="closeSlotOverlay()" title="Close">&#x2715;</button>
     <p class="cpush__eyebrow">Push collection to camera</p>
@@ -52,7 +53,7 @@ same class and data-* contract.
     </div>
 
     <div class="cpush__col cpush__col--after">
-      <p class="cpush__coltitle">After transfer <span class="cpush__hint" data-reorder-hint>drag to reorder</span></p>
+      <p class="cpush__coltitle">After transfer {% if not push.single_operation %}<span class="cpush__hint" data-reorder-hint>drag to reorder</span>{% endif %}</p>
       <div class="cpush__list" data-transfer-list>
         {% for row in push.assignments %}
         <div class="cpush-row" draggable="true"
@@ -98,10 +99,31 @@ same class and data-* contract.
     </div>
   </div>
 
+  {% if not push.feasible or push.dropped_fields %}
+  <div class="cpush__warnings" data-feasibility {% if not push.feasible %}data-infeasible{% endif %}>
+    {% if push.unrepresentable %}
+    <p class="cpush__warn cpush__warn--block">These recipes can&rsquo;t be stored on this camera:</p>
+    <ul class="cpush__warn-list">
+      {% for row in push.unrepresentable %}
+      <li>{{ row.recipe_name }} &mdash; {{ row.field }} {{ row.value }}</li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+    {% for conflict in push.conflicts %}
+    <p class="cpush__warn cpush__warn--block">{{ conflict }}</p>
+    {% endfor %}
+    {% if push.dropped_fields %}
+    <p class="cpush__warn">This camera has no control for {{ push.dropped_fields|join:", " }}; {% if push.dropped_fields|length == 1 %}it{% else %}they{% endif %} will not be transferred.</p>
+    {% endif %}
+  </div>
+  {% endif %}
+
   <div class="cpush__footer">
-    <span class="cpush__foot-hint" data-foot-hint>{{ push.assignments|length }} recipe{{ push.assignments|length|pluralize }} will be written to slots, one at a time.</span>
+    <span class="cpush__foot-hint" data-foot-hint>{{ push.assignments|length }} recipe{{ push.assignments|length|pluralize }} will be written to slots{% if push.single_operation %} in one transfer{% else %}, one at a time{% endif %}.</span>
     <button type="button" class="cpush__cancel" onclick="closeSlotOverlay()" data-cancel>Cancel</button>
-    <button type="button" class="cpush__start" data-start{% if not push.assignments %} disabled{% endif %}>Transfer {{ push.assignments|length }} recipe{{ push.assignments|length|pluralize }}</button>
+    <button type="button" class="cpush__start" data-start
+            {% if push.single_operation %}hx-post="{% url 'push-collection-to-camera' collection_id=push.collection_id %}" hx-target="#collection-push" hx-swap="innerHTML" hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'{% endif %}
+            {% if not push.assignments or not push.feasible %} disabled{% endif %}>Transfer {{ push.assignments|length }} recipe{{ push.assignments|length|pluralize }}</button>
   </div>
 </div>
 {% endif %}

@@ -305,7 +305,7 @@ class TestKnownModelShortCircuitsDiscovery:
     def test_known_model_skips_reading_camera_name(self, settings):
         device = self._tracking_device_cls()(camera_name="X-S10")
         settings.PTP_DEVICE = lambda: device
-        push_recipe_to_camera(_make_recipe(), slot_index=1, known_model="X-S10")
+        push_recipe_to_camera(_make_recipe(), slot_index=1, camera_model="X-S10")
         assert device.camera_name_reads == 0
 
     def test_camera_name_read_when_model_not_known(self, settings):

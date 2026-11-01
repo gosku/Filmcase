@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import pytest
 from bs4 import BeautifulSoup
 
@@ -10,6 +12,10 @@ from tests.factories import (
 )
 from tests.fakes import FakePTPDevice
 
+_PRISTINE = (
+    Path(__file__).resolve().parents[1] / "fixtures" / "camera" / "xt2_backup_pristine.bin"
+).read_bytes()
+
 
 def _recipe(name):
     return FujifilmRecipeFactory(name=name, sharpness=0, high_iso_nr=0, clarity=0)
@@ -19,6 +25,13 @@ def _collection_with(names):
     collection = RecipeCollectionFactory()
     for position, name in enumerate(names):
         RecipeCollectionMemberFactory(group=collection, recipe=_recipe(name), position=position)
+    return collection
+
+
+def _collection_of(recipes):
+    collection = RecipeCollectionFactory()
+    for position, recipe in enumerate(recipes):
+        RecipeCollectionMemberFactory(group=collection, recipe=recipe, position=position)
     return collection
 
 
@@ -99,6 +112,67 @@ class TestSelectCollectionSlotsView:
         response = client.get(f"/recipes/collections/{collection.id}/push/")
 
         assert response.status_code == 503
+
+
+@pytest.mark.django_db
+class TestSelectCollectionSlotsXT2:
+    def _xt2(self, settings):
+        settings.PTP_DEVICE = lambda: FakePTPDevice(camera_name="X-T2", backup=_PRISTINE)
+
+    def test_unrepresentable_recipe_disables_transfer(self, client, settings):
+        self._xt2(settings)
+        collection = _collection_of([
+            FujifilmRecipeFactory(name="Eterna", film_simulation="Eterna", white_balance="Daylight"),
+        ])
+
+        response = _get(client, collection.id)
+
+        soup = BeautifulSoup(response.content, "html.parser")
+        assert "can" in soup.select_one(".cpush__warnings").get_text()
+        assert "Eterna" in soup.get_text()
+        assert soup.select_one("[data-start]").has_attr("disabled")
+
+    def test_shared_wb_conflict_disables_transfer(self, client, settings):
+        self._xt2(settings)
+        collection = _collection_of([
+            FujifilmRecipeFactory(name="Clash", film_simulation="Classic Chrome",
+                                  white_balance="Auto", white_balance_red=5, white_balance_blue=5,
+                                  sharpness=0, high_iso_nr=0, clarity=0),
+        ])
+
+        response = _get(client, collection.id)
+
+        soup = BeautifulSoup(response.content, "html.parser")
+        assert soup.select_one(".cpush__warnings[data-infeasible]") is not None
+        assert soup.select_one("[data-start]").has_attr("disabled")
+
+    def test_modal_marks_a_single_operation_push(self, client, settings):
+        self._xt2(settings)
+        collection = _collection_of([
+            FujifilmRecipeFactory(name="Ok", film_simulation="Classic Chrome",
+                                  white_balance="Underwater", sharpness=0, high_iso_nr=0, clarity=0),
+        ])
+
+        response = _get(client, collection.id)
+
+        soup = BeautifulSoup(response.content, "html.parser")
+        modal = soup.select_one("#collection-push")
+        assert modal.has_attr("data-single-push-url")
+        start = soup.select_one("[data-start]")
+        assert start["hx-post"] == f"/recipes/collections/{collection.id}/push/do/"
+
+    def test_dropped_fields_are_announced_but_transfer_stays_enabled(self, client, settings):
+        self._xt2(settings)
+        collection = _collection_of([
+            FujifilmRecipeFactory(name="Clar", film_simulation="Classic Chrome",
+                                  white_balance="Underwater", sharpness=0, high_iso_nr=0, clarity=3),
+        ])
+
+        response = _get(client, collection.id)
+
+        soup = BeautifulSoup(response.content, "html.parser")
+        assert "Clarity" in soup.select_one(".cpush__warnings").get_text()
+        assert not soup.select_one("[data-start]").has_attr("disabled")
 
 
 @pytest.mark.django_db

@@ -105,6 +105,6 @@ The browser-side code lives in `src/interfaces/static/js/camera/`, layered `inte
 
 There is no build step. The browser loads the same files the tests import.
 
-The encoding tables are served from `camera/client-config.json` rather than duplicated, so a table added on the server needs no second edit. Behaviour is pinned by four fixtures in `tests/fixtures/camera/` that both suites assert, covering the wire format, the recipe conversion, the validation outcomes and the push sequence. A change to the Python write path fails the JavaScript suite, and the other way round.
+The encoding tables, and the X-T2 backup-blob layout, are served from `camera/client-config.json` rather than duplicated, so a table added on the server needs no second edit. Behaviour is pinned by shared fixtures in `tests/fixtures/camera/` that both suites assert, covering the wire format, the recipe conversion, the validation outcomes, the push sequence, and (for the X-T2) the backup codec against a committed pristine blob. A change to the Python write path fails the JavaScript suite, and the other way round.
 
 Run the JavaScript tests with `make test-js`. See [Contributing](contributing.md) and [ADR 016](ADRs/016-client-side-camera-transport.md).

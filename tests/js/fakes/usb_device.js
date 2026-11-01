@@ -17,7 +17,11 @@ import {
   _OC_CLOSE_SESSION,
   _OC_GET_DEVICE_INFO,
   _OC_GET_DEVICE_PROP_VALUE,
+  _OC_GET_OBJECT,
+  _OC_GET_OBJECT_INFO,
   _OC_OPEN_SESSION,
+  _OC_SEND_OBJECT,
+  _OC_SEND_OBJECT_INFO,
   _OC_SET_DEVICE_PROP_VALUE,
   _PTP_COMMAND,
   _PTP_DATA,
@@ -123,6 +127,8 @@ export class FakeUSBDevice {
     failOpenWith = null,
     failTransferInTimes = 0,
     wedgeAfterReads = Infinity,
+    backup = null,
+    sendRejectionRc = _RC_OK,
   } = {}) {
     this.vendorId = 0x04cb;
     this.productId = 0x02e5;
@@ -148,6 +154,13 @@ export class FakeUSBDevice {
     this._readsUntilWedge = wedgeAfterReads;
     this._wedged = false;
     this._busyFor = 0;
+
+    // Whole-backup transport (X-T2). The camera holds a blob GetObject returns
+    // and SendObject overwrites; restoredBackups records every restore for tests.
+    this._backup = backup === null ? null : Uint8Array.from(backup);
+    this._sendRejectionRc = sendRejectionRc;
+    this._pendingSend = null;
+    this.restoredBackups = [];
 
     this._queue = [];
     this._pendingSet = null;
@@ -352,10 +365,37 @@ export class FakeUSBDevice {
     if (code === _OC_SET_DEVICE_PROP_VALUE) {
       // The response waits for the data container that follows.
       this._pendingSet = { code: param, txId };
+      return;
+    }
+    if (code === _OC_GET_OBJECT_INFO) {
+      // A minimal ObjectInfo data phase; the transport ignores its payload.
+      this._queue.push(container(_PTP_DATA, _OC_GET_OBJECT_INFO, txId, new Uint8Array(20)));
+      this._queue.push(container(_PTP_RESPONSE, _RC_OK, txId));
+      return;
+    }
+    if (code === _OC_GET_OBJECT) {
+      this._queue.push(container(_PTP_DATA, _OC_GET_OBJECT, txId, this._backup ?? new Uint8Array(0)));
+      this._queue.push(container(_PTP_RESPONSE, _RC_OK, txId));
+      return;
+    }
+    if (code === _OC_SEND_OBJECT_INFO || code === _OC_SEND_OBJECT) {
+      // The response waits for the data container that follows.
+      this._pendingSend = { code, txId };
     }
   }
 
   _handleData(code, txId, payload) {
+    if ((code === _OC_SEND_OBJECT_INFO || code === _OC_SEND_OBJECT) && this._pendingSend) {
+      const { code: sendCode, txId: sendTx } = this._pendingSend;
+      const rc = this._sendRejectionRc;
+      if (sendCode === _OC_SEND_OBJECT && rc === _RC_OK) {
+        this._backup = payload.slice();
+        this.restoredBackups.push(payload.slice());
+      }
+      this._queue.push(container(_PTP_RESPONSE, rc, sendTx));
+      this._pendingSend = null;
+      return;
+    }
     if (code !== _OC_SET_DEVICE_PROP_VALUE || !this._pendingSet) return;
     const { code: propCode } = this._pendingSet;
     const rc = this._setRejectionCodes[propCode] ?? _RC_OK;

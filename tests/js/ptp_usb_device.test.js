@@ -8,7 +8,10 @@ import assert from "node:assert/strict";
 
 import { FakeUSBDevice } from "./fakes/usb_device.js";
 import { makeConfig } from "./fakes/config.js";
-import { CameraConnectionError } from "../../src/interfaces/static/js/camera/vendor/ptp_device.js";
+import {
+  CameraConnectionError,
+  CameraWriteError,
+} from "../../src/interfaces/static/js/camera/vendor/ptp_device.js";
 import {
   PTP_READ_RETRY,
   SESSION_CLOSED,
@@ -523,5 +526,39 @@ describe("session logging", () => {
     const retries = recent().filter((e) => e.eventType === PTP_READ_RETRY);
     assert.equal(retries.length, 1);
     assert.equal(retries[0].attempt, "1/3");
+  });
+});
+
+describe("getBackup / restoreBackup", () => {
+  it("reads the stored backup blob whole", async () => {
+    const blob = Uint8Array.from({ length: 5660 }, (_, i) => i & 0xff);
+    const { device } = makeDevice({ backup: blob });
+    await device.connect();
+
+    const read = await device.getBackup();
+
+    assert.deepEqual(read, blob);
+  });
+
+  it("restores a blob, and a later read returns it", async () => {
+    const { device, usbDevice } = makeDevice({ backup: new Uint8Array(5660) });
+    await device.connect();
+    const edited = Uint8Array.from({ length: 5660 }, () => 0x07);
+
+    await device.restoreBackup(edited);
+
+    assert.equal(usbDevice.restoredBackups.length, 1);
+    assert.deepEqual(usbDevice.restoredBackups[0], edited);
+    assert.deepEqual(await device.getBackup(), edited);
+  });
+
+  it("maps a SendObject rejection to a CameraWriteError", async () => {
+    const { device } = makeDevice({ backup: new Uint8Array(5660), sendRejectionRc: 0x2005 });
+    await device.connect();
+
+    await assert.rejects(
+      () => device.restoreBackup(new Uint8Array(5660)),
+      (error) => error instanceof CameraWriteError
+    );
   });
 });

@@ -25,6 +25,7 @@ class AppSettings:
     camera_max_retries: int
     camera_retry_backoff_s: float
     camera_usb_timeout_ms: int
+    camera_restore_timeout_ms: int
     recipe_explorer_page_size: int
     recipe_graph_min_similarity: float
     recipe_card_aperture_scrim_top_opacity: int

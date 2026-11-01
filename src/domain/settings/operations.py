@@ -43,6 +43,7 @@ def update_app_settings(*, values: AppSettings) -> None:
     config.CAMERA_MAX_RETRIES = values.camera_max_retries
     config.CAMERA_RETRY_BACKOFF_S = values.camera_retry_backoff_s
     config.CAMERA_USB_TIMEOUT_MS = values.camera_usb_timeout_ms
+    config.CAMERA_RESTORE_TIMEOUT_MS = values.camera_restore_timeout_ms
     config.RECIPE_EXPLORER_PAGE_SIZE = values.recipe_explorer_page_size
     config.RECIPE_GRAPH_MIN_SIMILARITY = values.recipe_graph_min_similarity
     config.RECIPE_CARD_APERTURE_SCRIM_TOP_OPACITY = values.recipe_card_aperture_scrim_top_opacity
@@ -69,6 +70,7 @@ def update_app_settings(*, values: AppSettings) -> None:
         camera_max_retries=values.camera_max_retries,
         camera_retry_backoff_s=values.camera_retry_backoff_s,
         camera_usb_timeout_ms=values.camera_usb_timeout_ms,
+        camera_restore_timeout_ms=values.camera_restore_timeout_ms,
         recipe_explorer_page_size=values.recipe_explorer_page_size,
         recipe_graph_min_similarity=values.recipe_graph_min_similarity,
         recipe_card_aperture_scrim_top_opacity=values.recipe_card_aperture_scrim_top_opacity,

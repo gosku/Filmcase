@@ -6,6 +6,8 @@ from django import shortcuts
 from django.views import generic
 
 from src.application.usecases.camera import get_camera_slots as get_camera_slots_uc
+from src.application.usecases.camera import get_collection_push_feasibility as collection_feasibility_uc
+from src.application.usecases.camera import push_collection as push_collection_uc
 from src.application.usecases.camera import push_recipe as push_recipe_uc
 from src.data import models
 from src.domain.camera import device_config
@@ -53,7 +55,7 @@ class SelectSlot(generic.View):
     def get(self, request: http.HttpRequest, recipe_id: int) -> http.HttpResponse:
         is_htmx = request.headers.get("HX-Request")
         try:
-            states = get_camera_slots_uc.get_camera_slots()
+            camera_slots = get_camera_slots_uc.get_camera_slots(recipe=self.recipe)
         except ptp_device.CameraConnectionError as e:
             if is_htmx:
                 return shortcuts.render(request, "recipes/_select_slot_partial.html", {"recipe": self.recipe, "slots": [], "error": f"Camera connection error: {e}"})
@@ -67,9 +69,46 @@ class SelectSlot(generic.View):
             if is_htmx:
                 return shortcuts.render(request, "recipes/_select_slot_partial.html", {"recipe": self.recipe, "slots": [], "error": "Unexpected error happened"})
             return http.JsonResponse({"error": "Unexpected error happened"}, status=500)
-        slots = [{"label": f"C{s.index}", "name": s.name, "film_sim": s.film_sim_name} for s in states]
+        feasibility_by_slot = {f.slot_index: f for f in camera_slots.feasibility}
+        slots = [
+            {
+                "label": f"C{s.index}",
+                "name": s.name,
+                "film_sim": s.film_sim_name,
+                # Without a feasibility verdict (no target recipe) every slot is
+                # pushable; with one, a backup-blob body may disable some.
+                "feasible": feasibility_by_slot[s.index].feasible if s.index in feasibility_by_slot else True,
+                "reason": feasibility_by_slot[s.index].reason if s.index in feasibility_by_slot else "",
+            }
+            for s in camera_slots.slots
+        ]
+        # Every blocked slot carries the same reason, so the picker shows one
+        # conflict note above the list: a short summary, with the full reason
+        # behind a click-to-open (i). The summary reads off which slots stay
+        # pushable; an incompatible recipe (empty reason) shows no note at all.
+        conflict_detail = next(
+            (s["reason"] for s in slots if not s["feasible"] and s["reason"]), ""
+        )
+        conflict_summary = ""
+        if conflict_detail:
+            pushable = [s["label"] for s in slots if s["feasible"]]
+            conflict_summary = (
+                f"This recipe can only replace {pushable[0]}."
+                if len(pushable) == 1
+                else "This recipe can't be pushed to any slot."
+            )
         template = "recipes/_select_slot_partial.html" if is_htmx else "recipes/select_slot.html"
-        return shortcuts.render(request, template, {"recipe": self.recipe, "slots": slots})
+        return shortcuts.render(
+            request,
+            template,
+            {
+                "recipe": self.recipe,
+                "slots": slots,
+                "dropped_fields": camera_slots.dropped_fields,
+                "conflict_summary": conflict_summary,
+                "conflict_detail": conflict_detail,
+            },
+        )
 
 
 @attrs.frozen
@@ -102,6 +141,15 @@ class _DroppedRow:
 
 
 @attrs.frozen
+class _UnrepresentableRow:
+    """A recipe the camera cannot store at all (e.g. a film sim the X-T2 lacks)."""
+
+    recipe_name: str
+    field: str
+    value: str
+
+
+@attrs.frozen
 class _CollectionPushContext:
     collection_id: int
     collection_name: str
@@ -111,15 +159,24 @@ class _CollectionPushContext:
     assignments: tuple[_AssignmentRow, ...]
     untouched: tuple[_CurrentSlotRow, ...]
     dropped: tuple[_DroppedRow, ...]
+    # Whether the push can proceed on this model, and why not when it cannot.
+    feasible: bool
+    conflicts: tuple[str, ...]
+    dropped_fields: tuple[str, ...]
+    unrepresentable: tuple[_UnrepresentableRow, ...]
+    # True when the whole collection is pushed in one server operation (X-T2),
+    # rather than one recipe per slot.
+    single_operation: bool
 
     @classmethod
     def build(
         cls,
         *,
         collection: recipe_queries.CollectionDetailData,
-        camera_name: str,
-        slots: list[camera_queries.SlotState],
+        feasibility: "collection_feasibility_uc.CollectionPushFeasibility",
     ) -> "_CollectionPushContext":
+        camera_name = feasibility.camera_model
+        slots = feasibility.slots
         members_by_id = {member.recipe_id: member for member in collection.members}
         slots_by_index = {slot.index: slot for slot in slots}
         plan = recipe_queries.plan_collection_transfer(
@@ -153,6 +210,14 @@ class _CollectionPushContext:
             _CurrentSlotRow(label=f"C{slot.index}", name=slot.name, film_sim=slot.film_sim_name)
             for slot in slots
         )
+        unrepresentable = tuple(
+            _UnrepresentableRow(
+                recipe_name=members_by_id[item.recipe_id].name,
+                field=item.field,
+                value=item.value,
+            )
+            for item in feasibility.unrepresentable
+        )
         return cls(
             collection_id=collection.id,
             collection_name=collection.name,
@@ -162,6 +227,11 @@ class _CollectionPushContext:
             assignments=assignments,
             untouched=untouched,
             dropped=dropped,
+            feasible=feasibility.ok,
+            conflicts=feasibility.conflicts,
+            dropped_fields=feasibility.dropped_fields,
+            unrepresentable=unrepresentable,
+            single_operation=feasibility.single_operation,
         )
 
 
@@ -198,7 +268,9 @@ class SelectCollectionSlots(generic.View):
             raise http.Http404
 
         try:
-            camera_name, slots = get_camera_slots_uc.get_camera_model_and_slots()
+            feasibility = collection_feasibility_uc.get_collection_push_feasibility(
+                collection_id=collection_id
+            )
         except ptp_device.CameraConnectionError as e:
             error = f"Camera connection error: {e}"
             if is_htmx:
@@ -216,7 +288,7 @@ class SelectCollectionSlots(generic.View):
                 return shortcuts.render(request, "recipes/partials/collection_push_modal.html", {"error": error})
             return http.JsonResponse({"error": error}, status=500)
 
-        context = _CollectionPushContext.build(collection=collection, camera_name=camera_name, slots=slots)
+        context = _CollectionPushContext.build(collection=collection, feasibility=feasibility)
         return shortcuts.render(request, "recipes/partials/collection_push_modal.html", {"push": context})
 
 
@@ -284,6 +356,76 @@ class PushRecipeToCamera(generic.View):
         return http.JsonResponse({"message": f"Recipe saved in {slot}"})
 
 
+class PushCollectionToCamera(generic.View):
+    """
+    Push a whole collection to the camera in one server-side operation.
+
+    For the server transport. A backup-blob body (X-T2) must edit one settings
+    backup and restore it once, which the client-side per-recipe loop cannot do,
+    so the whole push runs here through ``push_collection_to_camera``.
+
+    :raises Http404: if no collection with the given id exists.
+    """
+
+    def dispatch(self, request: http.HttpRequest, *args: object, **kwargs: object) -> http.HttpResponseBase:
+        if device_config.is_browser_transport():
+            if request.headers.get("HX-Request"):
+                return shortcuts.render(
+                    request,
+                    "recipes/_collection_push_result_partial.html",
+                    {"error": _WRONG_TRANSPORT_ERROR, "collection_id": kwargs["collection_id"]},
+                )
+            return http.JsonResponse({"error": _WRONG_TRANSPORT_ERROR}, status=400)
+        return super().dispatch(request, *args, **kwargs)
+
+    def post(self, request: http.HttpRequest, collection_id: int) -> http.HttpResponse:
+        is_htmx = bool(request.headers.get("HX-Request"))
+        try:
+            push_collection_uc.push_collection_to_camera(collection_id=collection_id)
+        except push_collection_uc.CollectionNotFound:
+            raise http.Http404
+        except push_collection_uc.RecipeNotRepresentable as e:
+            error = f"A recipe can't be stored on this camera ({e.field} {e.value}). Nothing was written."
+            return self._error(request, is_htmx, collection_id, error, status=400, can_retry=False)
+        except push_collection_uc.PushNotFeasibleError as e:
+            error = f"{'; '.join(e.conflicts)} Nothing was written."
+            return self._error(request, is_htmx, collection_id, error, status=400, can_retry=False)
+        except push_collection_uc.BackupValidationError:
+            error = "The camera's settings backup couldn't be read, so nothing was written."
+            return self._error(request, is_htmx, collection_id, error, status=500, can_retry=False)
+        except push_collection_uc.RecipeWriteError as e:
+            error = f"Some settings couldn't be saved ({', '.join(e.failed_properties)}). Please try again."
+            return self._error(request, is_htmx, collection_id, error, status=500)
+        except ptp_device.CameraConnectionError:
+            error = "No camera found. Make sure it's connected via USB and set to PC Connection or RAW CONV. mode."
+            return self._error(request, is_htmx, collection_id, error, status=503)
+        except ptp_device.CameraWriteError:
+            error = "The camera rejected a write operation. Please try again."
+            return self._error(request, is_htmx, collection_id, error, status=500)
+        except Exception:
+            structlog.get_logger().exception("Unexpected error in PushCollectionToCamera.post")
+            error = "An unexpected error occurred. Please try again."
+            return self._error(request, is_htmx, collection_id, error, status=500)
+        if is_htmx:
+            return shortcuts.render(request, "recipes/_collection_push_result_partial.html", {"success": True, "message": "Collection saved to the camera"})
+        return http.JsonResponse({"message": "Collection saved to the camera"})
+
+    def _error(
+        self,
+        request: http.HttpRequest,
+        is_htmx: bool,
+        collection_id: int,
+        error: str,
+        *,
+        status: int,
+        can_retry: bool = True,
+    ) -> http.HttpResponse:
+        if is_htmx:
+            context = {"collection_id": collection_id, "error": error, "can_retry": can_retry}
+            return shortcuts.render(request, "recipes/_collection_push_result_partial.html", context)
+        return http.JsonResponse({"error": error}, status=status)
+
+
 class CameraClientConfig(generic.View):
     """
     Serve the camera configuration a browser needs to drive the camera itself.
@@ -302,6 +444,9 @@ class CameraClientConfig(generic.View):
         payload = {
             "settings": attrs.asdict(camera_queries.client_camera_settings()),
             "encodings": attrs.asdict(camera_queries.client_camera_encodings()),
+            # The resolved interface per model plus the X-T2 byte layout, so the
+            # browser can run the backup-blob strategy itself.
+            "profile": camera_queries.client_camera_profile(),
         }
         response = http.JsonResponse(payload)
         # The timing settings are tuning values an operator may change between

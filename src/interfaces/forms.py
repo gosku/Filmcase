@@ -192,6 +192,7 @@ class Preferences(forms.Form):
     camera_max_retries = forms.IntegerField(validators=_NON_NEGATIVE)
     camera_retry_backoff_s = forms.FloatField(validators=_NON_NEGATIVE)
     camera_usb_timeout_ms = forms.IntegerField(validators=_POSITIVE)
+    camera_restore_timeout_ms = forms.IntegerField(validators=_POSITIVE)
     # Recipes
     recipe_explorer_page_size = forms.IntegerField(validators=_POSITIVE)
     recipe_graph_min_similarity = forms.FloatField(validators=_FRACTION)
@@ -233,6 +234,7 @@ class Preferences(forms.Form):
             "camera_max_retries": values.camera_max_retries,
             "camera_retry_backoff_s": values.camera_retry_backoff_s,
             "camera_usb_timeout_ms": values.camera_usb_timeout_ms,
+            "camera_restore_timeout_ms": values.camera_restore_timeout_ms,
             "recipe_explorer_page_size": values.recipe_explorer_page_size,
             "recipe_graph_min_similarity": values.recipe_graph_min_similarity,
             "recipe_card_aperture_scrim_top_opacity": values.recipe_card_aperture_scrim_top_opacity,
@@ -289,6 +291,7 @@ class Preferences(forms.Form):
             camera_max_retries=data["camera_max_retries"],
             camera_retry_backoff_s=data["camera_retry_backoff_s"],
             camera_usb_timeout_ms=data["camera_usb_timeout_ms"],
+            camera_restore_timeout_ms=data["camera_restore_timeout_ms"],
             recipe_explorer_page_size=data["recipe_explorer_page_size"],
             recipe_graph_min_similarity=data["recipe_graph_min_similarity"],
             recipe_card_aperture_scrim_top_opacity=data["recipe_card_aperture_scrim_top_opacity"],

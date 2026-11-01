@@ -34,8 +34,18 @@
  * invariant where the session is opened rather than relying on call discipline.
  */
 
-import { CameraConnectionError, formatCode, formatRc } from "./ptp_device.js";
 import {
+  CameraConnectionError,
+  CameraWriteError,
+  RestoreAckTimeout,
+  formatCode,
+  formatRc,
+} from "./ptp_device.js";
+import {
+  PTP_BACKUP_READ_FAILED,
+  PTP_BACKUP_READ_SUCCEEDED,
+  PTP_BACKUP_RESTORE_FAILED,
+  PTP_BACKUP_RESTORE_SUCCEEDED,
   PTP_READ_FAILED,
   PTP_READ_RETRY,
   PTP_READ_SUCCEEDED,
@@ -68,8 +78,21 @@ export const _PTP_RESPONSE = 0x0003;
 export const _OC_GET_DEVICE_INFO = 0x1001;
 export const _OC_OPEN_SESSION = 0x1002;
 export const _OC_CLOSE_SESSION = 0x1003;
+// Standard PTP object-transfer opcodes, used to read and restore the settings
+// backup blob (object handle 0). That backup path is proven on the X-T2 only;
+// see the Python ptp_usb_device for the same note.
+export const _OC_GET_OBJECT_INFO = 0x1008;
+export const _OC_GET_OBJECT = 0x1009;
+export const _OC_SEND_OBJECT_INFO = 0x100c;
+export const _OC_SEND_OBJECT = 0x100d;
 export const _OC_GET_DEVICE_PROP_VALUE = 0x1015;
 export const _OC_SET_DEVICE_PROP_VALUE = 0x1016;
+
+// The settings backup is object handle 0. SendObjectInfo describes it with a
+// 1088-byte ObjectInfo whose only meaningful fields are the first 12 bytes.
+export const _BACKUP_HANDLE = 0x00000000;
+export const _OBJ_FORMAT_BACKUP = 0x5000;
+export const _OBJECT_INFO_LEN = 1088;
 
 // ---------------------------------------------------------------------------
 // PTP response codes
@@ -1164,6 +1187,143 @@ Object.assign(ClientPTPUSBDevice.prototype, {
       return 0;
     } catch (error) {
       if (error instanceof CameraConnectionError) return -1;
+      throw error;
+    }
+  },
+
+  /**
+   * Read the settings-backup blob via GetObjectInfo + GetObject.
+   *
+   * Ports src/domain/camera/ptp_usb_device.py get_backup. Retries on transport
+   * failure like the property reads do.
+   *
+   * @returns {Promise<Uint8Array>}
+   */
+  async getBackup() {
+    const maxAttempts = _setting(this._config, "CAMERA_MAX_RETRIES");
+    const backoff = _setting(this._config, "CAMERA_RETRY_BACKOFF_S");
+    let lastError = new CameraConnectionError("No retries attempted");
+    for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+      if (attempt > 0) await this._sleep(backoff * 2 ** (attempt - 1));
+      try {
+        await this._recoverIfStalled();
+        // GetObjectInfo primes the transfer; its payload is not needed here.
+        await this._objectOp(_OC_GET_OBJECT_INFO, _BACKUP_HANDLE);
+        const { rc, payload } = await this._objectOp(_OC_GET_OBJECT, _BACKUP_HANDLE);
+        this._checkRc(rc, "GetObject(backup)");
+        if (payload.length === 0) {
+          throw new CameraConnectionError("GetObject returned no data");
+        }
+        publishEvent({ eventType: PTP_BACKUP_READ_SUCCEEDED, size: payload.length });
+        return payload;
+      } catch (error) {
+        if (!(error instanceof CameraConnectionError)) throw error;
+        publishEvent({
+          eventType: PTP_BACKUP_READ_FAILED,
+          attempt: `${attempt + 1}/${maxAttempts}`,
+          error: error.message,
+        });
+        lastError = error;
+      }
+    }
+    throw lastError;
+  },
+
+  /**
+   * Restore the blob via SendObjectInfo + SendObject, data-out.
+   *
+   * Ports src/domain/camera/ptp_usb_device.py restore_backup. The status reads
+   * use CAMERA_RESTORE_TIMEOUT_MS because a settings commit takes seconds. The
+   * restore is not retried; a lost status ack raises RestoreAckTimeout so the
+   * caller can confirm from a read-back.
+   *
+   * @param {Uint8Array} blob
+   * @returns {Promise<void>}
+   */
+  async restoreBackup(blob) {
+    const savedTimeout = this._timeoutMs;
+    this._timeoutMs = _setting(this._config, "CAMERA_RESTORE_TIMEOUT_MS");
+    try {
+      // SendObjectInfo: minimal ObjectInfo (storage 0, format 0x5000,
+      // protection 0, compressed_size = len), rest zero.
+      const info = new Uint8Array(_OBJECT_INFO_LEN);
+      const view = new DataView(info.buffer);
+      view.setUint32(0, 0, true); // storage id
+      view.setUint16(4, _OBJ_FORMAT_BACKUP, true); // object format
+      view.setUint16(6, 0, true); // protection
+      view.setUint32(8, blob.length, true); // compressed size
+      let tx = this._nextTx();
+      await this._send(_commandPacket(_OC_SEND_OBJECT_INFO, tx, 0, _BACKUP_HANDLE));
+      await this._send(_dataPacket(_OC_SEND_OBJECT_INFO, tx, info));
+      let rc = await this._readRestoreAck("SendObjectInfo");
+      if (rc !== _RC_OK) throw new CameraWriteError(_OC_SEND_OBJECT_INFO, blob.length, rc);
+
+      // SendObject: the raw blob, verbatim (no transform, no checksum).
+      tx = this._nextTx();
+      await this._send(_commandPacket(_OC_SEND_OBJECT, tx));
+      await this._send(_dataPacket(_OC_SEND_OBJECT, tx, blob));
+      rc = await this._readRestoreAck("SendObject");
+      if (rc !== _RC_OK) throw new CameraWriteError(_OC_SEND_OBJECT, blob.length, rc);
+
+      publishEvent({ eventType: PTP_BACKUP_RESTORE_SUCCEEDED, size: blob.length });
+    } catch (error) {
+      if (error instanceof CameraWriteError) {
+        publishEvent({ eventType: PTP_BACKUP_RESTORE_FAILED, rc: formatCode(error.rc) });
+      }
+      throw error;
+    } finally {
+      this._timeoutMs = savedTimeout;
+    }
+  },
+
+  /**
+   * Run an operation with a data-in phase (GetObjectInfo / GetObject).
+   *
+   * Returns {rc, payload} with the data container header stripped. The X-T2
+   * backup is a fixed 5660-byte object that fits in one USB read, so a data
+   * phase spanning reads is treated as unexpected rather than drained.
+   *
+   * @param {number} code
+   * @param {...number} params
+   * @returns {Promise<{rc: number, payload: Uint8Array}>}
+   */
+  async _objectOp(code, ...params) {
+    await this._send(_commandPacket(code, this._nextTx(), ...params));
+    const { data, response } = await this._recvData();
+    if (response !== null) {
+      // No data phase: the first container was the response itself.
+      return { rc: response.code, payload: new Uint8Array(0) };
+    }
+    const length = new DataView(data.buffer, data.byteOffset, 4).getUint32(0, true);
+    if (data.length < length) {
+      throw new CameraConnectionError(
+        `Object data phase spanned multiple USB reads (${data.length} of ` +
+          `${length} bytes); unexpected for the X-T2 backup.`
+      );
+    }
+    const payload = data.subarray(_HEADER_BYTES, length);
+    const { code: rc } = await this._recvResponse();
+    return { rc, payload };
+  },
+
+  /**
+   * Read the status response after a restore step, mapping a timeout to
+   * RestoreAckTimeout so the caller can confirm by read-back.
+   *
+   * @param {string} step
+   * @returns {Promise<number>}
+   */
+  async _readRestoreAck(step) {
+    const stallsBefore = this._stallCount;
+    try {
+      const { code } = await this._recvResponse();
+      return code;
+    } catch (error) {
+      if (error instanceof CameraConnectionError && this._stallCount > stallsBefore) {
+        throw new RestoreAckTimeout(
+          `Lost the status ack after ${step}; the restore may have applied. Confirm by read-back.`
+        );
+      }
       throw error;
     }
   },

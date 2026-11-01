@@ -17,6 +17,7 @@ _ALL_VALUES = {
     "CAMERA_MAX_RETRIES": 4,
     "CAMERA_RETRY_BACKOFF_S": 0.16,
     "CAMERA_USB_TIMEOUT_MS": 2000,
+    "CAMERA_RESTORE_TIMEOUT_MS": 20000,
     "RECIPE_EXPLORER_PAGE_SIZE": 30,
     "RECIPE_GRAPH_MIN_SIMILARITY": 0.55,
     "RECIPE_CARD_APERTURE_SCRIM_TOP_OPACITY": 25,
@@ -110,6 +111,15 @@ class TestGetCameraTransport:
             assert queries.get_camera_transport() == "browser"
 
 
+class TestGetCameraRestoreTimeoutMs:
+    def test_returns_the_stored_value(self) -> None:
+        with patch(
+            "src.domain.settings.queries.config",
+            _fake_config(CAMERA_RESTORE_TIMEOUT_MS=20000),
+        ):
+            assert queries.get_camera_restore_timeout_ms() == 20000
+
+
 class TestGetAppSettings:
     def test_assembles_every_setting_into_the_dataclass(self) -> None:
         with patch("src.domain.settings.queries.config", _fake_config()):
@@ -126,6 +136,7 @@ class TestGetAppSettings:
             camera_max_retries=4,
             camera_retry_backoff_s=0.16,
             camera_usb_timeout_ms=2000,
+            camera_restore_timeout_ms=20000,
             recipe_explorer_page_size=30,
             recipe_graph_min_similarity=0.55,
             recipe_card_aperture_scrim_top_opacity=25,

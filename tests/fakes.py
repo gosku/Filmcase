@@ -47,7 +47,10 @@ Usage::
 
 from __future__ import annotations
 
+from collections.abc import Mapping
+
 from src.domain.camera.ptp_device import CameraConnectionError
+from src.domain.camera.ptp_device import RestoreAckTimeout
 
 
 class FakePTPDevice:
@@ -117,6 +120,10 @@ class FakePTPDevice:
         set_errors: dict[int, Exception] | None = None,
         set_rejection_codes: dict[int, int] | None = None,
         str_read_overrides: dict[int, str] | None = None,
+        backup: bytes = b"",
+        backup_get_error: Exception | None = None,
+        restore_ack_times_out: bool = False,
+        restore_drift: Mapping[int, int] | None = None,
     ) -> None:
         self._int_store: dict[int, int] = dict(int_values or {})
         self._str_store: dict[int, str] = dict(string_values or {})
@@ -129,6 +136,14 @@ class FakePTPDevice:
         self._str_read_overrides: dict[int, str] = dict(str_read_overrides or {})
         self._set_errors: dict[int, Exception] = dict(set_errors or {})
         self._set_rejection_codes: dict[int, int] = dict(set_rejection_codes or {})
+        # Whole-backup transport (X-T2). ``restore_drift`` mutates the stored blob
+        # on restore so a read-back differs only in camera-managed regions, which
+        # the round-trip verify is meant to exclude.
+        self._backup = bytes(backup)
+        self._backup_get_error = backup_get_error
+        self._restore_ack_times_out = restore_ack_times_out
+        self._restore_drift: dict[int, int] = dict(restore_drift or {})
+        self.restored_blobs: list[bytes] = []
 
     # ------------------------------------------------------------------
     # Connection lifecycle — no-ops in the fake
@@ -196,6 +211,25 @@ class FakePTPDevice:
     @property
     def camera_name(self) -> str:
         return self._camera_name
+
+    # ------------------------------------------------------------------
+    # Whole-backup transport
+    # ------------------------------------------------------------------
+
+    def get_backup(self) -> bytes:
+        if self._backup_get_error is not None:
+            raise self._backup_get_error
+        return self._backup
+
+    def restore_backup(self, blob: bytes) -> None:
+        self.restored_blobs.append(blob)
+        stored = bytearray(blob)
+        for offset, value in self._restore_drift.items():
+            stored[offset] = value
+        # The write applies even when the ack is lost, so store before raising.
+        self._backup = bytes(stored)
+        if self._restore_ack_times_out:
+            raise RestoreAckTimeout("simulated lost restore ack")
 
     # ------------------------------------------------------------------
     # Internal

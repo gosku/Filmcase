@@ -1,0 +1,23 @@
+<button class="slot-card-close" onclick="closeSlotOverlay()" title="Close">&#x2715;</button>
+{% if success %}
+<div class="push-result-center">
+  <svg class="push-check-svg" viewBox="0 0 52 52">
+    <circle class="push-check-circle" cx="26" cy="26" r="25" fill="none"/>
+    <path class="push-check-mark" fill="none" d="M14.1 27.2l7.1 7.2 16.7-16.8"/>
+  </svg>
+  <p class="push-result-message">{{ message }}</p>
+</div>
+{% else %}
+<div class="push-result-center">
+  <p class="push-result-err-message">{{ error }}</p>
+  {% if can_retry %}
+  <button class="push-retry-btn"
+          hx-post="{% url 'push-collection-to-camera' collection_id=collection_id %}"
+          hx-target="#collection-push"
+          hx-swap="innerHTML"
+          hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
+    Retry transfer
+  </button>
+  {% endif %}
+</div>
+{% endif %}

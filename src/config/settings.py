@@ -104,6 +104,7 @@ CAMERA_INTER_SLOT_DELAY_S:  float = env.float("CAMERA_INTER_SLOT_DELAY_S",  defa
 CAMERA_MAX_RETRIES:         int   = env.int(  "CAMERA_MAX_RETRIES",          default=3)      # attempts per operation before giving up
 CAMERA_RETRY_BACKOFF_S:     float = env.float("CAMERA_RETRY_BACKOFF_S",     default=0.15)   # base back-off; doubles each retry (0.15 s, 0.30 s, …)
 CAMERA_USB_TIMEOUT_MS:      int   = env.int(  "CAMERA_USB_TIMEOUT_MS",      default=1500)   # how long one USB transfer may take before the camera is treated as unresponsive
+CAMERA_RESTORE_TIMEOUT_MS:  int   = env.int(  "CAMERA_RESTORE_TIMEOUT_MS",  default=15000)  # how long the backup-restore status read may take; a settings commit takes seconds (X-T2)
 
 THUMBNAIL_CACHE_DIR = BASE_DIR / "thumbnail_cache"  # filesystem directory where generated thumbnails are cached
 RECIPE_CARDS_DIR: Path = Path(env.str("RECIPE_CARDS_DIR", default=str(BASE_DIR / "recipe_cards")))  # filesystem directory where generated recipe card images are stored
@@ -207,6 +208,7 @@ CONSTANCE_CONFIG: dict[str, tuple[object, str, type]] = {
     "CAMERA_MAX_RETRIES": (CAMERA_MAX_RETRIES, "How many times a camera operation is attempted before giving up.", int),
     "CAMERA_RETRY_BACKOFF_S": (CAMERA_RETRY_BACKOFF_S, "Base back-off in seconds between camera retries; it doubles each attempt.", float),
     "CAMERA_USB_TIMEOUT_MS": (CAMERA_USB_TIMEOUT_MS, "How long in milliseconds one USB transfer may take before the camera is treated as unresponsive.", int),
+    "CAMERA_RESTORE_TIMEOUT_MS": (CAMERA_RESTORE_TIMEOUT_MS, "How long in milliseconds the backup-restore status read may take; an X-T2 settings commit takes several seconds.", int),
     "RECIPE_EXPLORER_PAGE_SIZE": (RECIPE_EXPLORER_PAGE_SIZE, "Number of recipes shown per page in the recipe explorer.", int),
     "RECIPE_GRAPH_MIN_SIMILARITY": (RECIPE_GRAPH_MIN_SIMILARITY, "Default minimum similarity (0-1) a recipe needs to the focused recipe to appear in its neighbourhood graph. Lower values draw in more distant recipes. Viewers can override it with the graph's slider.", float),
     "RECIPE_CARD_APERTURE_SCRIM_TOP_OPACITY": (RECIPE_CARD_APERTURE_SCRIM_TOP_OPACITY, "Opacity percentage (0-100) of the darkening gradient at the top of the Aperture recipe card.", int),
@@ -253,6 +255,7 @@ CONSTANCE_CONFIG_FIELDSETS: dict[str, tuple[str, ...]] = {
         "CAMERA_MAX_RETRIES",
         "CAMERA_RETRY_BACKOFF_S",
         "CAMERA_USB_TIMEOUT_MS",
+        "CAMERA_RESTORE_TIMEOUT_MS",
     ),
 }
 

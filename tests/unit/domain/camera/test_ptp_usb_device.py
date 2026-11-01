@@ -309,3 +309,103 @@ class TestOpenSessionRetry:
             call.kwargs.get("event_type") == camera_events.PTP_READ_RETRY
             for call in mock_publish.call_args_list
         )
+
+
+# ---------------------------------------------------------------------------
+# Whole-backup transport: get_backup / restore_backup / _object_op
+# ---------------------------------------------------------------------------
+
+_OC_GET_OBJECT = 0x1009
+_OC_SEND_OBJECT_INFO = 0x100C
+_PTP_DATA = 0x0002
+_PTP_RESPONSE = 0x0003
+
+
+def _data_container(code: int, payload: bytes, tx: int = 1) -> bytes:
+    return struct.pack("<IHHI", 12 + len(payload), _PTP_DATA, code, tx) + payload
+
+
+def _response_container(rc: int = _RC_OK, tx: int = 1) -> bytes:
+    return struct.pack("<IHHI", 12, _PTP_RESPONSE, rc, tx)
+
+
+class TestObjectOp:
+    def test_strips_header_and_returns_payload_then_reads_response(self):
+        device = _make_device()
+        blob = b"X-T2-BACKUP-BYTES"
+        device._ep_in = MagicMock()
+        device._ep_in.read.side_effect = [_data_container(_OC_GET_OBJECT, blob), _response_container()]
+        with patch.object(device, "_send"):
+            rc, payload = device._object_op(_OC_GET_OBJECT, 0)
+        assert rc == _RC_OK
+        assert payload == blob
+
+    def test_rejects_a_data_phase_that_spans_reads(self):
+        device = _make_device()
+        # Declare a longer length than the bytes actually returned.
+        truncated = struct.pack("<IHHI", 12 + 9000, _PTP_DATA, _OC_GET_OBJECT, 1) + b"short"
+        device._ep_in = MagicMock()
+        device._ep_in.read.side_effect = [truncated]
+        with patch.object(device, "_send"):
+            with pytest.raises(CameraConnectionError):
+                device._object_op(_OC_GET_OBJECT, 0)
+
+
+class TestGetBackup:
+    def test_returns_the_blob(self):
+        device = _make_device()
+        blob = b"BACKUP" * 100
+        with patch.object(device, "_object_op", side_effect=[(_RC_OK, b"objinfo"), (_RC_OK, blob)]):
+            assert device.get_backup() == blob
+
+    def test_retries_then_succeeds(self):
+        device = _make_device()
+        blob = b"BACKUP"
+        with patch.object(
+            device,
+            "_object_op",
+            side_effect=[CameraConnectionError("timeout"), (_RC_OK, b"objinfo"), (_RC_OK, blob)],
+        ):
+            assert device.get_backup() == blob
+
+    def test_raises_after_all_retries(self):
+        device = _make_device()
+        with patch.object(device, "_object_op", side_effect=CameraConnectionError("gone")):
+            with pytest.raises(CameraConnectionError):
+                device.get_backup()
+
+
+class TestRestoreBackup:
+    def test_success_restores_usb_timeout_afterwards(self):
+        from src.domain.camera.ptp_device import CameraWriteError  # noqa: F401 (symmetry)
+
+        device = _make_device()
+        before = device._usb_timeout_ms
+        with (
+            patch.object(device, "_send"),
+            patch.object(device, "_read_restore_ack", side_effect=[_RC_OK, _RC_OK]),
+        ):
+            device.restore_backup(b"\x00" * 5660)
+        assert device._usb_timeout_ms == before
+
+    def test_raises_write_error_when_a_step_is_rejected(self):
+        from src.domain.camera.ptp_device import CameraWriteError
+
+        device = _make_device()
+        with (
+            patch.object(device, "_send"),
+            patch.object(device, "_read_restore_ack", side_effect=[0x2005]),
+        ):
+            with pytest.raises(CameraWriteError):
+                device.restore_backup(b"\x00" * 5660)
+
+    def test_lost_ack_propagates_as_restore_ack_timeout(self):
+        from src.domain.camera.ptp_device import RestoreAckTimeout
+
+        device = _make_device()
+        with (
+            patch.object(device, "_send"),
+            patch.object(device, "_read_restore_ack", side_effect=RestoreAckTimeout("no ack")),
+        ):
+            with pytest.raises(RestoreAckTimeout):
+                device.restore_backup(b"\x00" * 5660)

@@ -30,6 +30,18 @@ class CameraBusyError(Exception):
     """
 
 
+class RestoreAckTimeout(CameraConnectionError):
+    """
+    Raised when the backup-restore status read times out.
+
+    A settings commit can take longer than the status-read budget, and the write
+    may well have applied even though the acknowledgement never arrived. This is a
+    subclass of CameraConnectionError so generic handlers still treat it as a
+    transport failure, but callers that can read the backup back may catch it
+    specifically and decide from the read-back rather than treating it as failure.
+    """
+
+
 class CameraWriteError(Exception):
     """
     Raised when the camera actively rejects a property write (non-zero rc).
@@ -188,5 +200,35 @@ class PTPDevice(Protocol):
         Camera model string reported during the PTP session handshake.
 
         Available after a successful connect().
+        """
+        ...
+
+    def get_backup(self) -> bytes:
+        """
+        Read the whole settings-backup object from the camera.
+
+        Used by bodies with no per-slot property interface (X-T2 and older),
+        whose recipes live inside this blob. Retries on transport failure.
+
+        Returns:
+            The raw backup blob (the data payload, container header stripped).
+
+        Raises:
+            CameraConnectionError: On transport failure after all retries.
+        """
+        ...
+
+    def restore_backup(self, blob: bytes) -> None:
+        """
+        Write a whole settings-backup object back to the camera.
+
+        The camera commits the blob to persistent storage, which can take
+        several seconds, so the status read uses a large timeout.
+
+        Raises:
+            RestoreAckTimeout:     The status read timed out; the write may have
+                                   applied. Confirm by reading the backup back.
+            CameraWriteError:      The camera rejected a restore step (non-zero rc).
+            CameraConnectionError: On other transport failure.
         """
         ...

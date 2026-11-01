@@ -24,6 +24,8 @@ import { CameraConnectionError, CameraWriteError } from "../vendor/ptp_device.js
 import { RecipeValidationError } from "../domain/validation.js";
 import { getCameraSlots } from "../application/usecases/get_camera_slots.js";
 import {
+  PushNotFeasibleError,
+  RecipeNotRepresentable,
   RecipeWriteError,
   pushRecipeToCamera,
 } from "../application/usecases/push_recipe.js";
@@ -165,12 +167,69 @@ const runtimeFor = (config) => ({
   sleep: (seconds) => new Promise((resolve) => setTimeout(resolve, seconds * 1000)),
 });
 
-function renderSlots(recipe, slots, onPick) {
+/**
+ * The single conflict note: a short summary, with the full reason behind a
+ * click-to-open (i). A native <details> so the icon toggles with no script and
+ * stays keyboard reachable. Mirrors the server picker's markup and slot-card.css.
+ */
+function conflictNote(summary, detail) {
+  const details = document.createElement("details");
+  details.className = "slot-conflict";
+  const summaryEl = document.createElement("summary");
+  summaryEl.className = "slot-conflict-summary";
+  const text = document.createElement("span");
+  text.className = "slot-conflict-text";
+  text.textContent = summary;
+  const icon = document.createElement("span");
+  icon.className = "slot-conflict-info";
+  icon.setAttribute("aria-hidden", "true");
+  icon.textContent = "i";
+  summaryEl.append(text, icon);
+  const detailEl = document.createElement("p");
+  detailEl.className = "slot-conflict-detail";
+  detailEl.textContent = detail;
+  details.append(summaryEl, detailEl);
+  return details;
+}
+
+function renderSlots(recipe, read, onPick) {
+  const { slots, feasibility, droppedFields } = read;
   const card = templateNode("camera-slot-card-template");
   card.querySelector("[data-recipe-name]").textContent = recipe.name;
+
+  // Every blocked slot carries the same reason, so the picker shows one conflict
+  // note above the list: a short summary, with the full reason behind a click-to-
+  // open (i). Same shape and copy as the server picker, which derives this in the
+  // view. An incompatible recipe (empty reason) shows no note at all.
+  const blocked = feasibility.find((f) => !f.feasible && f.reason);
+  if (blocked) {
+    const pushable = feasibility.filter((f) => f.feasible);
+    const summary =
+      pushable.length === 1
+        ? `This recipe can only replace C${pushable[0].slotIndex}.`
+        : "This recipe can't be pushed to any slot.";
+    card.querySelector("[data-slot-conflicts]").appendChild(
+      conflictNote(summary, blocked.reason)
+    );
+  }
+
+  // Fields the camera cannot store; the push drops them. Same wording as the
+  // server-rendered picker.
+  if (droppedFields.length) {
+    const note = card.querySelector("[data-slot-dropped]");
+    const one = droppedFields.length === 1;
+    note.textContent =
+      `This camera has no control for ${droppedFields.join(", ")}; ` +
+      `${one ? "it" : "they"} will not be pushed.`;
+    note.hidden = false;
+  }
+
+  const feasibilityBySlot = new Map(feasibility.map((f) => [f.slotIndex, f]));
   const rows = card.querySelector("[data-slot-rows]");
 
   for (const slot of slots) {
+    const verdict = feasibilityBySlot.get(slot.index);
+    const feasible = verdict ? verdict.feasible : true;
     const row = templateNode("camera-slot-row-template");
     const button = row.querySelector("[data-slot-index]");
     button.dataset.slotIndex = String(slot.index);
@@ -183,7 +242,16 @@ function renderSlots(recipe, slots, onPick) {
       tag.textContent = slot.filmSimName;
       tag.hidden = false;
     }
-    button.addEventListener("click", () => onPick(slot.index));
+    if (feasible) {
+      button.addEventListener("click", () => onPick(slot.index));
+    } else {
+      // A slot this recipe cannot be pushed into (the X-T2 shared-WB clash):
+      // disabled, with the reason on hover. The visible explanation is the
+      // single note above the list, exactly as the server picker renders it.
+      button.disabled = true;
+      button.classList.add("slot-row--disabled");
+      button.title = verdict.reason;
+    }
     rows.appendChild(row);
   }
 
@@ -202,6 +270,12 @@ function describe(error, slotLabel) {
     // Worth naming the field: this one is fixable in the app rather than by
     // fiddling with the camera.
     return `This recipe can't be written to the camera: ${error.field} is not valid.`;
+  }
+  if (error instanceof RecipeNotRepresentable) {
+    return `This camera can't store ${error.field} ${error.value}. Nothing was written.`;
+  }
+  if (error instanceof PushNotFeasibleError) {
+    return `${error.conflicts.join("; ")} Nothing was written.`;
   }
   if (error instanceof CameraConnectionError) {
     // The card says something a user can act on, which loses the detail. Log
@@ -254,10 +328,10 @@ async function openSlotPicker(button) {
   }
 
   window.SlotOverlay.showSpinner();
-  let slots;
+  let read;
   try {
-    slots = await withCamera(config, (device) =>
-      getCameraSlots(device, runtimeFor(config))
+    read = await withCamera(config, (device) =>
+      getCameraSlots(device, runtimeFor(config), { recipe })
     );
   } catch (error) {
     const message = describe(error, null);
@@ -269,7 +343,7 @@ async function openSlotPicker(button) {
     return;
   }
 
-  if (slots.length === 0) {
+  if (read.slots.length === 0) {
     showError(
       "This camera model has no custom slots to write to, or Filmcase does not " +
         "recognise it.",
@@ -279,7 +353,7 @@ async function openSlotPicker(button) {
     return;
   }
 
-  renderSlots(recipe, slots, (slotIndex) => pushToSlot(config, recipe, slotIndex));
+  renderSlots(recipe, read, (slotIndex) => pushToSlot(config, recipe, slotIndex));
 }
 
 function start() {

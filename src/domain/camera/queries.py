@@ -16,8 +16,10 @@ from collections.abc import Mapping
 import attrs
 
 from src.data.camera import constants
+from src.data.camera import constants_xt2
 
 from src.domain.camera import events
+from src.domain.camera import profiles
 from src.domain.camera import ptp_device
 from src.domain.settings import queries as settings_queries
 from src.domain.camera import validation
@@ -320,6 +322,7 @@ class ClientCameraSettings:
     CAMERA_MAX_RETRIES: int
     CAMERA_RETRY_BACKOFF_S: float
     CAMERA_USB_TIMEOUT_MS: int
+    CAMERA_RESTORE_TIMEOUT_MS: int
 
 
 def client_camera_settings() -> ClientCameraSettings:
@@ -340,6 +343,7 @@ def client_camera_settings() -> ClientCameraSettings:
         CAMERA_MAX_RETRIES=settings_queries.get_camera_max_retries(),
         CAMERA_RETRY_BACKOFF_S=settings_queries.get_camera_retry_backoff_s(),
         CAMERA_USB_TIMEOUT_MS=settings_queries.get_camera_usb_timeout_ms(),
+        CAMERA_RESTORE_TIMEOUT_MS=settings_queries.get_camera_restore_timeout_ms(),
     )
 
 
@@ -421,6 +425,81 @@ def client_camera_encodings() -> ClientCameraEncodings:
     )
 
 
+def _xt2_profile_payload() -> dict[str, object]:
+    """
+    Serialise the X-T2 backup-blob layout for the browser codec.
+
+    JSON keys are strings, so the byte-keyed maps are re-keyed to the decimal
+    string of the byte; the client parses them back. This is the client's copy
+    of ``constants_xt2`` and must not drift from it (the JS codec is asserted
+    against the same committed blob fixture as the Python one).
+    """
+    x = constants_xt2
+    return {
+        "magic": list(x.MAGIC),
+        "blob_size": x.BLOB_SIZE,
+        "header_size_offset": x.HEADER_SIZE_OFFSET,
+        "header_size_value": x.HEADER_SIZE_VALUE,
+        "body_size_offset": x.BODY_SIZE_OFFSET,
+        "body_size_value": x.BODY_SIZE_VALUE,
+        "marker_offset": x.MARKER_OFFSET,
+        "marker_value": x.MARKER_VALUE,
+        "slot0_offset": x.SLOT0_OFFSET,
+        "slot_size": x.SLOT_SIZE,
+        "slot_count": x.SLOT_COUNT,
+        "name_offset": x.NAME_OFFSET,
+        "name_field_len": x.NAME_FIELD_LEN,
+        "off": {
+            "wb_selector": x.OFF_WB_SELECTOR,
+            "kelvin_index": x.OFF_KELVIN_INDEX,
+            "noise_reduction": x.OFF_NOISE_REDUCTION,
+            "film_simulation": x.OFF_FILM_SIMULATION,
+            "dynamic_range": x.OFF_DYNAMIC_RANGE,
+            "color": x.OFF_COLOR,
+            "sharpness": x.OFF_SHARPNESS,
+            "highlight": x.OFF_HIGHLIGHT,
+            "shadow": x.OFF_SHADOW,
+            "grain": x.OFF_GRAIN,
+        },
+        "slot_write_counter_offset": x.SLOT_WRITE_COUNTER_OFFSET,
+        "drift_range": list(x.DRIFT_RANGE),
+        "film_simulation_by_byte": {str(k): v for k, v in x.FILM_SIMULATION_BY_BYTE.items()},
+        "bw_film_simulation_bytes": sorted(x.BW_FILM_SIMULATION_BYTES),
+        "grain_roughness_by_byte": {str(k): v for k, v in x.GRAIN_ROUGHNESS_BY_BYTE.items()},
+        "dynamic_range_by_byte": {str(k): v for k, v in x.DYNAMIC_RANGE_BY_BYTE.items()},
+        "color_value_by_byte": {str(k): v for k, v in x.COLOR_VALUE_BY_BYTE.items()},
+        "white_balance_by_selector": {str(k): v for k, v in x.WHITE_BALANCE_BY_SELECTOR.items()},
+        "measured_custom_wb": sorted(x.MEASURED_CUSTOM_WB),
+        "wb_shift_table_base": x.WB_SHIFT_TABLE_BASE,
+        "wb_shift_entries": x.WB_SHIFT_ENTRIES,
+        "wb_shift_table_index": dict(x.WB_SHIFT_TABLE_INDEX),
+        "kelvin_steps": list(x.KELVIN_STEPS),
+        "tone_byte_max": x.TONE_BYTE_MAX,
+        "sharpness_byte_max": x.SHARPNESS_BYTE_MAX,
+        "noise_reduction_byte_max": x.NOISE_REDUCTION_BYTE_MAX,
+        "wb_shift_byte_max": x.WB_SHIFT_BYTE_MAX,
+        "ascii_min": x.ASCII_MIN,
+        "ascii_max": x.ASCII_MAX,
+        "structural_anchors": {str(k): v for k, v in x.STRUCTURAL_ANCHORS.items()},
+    }
+
+
+def client_camera_profile() -> dict[str, object]:
+    """
+    The per-model interface map and X-T2 byte layout a browser needs to resolve
+    and run the backup-blob strategy itself.
+
+    The browser reads the camera model over WebUSB, looks it up in
+    ``interface_by_model`` (falling back to ``default_interface``), and for a
+    backup-blob body drives the push from ``xt2`` without the server.
+    """
+    return {
+        "interface_by_model": profiles.interface_by_model(),
+        "default_interface": profiles.DEFAULT_INTERFACE,
+        "xt2": _xt2_profile_payload(),
+    }
+
+
 # ---------------------------------------------------------------------------
 # Recipe → PTP value conversion
 # ---------------------------------------------------------------------------
@@ -430,8 +509,7 @@ def client_camera_encodings() -> ClientCameraEncodings:
 #
 # This is not cosmetic.  WhiteBalanceColorTemperature must be written before
 # WhiteBalanceRed and WhiteBalanceBlue, or the camera resets both shifts to 0
-# when it applies the colour temperature.  See
-# docs/investigation/wb_shift_reset_on_kelvin.md.
+# when it applies the colour temperature (proven on hardware).
 #
 # Module level rather than inline in items() because the browser transport runs
 # the same sequence and is served this list, so both sides order their writes

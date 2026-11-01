@@ -23,7 +23,27 @@ import { ClientPTPUSBDevice } from "../vendor/ptp_usb_device.js";
 import { CameraConnectionError, CameraWriteError } from "../vendor/ptp_device.js";
 import { RecipeValidationError } from "../domain/validation.js";
 import { getCameraSlots } from "../application/usecases/get_camera_slots.js";
-import { RecipeWriteError, pushRecipeToCamera } from "../application/usecases/push_recipe.js";
+import {
+  PushNotFeasibleError,
+  RecipeNotRepresentable,
+  RecipeWriteError,
+  pushRecipeToCamera,
+} from "../application/usecases/push_recipe.js";
+import { pushCollectionToCamera } from "../application/usecases/push_collection.js";
+
+/**
+ * Whether a camera model pushes a whole collection as one operation.
+ *
+ * Resolved from the served profile exactly as getStrategy does: a backup-blob
+ * body (X-T2) edits one settings backup and restores once, so its collection
+ * push cannot be a per-recipe loop.
+ */
+function isSingleOperation(cameraName, config) {
+  const profile = config && config.profile;
+  const map = (profile && profile.interface_by_model) || {};
+  const fallback = (profile && profile.default_interface) || "per_property";
+  return (map[cameraName] ?? fallback) === "backup_blob";
+}
 
 const NO_CAMERA =
   "No camera found. Make sure it's connected via USB and set to PC Connection " +
@@ -160,6 +180,57 @@ async function runTransfer(root, writeOne) {
   }
 }
 
+/**
+ * Push the whole collection as one operation, marking every row together.
+ *
+ * For a backup-blob body (X-T2): there are no per-recipe steps to show, so the
+ * rows move to "sending" as a group and then all to "sent", or all to "failed"
+ * with a single retry and the reason in the footer.
+ *
+ * `doPush(rows)` performs the one push and throws on failure.
+ */
+async function runSingleTransfer(root, doPush) {
+  const rows = assignmentRows(root);
+  if (rows.length === 0) return;
+
+  rows.forEach((row) => row.setAttribute("draggable", "false"));
+  const start = root.querySelector("[data-start]");
+  if (start) start.disabled = true;
+  const hint = root.querySelector("[data-reorder-hint]");
+  if (hint) hint.remove();
+  showProgress(root);
+  setProgress(root, "Transferring…", 0, 1);
+  setCounts(root, 0, 0, rows.length);
+  rows.forEach((row) => setStatus(row, "sending"));
+
+  try {
+    await doPush(rows);
+    rows.forEach((row) => setStatus(row, "sent"));
+    setProgress(root, "All recipes sent", 1, 1);
+    setCounts(root, rows.length, 0, 0);
+    if (start) {
+      start.disabled = false;
+      start.textContent = "Done";
+      start.dataset.done = "true";
+    }
+  } catch (error) {
+    console.error("Collection push failed", error);
+    const message = describe(error);
+    if (message === null) {
+      // Device picker cancelled: leave the modal as it was.
+      rows.forEach((row) => setStatus(row, "none"));
+      if (start) start.disabled = false;
+      return;
+    }
+    rows.forEach((row) => setStatus(row, "failed", () => runSingleTransfer(root, doPush)));
+    setProgress(root, "Transfer failed", 1, 1);
+    setCounts(root, 0, rows.length, 0);
+    const footHint = root.querySelector("[data-foot-hint]");
+    if (footHint) footHint.textContent = message;
+    if (start) start.disabled = false;
+  }
+}
+
 /** Run one write, marking the row, and report whether it succeeded. */
 async function attempt(writeOne, row, label, slotIndex) {
   try {
@@ -236,6 +307,10 @@ function serverWriter(root) {
 function initServerModal(root) {
   if (root.dataset.wired) return;
   root.dataset.wired = "true";
+  // A backup-blob body pushes the whole collection in one server operation:
+  // htmx on the Transfer button drives the POST and swaps in the result, and
+  // there is nothing to reorder (the server re-plans from the collection order).
+  if (root.dataset.singlePushUrl) return;
   wireDrag(root);
   const start = root.querySelector("[data-start]");
   if (start) {
@@ -382,7 +457,7 @@ function droppedRow(recipe) {
 }
 
 /** Build the whole modal DOM from the plan; same class contract as the server template. */
-function buildModal({ collectionName, cameraName, slots, recipes }) {
+function buildModal({ collectionName, cameraName, slots, recipes, single = false }) {
   const written = Math.min(recipes.length, slots.length);
   const root = el("div", "cpush");
   root.id = "collection-push";
@@ -421,9 +496,12 @@ function buildModal({ collectionName, cameraName, slots, recipes }) {
 
   const after = el("div", "cpush__col cpush__col--after");
   const coltitle = el("p", "cpush__coltitle", "After transfer ");
-  const hint = el("span", "cpush__hint", "drag to reorder");
-  hint.dataset.reorderHint = "true";
-  coltitle.appendChild(hint);
+  if (!single) {
+    // No reordering in single-operation mode: the slots map by collection order.
+    const hint = el("span", "cpush__hint", "drag to reorder");
+    hint.dataset.reorderHint = "true";
+    coltitle.appendChild(hint);
+  }
   after.appendChild(coltitle);
 
   const list = el("div", "cpush__list");
@@ -449,7 +527,8 @@ function buildModal({ collectionName, cameraName, slots, recipes }) {
   const hintText = el(
     "span",
     "cpush__foot-hint",
-    `${written} recipe${written === 1 ? "" : "s"} will be written to slots, one at a time.`
+    `${written} recipe${written === 1 ? "" : "s"} will be written to slots` +
+      `${single ? " in one transfer" : ", one at a time"}.`
   );
   footer.appendChild(hintText);
   const cancel = el("button", "cpush__cancel", "Cancel");
@@ -469,6 +548,12 @@ function buildModal({ collectionName, cameraName, slots, recipes }) {
 function describe(error) {
   if (error instanceof RecipeWriteError) {
     return `Some settings couldn't be saved (${error.failedProperties.join(", ")}). Please try again.`;
+  }
+  if (error instanceof RecipeNotRepresentable) {
+    return `A recipe can't be stored on this camera (${error.field} ${error.value}). Nothing was written.`;
+  }
+  if (error instanceof PushNotFeasibleError) {
+    return `${error.conflicts.join("; ")} Nothing was written.`;
   }
   if (error instanceof RecipeValidationError) {
     return `A recipe can't be written to the camera: ${error.field} is not valid.`;
@@ -517,10 +602,12 @@ async function openBrowserModal(button) {
   let cameraName = "Camera";
   let slots;
   try {
-    slots = await withCamera(config, (device) => {
-      if (grantedDevice && grantedDevice.productName) cameraName = grantedDevice.productName;
+    const read = await withCamera(config, (device) => {
+      // The reported model, which is also what getStrategy resolves on.
+      cameraName = device.cameraName || cameraName;
       return getCameraSlots(device, runtimeFor(config));
     });
+    slots = read.slots;
   } catch (error) {
     const message = describe(error);
     if (message === null) {
@@ -531,14 +618,16 @@ async function openBrowserModal(button) {
     return;
   }
 
+  const single = isSingleOperation(cameraName, config);
   const modal = buildModal({
     collectionName: button.dataset.collectionName || "Collection",
     cameraName,
     slots,
     recipes,
+    single,
   });
   window.SlotOverlay.show(modal);
-  wireDrag(modal);
+  if (!single) wireDrag(modal);
   const start = modal.querySelector("[data-start]");
   if (start) {
     start.addEventListener("click", () => {
@@ -546,9 +635,25 @@ async function openBrowserModal(button) {
         window.SlotOverlay.close();
         return;
       }
-      runTransfer(modal, browserWriter());
+      if (single) runSingleTransfer(modal, browserSinglePush(config));
+      else runTransfer(modal, browserWriter());
     });
   }
+}
+
+/** One push of the whole collection over WebUSB, assignments in row order. */
+function browserSinglePush(config) {
+  return async (rows) => {
+    const assignments = [];
+    for (let i = 0; i < rows.length; i += 1) {
+      // eslint-disable-next-line no-await-in-loop
+      const recipe = await fetchRecipePayload(rows[i].dataset.payloadUrl);
+      assignments.push([i + 1, recipe]);
+    }
+    await withCamera(config, (device) =>
+      pushCollectionToCamera(device, assignments, { runtime: runtimeFor(config) })
+    );
+  };
 }
 
 // ---------------------------------------------------------------------------
