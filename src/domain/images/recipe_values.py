@@ -195,6 +195,7 @@ class WhiteBalance(str, Enum):
     INCANDESCENT = "Incandescent"
     DAYLIGHT_FLUORESCENT = "Daylight Fluorescent"
     AUTO_WHITE_PRIORITY = "Auto (white priority)"
+    AUTO_AMBIENCE_PRIORITY = "Auto (ambience priority)"
 
     @property
     def recipe_card_label(self) -> str:
@@ -219,6 +220,16 @@ _WHITE_BALANCE_LABELS: dict[WhiteBalance, str] = {
     WhiteBalance.INCANDESCENT: "INCANDESCENT",
     WhiteBalance.DAYLIGHT_FLUORESCENT: "DAYLIGHT FLUORESCENT",
     WhiteBalance.AUTO_WHITE_PRIORITY: "AUTO WHITE PRIORITY",
+    WhiteBalance.AUTO_AMBIENCE_PRIORITY: "AUTO AMBIENCE PRIORITY",
+}
+
+# exiftool labels the ambience-priority AUTO mode with the French-influenced
+# "ambiance" spelling, while the rest of the codebase (the Fuji SDK constants and
+# the PTP push whitelist) uses "ambience". Canonicalise onto the SDK spelling at
+# decode so a decoded recipe matches the push whitelist rather than being
+# silently rejected as unsupported.
+_EXIF_WHITE_BALANCE_ALIASES: dict[str, str] = {
+    "Auto (ambiance priority)": WhiteBalance.AUTO_AMBIENCE_PRIORITY.value,
 }
 _WHITE_BALANCE_FROM_LABEL: dict[str, WhiteBalance] = {
     v: k for k, v in _WHITE_BALANCE_LABELS.items() if "{temp}" not in v
@@ -262,6 +273,7 @@ def white_balance_from_exif(*, white_balance: str, color_temperature: str) -> st
     Kelvin mode stores the temperature in a separate field; all other modes
     use their EXIF value directly (e.g. 'Auto', 'Daylight').
     """
+    white_balance = _EXIF_WHITE_BALANCE_ALIASES.get(white_balance, white_balance)
     wb = WhiteBalance(white_balance)
     if wb == WhiteBalance.KELVIN:
         return f"{color_temperature}K"
