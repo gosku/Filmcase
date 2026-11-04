@@ -4,6 +4,7 @@ from src.application.usecases.library.finalize_sync_run import finalize_sync_run
 from src.data import models
 from src.domain.images import events as image_events
 from src.domain.images import operations as image_operations
+from src.domain.images import recipe_values
 from src.domain.images.queries import NoFilmSimulationError
 from src.domain.library import operations as library_operations
 from src.domain.library import queries as library_queries
@@ -55,7 +56,7 @@ def process_synced_image(*, image_path: str, sync_run_id: int) -> None:
             image_path=image_path,
             reason=image_events.SKIP_REASON_NO_FILM_SIMULATION,
         )
-    except recipe_validation.InvalidFujifilmRecipeData as exc:
+    except (recipe_validation.InvalidFujifilmRecipeData, recipe_values.InvalidWhiteBalance) as exc:
         run.record_skipped()
         _ignore(
             run=run,
