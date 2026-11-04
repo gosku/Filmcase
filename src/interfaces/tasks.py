@@ -9,7 +9,7 @@ from src.application.usecases.library.process_synced_image import process_synced
 from src.application.usecases.library.remove_folder_image import remove_folder_image
 from src.application.usecases.library.run_folder_removal import run_folder_removal
 from src.application.usecases.library.sync_folder import resume_folder_scan
-from src.domain.images import events, operations
+from src.domain.images import events, operations, recipe_values
 from src.domain.images.thumbnails import operations as thumbnail_operations
 from src.domain.recipes import validation as recipe_validation
 from src.services import workertasks
@@ -36,7 +36,7 @@ def process_image_task(self: Any, /, *, image_path: str, **kwargs: object) -> st
             reason=events.SKIP_REASON_NO_FILM_SIMULATION,
         )
         return f"Skipped {image_path} (no film simulation)"
-    except recipe_validation.InvalidFujifilmRecipeData as exc:
+    except (recipe_validation.InvalidFujifilmRecipeData, recipe_values.InvalidWhiteBalance) as exc:
         events.publish_event(
             event_type=events.IMAGE_IMPORT_SKIPPED,
             image_path=image_path,

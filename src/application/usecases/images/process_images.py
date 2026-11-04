@@ -1,7 +1,7 @@
 import attrs
 from django.conf import settings
 
-from src.domain.images import events, operations, queries
+from src.domain.images import events, operations, queries, recipe_values
 from src.domain.recipes import validation as recipe_validation
 from src.services import workertasks
 
@@ -66,7 +66,7 @@ def _process_images_in_folder(*, folder: str) -> FolderImportSummary:
                 image_path=path,
                 reason=events.SKIP_REASON_NO_FILM_SIMULATION,
             )
-        except recipe_validation.InvalidFujifilmRecipeData as exc:
+        except (recipe_validation.InvalidFujifilmRecipeData, recipe_values.InvalidWhiteBalance) as exc:
             skipped.append(path)
             events.publish_event(
                 event_type=events.IMAGE_IMPORT_SKIPPED,

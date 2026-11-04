@@ -2,6 +2,7 @@ import os
 import tempfile
 
 from src.data import models
+from src.domain.images import recipe_values
 from src.domain.images.queries import NoFilmSimulationError
 from src.domain.recipes import dataclasses as recipe_dataclasses
 from src.domain.recipes import operations
@@ -36,7 +37,7 @@ def import_recipes_from_uploaded_files(
                 tmp_path = tmp.name
             recipe, _ = operations.get_or_create_recipe_from_filepath(filepath=tmp_path)
             imported.append(recipe)
-        except (NoFilmSimulationError, recipe_validation.InvalidFujifilmRecipeData):
+        except (NoFilmSimulationError, recipe_validation.InvalidFujifilmRecipeData, recipe_values.InvalidWhiteBalance):
             failed.append(file.name)
         finally:
             if tmp_path is not None:

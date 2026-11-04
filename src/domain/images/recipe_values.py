@@ -195,6 +195,7 @@ class WhiteBalance(str, Enum):
     INCANDESCENT = "Incandescent"
     DAYLIGHT_FLUORESCENT = "Daylight Fluorescent"
     AUTO_WHITE_PRIORITY = "Auto (white priority)"
+    AUTO_AMBIENCE_PRIORITY = "Auto (ambience priority)"
 
     @property
     def recipe_card_label(self) -> str:
@@ -219,7 +220,37 @@ _WHITE_BALANCE_LABELS: dict[WhiteBalance, str] = {
     WhiteBalance.INCANDESCENT: "INCANDESCENT",
     WhiteBalance.DAYLIGHT_FLUORESCENT: "DAYLIGHT FLUORESCENT",
     WhiteBalance.AUTO_WHITE_PRIORITY: "AUTO WHITE PRIORITY",
+    WhiteBalance.AUTO_AMBIENCE_PRIORITY: "AUTO AMBIENCE PRIORITY",
 }
+
+# exiftool labels the ambience-priority AUTO mode with the French-influenced
+# "ambiance" spelling, while the rest of the codebase (the Fuji SDK constants and
+# the PTP push whitelist) uses "ambience". Canonicalise onto the SDK spelling at
+# decode so a decoded recipe matches the push whitelist rather than being
+# silently rejected as unsupported.
+_EXIF_WHITE_BALANCE_ALIASES: dict[str, str] = {
+    "Auto (ambiance priority)": WhiteBalance.AUTO_AMBIENCE_PRIORITY.value,
+}
+
+
+@attrs.frozen
+class InvalidWhiteBalance(Exception):
+    """
+    Raised when an EXIF white-balance value has no recipe representation.
+
+    Covers measured Custom modes (e.g. 'Custom', 'Custom2'), which are a live
+    measurement rather than a portable parameter, and any mode the decoder does
+    not yet know. Like NoFilmSimulationError, it is a distinct anticipated
+    failure that the import entry points handle explicitly (alongside
+    InvalidFujifilmRecipeData), skipping the one image rather than aborting the
+    run on a bare ValueError.
+    """
+
+    value: str
+
+    @property
+    def field(self) -> str:
+        return "white_balance"
 _WHITE_BALANCE_FROM_LABEL: dict[str, WhiteBalance] = {
     v: k for k, v in _WHITE_BALANCE_LABELS.items() if "{temp}" not in v
 }
@@ -261,8 +292,16 @@ def white_balance_from_exif(*, white_balance: str, color_temperature: str) -> st
 
     Kelvin mode stores the temperature in a separate field; all other modes
     use their EXIF value directly (e.g. 'Auto', 'Daylight').
+
+    :raises InvalidWhiteBalance: If the EXIF white balance has no recipe
+        representation (a measured Custom mode, or a mode the decoder does not
+        know), so the caller can skip the image instead of failing the import.
     """
-    wb = WhiteBalance(white_balance)
+    white_balance = _EXIF_WHITE_BALANCE_ALIASES.get(white_balance, white_balance)
+    try:
+        wb = WhiteBalance(white_balance)
+    except ValueError as exc:
+        raise InvalidWhiteBalance(white_balance) from exc
     if wb == WhiteBalance.KELVIN:
         return f"{color_temperature}K"
     return str(wb.value)

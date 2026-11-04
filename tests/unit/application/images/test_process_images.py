@@ -5,6 +5,7 @@ from django.test import override_settings
 from src.application.usecases.images import process_images as uc
 from src.domain.images import events
 from src.domain.images.queries import NoFilmSimulationError
+from src.domain.images.recipe_values import InvalidWhiteBalance
 from src.domain.recipes.validation import InvalidFujifilmRecipeData
 
 _COLLECT = "src.application.usecases.images.process_images.queries.collect_image_paths"
@@ -27,6 +28,28 @@ class TestProcessImagesInFolder:
         assert mock_process.call_count == 3
         assert summary.processed == 2
         assert summary.skipped == ("bad.jpg",)
+
+    def test_continues_after_an_image_with_an_unmappable_white_balance(self) -> None:
+        paths = ["a.jpg", "custom_wb.jpg", "c.jpg"]
+        side_effect = [None, InvalidWhiteBalance("Custom"), None]
+
+        with patch(_COLLECT, return_value=paths):
+            with patch(_PROCESS, side_effect=side_effect) as mock_process:
+                summary = uc._process_images_in_folder(folder="/photos")
+
+        assert mock_process.call_count == 3
+        assert summary.processed == 2
+        assert summary.skipped == ("custom_wb.jpg",)
+
+    def test_publishes_a_skip_event_for_an_unmappable_white_balance(self, captured_logs) -> None:
+        with patch(_COLLECT, return_value=["custom_wb.jpg"]):
+            with patch(_PROCESS, side_effect=[InvalidWhiteBalance("Custom")]):
+                uc._process_images_in_folder(folder="/photos")
+
+        skipped = _skip_events(captured_logs)
+        assert len(skipped) == 1
+        assert skipped[0]["reason"] == events.SKIP_REASON_INVALID_RECIPE_DATA
+        assert skipped[0]["recipe_field"] == "white_balance"
 
     def test_continues_after_an_image_with_no_film_simulation(self) -> None:
         paths = ["a.jpg", "canon.jpg", "c.jpg"]
