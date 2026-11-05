@@ -113,6 +113,7 @@ WB_NOMINAL_KELVIN: dict[str, int] = {
     "Incandescent": 3200,
     "Daylight": 5500,
     "Daylight Fluorescent": 6500,
+    "Shade": 7500,
 }
 # Scene-adaptive modes with no fixed temperature.
 WB_CATEGORICAL: frozenset[str] = frozenset({"Auto", "Auto (white priority)"})

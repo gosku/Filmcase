@@ -1,9 +1,11 @@
 """
 Typed values for FujifilmRecipe model fields.
 
-Enum *values* are the exact strings stored in the database (as returned by
-exiftool).  Distinct values were sourced directly from the data_fujifilmrecipe
-table.
+Enum *values* are the exact strings stored in the database. For most modes this
+is the string exiftool returns; where the exiftool label differs from the
+camera-display representation Filmcase stores, an alias maps it on decode (see
+_EXIF_WHITE_BALANCE_ALIASES). Distinct values were sourced directly from the
+data_fujifilmrecipe table.
 
 Recipe card ↔ DB translation:
   - .recipe_card_label  → recipe card display string
@@ -191,6 +193,7 @@ def d_range_priority_from_exif(*, d_range_priority: str, d_range_priority_auto: 
 class WhiteBalance(str, Enum):
     AUTO = "Auto"
     DAYLIGHT = "Daylight"
+    SHADE = "Shade"
     KELVIN = "Kelvin"
     INCANDESCENT = "Incandescent"
     DAYLIGHT_FLUORESCENT = "Daylight Fluorescent"
@@ -216,6 +219,7 @@ class WhiteBalance(str, Enum):
 _WHITE_BALANCE_LABELS: dict[WhiteBalance, str] = {
     WhiteBalance.AUTO: "AUTO",
     WhiteBalance.DAYLIGHT: "DAYLIGHT",
+    WhiteBalance.SHADE: "SHADE",
     WhiteBalance.KELVIN: "{temp}K",  # substitute actual temp, e.g. "5200K"
     WhiteBalance.INCANDESCENT: "INCANDESCENT",
     WhiteBalance.DAYLIGHT_FLUORESCENT: "DAYLIGHT FLUORESCENT",
@@ -223,13 +227,19 @@ _WHITE_BALANCE_LABELS: dict[WhiteBalance, str] = {
     WhiteBalance.AUTO_AMBIENCE_PRIORITY: "AUTO AMBIENCE PRIORITY",
 }
 
-# exiftool labels the ambience-priority AUTO mode with the French-influenced
-# "ambiance" spelling, while the rest of the codebase (the Fuji SDK constants and
-# the PTP push whitelist) uses "ambience". Canonicalise onto the SDK spelling at
-# decode so a decoded recipe matches the push whitelist rather than being
-# silently rejected as unsupported.
+# exiftool strings that do not match the representation Filmcase stores. Each maps
+# an exiftool WhiteBalance label onto the canonical enum value.
+#   - "Auto (ambiance priority)": exiftool uses the French-influenced "ambiance"
+#     spelling, while the rest of the codebase (the Fuji SDK constants and the PTP
+#     push whitelist) uses "ambience". Canonicalise onto the SDK spelling so a
+#     decoded recipe matches the push whitelist rather than being silently
+#     rejected as unsupported.
+#   - "Cloudy": exiftool's decode of EXIF code 0x200, which the camera menu (and
+#     recipe cards) call "Shade". Store the camera-display name so EXIF-imported
+#     recipes match hand-entered and card-sourced ones.
 _EXIF_WHITE_BALANCE_ALIASES: dict[str, str] = {
     "Auto (ambiance priority)": WhiteBalance.AUTO_AMBIENCE_PRIORITY.value,
+    "Cloudy": WhiteBalance.SHADE.value,
 }
 
 

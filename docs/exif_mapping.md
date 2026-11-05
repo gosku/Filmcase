@@ -227,9 +227,15 @@ value fails `validate_recipe_data`, and the image is skipped at ingest.
 | Auto | `Auto` | `Auto` |
 | Auto White Priority | `Auto (white priority)` | `Auto (white priority)` |
 | Daylight | `Daylight` | `Daylight` |
+| Shade | `Cloudy` | `Shade` |
 | Fluorescent (Daylight) | `Daylight Fluorescent` | `Daylight Fluorescent` |
 | Incandescent | `Incandescent` | `Incandescent` |
 | Kelvin | `Kelvin` | `<value>K` (e.g. `5500K`) |
+
+For most modes the recipe display value equals the EXIF value. The exceptions are
+aliased on decode so the stored value matches the camera-display name: the Shade
+preset is written as `Cloudy` by exiftool (EXIF code `0x200`) and stored as `Shade`,
+and `Auto (ambiance priority)` is stored with the `ambience` spelling.
 
 ### Fine tune normalisation
 

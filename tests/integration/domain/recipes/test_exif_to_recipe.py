@@ -234,6 +234,11 @@ class TestWhiteBalance:
     def test_daylight(self):
         assert _recipe("white_balance_daylight.jpg").white_balance == "Daylight"
 
+    def test_shade_stores_camera_display_name_not_exiftool_cloudy(self):
+        # The Shade preset writes EXIF code 0x200, which exiftool decodes as
+        # "Cloudy"; Filmcase stores the camera-display name "Shade".
+        assert _recipe("white_balance_shade.jpg").white_balance == "Shade"
+
     def test_incandescent(self):
         assert _recipe("white_balance_incandescent.jpg").white_balance == "Incandescent"
 

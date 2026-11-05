@@ -43,6 +43,15 @@ class TestWhiteBalanceFromExif:
 
         assert result == "Auto (white priority)"
 
+    def test_cloudy_is_stored_as_the_camera_display_name_shade(self) -> None:
+        # exiftool decodes EXIF code 0x200 as "Cloudy"; the camera menu and recipe
+        # cards call it "Shade". Store the camera-display name.
+        result = recipe_values.white_balance_from_exif(
+            white_balance="Cloudy", color_temperature="5500"
+        )
+
+        assert result == "Shade"
+
     def test_measured_custom_mode_raises_invalid_white_balance(self) -> None:
         with pytest.raises(recipe_values.InvalidWhiteBalance):
             recipe_values.white_balance_from_exif(
@@ -100,3 +109,13 @@ class TestExifToRecipeWhiteBalance:
 
         with pytest.raises(recipe_values.InvalidWhiteBalance):
             queries.exif_to_recipe(exif=exif)
+
+
+class TestWhiteBalanceRecipeCardLabel:
+    def test_shade_round_trips_through_the_recipe_card_label(self) -> None:
+        label = recipe_values.WhiteBalance.SHADE.recipe_card_label
+
+        assert label == "SHADE"
+        assert recipe_values.WhiteBalance.from_recipe_card(label=label) is (
+            recipe_values.WhiteBalance.SHADE
+        )

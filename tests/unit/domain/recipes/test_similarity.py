@@ -91,6 +91,16 @@ class TestWhiteBalanceDistance:
     def test_daylight_equals_5500_kelvin(self) -> None:
         assert similarity.white_balance_distance("Daylight", "5500K") == 0.0
 
+    def test_shade_equals_7500_kelvin(self) -> None:
+        assert similarity.white_balance_distance("Shade", "7500K") == 0.0
+
+    def test_shade_is_cooler_than_daylight(self) -> None:
+        # Shade (7500K) sits cooler than Daylight (5500K), so a shade recipe is
+        # closer to a cool Kelvin value than a daylight one is.
+        assert similarity.white_balance_distance("Shade", "7500K") < similarity.white_balance_distance(
+            "Daylight", "7500K"
+        )
+
     def test_warmer_gap_is_larger_in_mired_space(self) -> None:
         # A 300K gap near tungsten is more visible than the same gap near daylight.
         warm = similarity.white_balance_distance("3200K", "3500K")
