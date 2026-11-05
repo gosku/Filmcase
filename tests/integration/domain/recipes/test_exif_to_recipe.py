@@ -242,8 +242,17 @@ class TestWhiteBalance:
     def test_incandescent(self):
         assert _recipe("white_balance_incandescent.jpg").white_balance == "Incandescent"
 
-    def test_daylight_fluorescent(self):
-        assert _recipe("white_balance_daylight_fluorescent.jpg").white_balance == "Daylight Fluorescent"
+    def test_fluorescent_1_from_daylight_fluorescent_exif(self):
+        # exiftool labels the three fluorescent presets "Daylight Fluorescent"
+        # (0x300), "Day White Fluorescent" (0x301) and "White Fluorescent"
+        # (0x302); they are stored under the camera-display names Fluorescent 1/2/3.
+        assert _recipe("white_balance_daylight_fluorescent.jpg").white_balance == "Fluorescent 1"
+
+    def test_fluorescent_2_from_day_white_fluorescent_exif(self):
+        assert _recipe("white_balance_fluorescent_2.jpg").white_balance == "Fluorescent 2"
+
+    def test_fluorescent_3_from_white_fluorescent_exif(self):
+        assert _recipe("white_balance_fluorescent_3.jpg").white_balance == "Fluorescent 3"
 
     def test_kelvin_includes_temperature(self):
         assert _recipe("white_balance_kelvin.jpg").white_balance == "5500K"

@@ -94,6 +94,14 @@ class TestWhiteBalanceDistance:
     def test_shade_equals_7500_kelvin(self) -> None:
         assert similarity.white_balance_distance("Shade", "7500K") == 0.0
 
+    @pytest.mark.parametrize("fluorescent, kelvin", [
+        ("Fluorescent 1", "6500K"),
+        ("Fluorescent 2", "3700K"),
+        ("Fluorescent 3", "4500K"),
+    ])
+    def test_fluorescent_presets_have_nominal_temperatures(self, fluorescent: str, kelvin: str) -> None:
+        assert similarity.white_balance_distance(fluorescent, kelvin) == 0.0
+
     def test_shade_is_cooler_than_daylight(self) -> None:
         # Shade (7500K) sits cooler than Daylight (5500K), so a shade recipe is
         # closer to a cool Kelvin value than a daylight one is.

@@ -196,7 +196,12 @@ class WhiteBalance(str, Enum):
     SHADE = "Shade"
     KELVIN = "Kelvin"
     INCANDESCENT = "Incandescent"
-    DAYLIGHT_FLUORESCENT = "Daylight Fluorescent"
+    # The camera's three fluorescent presets. Stored under the camera-display
+    # names (matching the PTP/SDK whitelist), not exiftool's labels; see
+    # _EXIF_WHITE_BALANCE_ALIASES.
+    FLUORESCENT_1 = "Fluorescent 1"
+    FLUORESCENT_2 = "Fluorescent 2"
+    FLUORESCENT_3 = "Fluorescent 3"
     AUTO_WHITE_PRIORITY = "Auto (white priority)"
     AUTO_AMBIENCE_PRIORITY = "Auto (ambience priority)"
 
@@ -222,7 +227,9 @@ _WHITE_BALANCE_LABELS: dict[WhiteBalance, str] = {
     WhiteBalance.SHADE: "SHADE",
     WhiteBalance.KELVIN: "{temp}K",  # substitute actual temp, e.g. "5200K"
     WhiteBalance.INCANDESCENT: "INCANDESCENT",
-    WhiteBalance.DAYLIGHT_FLUORESCENT: "DAYLIGHT FLUORESCENT",
+    WhiteBalance.FLUORESCENT_1: "FLUORESCENT 1",
+    WhiteBalance.FLUORESCENT_2: "FLUORESCENT 2",
+    WhiteBalance.FLUORESCENT_3: "FLUORESCENT 3",
     WhiteBalance.AUTO_WHITE_PRIORITY: "AUTO WHITE PRIORITY",
     WhiteBalance.AUTO_AMBIENCE_PRIORITY: "AUTO AMBIENCE PRIORITY",
 }
@@ -237,9 +244,17 @@ _WHITE_BALANCE_LABELS: dict[WhiteBalance, str] = {
 #   - "Cloudy": exiftool's decode of EXIF code 0x200, which the camera menu (and
 #     recipe cards) call "Shade". Store the camera-display name so EXIF-imported
 #     recipes match hand-entered and card-sourced ones.
+#   - the fluorescent labels: exiftool names the three fluorescent presets
+#     "Daylight Fluorescent" (0x300), "Day White Fluorescent" (0x301) and
+#     "White Fluorescent" (0x302); the camera menu and the PTP/SDK whitelist call
+#     them "Fluorescent 1/2/3". Store the camera-display names so EXIF-imported
+#     recipes match the push whitelist and hand-entered recipes.
 _EXIF_WHITE_BALANCE_ALIASES: dict[str, str] = {
     "Auto (ambiance priority)": WhiteBalance.AUTO_AMBIENCE_PRIORITY.value,
     "Cloudy": WhiteBalance.SHADE.value,
+    "Daylight Fluorescent": WhiteBalance.FLUORESCENT_1.value,
+    "Day White Fluorescent": WhiteBalance.FLUORESCENT_2.value,
+    "White Fluorescent": WhiteBalance.FLUORESCENT_3.value,
 }
 
 

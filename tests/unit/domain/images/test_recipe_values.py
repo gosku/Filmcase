@@ -52,6 +52,22 @@ class TestWhiteBalanceFromExif:
 
         assert result == "Shade"
 
+    @pytest.mark.parametrize("exif_label, stored", [
+        ("Daylight Fluorescent", "Fluorescent 1"),
+        ("Day White Fluorescent", "Fluorescent 2"),
+        ("White Fluorescent", "Fluorescent 3"),
+    ])
+    def test_fluorescent_labels_stored_as_camera_display_names(
+        self, exif_label: str, stored: str
+    ) -> None:
+        # The camera menu and PTP/SDK whitelist name the fluorescent presets
+        # Fluorescent 1/2/3, not by exiftool's labels.
+        result = recipe_values.white_balance_from_exif(
+            white_balance=exif_label, color_temperature="5500"
+        )
+
+        assert result == stored
+
     def test_measured_custom_mode_raises_invalid_white_balance(self) -> None:
         with pytest.raises(recipe_values.InvalidWhiteBalance):
             recipe_values.white_balance_from_exif(
