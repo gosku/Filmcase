@@ -369,6 +369,29 @@ class TestClarity:
     def test_negative(self):
         assert _recipe("clarity_minus4.jpg").clarity == "-4"
 
+    def test_absent_on_x_trans_iii_is_none(self):
+        # The X-T2 (X-Trans III) has no Clarity setting, so the EXIF tag is
+        # absent and the recipe stores None rather than failing to decode.
+        assert _recipe("clarity_absent_x_trans_iii.jpg").clarity is None
+
+
+class TestXTransIIIRecipe:
+    """End-to-end decode of a real X-T2 (X-Trans III) JPEG.
+
+    Covers the fields that behave differently from the X-S10 fixtures: the sensor
+    generation, the Shade white balance (EXIF 'Cloudy'), absent Clarity, and
+    Color Chrome FX Blue defaulting to Off where the tag does not exist.
+    """
+
+    def test_x_t2_fixture_decodes_fully(self):
+        recipe = _recipe("clarity_absent_x_trans_iii.jpg")
+
+        assert recipe.sensors == ("X-Trans III",)
+        assert recipe.film_simulation == "Classic Chrome"
+        assert recipe.white_balance == "Shade"
+        assert recipe.clarity is None
+        assert recipe.color_chrome_fx_blue == "Off"
+
 
 # ---------------------------------------------------------------------------
 # monochromatic_color_warm_cool / monochromatic_color_magenta_green

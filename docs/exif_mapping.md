@@ -391,6 +391,7 @@ The conversion from the recipe string to the DB field uses `Decimal(s)` directly
 - Raw exiftool output for Clarity is 1000× the display value (e.g. raw `3000` → display `3`); exiftool applies the ÷1000 conversion automatically before the value reaches the codebase.
 - Clarity values are stored as bare integer strings with no label suffix — unlike Sharpness and Noise Reduction.
 - Recipe output adds a `+` sign for positive values: `"-4"`, `"0"`, `"+3"`.
+- Clarity is absent on pre-X-Trans IV sensors (e.g. the X-T2), which have no Clarity setting. The EXIF tag is missing and the recipe output is `None`, not `"0"`.
 
 ---
 

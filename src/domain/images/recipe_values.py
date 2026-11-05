@@ -794,12 +794,18 @@ def noise_reduction_from_exif(*, noise_reduction: str) -> str:
 # ---------------------------------------------------------------------------
 # clarity  (EXIF: Clarity)
 # Stored as a bare integer string ("-5" … "5"). Range: -5 to +5, step 1.
+# Absent on pre-X-Trans IV sensors (e.g. X-T2), which have no Clarity setting.
 # ---------------------------------------------------------------------------
 
-def clarity_from_exif(*, clarity: str) -> str:
+def clarity_from_exif(*, clarity: str) -> str | None:
     """
     Return the numeric clarity value as a signed string, e.g. '+3', '-4', '0'.
+
+    Return None when the EXIF Clarity field is absent, as on pre-X-Trans IV
+    sensors that have no Clarity setting.
     """
+    if not clarity:
+        return None
     n = int(clarity)
     return f"+{n}" if n > 0 else str(n)
 

@@ -635,7 +635,7 @@ def recipe_to_ptp_values(recipe: image_dataclasses.FujifilmRecipeData) -> Recipe
     # Half-step values possible (e.g. +1.5); round after ×10.
     highlight = round(float(recipe.highlight) * 10) if recipe.highlight is not None and recipe.highlight != "" else None
     shadow = round(float(recipe.shadow) * 10) if recipe.shadow is not None and recipe.shadow != "" else None
-    clarity: int = int(recipe.clarity) * 10 if recipe.clarity not in (None, "", "N/A") else 0
+    clarity: int = int(recipe.clarity) * 10 if recipe.clarity is not None and recipe.clarity not in ("", "N/A") else 0
 
     # --- High ISO noise reduction (non-linear lookup; always written; unset → 0/normal) ---
     nr: int = _NR_TO_PTP[int(recipe.high_iso_nr)] if recipe.high_iso_nr not in (None, "", "N/A") else _NR_TO_PTP[0]

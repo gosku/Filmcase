@@ -17,7 +17,8 @@ _ALWAYS_REQUIRED_STR_FIELDS: tuple[str, ...] = (
     "white_balance",
     "sharpness",
     "high_iso_nr",
-    "clarity",
+    # clarity is intentionally absent: it is None on pre-X-Trans IV sensors
+    # (e.g. X-T2), which have no Clarity setting.
 )
 
 
