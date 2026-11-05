@@ -419,6 +419,14 @@ class TestMonochromaticColor:
         assert recipe.monochromatic_color_warm_cool is None
         assert recipe.monochromatic_color_magenta_green is None
 
+    def test_none_on_x_trans_iii_monochrome(self):
+        # The X-T2 (X-Trans III) monochrome sims have no toning grid, so both
+        # axes are absent and decode to None even though the sim is monochrome.
+        recipe = _recipe("monochromatic_absent_x_trans_iii.jpg")
+        assert recipe.film_simulation == "Monochrome STD"
+        assert recipe.monochromatic_color_warm_cool is None
+        assert recipe.monochromatic_color_magenta_green is None
+
     def test_warm_cool_positive(self):
         assert _recipe("monochromatic_warm_cool_plus10.jpg").monochromatic_color_warm_cool == "+10"
 

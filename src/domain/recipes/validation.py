@@ -85,10 +85,9 @@ def _validate_film_sim_fields(data: image_dataclasses.FujifilmRecipeData) -> Non
     if is_mono:
         if data.color is not None:
             raise InvalidFujifilmRecipeData("color", data.color)
-        if data.monochromatic_color_warm_cool is None:
-            raise InvalidFujifilmRecipeData("monochromatic_color_warm_cool", data.monochromatic_color_warm_cool)
-        if data.monochromatic_color_magenta_green is None:
-            raise InvalidFujifilmRecipeData("monochromatic_color_magenta_green", data.monochromatic_color_magenta_green)
+        # monochromatic_color_warm_cool / _magenta_green are optional for mono
+        # sims: the toning grid is absent on pre-X-Trans IV sensors (e.g. X-T2),
+        # so they are None there and carry a value only on X-Trans IV+.
     else:
         if data.color is None:
             raise InvalidFujifilmRecipeData("color", data.color)
