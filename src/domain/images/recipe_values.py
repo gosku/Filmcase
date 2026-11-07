@@ -1,9 +1,11 @@
 """
 Typed values for FujifilmRecipe model fields.
 
-Enum *values* are the exact strings stored in the database (as returned by
-exiftool).  Distinct values were sourced directly from the data_fujifilmrecipe
-table.
+Enum *values* are the exact strings stored in the database. For most modes this
+is the string exiftool returns; where the exiftool label differs from the
+camera-display representation Filmcase stores, an alias maps it on decode (see
+_EXIF_WHITE_BALANCE_ALIASES). Distinct values were sourced directly from the
+data_fujifilmrecipe table.
 
 Recipe card ↔ DB translation:
   - .recipe_card_label  → recipe card display string
@@ -191,9 +193,15 @@ def d_range_priority_from_exif(*, d_range_priority: str, d_range_priority_auto: 
 class WhiteBalance(str, Enum):
     AUTO = "Auto"
     DAYLIGHT = "Daylight"
+    SHADE = "Shade"
     KELVIN = "Kelvin"
     INCANDESCENT = "Incandescent"
-    DAYLIGHT_FLUORESCENT = "Daylight Fluorescent"
+    # The camera's three fluorescent presets. Stored under the camera-display
+    # names (matching the PTP/SDK whitelist), not exiftool's labels; see
+    # _EXIF_WHITE_BALANCE_ALIASES.
+    FLUORESCENT_1 = "Fluorescent 1"
+    FLUORESCENT_2 = "Fluorescent 2"
+    FLUORESCENT_3 = "Fluorescent 3"
     AUTO_WHITE_PRIORITY = "Auto (white priority)"
     AUTO_AMBIENCE_PRIORITY = "Auto (ambience priority)"
 
@@ -216,20 +224,37 @@ class WhiteBalance(str, Enum):
 _WHITE_BALANCE_LABELS: dict[WhiteBalance, str] = {
     WhiteBalance.AUTO: "AUTO",
     WhiteBalance.DAYLIGHT: "DAYLIGHT",
+    WhiteBalance.SHADE: "SHADE",
     WhiteBalance.KELVIN: "{temp}K",  # substitute actual temp, e.g. "5200K"
     WhiteBalance.INCANDESCENT: "INCANDESCENT",
-    WhiteBalance.DAYLIGHT_FLUORESCENT: "DAYLIGHT FLUORESCENT",
+    WhiteBalance.FLUORESCENT_1: "FLUORESCENT 1",
+    WhiteBalance.FLUORESCENT_2: "FLUORESCENT 2",
+    WhiteBalance.FLUORESCENT_3: "FLUORESCENT 3",
     WhiteBalance.AUTO_WHITE_PRIORITY: "AUTO WHITE PRIORITY",
     WhiteBalance.AUTO_AMBIENCE_PRIORITY: "AUTO AMBIENCE PRIORITY",
 }
 
-# exiftool labels the ambience-priority AUTO mode with the French-influenced
-# "ambiance" spelling, while the rest of the codebase (the Fuji SDK constants and
-# the PTP push whitelist) uses "ambience". Canonicalise onto the SDK spelling at
-# decode so a decoded recipe matches the push whitelist rather than being
-# silently rejected as unsupported.
+# exiftool strings that do not match the representation Filmcase stores. Each maps
+# an exiftool WhiteBalance label onto the canonical enum value.
+#   - "Auto (ambiance priority)": exiftool uses the French-influenced "ambiance"
+#     spelling, while the rest of the codebase (the Fuji SDK constants and the PTP
+#     push whitelist) uses "ambience". Canonicalise onto the SDK spelling so a
+#     decoded recipe matches the push whitelist rather than being silently
+#     rejected as unsupported.
+#   - "Cloudy": exiftool's decode of EXIF code 0x200, which the camera menu (and
+#     recipe cards) call "Shade". Store the camera-display name so EXIF-imported
+#     recipes match hand-entered and card-sourced ones.
+#   - the fluorescent labels: exiftool names the three fluorescent presets
+#     "Daylight Fluorescent" (0x300), "Day White Fluorescent" (0x301) and
+#     "White Fluorescent" (0x302); the camera menu and the PTP/SDK whitelist call
+#     them "Fluorescent 1/2/3". Store the camera-display names so EXIF-imported
+#     recipes match the push whitelist and hand-entered recipes.
 _EXIF_WHITE_BALANCE_ALIASES: dict[str, str] = {
     "Auto (ambiance priority)": WhiteBalance.AUTO_AMBIENCE_PRIORITY.value,
+    "Cloudy": WhiteBalance.SHADE.value,
+    "Daylight Fluorescent": WhiteBalance.FLUORESCENT_1.value,
+    "Day White Fluorescent": WhiteBalance.FLUORESCENT_2.value,
+    "White Fluorescent": WhiteBalance.FLUORESCENT_3.value,
 }
 
 
@@ -784,12 +809,18 @@ def noise_reduction_from_exif(*, noise_reduction: str) -> str:
 # ---------------------------------------------------------------------------
 # clarity  (EXIF: Clarity)
 # Stored as a bare integer string ("-5" … "5"). Range: -5 to +5, step 1.
+# Absent on pre-X-Trans IV sensors (e.g. X-T2), which have no Clarity setting.
 # ---------------------------------------------------------------------------
 
-def clarity_from_exif(*, clarity: str) -> str:
+def clarity_from_exif(*, clarity: str) -> str | None:
     """
     Return the numeric clarity value as a signed string, e.g. '+3', '-4', '0'.
+
+    Return None when the EXIF Clarity field is absent, as on pre-X-Trans IV
+    sensors that have no Clarity setting.
     """
+    if not clarity:
+        return None
     n = int(clarity)
     return f"+{n}" if n > 0 else str(n)
 

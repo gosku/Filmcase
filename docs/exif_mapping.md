@@ -227,9 +227,20 @@ value fails `validate_recipe_data`, and the image is skipped at ingest.
 | Auto | `Auto` | `Auto` |
 | Auto White Priority | `Auto (white priority)` | `Auto (white priority)` |
 | Daylight | `Daylight` | `Daylight` |
-| Fluorescent (Daylight) | `Daylight Fluorescent` | `Daylight Fluorescent` |
+| Shade | `Cloudy` | `Shade` |
+| Fluorescent 1 | `Daylight Fluorescent` | `Fluorescent 1` |
+| Fluorescent 2 | `Day White Fluorescent` | `Fluorescent 2` |
+| Fluorescent 3 | `White Fluorescent` | `Fluorescent 3` |
 | Incandescent | `Incandescent` | `Incandescent` |
 | Kelvin | `Kelvin` | `<value>K` (e.g. `5500K`) |
+
+For most modes the recipe display value equals the EXIF value. The exceptions are
+aliased on decode so the stored value matches the camera-display name (which is
+also the PTP/SDK white-balance whitelist):
+
+- the Shade preset is written as `Cloudy` by exiftool (EXIF code `0x200`) and stored as `Shade`;
+- the three fluorescent presets are written as `Daylight Fluorescent` (`0x300`), `Day White Fluorescent` (`0x301`) and `White Fluorescent` (`0x302`) and stored as `Fluorescent 1`, `Fluorescent 2` and `Fluorescent 3`;
+- `Auto (ambiance priority)` is stored with the `ambience` spelling.
 
 ### Fine tune normalisation
 
@@ -385,6 +396,7 @@ The conversion from the recipe string to the DB field uses `Decimal(s)` directly
 - Raw exiftool output for Clarity is 1000× the display value (e.g. raw `3000` → display `3`); exiftool applies the ÷1000 conversion automatically before the value reaches the codebase.
 - Clarity values are stored as bare integer strings with no label suffix — unlike Sharpness and Noise Reduction.
 - Recipe output adds a `+` sign for positive values: `"-4"`, `"0"`, `"+3"`.
+- Clarity is absent on pre-X-Trans IV sensors (e.g. the X-T2), which have no Clarity setting. The EXIF tag is missing and the recipe output is `None`, not `"0"`.
 
 ---
 

@@ -234,11 +234,25 @@ class TestWhiteBalance:
     def test_daylight(self):
         assert _recipe("white_balance_daylight.jpg").white_balance == "Daylight"
 
+    def test_shade_stores_camera_display_name_not_exiftool_cloudy(self):
+        # The Shade preset writes EXIF code 0x200, which exiftool decodes as
+        # "Cloudy"; Filmcase stores the camera-display name "Shade".
+        assert _recipe("white_balance_shade.jpg").white_balance == "Shade"
+
     def test_incandescent(self):
         assert _recipe("white_balance_incandescent.jpg").white_balance == "Incandescent"
 
-    def test_daylight_fluorescent(self):
-        assert _recipe("white_balance_daylight_fluorescent.jpg").white_balance == "Daylight Fluorescent"
+    def test_fluorescent_1_from_daylight_fluorescent_exif(self):
+        # exiftool labels the three fluorescent presets "Daylight Fluorescent"
+        # (0x300), "Day White Fluorescent" (0x301) and "White Fluorescent"
+        # (0x302); they are stored under the camera-display names Fluorescent 1/2/3.
+        assert _recipe("white_balance_daylight_fluorescent.jpg").white_balance == "Fluorescent 1"
+
+    def test_fluorescent_2_from_day_white_fluorescent_exif(self):
+        assert _recipe("white_balance_fluorescent_2.jpg").white_balance == "Fluorescent 2"
+
+    def test_fluorescent_3_from_white_fluorescent_exif(self):
+        assert _recipe("white_balance_fluorescent_3.jpg").white_balance == "Fluorescent 3"
 
     def test_kelvin_includes_temperature(self):
         assert _recipe("white_balance_kelvin.jpg").white_balance == "5500K"
@@ -364,6 +378,29 @@ class TestClarity:
     def test_negative(self):
         assert _recipe("clarity_minus4.jpg").clarity == "-4"
 
+    def test_absent_on_x_trans_iii_is_none(self):
+        # The X-T2 (X-Trans III) has no Clarity setting, so the EXIF tag is
+        # absent and the recipe stores None rather than failing to decode.
+        assert _recipe("clarity_absent_x_trans_iii.jpg").clarity is None
+
+
+class TestXTransIIIRecipe:
+    """End-to-end decode of a real X-T2 (X-Trans III) JPEG.
+
+    Covers the fields that behave differently from the X-S10 fixtures: the sensor
+    generation, the Shade white balance (EXIF 'Cloudy'), absent Clarity, and
+    Color Chrome FX Blue defaulting to Off where the tag does not exist.
+    """
+
+    def test_x_t2_fixture_decodes_fully(self):
+        recipe = _recipe("clarity_absent_x_trans_iii.jpg")
+
+        assert recipe.sensors == ("X-Trans III",)
+        assert recipe.film_simulation == "Classic Chrome"
+        assert recipe.white_balance == "Shade"
+        assert recipe.clarity is None
+        assert recipe.color_chrome_fx_blue == "Off"
+
 
 # ---------------------------------------------------------------------------
 # monochromatic_color_warm_cool / monochromatic_color_magenta_green
@@ -379,6 +416,14 @@ class TestMonochromaticColor:
 
     def test_none_on_colour_simulation(self):
         recipe = _recipe("film_simulation_provia.jpg")
+        assert recipe.monochromatic_color_warm_cool is None
+        assert recipe.monochromatic_color_magenta_green is None
+
+    def test_none_on_x_trans_iii_monochrome(self):
+        # The X-T2 (X-Trans III) monochrome sims have no toning grid, so both
+        # axes are absent and decode to None even though the sim is monochrome.
+        recipe = _recipe("monochromatic_absent_x_trans_iii.jpg")
+        assert recipe.film_simulation == "Monochrome STD"
         assert recipe.monochromatic_color_warm_cool is None
         assert recipe.monochromatic_color_magenta_green is None
 

@@ -38,7 +38,8 @@ class FujifilmRecipeData:
     white_balance_blue: int
     sharpness: str
     high_iso_nr: str
-    clarity: str
+    # None on pre-X-Trans IV sensors (e.g. X-T2), which have no Clarity setting.
+    clarity: str | None
     dynamic_range: str | None = None
     grain_size: str | None = None
     highlight: str | None = None

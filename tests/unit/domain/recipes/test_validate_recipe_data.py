@@ -140,12 +140,16 @@ class TestValidateRecipeDataRequiredFields:
         "white_balance",
         "sharpness",
         "high_iso_nr",
-        "clarity",
     ])
     def test_empty_string_raises(self, field: str) -> None:
         with pytest.raises(InvalidFujifilmRecipeData) as exc_info:
             validate_recipe_data(_make_color_data(**{field: ""}))
         assert exc_info.value.field == field
+
+    def test_clarity_none_is_valid(self) -> None:
+        # Clarity is absent on pre-X-Trans IV sensors (e.g. X-T2), which have no
+        # Clarity setting, so None must pass validation rather than be required.
+        validate_recipe_data(_make_color_data(clarity=None))
 
     @pytest.mark.parametrize("field", ["color_chrome_effect", "color_chrome_fx_blue"])
     def test_cce_cfx_empty_raises_for_mono_sim_too(self, field: str) -> None:
@@ -227,15 +231,15 @@ class TestValidateRecipeDataMonochromatic:
             validate_recipe_data(_make_mono_data(color="0"))
         assert exc_info.value.field == "color"
 
-    def test_mono_warm_cool_required_for_mono_sim(self) -> None:
-        with pytest.raises(InvalidFujifilmRecipeData) as exc_info:
-            validate_recipe_data(_make_mono_data(monochromatic_color_warm_cool=None))
-        assert exc_info.value.field == "monochromatic_color_warm_cool"
-
-    def test_mono_magenta_green_required_for_mono_sim(self) -> None:
-        with pytest.raises(InvalidFujifilmRecipeData) as exc_info:
-            validate_recipe_data(_make_mono_data(monochromatic_color_magenta_green=None))
-        assert exc_info.value.field == "monochromatic_color_magenta_green"
+    def test_mono_color_toning_none_is_valid_for_mono_sim(self) -> None:
+        # The monochromatic toning grid is absent on pre-X-Trans IV sensors
+        # (e.g. X-T2), so a mono sim with both toning axes None must validate.
+        validate_recipe_data(
+            _make_mono_data(
+                monochromatic_color_warm_cool=None,
+                monochromatic_color_magenta_green=None,
+            )
+        )
 
     def test_color_required_for_non_mono_sim(self) -> None:
         with pytest.raises(InvalidFujifilmRecipeData) as exc_info:

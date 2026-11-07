@@ -112,7 +112,11 @@ GRAIN_SPAN: float = math.hypot(2.0, 2.0)
 WB_NOMINAL_KELVIN: dict[str, int] = {
     "Incandescent": 3200,
     "Daylight": 5500,
-    "Daylight Fluorescent": 6500,
+    # Fuji's three fluorescent presets: 1 = Daylight, 2 = Warm White, 3 = Cool White.
+    "Fluorescent 1": 6500,
+    "Fluorescent 2": 3700,
+    "Fluorescent 3": 4500,
+    "Shade": 7500,
 }
 # Scene-adaptive modes with no fixed temperature.
 WB_CATEGORICAL: frozenset[str] = frozenset({"Auto", "Auto (white priority)"})

@@ -119,12 +119,12 @@ class TestGetOrCreateRecipeFromData:
         assert created is False
 
     def test_raises_invalid_recipe_data_before_touching_db(self) -> None:
-        # Mono sim with no monochromatic colour fields — normalization preserves None
-        # for missing required fields and cannot recover them, so validation still raises.
-        invalid_data = _make_data(film_simulation="Acros STD")
+        # Colour sim with no Color value — a cross-field inconsistency that
+        # validation rejects, so no row is written.
+        invalid_data = _make_data(color=None)
         with pytest.raises(InvalidFujifilmRecipeData) as exc_info:
             get_or_create_recipe_from_data(data=invalid_data)
-        assert exc_info.value.field == "monochromatic_color_warm_cool"
+        assert exc_info.value.field == "color"
         assert models.FujifilmRecipe.objects.count() == 0
 
 
